@@ -1,0 +1,15 @@
+{
+    "name": "spec-driven-development",
+    "owner": {
+      "name": "Valentin Vorobyev",
+      "email": "voro6yov.valentin@gmail.com"
+    },
+    "version": "0.1.0",
+    "plugins": [
+      {
+        "name": "domain-spec",
+        "source": "./plugins/domain-spec",
+        "description": "Generate specs for domain packages and implement them"
+      }
+    ]
+  }
