@@ -30,7 +30,6 @@ The class-spec-template skill is already loaded in your context. Apply the match
 - Methods inside the class block: `◦` for each method entry, `▪` for each detail line (`▪ Effect:`, `▪ Delegates:`, `▪ Emits:`, `▪ Raises:`, `▪ Allowed from:`); never use blockquotes (`>`), never use a markdown table
 - Heading level for detailed method specs: h3 (`###`), not h4 or h5
 - Domain Exceptions: bullet list `- \`ExceptionName\` — trigger condition`, never a table
-- Stubs for unlisted referenced classes: bullet list items or inline notes within the Dependencies section — never a separate `#### Stubs` section or table
 - **`- **Pattern**: —`** must appear exactly as written in every class spec, for every class type, with no exceptions — never substitute a pattern value, even when the correct pattern is obvious
 
 | Stereotype | Template | Notes |
@@ -48,7 +47,7 @@ Fill each spec:
 - All attributes with types
 - All methods with effects, events emitted, delegates called, and exceptions raised
 - Use the **description** to enrich method specs with flows, invariants, preconditions, and business rules
-**Stub unlisted referenced classes**: if the diagram references a class in a relationship or `emits` annotation that has no explicit class block, generate a stub spec for it using the correct stereotype if inferable. Do not silently omit it.
+**Unlisted referenced classes**: only generate class specs for classes that have an explicit `class` block in the diagram. Classes referenced only in relationships or `emits` annotations but with no class block must NOT get a spec — record them in `### Dependencies` only.
 
 **Command vs Event stereotype inference**: when a class has no explicit stereotype in the diagram, assign it based on the relationship arrow:
 - `-->` with `: emits` annotation → `<<Event>>`
