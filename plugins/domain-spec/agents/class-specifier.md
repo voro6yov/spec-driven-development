@@ -78,7 +78,7 @@ Classes inferred as `<<Command>>` must be placed in `#### Commands`, never in `#
 Group the generated specs using the Package-Level Structure.
 
 Section rules:
-- `### Dependencies` — **always required**; derive every entry from the Mermaid diagram relationships (`*--`, `-->`, `--()`)
+- `### Dependencies` — **always required**; derive from diagram relationships using standard verbs: `*--` → `composes ... (composition)`, `-->` with `: emits` → `emits ... (event emission)` or `(command emission)`, `--()` → `depends on ... (service input)` or `(retrieve/store)`, `-->` without emits → `depends on ... (optional association)`
 - `#### Domain Exceptions` — **always required**; infer from all `Raises:` clauses across all method specs
 - `#### Commands` — include whenever any commands appear in the diagram or are referenced in `emits` annotations; commands must never be placed inside `#### Domain Events`
 - `#### Repositories / Services` — always one combined section; never split into separate `#### Repositories` and `#### Services` sections
@@ -104,8 +104,10 @@ Section rules:
 #### Repositories / Services
 
 ### Dependencies
-1. ClassName depends on OtherClass (relationship type)
-2. ...
+1. **ClassA** composes **ClassB** (composition)
+2. **ClassA** emits **EventName** (event emission)
+3. **ServiceName** depends on **ClassA** (service input)
+...
 ```
 
 ### Step 4 — Write to file
