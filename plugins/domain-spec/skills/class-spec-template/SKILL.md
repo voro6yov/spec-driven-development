@@ -6,6 +6,12 @@ user-invocable: false
 
 # Class Spec Template
 
+> **Formatting rules — apply to all class types:**
+> - Attributes: bullet list `- \`name\`: type`, never a markdown table
+> - Methods: `◦`/`▪` nested bullets inside the class block, never a markdown table
+> - Detailed method spec heading: h3 (`### Method:`), not h4 or h5
+> - Domain Exceptions: bullet list `- \`ExceptionName\` — trigger condition`, never a table
+
 ---
 
 ## Aggregate Root
@@ -228,14 +234,14 @@ Purpose statement.
 
 #### Domain Events
 
-#### Commands
+#### Commands                      ← include if any commands exist in the diagram
 
 #### Aggregate Root / Entities
 
-#### Domain Exceptions
+#### Domain Exceptions             ← always required; infer from all Raises: clauses
 
 #### Repositories / Services
 
-### Dependencies
+### Dependencies                   ← always required; derive from all diagram relationships
 1. **ClassA** depends on **ClassB** (relationship type)
 ```
