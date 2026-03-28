@@ -122,7 +122,7 @@ Purpose statement describing what domain occurrence this event represents.
 
 ## TypedDict
 
-Fields only. No methods. Query DTOs use the same shape — change the stereotype label to `<<Query DTO>>` and Pattern to `Query DTOs`.
+Fields only. No methods. Use `<<TypedDict>>` for all data structures regardless of whether they are internal domain structures or query return types.
 
 ```
 **`ClassName`** `<<TypedDict>>`
@@ -229,7 +229,7 @@ Purpose statement.
 ### Class Specification
 
 #### Data Structures
-(TypedDicts)
+(TypedDicts — all domain data structures and query return types)
 
 #### Value Objects
 
