@@ -1,13 +1,15 @@
 ---
 name: domain-pattern-selection
-description: Pattern selection guide for DDD domain models. Use when analyzing a Mermaid class diagram to determine which patterns to apply to each class, or when the user asks which patterns a class needs.
+description: Pattern selection guide for DDD domain models. Use when analyzing a class specification to determine which patterns to apply to each class, or when the user asks which patterns a class needs.
 user-invocable: false
 disable-model-invocation: false
 ---
 
 # Domain Pattern Selection Guide
 
-Select which patterns to apply to each class in a domain model Mermaid diagram.
+Select which patterns to apply to each class in a domain model class specification.
+
+**Input:** A class specification with `**ClassName** <<Stereotype>>` headers, attribute bullets, Methods sections, and a `### Dependencies` section. Pattern lines may be blank (`**Pattern**: —`) — this skill fills them in.
 
 **Workflow:** Select (this guide) -> Implement (pattern skills) -> Verify (pattern checklists)
 
@@ -17,12 +19,12 @@ Select which patterns to apply to each class in a domain model Mermaid diagram.
 
 ## Selection Process
 
-For each class in the diagram:
+For each class in the specification:
 
 1. **Check stereotype** -> Gets primary pattern
 2. **Check attributes & types** -> Adds supporting patterns
 3. **Check methods** -> Confirms/refines pattern choice
-4. **Check relationships** -> Adds dependency patterns
+4. **Check dependencies** -> Adds dependency patterns
 
 ---
 
@@ -125,19 +127,22 @@ For each class in the diagram:
 
 ---
 
-## 4. Dependency Patterns (By Relationships)
+## 4. Dependency Patterns (By Dependencies Section)
 
-**Key Principle:** Relationships tell you which OTHER classes need patterns, not the current class.
+**Key Principle:** Dependencies tell you which OTHER classes need patterns, not the current class.
 
-| Diagram Relationship | Pattern Assignment |
+Read the `### Dependencies` section of the class specification. Each entry uses a standard verb and relationship type in parentheses:
+
+| Dependencies Entry | Pattern Assignment |
 |---|---|
-| `Aggregate *-- ValueObject` | **ValueObject** needs `domain-spec:value-object` |
-| `Aggregate *-- Entity` | **Entity** needs `domain-spec:entity` (not Value Object!) |
-| `Aggregate *-- Collection` | **Collection** needs `domain-spec:value-object` + `domain-spec:collection-value-objects` |
-| `Aggregate --> Event : emits` | **Event** needs `domain-spec:domain-events` |
-| `ValueObject --> Event : emits` | **ValueObject** needs `domain-spec:delegation-and-event-propagation`, **Event** needs `domain-spec:domain-events` |
-| `Repository --() Aggregate` | **Repository** needs `domain-spec:repositories` |
-| `Aggregate --> Service : uses` | **Service** needs `domain-spec:domain-services` |
+| `**A** composes **B** (composition)` — B is Value Object | **B** needs `domain-spec:value-object` |
+| `**A** composes **B** (composition)` — B is Entity | **B** needs `domain-spec:entity` (not Value Object!) |
+| `**A** composes **B** (composition)` — B is Collection | **B** needs `domain-spec:value-object` + `domain-spec:collection-value-objects` |
+| `**A** emits **Event** (event emission)` | **Event** needs `domain-spec:domain-events` |
+| `**A** emits **Command** (command emission)` | **Command** needs `domain-spec:commands` |
+| `**VO** emits **Event** (event emission)` — VO is Value Object | **VO** needs `domain-spec:delegation-and-event-propagation`, **Event** needs `domain-spec:domain-events` |
+| `**Repo** depends on **A** (retrieve/store)` | **Repo** needs `domain-spec:repositories` |
+| `**Service** depends on **A** (service input)` | **Service** needs `domain-spec:domain-services` |
 
 **Important distinctions:**
 - Entity vs Value Object: If the child has an `id` and identity, it's an Entity. If it's an immutable descriptor, it's a Value Object.
@@ -149,7 +154,7 @@ For each class in the diagram:
 
 ## Decision Checklist
 
-For each class in the diagram:
+For each class in the specification:
 
 ### 1. What's the stereotype?
 -> Gets primary pattern from the table above.
@@ -179,10 +184,11 @@ For each class in the diagram:
 - [ ] Accepts `aggregate` parameter? -> `domain-spec:delegation-and-event-propagation`
 - [ ] Repository methods? -> Confirms `domain-spec:repositories`
 
-### 4. What relationships does it have?
-- [ ] Owns other objects (`*--`)? -> Those objects need their own patterns
-- [ ] Emits events (`-->`)? -> Event classes need `domain-spec:domain-events`
-- [ ] Used by repository? -> Repository class needs `domain-spec:repositories`
+### 4. What dependencies does it have?
+- [ ] Composes other objects (listed as "composition" in Dependencies)? -> Those objects need their own patterns
+- [ ] Emits events (listed as "event emission" in Dependencies)? -> Event classes need `domain-spec:domain-events`
+- [ ] Emits commands (listed as "command emission" in Dependencies)? -> Command classes need `domain-spec:commands`
+- [ ] Used by repository (listed as "retrieve/store" in Dependencies)? -> Repository class needs `domain-spec:repositories`
 
 ### 5. If Guards & Checks was selected:
 **MANDATORY**: Always add `domain-spec:constructor-guard-type-mapping`. These two patterns are inseparable.
@@ -231,4 +237,4 @@ This table shows patterns for a SINGLE class. Referenced classes need their own 
 
 ## Examples
 
-For complete worked examples covering 9 scenarios (simple aggregate, aggregate with VO, collection+events, status, complex optionals, repository, TypedDict, child entities, nested VOs with union types), see [examples.md](examples.md).
+For complete worked examples covering 9 scenarios from class specifications (simple aggregate, aggregate with VO, collection+events, status, complex optionals, repository, TypedDict, child entities, nested VOs with union types), see [examples.md](examples.md).

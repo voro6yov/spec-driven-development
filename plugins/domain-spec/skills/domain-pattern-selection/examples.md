@@ -2,18 +2,21 @@
 
 ## Example 1: Simple Aggregate
 
-```mermaid
-classDiagram
-class Profile {
-    <<Aggregate Root>>
-    -id: str
-    -tenant_id: str
-    -name: str
-    -created_at: datetime
-    -updated_at: datetime
-    +new(tenant_id, name) Profile$
-}
-```
+**`Profile`** `<<Aggregate Root>>`
+
+- `id`: str
+- `tenant_id`: str
+- `name`: str
+- `created_at`: datetime
+- `updated_at`: datetime
+- **Methods**:
+
+    ◦ `new(tenant_id: str, name: str) -> Profile`
+
+    ▪ Effect: creates a new Profile aggregate.
+
+### Dependencies
+1. *(none)*
 
 **Pattern List:**
 - `domain-spec:aggregate-root`
@@ -25,22 +28,22 @@ class Profile {
 
 ## Example 2: Aggregate with Value Object
 
-```mermaid
-classDiagram
-class Order {
-    <<Aggregate Root>>
-    -id: str
-    -details: OrderDetails
-    +new(tenant_id, data) Order$
-}
+**`Order`** `<<Aggregate Root>>`
 
-class OrderDetails {
-    <<Value Object>>
-    -customer_name: str
-}
+- `id`: str
+- `details`: OrderDetails
+- **Methods**:
 
-Order *-- OrderDetails
-```
+    ◦ `new(tenant_id: str, data: OrderData) -> Order`
+
+    ▪ Effect: creates a new Order aggregate.
+
+**`OrderDetails`** `<<Value Object>>`
+
+- `customer_name`: str
+
+### Dependencies
+1. **Order** composes **OrderDetails** (composition)
 
 **Pattern List for Order:**
 - `domain-spec:aggregate-root`
@@ -60,29 +63,37 @@ Order *-- OrderDetails
 
 ## Example 3: Aggregate with Collection and Events
 
-```mermaid
-classDiagram
-class Order {
-    <<Aggregate Root>>
-    -id: str
-    -items: OrderItems
-    +new(tenant_id) Order$
-    +add_item(sku, qty) None
-}
+**`Order`** `<<Aggregate Root>>`
 
-class OrderItems {
-    <<Value Object>>
-    +add_item(sku, qty, aggregate) None
-}
+- `id`: str
+- `items`: OrderItems
+- **Methods**:
 
-class OrderCreated {
-    <<Event>>
-    +order_id: str
-}
+    ◦ `new(tenant_id: str) -> Order`
 
-Order *-- OrderItems
-Order --> OrderCreated : emits (new)
-```
+    ▪ Effect: creates a new Order aggregate.
+
+    ◦ `add_item(sku: str, qty: int) -> None`
+
+    ▪ Delegates: `self.items.add_item(sku, qty, self)`
+
+**`OrderItems`** `<<Value Object>>`
+
+- **Methods**:
+
+    ◦ `add_item(sku: str, qty: int, aggregate: Order) -> None`
+
+    ▪ Effect: adds an item to the collection.
+
+    ▪ Emits: (events propagated through aggregate)
+
+**`OrderCreated`** `<<Event>>`
+
+- `order_id`: str
+
+### Dependencies
+1. **Order** composes **OrderItems** (composition)
+2. **Order** emits **OrderCreated** (event emission)
 
 **Pattern List for Order:**
 - `domain-spec:aggregate-root`
@@ -106,23 +117,23 @@ Order --> OrderCreated : emits (new)
 
 ## Example 4: Aggregate with Status
 
-```mermaid
-classDiagram
-class Profile {
-    <<Aggregate Root>>
-    -id: str
-    -status: ProfileStatus
-    +update_status(new_status, error) None
-}
+**`Profile`** `<<Aggregate Root>>`
 
-class ProfileStatus {
-    <<Value Object>>
-    -status: Literal["new", "processing", "completed", "failed"]
-    -error: str | None
-}
+- `id`: str
+- `status`: ProfileStatus
+- **Methods**:
 
-Profile *-- ProfileStatus
-```
+    ◦ `update_status(new_status: str, error: str | None) -> None`
+
+    ▪ Effect: updates the profile status.
+
+**`ProfileStatus`** `<<Value Object>>`
+
+- `status`: Literal["new", "processing", "completed", "failed"]
+- `error`: str | None
+
+### Dependencies
+1. **Profile** composes **ProfileStatus** (composition)
 
 **Pattern List for Profile:**
 - `domain-spec:aggregate-root`
@@ -147,75 +158,96 @@ Profile *-- ProfileStatus
 
 ## Example 5: Complex Aggregate with Multiple Optional Attributes
 
-```mermaid
-classDiagram
-class File {
-    <<Aggregate Root>>
-    -id: str
-    -tenant_id: str
-    -path: str
-    -status: FileStatus
-    -preparation_result: PreparationResult | None
-    -text: Text | None
-    -classification_result: ClassificationResult | None
-    -created_at: datetime
-    -updated_at: datetime
-    +new(id, tenant_id, path) File$
-    +add_preparation_result(result) None
-    +add_retrieval_result(text) None
-    +add_classification_result(result) None
-    +add_error(error) None
-    +retry() None
-    +skip() None
-}
+**`File`** `<<Aggregate Root>>`
 
-class FileStatus {
-    <<Value Object>>
-    -status: Literal["new", "prepared", "retrieved", "classified", "failed", "skipped"]
-    -error: ProcessingError | None
-}
+- `id`: str
+- `tenant_id`: str
+- `path`: str
+- `status`: FileStatus
+- `preparation_result`: PreparationResult | None
+- `text`: Text | None
+- `classification_result`: ClassificationResult | None
+- `created_at`: datetime
+- `updated_at`: datetime
+- **Methods**:
 
-class FileCreated {
-    <<Event>>
-    +id: str
-    +tenant_id: str
-    +path: str
-}
+    ◦ `new(id: str, tenant_id: str, path: str) -> File`
 
-class FilePrepared {
-    <<Event>>
-    +id: str
-    +preparation_result: PreparationResult
-}
+    ▪ Effect: creates a new File aggregate.
 
-class TextRetrieved {
-    <<Event>>
-    +id: str
-    +text: Text
-}
+    ◦ `add_preparation_result(result: PreparationResult) -> None`
 
-class FileClassificationSucceeded {
-    <<Event>>
-    +id: str
-    +document_types: list[DocumentType]
-}
+    ▪ Effect: sets the preparation result.
 
-class FileProcessingFailed {
-    <<Event>>
-    +id: str
-    +error: ProcessingError
-}
+    ▪ Emits: `FilePrepared`
 
-File *-- FileStatus
-File --() PreparationResult
-File --() Text
-File --() ClassificationResult
-File --> FileCreated : emits (new)
-File --> FilePrepared : emits (add_preparation_result)
-File --> TextRetrieved : emits (add_retrieval_result)
-File --> FileClassificationSucceeded : emits (add_classification_result)
-File --> FileProcessingFailed : emits (add_error)
-```
+    ◦ `add_retrieval_result(text: Text) -> None`
+
+    ▪ Effect: sets the text.
+
+    ▪ Emits: `TextRetrieved`
+
+    ◦ `add_classification_result(result: ClassificationResult) -> None`
+
+    ▪ Effect: sets the classification result.
+
+    ▪ Emits: `FileClassificationSucceeded`
+
+    ◦ `add_error(error: ProcessingError) -> None`
+
+    ▪ Effect: records a processing error.
+
+    ▪ Emits: `FileProcessingFailed`
+
+    ◦ `retry() -> None`
+
+    ▪ Effect: resets status for retry.
+
+    ◦ `skip() -> None`
+
+    ▪ Effect: marks file as skipped.
+
+**`FileStatus`** `<<Value Object>>`
+
+- `status`: Literal["new", "prepared", "retrieved", "classified", "failed", "skipped"]
+- `error`: ProcessingError | None
+
+**`FileCreated`** `<<Event>>`
+
+- `id`: str
+- `tenant_id`: str
+- `path`: str
+
+**`FilePrepared`** `<<Event>>`
+
+- `id`: str
+- `preparation_result`: PreparationResult
+
+**`TextRetrieved`** `<<Event>>`
+
+- `id`: str
+- `text`: Text
+
+**`FileClassificationSucceeded`** `<<Event>>`
+
+- `id`: str
+- `document_types`: list[DocumentType]
+
+**`FileProcessingFailed`** `<<Event>>`
+
+- `id`: str
+- `error`: ProcessingError
+
+### Dependencies
+1. **File** composes **FileStatus** (composition)
+2. **File** depends on **PreparationResult** (optional association)
+3. **File** depends on **Text** (optional association)
+4. **File** depends on **ClassificationResult** (optional association)
+5. **File** emits **FileCreated** (event emission)
+6. **File** emits **FilePrepared** (event emission)
+7. **File** emits **TextRetrieved** (event emission)
+8. **File** emits **FileClassificationSucceeded** (event emission)
+9. **File** emits **FileProcessingFailed** (event emission)
 
 **Pattern List for File:**
 - `domain-spec:aggregate-root`
@@ -244,25 +276,38 @@ File --> FileProcessingFailed : emits (add_error)
 
 ## Example 6: Repository
 
-```mermaid
-classDiagram
-class CommandFileRepository {
-    <<Repository>>
-    -db_session: Session
-    +file_of_id(id, tenant_id) File | None
-    +save(file) None
-    +delete(file) None
-}
+**`CommandFileRepository`** `<<Repository>>`
 
-class QueryFileRepository {
-    <<Repository>>
-    -db_session: Session
-    +find_one(id, tenant_id) FileDTO
-    +find_many(filters) list[FileDTO]
-}
+- `db_session`: Session
+- **Methods**:
 
-CommandFileRepository --() File
-```
+    ◦ `file_of_id(id: str, tenant_id: str) -> File | None`
+
+    ▪ Effect: loads and rehydrates a File aggregate, or returns None.
+
+    ◦ `save(file: File) -> None`
+
+    ▪ Effect: persists File state.
+
+    ◦ `delete(file: File) -> None`
+
+    ▪ Effect: deletes file record(s).
+
+**`QueryFileRepository`** `<<Repository>>`
+
+- `db_session`: Session
+- **Methods**:
+
+    ◦ `find_one(id: str, tenant_id: str) -> FileDTO`
+
+    ▪ Effect: queries and returns a FileDTO.
+
+    ◦ `find_many(filters: FileFilters) -> list[FileDTO]`
+
+    ▪ Effect: queries and returns a list of FileDTOs.
+
+### Dependencies
+1. **CommandFileRepository** depends on **File** (retrieve/store)
 
 **Pattern List for CommandFileRepository:**
 - `domain-spec:repositories` -- Command variant
@@ -279,38 +324,32 @@ CommandFileRepository --() File
 
 ## Example 7: TypedDict for External Data
 
-```mermaid
-classDiagram
-class ProcessingError {
-    <<TypedDict>>
-    +code: str
-    +message: str
-    +step: Literal["preparation", "retrieval", "classification"]
-    +retryable: bool
-}
+**`ProcessingError`** `<<TypedDict>>`
 
-class PreparationResult {
-    <<TypedDict>>
-    +file_type: Literal["PDF", "IMAGE"]
-    +images: list[str]
-}
+- `code`: str
+- `message`: str
+- `step`: Literal["preparation", "retrieval", "classification"]
+- `retryable`: bool
 
-class OCRPage {
-    <<TypedDict>>
-    +id: str
-    +file_id: str
-    +sequence: int
-    +text: str
-}
+**`PreparationResult`** `<<TypedDict>>`
 
-class Text {
-    <<TypedDict>>
-    +kind: Literal["OCR"]
-    +result: list[OCRPage]
-}
+- `file_type`: Literal["PDF", "IMAGE"]
+- `images`: list[str]
 
-Text *-- OCRPage
-```
+**`OCRPage`** `<<TypedDict>>`
+
+- `id`: str
+- `file_id`: str
+- `sequence`: int
+- `text`: str
+
+**`Text`** `<<TypedDict>>`
+
+- `kind`: Literal["OCR"]
+- `result`: list[OCRPage]
+
+### Dependencies
+1. **Text** composes **OCRPage** (composition)
 
 **Pattern List for All TypedDict classes:**
 - `domain-spec:domain-typed-dicts`
@@ -330,70 +369,95 @@ Text *-- OCRPage
 
 ## Example 8: Aggregate with Child Entities
 
-```mermaid
-classDiagram
-class Profile {
-    <<Aggregate Root>>
-    -id: str
-    -tenant_id: str
-    -files: list[File]
-    -status: ProfileStatus
-    +new(id, tenant_id) Profile$
-    +add(file_path) None
-    +mark_file_as_classified(file_id, types) None
-    +mark_file_as_failed(file_id, error) None
-}
+**`Profile`** `<<Aggregate Root>>`
 
-class File {
-    <<Entity>>
-    -id: str
-    -path: str
-    -status: FileStatus
-    -document_types: list[str] | None
-    +new(path, profile) File$
-    +mark_as_classified(types) None
-    +mark_as_failed(error) None
-}
+- `id`: str
+- `tenant_id`: str
+- `files`: list[File]
+- `status`: ProfileStatus
+- **Methods**:
 
-class ProfileStatus {
-    <<Value Object>>
-    -status: Literal["new", "in_progress", "classified", "failed"]
-    +from_files(files) ProfileStatus$
-    +update(profile) ProfileStatus
-}
+    ◦ `new(id: str, tenant_id: str) -> Profile`
 
-class FileStatus {
-    <<Value Object>>
-    -status: Literal["new", "in_progress", "classified", "failed"]
-    -error: FileError | None
-}
+    ▪ Effect: creates a new Profile aggregate.
 
-class FileError {
-    <<TypedDict>>
-    +code: str
-    +message: str
-}
+    ◦ `add(file_path: str) -> None`
 
-class FileUploaded {
-    <<Event>>
-    +id: str
-    +profile_id: str
-    +path: str
-}
+    ▪ Effect: creates a new File entity and adds it to files.
 
-class FilesStatusUpdated {
-    <<Event>>
-    +profile_id: str
-    +status: str
-}
+    ▪ Emits: `FileUploaded`
 
-Profile *-- File
-Profile *-- ProfileStatus
-File *-- FileStatus
-FileStatus *-- FileError
-File --> FileUploaded : emits (new)
-ProfileStatus --> FilesStatusUpdated : emits (update)
-```
+    ◦ `mark_file_as_classified(file_id: str, types: list[str]) -> None`
+
+    ▪ Delegates: `file.mark_as_classified(types)`
+
+    ◦ `mark_file_as_failed(file_id: str, error: FileError) -> None`
+
+    ▪ Delegates: `file.mark_as_failed(error)`
+
+**`File`** `<<Entity>>`
+
+- `id`: str
+- `path`: str
+- `status`: FileStatus
+- `document_types`: list[str] | None
+- **Methods**:
+
+    ◦ `new(path: str, profile: Profile) -> File`
+
+    ▪ Effect: creates a new File entity within the Profile aggregate.
+
+    ◦ `mark_as_classified(types: list[str]) -> None`
+
+    ▪ Effect: updates status and sets document_types.
+
+    ◦ `mark_as_failed(error: FileError) -> None`
+
+    ▪ Effect: updates status with error.
+
+**`ProfileStatus`** `<<Value Object>>`
+
+- `status`: Literal["new", "in_progress", "classified", "failed"]
+- **Methods**:
+
+    ◦ `from_files(files: list[File]) -> ProfileStatus`
+
+    ▪ Effect: derives aggregate status from file statuses.
+
+    ◦ `update(profile: Profile) -> ProfileStatus`
+
+    ▪ Effect: recalculates status and emits event.
+
+    ▪ Emits: `FilesStatusUpdated`
+
+**`FileStatus`** `<<Value Object>>`
+
+- `status`: Literal["new", "in_progress", "classified", "failed"]
+- `error`: FileError | None
+
+**`FileError`** `<<TypedDict>>`
+
+- `code`: str
+- `message`: str
+
+**`FileUploaded`** `<<Event>>`
+
+- `id`: str
+- `profile_id`: str
+- `path`: str
+
+**`FilesStatusUpdated`** `<<Event>>`
+
+- `profile_id`: str
+- `status`: str
+
+### Dependencies
+1. **Profile** composes **File** (composition)
+2. **Profile** composes **ProfileStatus** (composition)
+3. **File** composes **FileStatus** (composition)
+4. **FileStatus** composes **FileError** (composition)
+5. **File** emits **FileUploaded** (event emission)
+6. **ProfileStatus** emits **FilesStatusUpdated** (event emission)
 
 **Pattern List for Profile:**
 - `domain-spec:aggregate-root`
@@ -436,89 +500,128 @@ ProfileStatus --> FilesStatusUpdated : emits (update)
 
 ## Example 9: Nested Value Objects with Union Types and Event Delegation
 
-```mermaid
-classDiagram
-class Document {
-    <<Aggregate Root>>
-    -id: str
-    -tenant_id: str
-    -file_id: str
-    -subject: Subject | None
-    -status: DocumentStatus
-    +new(id, tenant_id, file_id, document_type) Document$
-    +add_extraction_result(result) None
-    +add_corrections(corrections) None
-}
+**`Document`** `<<Aggregate Root>>`
 
-class Subject {
-    <<Value Object>>
-    +kind: Literal["Individual", "LegalEntity"]
-    +entity: Individual | LegalEntity
-    +has_missing_values: bool
-    +from_data(document_type, data) Subject$
-    +add_corrections(corrections, document) Subject
-}
+- `id`: str
+- `tenant_id`: str
+- `file_id`: str
+- `subject`: Subject | None
+- `status`: DocumentStatus
+- **Methods**:
 
-class Individual {
-    <<Value Object>>
-    +document_type: str
-    +full_name: Field | None
-    +date_of_birth: Field | None
-    +address: Field | None
-    +has_missing_values: bool
-    +from_data(document_type, data) Individual$
-    +corrected(corrections) Individual
-}
+    ◦ `new(id: str, tenant_id: str, file_id: str, document_type: str) -> Document`
 
-class LegalEntity {
-    <<Value Object>>
-    +document_type: str
-    +name: Field | None
-    +crn: Field | None
-    +boi: list[BeneficialOwner]
-    +has_missing_values: bool
-    +from_data(document_type, data) LegalEntity$
-    +corrected(corrections) LegalEntity
-}
+    ▪ Effect: creates a new Document aggregate.
 
-class BeneficialOwner {
-    <<Value Object>>
-    +full_name: Field | None
-    +ownership_percentage: Field | None
-    +from_data(data) BeneficialOwner$
-    +corrected(corrections) BeneficialOwner
-}
+    ◦ `add_extraction_result(result: ExtractionResult) -> None`
 
-class Field {
-    <<Value Object>>
-    +value: str | datetime
-    +source: Literal["AI", "user"]
-    +confidence: float
-    +from_data(data) Field$
-    +corrected(corrections) Field
-}
+    ▪ Effect: sets the subject from extraction result.
 
-class CorrectionsAdded {
-    <<Event>>
-    +id: str
-    +corrections: Corrections
-}
+    ◦ `add_corrections(corrections: Corrections) -> None`
 
-class ExtractionResult {
-    <<TypedDict>>
-    +kind: Literal["Individual", "LegalEntity"]
-    +entity: IndividualData | LegalEntityData
-}
+    ▪ Delegates: `self.subject.add_corrections(corrections, self)`
 
-Document *-- Subject
-Subject *-- Individual : XOR
-Subject *-- LegalEntity : XOR
-Individual *-- Field
-LegalEntity *-- BeneficialOwner
-BeneficialOwner *-- Field
-Subject --> CorrectionsAdded : emits (add_corrections)
-Subject --() ExtractionResult : from_data argument
-```
+    ▪ Emits: `CorrectionsAdded` (via delegation)
+
+**`Subject`** `<<Value Object>>`
+
+- `kind`: Literal["Individual", "LegalEntity"]
+- `entity`: Individual | LegalEntity
+- `has_missing_values`: bool
+- **Methods**:
+
+    ◦ `from_data(document_type: str, data: ExtractionResult) -> Subject`
+
+    ▪ Effect: creates a Subject from extraction data.
+
+    ◦ `add_corrections(corrections: Corrections, document: Document) -> Subject`
+
+    ▪ Effect: applies corrections and returns a new Subject.
+
+    ▪ Emits: `CorrectionsAdded` (delegated through document)
+
+**`Individual`** `<<Value Object>>`
+
+- `document_type`: str
+- `full_name`: Field | None
+- `date_of_birth`: Field | None
+- `address`: Field | None
+- `has_missing_values`: bool
+- **Methods**:
+
+    ◦ `from_data(document_type: str, data: IndividualData) -> Individual`
+
+    ▪ Effect: creates an Individual from extracted data.
+
+    ◦ `corrected(corrections: Corrections) -> Individual`
+
+    ▪ Effect: returns a new Individual with corrections applied.
+
+**`LegalEntity`** `<<Value Object>>`
+
+- `document_type`: str
+- `name`: Field | None
+- `crn`: Field | None
+- `boi`: list[BeneficialOwner]
+- `has_missing_values`: bool
+- **Methods**:
+
+    ◦ `from_data(document_type: str, data: LegalEntityData) -> LegalEntity`
+
+    ▪ Effect: creates a LegalEntity from extracted data.
+
+    ◦ `corrected(corrections: Corrections) -> LegalEntity`
+
+    ▪ Effect: returns a new LegalEntity with corrections applied.
+
+**`BeneficialOwner`** `<<Value Object>>`
+
+- `full_name`: Field | None
+- `ownership_percentage`: Field | None
+- **Methods**:
+
+    ◦ `from_data(data: BeneficialOwnerData) -> BeneficialOwner`
+
+    ▪ Effect: creates a BeneficialOwner from data.
+
+    ◦ `corrected(corrections: Corrections) -> BeneficialOwner`
+
+    ▪ Effect: returns a new BeneficialOwner with corrections applied.
+
+**`Field`** `<<Value Object>>`
+
+- `value`: str | datetime
+- `source`: Literal["AI", "user"]
+- `confidence`: float
+- **Methods**:
+
+    ◦ `from_data(data: FieldData) -> Field`
+
+    ▪ Effect: creates a Field from data.
+
+    ◦ `corrected(corrections: Corrections) -> Field`
+
+    ▪ Effect: returns a new Field with corrections applied.
+
+**`CorrectionsAdded`** `<<Event>>`
+
+- `id`: str
+- `corrections`: Corrections
+
+**`ExtractionResult`** `<<TypedDict>>`
+
+- `kind`: Literal["Individual", "LegalEntity"]
+- `entity`: IndividualData | LegalEntityData
+
+### Dependencies
+1. **Document** composes **Subject** (composition)
+2. **Subject** composes **Individual** (composition, XOR with LegalEntity)
+3. **Subject** composes **LegalEntity** (composition, XOR with Individual)
+4. **Individual** composes **Field** (composition)
+5. **LegalEntity** composes **BeneficialOwner** (composition)
+6. **BeneficialOwner** composes **Field** (composition)
+7. **Subject** emits **CorrectionsAdded** (event emission)
+8. **Subject** depends on **ExtractionResult** (optional association)
 
 **Pattern List for Document:**
 - `domain-spec:aggregate-root`

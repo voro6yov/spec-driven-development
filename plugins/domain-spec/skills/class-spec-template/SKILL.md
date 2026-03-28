@@ -243,6 +243,12 @@ Purpose statement.
 
 #### Repositories / Services
 
-### Dependencies                   ← always required; derive from all diagram relationships
-1. **ClassA** depends on **ClassB** (relationship type)
+### Dependencies                   ← always required; derive from all class relationships
+Use these standard forms:
+1. **ClassA** composes **ClassB** (composition)            ← owns, lifecycle-bound
+2. **ClassA** emits **EventName** (event emission)         ← domain event
+3. **ClassA** emits **CommandName** (command emission)     ← command
+4. **ClassA** depends on **ClassB** (optional association) ← references, not owned
+5. **ServiceName** depends on **ClassA** (service input)   ← service parameter
+6. **RepoName** depends on **ClassA** (retrieve/store)     ← repository target
 ```
