@@ -16,7 +16,7 @@ Read the file provided as the argument. Extract two things:
 
 1. **Description**: all prose text outside the Mermaid code block — use this as context for method flows, invariants, preconditions, and business rules when writing specs
 2. **Diagram**: parse the Mermaid `classDiagram` block and extract:
-   - Each class name and stereotype (`<<Aggregate Root>>`, `<<Entity>>`, `<<Value Object>>`, `<<Event>>`, `<<TypedDict>>`, `<<Command>>`, `<<Query DTO>>`, `<<Service>>`, `<<Repository>>`)
+   - Each class name and stereotype (`<<Aggregate Root>>`, `<<Entity>>`, `<<Value Object>>`, `<<Event>>`, `<<TypedDict>>`, `<<Command>>`, `<<Service>>`, `<<Repository>>`)
    - Attributes with types (visibility prefix `+`/`-` indicates public/private)
    - Methods with signatures
    - Relationships: composition `*--`, dependency `-->`, realization `--()`, including multiplicity labels and emits annotations
@@ -38,8 +38,7 @@ The class-spec-template skill is already loaded in your context. Apply the match
 | `<<Entity>>` | Entity | Detailed Method Specs optional for complex methods |
 | `<<Value Object>>` | Value Object | Immutable — no mutation methods; show `__init__` only if non-trivial validation |
 | `<<Event>>` | Domain Event | Fields only, no methods |
-| `<<TypedDict>>` | TypedDict | Fields only, no methods |
-| `<<Query DTO>>` | TypedDict shape | Same as TypedDict but stereotype = `<<Query DTO>>`. Apply to: (a) any TypedDict returned directly by a repository method, and (b) any TypedDict that is a nested member of such a type. Never use `<<TypedDict>>` for these — even when the diagram labels them `<<TypedDict>>`. |
+| `<<TypedDict>>` | TypedDict | Fields only, no methods. Use for all data structures — internal domain structures and query return types alike. |
 | `<<Command>>` | Command | Include Success/Failure reply types |
 | `<<Repository>>` / `<<Service>>` | Repository / Service | Methods only, no `Emits` field |
 
