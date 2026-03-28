@@ -27,13 +27,14 @@ The class-spec-template skill is already loaded in your context. Apply the match
 
 **Formatting rules — apply to every class type without exception:**
 - Attributes: bullet list `- \`name\`: type`, never a markdown table
-- Methods: `◦`/`▪` nested bullets inside the class block, never a markdown table
+- Methods inside the class block: `◦` for each method entry, `▪` for each detail line (`▪ Effect:`, `▪ Delegates:`, `▪ Emits:`, `▪ Raises:`, `▪ Allowed from:`); never use blockquotes (`>`), never use a markdown table
 - Heading level for detailed method specs: h3 (`###`), not h4 or h5
 - Domain Exceptions: bullet list `- \`ExceptionName\` — trigger condition`, never a table
+- Stubs for unlisted referenced classes: bullet list items or inline notes within the Dependencies section — never a separate `#### Stubs` section or table
 
 | Stereotype | Template | Notes |
 |---|---|---|
-| `<<Aggregate Root>>` | Aggregate Root | Must include an inline `**Methods**:` block with `◦`/`▪` entries inside the class spec block, then add `### Method:` detailed sub-sections below for each non-trivial method |
+| `<<Aggregate Root>>` | Aggregate Root | Must include an inline `**Methods**:` block with `◦`/`▪` entries inside the class spec block, then add a full `### Method:` sub-section (with all required headings) below for each non-trivial method; trivial one-liners (e.g. append-only, pure delegates) may stay as `◦`/`▪` inline only |
 | `<<Entity>>` | Entity | Detailed Method Specs optional for complex methods |
 | `<<Value Object>>` | Value Object | Immutable — no mutation methods; show `__init__` only if non-trivial validation |
 | `<<Event>>` | Domain Event | Fields only, no methods |
@@ -46,7 +47,7 @@ Fill each spec:
 - All attributes with types
 - All methods with effects, events emitted, delegates called, and exceptions raised
 - Use the **description** to enrich method specs with flows, invariants, preconditions, and business rules
-- Leave `- **Pattern**: —` as a placeholder
+- Always output `- **Pattern**: —` exactly as written — never fill in pattern values; the developer completes this field manually
 
 **Stub unlisted referenced classes**: if the diagram references a class in a relationship or `emits` annotation that has no explicit class block, generate a stub spec for it using the correct stereotype if inferable. Do not silently omit it.
 
@@ -74,7 +75,8 @@ Group the generated specs using the Package-Level Structure.
 Section rules:
 - `### Dependencies` — **always required**; derive every entry from the Mermaid diagram relationships (`*--`, `-->`, `--()`)
 - `#### Domain Exceptions` — **always required**; infer from all `Raises:` clauses across all method specs
-- `#### Commands` — include whenever any commands appear in the diagram or are referenced in `emits` annotations
+- `#### Commands` — include whenever any commands appear in the diagram or are referenced in `emits` annotations; commands must never be placed inside `#### Domain Events`
+- `#### Repositories / Services` — always one combined section; never split into separate `#### Repositories` and `#### Services` sections
 - All other sections — omit only if genuinely empty
 
 ```

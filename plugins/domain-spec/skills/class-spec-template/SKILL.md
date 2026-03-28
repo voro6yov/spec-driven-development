@@ -8,9 +8,10 @@ user-invocable: false
 
 > **Formatting rules — apply to all class types:**
 > - Attributes: bullet list `- \`name\`: type`, never a markdown table
-> - Methods: `◦`/`▪` nested bullets inside the class block, never a markdown table
+> - Methods: `◦` for each method entry, `▪` for each detail line (`▪ Effect:`, `▪ Delegates:`, `▪ Emits:`, `▪ Raises:`, `▪ Allowed from:`); never use blockquotes (`>`) or markdown tables
 > - Detailed method spec heading: h3 (`### Method:`), not h4 or h5
 > - Domain Exceptions: bullet list `- \`ExceptionName\` — trigger condition`, never a table
+> - `**Pattern**`: always left as `- **Pattern**: —`; the pattern values shown in the templates below are for human reference only — a spec generator must never fill this field in
 
 ---
 
