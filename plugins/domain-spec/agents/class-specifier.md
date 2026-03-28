@@ -110,12 +110,11 @@ Section rules:
 2. ...
 ```
 
-### Step 4 — Checkpoint
+### Step 4 — Write to file
 
-Output the complete generated spec to the conversation. Do NOT write to the file yet.
+Use the **Write tool** to write the complete updated file:
+1. Take the original file content (exactly as read in Step 1)
+2. Append the full generated spec (from Step 3) at the end, after a `---` separator if one is not already present
+3. Write the combined content back to the same file path using the Write tool
 
-Then ask: "Ready to add to `<filename>`?"
-
-### Step 5 — Write to file
-
-After the user confirms, insert the organized spec sections into the file directly below the description (after the Mermaid block and any prose that follows it).
+Do not use Edit for this step — always use Write with the full combined content. After writing, confirm to the user with one sentence: "Spec written to `<filename>`."
