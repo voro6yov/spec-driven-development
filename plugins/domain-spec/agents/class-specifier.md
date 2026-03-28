@@ -40,7 +40,7 @@ The class-spec-template skill is already loaded in your context. Apply the match
 | `<<Value Object>>` | Value Object | Immutable — no mutation methods; show `__init__` only if non-trivial validation |
 | `<<Event>>` | Domain Event | Fields only, no methods |
 | `<<TypedDict>>` | TypedDict | Fields only, no methods |
-| `<<Query DTO>>` | TypedDict shape | Same as TypedDict but stereotype = `<<Query DTO>>`, Pattern = `Query DTOs`. If a TypedDict serves exclusively as a repository query return type, use `<<Query DTO>>`. If genuinely dual-purpose, prefer `<<Query DTO>>`. |
+| `<<Query DTO>>` | TypedDict shape | Same as TypedDict but stereotype = `<<Query DTO>>`. Apply to: (a) any TypedDict returned directly by a repository method, and (b) any TypedDict that is a nested member of such a type. Never use `<<TypedDict>>` for these — even when the diagram labels them `<<TypedDict>>`. |
 | `<<Command>>` | Command | Include Success/Failure reply types |
 | `<<Repository>>` / `<<Service>>` | Repository / Service | Methods only, no `Emits` field |
 
@@ -58,7 +58,7 @@ Classes inferred as `<<Command>>` must be placed in `#### Commands`, never in `#
 
 **Non-trivial method** (requires a full `### Method:` sub-section for Aggregate Root): any method that emits an event, delegates to a collection VO, has a precondition, raises an exception, or involves more than one step in its flow. Trivial = single-step with no side effects (e.g. pure append, direct field set).
 
-**Detailed method spec structure** — use exactly these sections in this order; omit a section only if genuinely not applicable, but never rename one:
+**Detailed method spec structure** — use exactly these sections in this order; omit a section only if genuinely not applicable, but never rename one and never add extra sections (e.g. no `**Raises**:` heading — exceptions belong inside **Preconditions**, **Method Flow**, or as `▪ Raises:` in the inline method entry):
 ```
 ### Method: `method_name(params) -> ReturnType`
 
