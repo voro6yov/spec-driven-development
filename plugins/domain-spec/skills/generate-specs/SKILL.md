@@ -38,7 +38,7 @@ After all class-specifier agents complete, spawn a `domain-spec:pattern-assigner
 
 ### Step 4 — Spawn merge agent
 
-After all pattern-assigner agents complete, invoke `domain-spec:merge-specs` with `$ARGUMENTS` as the prompt.
+After all pattern-assigner agents complete, invoke `domain-spec:specs-merger` with `$ARGUMENTS` as the prompt.
 
 ### Step 5 — Report
 

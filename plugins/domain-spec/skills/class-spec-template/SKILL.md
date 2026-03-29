@@ -8,15 +8,15 @@ user-invocable: false
 
 > **Category-scoped generation** (when invoked by `generate-specs` via a `class-specifier` agent):
 > - Generate specs only for classes matching the assigned category
-> - Do **not** generate `### Dependencies` — the final section is assembled by `merge-specs` from per-category `### Partial Dependencies` blocks
-> - Do **not** generate `#### Domain Exceptions` — owned by the `merge-specs` agent
+> - Do **not** generate `### Dependencies` — the final section is assembled by `specs-merger` from per-category `### Partial Dependencies` blocks
+> - Do **not** generate `#### Domain Exceptions` — owned by the `specs-merger` agent
 
 > **Formatting rules — apply to all class types:**
 > - Attributes: bullet list `- \`name\`: type`, never a markdown table
 > - Methods: `◦` for each method entry, `▪` for each detail line (`▪ Effect:`, `▪ Delegates:`, `▪ Emits:`, `▪ Raises:`, `▪ Allowed from:`); never use blockquotes (`>`) or markdown tables
 > - Detailed method spec heading: h3 (`### Method:`), not h4 or h5
 > - Domain Exceptions: bullet list `- \`ExceptionName\` — trigger condition`, never a table
-> - `**Pattern**`: always left as `- **Pattern**: —`; the pattern values shown in the templates below are for human reference only — a spec generator must never fill this field in. **Never write** `- **Pattern**: Aggregate Root` or any other value — always `- **Pattern**: —`
+> - `**Pattern**`: always left as `- **Pattern**: —` by the **class-specifier** agent; the pattern values shown in the templates below are for human reference only — a class-specifier must never fill this field in. **Never write** `- **Pattern**: Aggregate Root` or any other value in class-specifier — always `- **Pattern**: —`. (Patterns are assigned later by the pattern-assigner agent and must be preserved verbatim by specs-merger.)
 
 **Correct method block (copy this exactly):**
 ```
