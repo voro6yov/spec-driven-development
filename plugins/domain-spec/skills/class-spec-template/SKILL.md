@@ -133,7 +133,7 @@ Fields only. No methods.
 ```
 **`EventName`** `<<Event>>`
 
-- **Pattern**: Domain Events
+- **Pattern**: —
 
 Purpose statement describing what domain occurrence this event represents.
 
@@ -150,7 +150,7 @@ Fields only. No methods. Use `<<TypedDict>>` for all data structures regardless 
 ```
 **`ClassName`** `<<TypedDict>>`
 
-- **Pattern**: Domain TypedDicts
+- **Pattern**: —
 
 Purpose statement.
 
