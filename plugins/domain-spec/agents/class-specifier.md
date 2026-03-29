@@ -77,10 +77,29 @@ Fill each spec using the description to enrich method specs with flows, invarian
 
 **Exception — pure delegation**: a method that only delegates to a collection VO (single delegate call, no raises, no emits, no preconditions) does **not** require a detailed spec even though it delegates.
 
-### Step 4 — Write to temp file
+### Step 4 — Derive Partial Dependencies
+
+From the full diagram, collect all relationships where any class generated in this run appears as either the **source or the target**. This captures both outbound dependencies (what this class's classes use) and inbound references (what other classes use this class's classes — needed so future pattern-selectors for other categories can assign patterns correctly).
+
+Format each relationship using the same standard verbs as the `### Dependencies` section:
+
+| Relationship | Standard form |
+|---|---|
+| `*--` | **ClassA** composes **ClassB** (composition) |
+| `-->` with `: emits` annotation | **ClassA** emits **EventName** (event emission) or (command emission) |
+| `--()` without `: emits`, source is `<<Service>>` | **ServiceName** depends on **ClassA** (service input) |
+| `--()` without `: emits`, source is `<<Repository>>` | **RepoName** depends on **ClassA** (retrieve/store) |
+| `--()` without `: emits`, source is anything else | **ClassA** depends on **ClassB** (optional association) |
+| `-->` without emits | **ClassA** depends on **ClassB** (optional association) |
+
+Number each entry sequentially. If no relationships involve this category's classes, omit the section.
+
+Append the result as a `### Partial Dependencies` section at the end of the spec content (after all class blocks).
+
+### Step 5 — Write to temp file
 
 1. Determine the temp directory: same directory as `<diagram_file>`, subdirectory `.specs-tmp/`
 2. Create the temp directory if it does not exist: `mkdir -p <source_dir>/.specs-tmp`
-3. Write the generated specs to `<source_dir>/.specs-tmp/<category>.md`
+3. Write the generated specs (including `### Partial Dependencies` if present) to `<source_dir>/.specs-tmp/<category>.md`
 
 After writing, confirm with one sentence: "Specs for `<category>` written to `<temp_file>`."
