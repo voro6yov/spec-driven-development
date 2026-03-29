@@ -30,7 +30,9 @@ From the diagram relationships, derive the full `### Dependencies` list using th
 |---|---|
 | `*--` | **ClassA** composes **ClassB** (composition) |
 | `-->` with `: emits` annotation | **ClassA** emits **EventName** (event emission) or (command emission) |
-| `--()` | **ServiceName** depends on **ClassA** (service input) or **RepoName** depends on **ClassA** (retrieve/store) |
+| `--()` without `: emits`, source is `<<Service>>` | **ServiceName** depends on **ClassA** (service input) |
+| `--()` without `: emits`, source is `<<Repository>>` | **RepoName** depends on **ClassA** (retrieve/store) |
+| `--()` without `: emits`, source is anything else | **ClassA** depends on **ClassB** (optional association) |
 | `-->` without emits | **ClassA** depends on **ClassB** (optional association) |
 
 Number each entry sequentially.

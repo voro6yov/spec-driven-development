@@ -71,9 +71,11 @@ Fill each spec using the description to enrich method specs with flows, invarian
 **Non-trivial method** (requires full `### Method:` sub-section for Aggregate Root) — check each box; if **any** is true → non-trivial:
 - raises an exception
 - emits an event or command
-- delegates to a collection VO
+- delegates to a collection VO **and** at least one other criterion above is also true
 - has a precondition or guard
 - involves more than one step in its flow
+
+**Exception — pure delegation**: a method that only delegates to a collection VO (single delegate call, no raises, no emits, no preconditions) does **not** require a detailed spec even though it delegates.
 
 ### Step 4 — Write to temp file
 
