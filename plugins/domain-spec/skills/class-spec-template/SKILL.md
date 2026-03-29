@@ -11,7 +11,25 @@ user-invocable: false
 > - Methods: `◦` for each method entry, `▪` for each detail line (`▪ Effect:`, `▪ Delegates:`, `▪ Emits:`, `▪ Raises:`, `▪ Allowed from:`); never use blockquotes (`>`) or markdown tables
 > - Detailed method spec heading: h3 (`### Method:`), not h4 or h5
 > - Domain Exceptions: bullet list `- \`ExceptionName\` — trigger condition`, never a table
-> - `**Pattern**`: always left as `- **Pattern**: —`; the pattern values shown in the templates below are for human reference only — a spec generator must never fill this field in
+> - `**Pattern**`: always left as `- **Pattern**: —`; the pattern values shown in the templates below are for human reference only — a spec generator must never fill this field in. **Never write** `- **Pattern**: Aggregate Root` or any other value — always `- **Pattern**: —`
+
+**Correct method block (copy this exactly):**
+```
+- **Methods**:
+
+    ◦ `method_name(params) -> ReturnType`
+
+    ▪ Effect: what changes occur
+
+    ▪ Emits: `EventName`
+
+    ▪ Raises: `ExceptionName` — when condition
+```
+**Wrong** — never use dash bullets or indented sub-bullets for methods:
+```
+- `method_name(params) -> ReturnType`
+  - Effect: what changes occur
+```
 
 ---
 
