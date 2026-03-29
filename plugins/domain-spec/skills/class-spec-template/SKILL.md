@@ -8,7 +8,7 @@ user-invocable: false
 
 > **Category-scoped generation** (when invoked by `generate-specs` via a `class-specifier` agent):
 > - Generate specs only for classes matching the assigned category
-> - Do **not** generate `### Dependencies` — owned by the `merge-specs` agent
+> - Do **not** generate `### Dependencies` — the final section is assembled by `merge-specs` from per-category `### Partial Dependencies` blocks
 > - Do **not** generate `#### Domain Exceptions` — owned by the `merge-specs` agent
 
 > **Formatting rules — apply to all class types:**
