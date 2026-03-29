@@ -6,6 +6,11 @@ user-invocable: false
 
 # Class Spec Template
 
+> **Category-scoped generation** (when invoked by `generate-specs` via a `class-specifier` agent):
+> - Generate specs only for classes matching the assigned category
+> - Do **not** generate `### Dependencies` — owned by the `merge-specs` agent
+> - Do **not** generate `#### Domain Exceptions` — owned by the `merge-specs` agent
+
 > **Formatting rules — apply to all class types:**
 > - Attributes: bullet list `- \`name\`: type`, never a markdown table
 > - Methods: `◦` for each method entry, `▪` for each detail line (`▪ Effect:`, `▪ Delegates:`, `▪ Emits:`, `▪ Raises:`, `▪ Allowed from:`); never use blockquotes (`>`) or markdown tables
