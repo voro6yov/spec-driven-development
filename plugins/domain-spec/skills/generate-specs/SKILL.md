@@ -32,10 +32,14 @@ For each non-empty category, spawn a `domain-spec:class-specifier` agent. Pass `
 
 Send **all** agent invocations in a single message so they run in parallel. Wait for all to complete before proceeding.
 
-### Step 3 — Spawn merge agent
+### Step 3 — Spawn parallel pattern-assigner agents
 
-After all class-specifier agents complete, invoke `domain-spec:merge-specs` with `$ARGUMENTS` as the prompt.
+After all class-specifier agents complete, spawn a `domain-spec:pattern-assigner` agent for each non-empty category (the same set determined in Step 1). Pass `$ARGUMENTS <category>` as the prompt for each. Send all invocations in a single message so they run in parallel. Wait for all to complete before proceeding.
 
-### Step 4 — Report
+### Step 4 — Spawn merge agent
+
+After all pattern-assigner agents complete, invoke `domain-spec:merge-specs` with `$ARGUMENTS` as the prompt.
+
+### Step 5 — Report
 
 Confirm with one sentence: "Spec generation complete for `$ARGUMENTS`."
