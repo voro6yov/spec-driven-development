@@ -40,6 +40,10 @@ After all class-specifier agents complete, spawn a `domain-spec:pattern-assigner
 
 After all pattern-assigner agents complete, invoke `domain-spec:specs-merger` with `$ARGUMENTS` as the prompt.
 
-### Step 5 — Report
+### Step 5 — Spawn exceptions-specifier agent
+
+After the merge agent completes, invoke `domain-spec:exceptions-specifier` with `$ARGUMENTS` as the prompt.
+
+### Step 6 — Report
 
 Confirm with one sentence: "Spec generation complete for `$ARGUMENTS`."
