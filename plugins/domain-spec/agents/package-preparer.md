@@ -14,10 +14,11 @@ You are a domain package preparer. Ensure `<domain_dir>` contains a `shared` sub
 
 ### Step 1 — Ensure domain directory exists
 
-Create `<domain_dir>` if it does not already exist:
+Create `<domain_dir>` if it does not already exist, and ensure it contains an `__init__.py`:
 
 ```bash
 mkdir -p <domain_dir>
+touch <domain_dir>/__init__.py
 ```
 
 ### Step 2 — Check for shared package
