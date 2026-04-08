@@ -9,7 +9,7 @@ You are a domain package preparer. Ensure `<domain_dir>` contains a `shared` sub
 ## Arguments
 
 - `<domain_dir>`: path to the target domain package directory
-- `<package_path>`: path to the package or sub-package to create (e.g. `my_domain/order` or an absolute path)
+- `<package_path>`: relative path of the package or sub-package to create inside `<domain_dir>` (e.g. `order` or `order/items`)
 
 ## Workflow
 
@@ -56,21 +56,21 @@ Output one sentence:
 
 ### Step 5 — Create package path
 
-Check whether `<package_path>` already exists:
+`<package_path>` may contain multiple segments (e.g. `profile/subject`). Each segment must become a Python package with its own `__init__.py`.
+
+Walk the path cumulatively from `<domain_dir>`, creating each segment if absent:
 
 ```bash
-[ -d "<package_path>" ]
-```
-
-If it does not exist, create it with an `__init__.py`:
-
-```bash
-mkdir -p <package_path>
-touch <package_path>/__init__.py
+current="<domain_dir>"
+for segment in $(echo "<package_path>" | tr '/' ' '); do
+  current="$current/$segment"
+  mkdir -p "$current"
+  touch "$current/__init__.py"
+done
 ```
 
 ### Step 6 — Confirm package path
 
-Output one sentence:
-- If created: "Package created at `<package_path>`."
-- If already present: "Package already present at `<package_path>` — skipped."
+List every directory created (or skipped if already present), one line each:
+- If created: "Package created at `<path>`."
+- If already present: "Package already present at `<path>` — skipped."
