@@ -7,7 +7,7 @@ agent: general-purpose
 allowed-tools: Read, Bash, Agent
 ---
 
-You are a DDD implementation orchestrator. Implement the domain package at `$ARGUMENTS[0]`, creating the aggregate root package at `$ARGUMENTS[1]`.
+You are a DDD implementation orchestrator. Implement the domain package at `$ARGUMENTS[0]`, creating the aggregate root package at `$ARGUMENTS[0]/$ARGUMENTS[1]`.
 
 ## Workflow
 
