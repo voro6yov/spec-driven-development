@@ -1,7 +1,7 @@
 import http
 
 __all__ = [
-    "ProfilesException",
+    "DomainException",
     "NotFound",
     "AlreadyExists",
     "Conflict",
@@ -12,31 +12,31 @@ __all__ = [
 ]
 
 
-class ProfilesException(Exception):
+class DomainException(Exception):
     code: str = "domain_exception"
 
 
-class NotFound(ProfilesException):
+class NotFound(DomainException):
     code: str = "not_found"
 
 
-class AlreadyExists(ProfilesException):
+class AlreadyExists(DomainException):
     code: str = "already_exists"
 
 
-class Conflict(ProfilesException):
+class Conflict(DomainException):
     code: str = "conflict"
 
 
-class Unauthorized(ProfilesException):
+class Unauthorized(DomainException):
     code: str = "unauthorized"
 
 
-class Forbidden(ProfilesException):
+class Forbidden(DomainException):
     code: str = "forbidden"
 
 
-class IllegalArgument(ProfilesException):
+class IllegalArgument(DomainException):
     code: str = "illegal_argument"
 
 
