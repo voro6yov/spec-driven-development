@@ -22,17 +22,32 @@ Read `<diagram_file>`. Locate the last standalone `---` separator. Parse the spe
 3. Parse `### Dependencies` — build a map: for each `**A** composes **B**` or `**A** depends on **B**` entry, A's module needs `from .<snake_case(B)> import B`.
 4. Keep `#### Domain Exceptions` classes separate — they go into `exceptions.py`.
 
-### Step 2 — Create module files for non-exception classes
+### Step 2 — Determine import dot prefix
+
+Walk up from `<output_dir>` to find the directory that contains `shared/`, counting levels:
+
+```bash
+d="<output_dir>"; depth=0
+while [ "$d" != "/" ] && [ ! -d "$d/shared" ]; do
+  d=$(dirname "$d"); depth=$((depth+1))
+done
+```
+
+If the loop exits without finding `shared/`, abort with: "Error: could not locate `shared/` directory above `<output_dir>`."
+
+The dot prefix is `depth + 1` dots (e.g., depth=1 → `..`, depth=2 → `...`). Use this prefix in all shared imports below, written as `{dots}` in this document.
+
+### Step 3 — Create module files for non-exception classes
 
 For each non-exception class, write `<output_dir>/<snake_case(class_name)>.py`:
 
 **Imports block** — two parts, in order:
 
 1. *Shared base class import* — derived from stereotype:
-   - `<<Aggregate Root>>` or `<<Entity>>` → `from shared.entity import Entity`
-   - `<<Value Object>>` → `from shared.value_object import ValueObject`
-   - `<<Event>>` → `from shared.event import Event`
-   - `<<Command>>` → `from shared.command import Command`
+   - `<<Aggregate Root>>` or `<<Entity>>` → `from {dots}shared import Entity`
+   - `<<Value Object>>` → `from {dots}shared import ValueObject`
+   - `<<Event>>` → `from {dots}shared import Event`
+   - `<<Command>>` → `from {dots}shared import Command`
    - `<<Repository>>` or `<<Service>>` → *(no base import; ABC/Protocol added during implementation)*
    - `<<TypedDict>>` → `from typing import TypedDict`
 
@@ -52,12 +67,12 @@ If the stereotype has no base class (Repository, Service), write `class ClassNam
 
 The docstring must contain the full spec block for this class exactly as it appears in the spec section (including `- **Pattern**: ...`, attributes, methods, etc.).
 
-### Step 3 — Create exceptions.py
+### Step 4 — Create exceptions.py
 
 Write `<output_dir>/exceptions.py`:
 
 ```python
-from shared.exceptions import DomainException, NotFound, AlreadyExists, Conflict, Unauthorized, Forbidden
+from {dots}shared import DomainException, NotFound, AlreadyExists, Conflict, Unauthorized, Forbidden
 ```
 
 Then for each exception class in `#### Domain Exceptions`, append:
@@ -72,13 +87,13 @@ class ExceptionName(BaseClass):
 
 Where `BaseClass` is the value from `- **Base**: ...` in the spec block.
 
-### Step 4 — Create __init__.py
+### Step 5 — Create __init__.py
 
 Write `<output_dir>/__init__.py` with one import per class in section order:
 
 - Non-exception classes: `from .<snake_case(class_name)> import ClassName`
 - Exception classes: `from .exceptions import ExceptionName`
 
-### Step 5 — Confirm
+### Step 6 — Confirm
 
 Confirm with one sentence: "Package scaffold written to `<output_dir>`."
