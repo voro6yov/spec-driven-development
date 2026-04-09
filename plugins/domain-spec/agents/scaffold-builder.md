@@ -50,7 +50,7 @@ For each non-exception class, write `<output_dir>/<snake_case(class_name)>.py`:
    - `<<Value Object>>` → `from {dots}shared import ValueObject`
    - `<<Event>>` → `from {dots}shared import Event`
    - `<<Command>>` → `from {dots}shared import Command`
-   - `<<Repository>>` or `<<Service>>` → *(no base import; ABC/Protocol added during implementation)*
+   - `<<Repository>>` or `<<Service>>` → `from abc import ABC`
    - `<<TypedDict>>` → `from typing import TypedDict`
 
 2. *Sibling module imports* — from the dependency map: every class B that A composes or depends on → `from .<snake_case(B)> import B`
@@ -61,14 +61,26 @@ For each non-exception class, write `<output_dir>/<snake_case(class_name)>.py`:
 __all__ = ["ClassName"]
 
 
-class ClassName(Base):
-    """
-    <full spec block verbatim>
-    """
-    pass
+# <<Aggregate Root>> / <<Entity>>:
+class ClassName(metaclass=Entity): ...
+
+# <<Value Object>>:
+class ClassName(metaclass=ValueObject): ...
+
+# <<Event>>:
+class ClassName(Event): ...
+
+# <<Command>>:
+class ClassName(Command): ...
+
+# <<Repository>> / <<Service>>:
+class ClassName(ABC): ...
+
+# <<TypedDict>>:
+class ClassName(TypedDict): ...
 ```
 
-If the stereotype has no base class (Repository, Service), write `class ClassName:`.
+Each stub ends with a docstring containing the full spec block, then `pass`.
 
 The `__all__` list must appear before the class definition. The docstring must contain the full spec block for this class exactly as it appears in the spec section (including `- **Pattern**: ...`, attributes, methods, etc.).
 
