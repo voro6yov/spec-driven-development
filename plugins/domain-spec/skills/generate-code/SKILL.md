@@ -1,66 +1,38 @@
 ---
 name: generate-code
-description: Orchestrates DDD code generation from a class spec — scaffolds the package then implements classes in dependency order. Invoke with: /generate-code <diagram_file> <output_dir>
-argument-hint: <diagram_file> <output_dir>
+description: Implements a DDD domain package from its class spec. Invoke with: /generate-code <domain_dir> <package_path> <diagram_file>
+argument-hint: <domain_dir> <package_path> <diagram_file>
 context: fork
 agent: general-purpose
 allowed-tools: Read, Bash, Agent
 ---
 
-You are a DDD code generation orchestrator. Generate Python implementation files for all classes in the spec appended to `$ARGUMENTS[0]`, writing output to `$ARGUMENTS[1]`.
+You are a DDD implementation orchestrator. Implement the domain package at `$ARGUMENTS[0]`, creating the aggregate root package at `$ARGUMENTS[0]/$ARGUMENTS[1]` from the spec in `$ARGUMENTS[2]`.
 
 ## Workflow
 
-### Step 1 — Read and parse the spec
+### Step 1 — Prepare package
 
-Read `$ARGUMENTS[0]`. Locate the last standalone `---` line (on its own line, not inside a code block). Everything after it is the **spec section**.
+Invoke `domain-spec:package-preparer` with prompt `$ARGUMENTS[0] $ARGUMENTS[1]`. Wait for completion.
 
-Collect all class blocks from the spec section. A class block starts at a `**\`ClassName\`** <<...>>` line. Map each class to its section category:
+### Step 2 — Scaffold package
 
-| Section heading | Category |
-|---|---|
-| `#### Data Structures` | `data-structures` |
-| `#### Value Objects` | `value-objects` |
-| `#### Domain Events` | `domain-events` |
-| `#### Commands` | `commands` |
-| `#### Aggregate Root / Entities` | `aggregates` |
-| `#### Repositories / Services` | `repositories-services` |
-| `#### Domain Exceptions` | handled by `exceptions-implementer` — do not extract individual class names |
+Invoke `domain-spec:scaffold-builder` with prompt `$ARGUMENTS[2] $ARGUMENTS[0]/$ARGUMENTS[1]`. Wait for completion.
 
-Also parse the `### Dependencies` section. Each entry has the form `**A** <verb> **B** (...)`. Build a dependency map: class A depends on class B when the verb is `composes`, `depends on`, or similar (not `emits` — event emission does not mean the emitting class depends on the event for implementation order).
+### Step 3 — Implement exceptions
 
-### Step 2 — Build implementation waves
+Read `$ARGUMENTS[0]/$ARGUMENTS[1]/exceptions.py`. If the file contains at least one `class` definition (i.e. there are domain exception stubs), invoke `domain-spec:exceptions-implementer` with prompt `$ARGUMENTS[0]/$ARGUMENTS[1]`. Wait for completion. If the file is absent or contains no class definitions, skip this step silently.
 
-From the dependency map, compute topological implementation order:
+### Step 4 — Implement other modules in parallel
 
-- **Wave 1**: classes with no inbound dependencies from other spec classes (TypedDicts, Events, Commands, leaf Value Objects). Include `exceptions-implementer` here if `#### Domain Exceptions` has content.
-- **Wave N**: classes whose all dependencies appear in earlier waves.
-
-If no dependency map entry covers a class, treat it as Wave 1.
-
-### Step 3 — Create output directory
+Use Bash to list all `.py` files in `$ARGUMENTS[0]/$ARGUMENTS[1]` excluding `__init__.py` and `exceptions.py`:
 
 ```bash
-mkdir -p $ARGUMENTS[1]
+ls "$ARGUMENTS[0]/$ARGUMENTS[1]"/*.py | grep -v '__init__\.py' | grep -v 'exceptions\.py'
 ```
 
-### Step 4 — Scaffold
+For each file path returned, invoke `domain-spec:code-implementer` with prompt `<file_path>`. Launch all invocations in parallel (do not wait for one before starting the next). Wait for all to complete.
 
-Invoke `domain-spec:scaffold-builder` with prompt `$ARGUMENTS[0] $ARGUMENTS[1]`. Wait for completion before proceeding.
+### Step 5 — Report
 
-### Step 5 — Implement in waves
-
-Execute each wave sequentially. Within each wave, spawn all agents in a **single message** so they run in parallel.
-
-**Wave 1 message** — spawn in parallel:
-- One `domain-spec:code-implementer` per Wave 1 class, each with prompt `$ARGUMENTS[1] <class_name>`
-- One `domain-spec:exceptions-implementer` (if domain exceptions exist), with prompt `$ARGUMENTS[1]`
-
-**Wave N messages** — spawn in parallel:
-- One `domain-spec:code-implementer` per Wave N class, each with prompt `$ARGUMENTS[1] <class_name>`
-
-Wait for all agents in a wave to complete before starting the next.
-
-### Step 6 — Report
-
-Confirm with one sentence: "Code generation complete for `$ARGUMENTS[0]` → `$ARGUMENTS[1]`."
+Confirm with one sentence: "Implementation complete for `$ARGUMENTS[0]/$ARGUMENTS[1]`."
