@@ -32,23 +32,23 @@ Output one sentence:
 - If created: "`tests` package created at `<base_dir>/tests`."
 - If already present: "`tests` package already present at `<base_dir>/tests` — skipped."
 
-### Step 2 — Ensure root conftest.py exists
+### Step 2 — Ensure tests/conftest.py exists
 
-Check whether `<base_dir>/conftest.py` already exists:
+Check whether `<base_dir>/tests/conftest.py` already exists:
 
 ```bash
-[ -f "<base_dir>/conftest.py" ]
+[ -f "<base_dir>/tests/conftest.py" ]
 ```
 
 If it does not exist, create it:
 
 ```bash
-touch <base_dir>/conftest.py
+touch <base_dir>/tests/conftest.py
 ```
 
 Output one sentence:
-- If created: "`conftest.py` created at `<base_dir>/conftest.py`."
-- If already present: "`conftest.py` already present at `<base_dir>/conftest.py` — skipped."
+- If created: "`conftest.py` created at `<base_dir>/tests/conftest.py`."
+- If already present: "`conftest.py` already present at `<base_dir>/tests/conftest.py` — skipped."
 
 ### Step 3 — Ensure tests/unit package exists
 
