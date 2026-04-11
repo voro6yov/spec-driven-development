@@ -1,7 +1,7 @@
 {
   "name": "domain-spec",
   "description": "Generate specs for domain packages and implement them",
-  "version": "0.12.9",
+  "version": "0.12.10",
   "author": {
     "name": "Valentin Vorobyov",
     "email": "voro6yov.valentin@gmail.com",
