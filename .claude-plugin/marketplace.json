@@ -1,15 +1,20 @@
 {
-    "name": "spec-driven-development",
-    "owner": {
-      "name": "Valentin Vorobyev",
-      "email": "voro6yov.valentin@gmail.com"
+  "name": "spec-driven-development",
+  "owner": {
+    "name": "Valentin Vorobyev",
+    "email": "voro6yov.valentin@gmail.com"
+  },
+  "version": "0.2.0",
+  "plugins": [
+    {
+      "name": "domain-spec",
+      "source": "./plugins/domain-spec",
+      "description": "Generate specs for domain packages and implement them"
     },
-    "version": "0.2.0",
-    "plugins": [
-      {
-        "name": "domain-spec",
-        "source": "./plugins/domain-spec",
-        "description": "Generate specs for domain packages and implement them"
-      }
-    ]
-  }
+    {
+      "name": "adr-log",
+      "source": "./plugins/adr-log",
+      "description": "Generated ADRs"
+    }
+  ]
+}
