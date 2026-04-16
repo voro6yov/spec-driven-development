@@ -104,6 +104,16 @@ def user_1():
 - Apply state mutations using public methods only (never set private attributes).
 - Add docstring when fixture creates non-obvious state (e.g., "paused receiving").
 
+## Aggregate Archetypes
+
+Different aggregates need different fixture strategies. Identify the archetype first.
+
+| Archetype | Characteristics | Fixture strategy |
+|-----------|----------------|-----------------|
+| **Status-machine** | Has a Status value object; methods transition between named statuses | One fixture per reachable status, built by applying transitions in order |
+| **CRUD-collection** | Has multiple independent collection value objects; methods are `add_*`/`update_*`/`delete_*` | One fixture per collection group + fully populated fixture |
+| **Hybrid** | Both status transitions and collection CRUD | Status fixtures first, then collection variants within relevant statuses |
+
 ## Fixture Variants
 
 ### Simple Aggregate (No Data Fixture)
@@ -126,7 +136,7 @@ def load_1(load_1_data):
     return Load.from_load_data(DEFAULT_WAREHOUSE_ID, "conveyor-002", load_1_data)
 ```
 
-### Aggregate with Mutations
+### Status-Machine Aggregate with Mutations
 
 ```python
 @pytest.fixture
@@ -137,6 +147,92 @@ def load_2(load_1_data):
     load.clear_events()
     return load
 ```
+
+### CRUD-Collection Aggregate — Per-Collection Fixtures
+
+For aggregates with multiple independent collections, create one fixture per collection group so tests can target each area independently:
+
+```python
+@pytest.fixture
+def profile_type_1():
+    """ProfileType in initial state — all collections empty."""
+    profile_type = ProfileType.new(
+        tenant_id=DEFAULT_TENANT_ID,
+        name="Individual Profile",
+        description="Profile type for individual clients",
+        subject_kind="Individual",
+    )
+    profile_type.clear_events()
+    return profile_type
+
+
+@pytest.fixture
+def profile_type_2():
+    """ProfileType with two fields (enough for update/delete testing)."""
+    profile_type = ProfileType.new(
+        tenant_id=DEFAULT_TENANT_ID,
+        name="Individual Profile",
+        description="Profile type for individual clients",
+        subject_kind="Individual",
+    )
+    profile_type.add_field(
+        name="Full Name",
+        description="The full legal name",
+        required=True,
+        is_collection=False,
+    )
+    profile_type.add_field(
+        name="Date of Birth",
+        description="Date of birth",
+        required=True,
+        is_collection=False,
+    )
+    profile_type.clear_events()
+    return profile_type
+
+
+@pytest.fixture
+def profile_type_3():
+    """ProfileType with a document type that has a validation rule (nested operation)."""
+    profile_type = ProfileType.new(...)
+    profile_type.add_document_type(
+        name="Identity Document",
+        description="Primary identity document",
+        fields=[],
+    )
+    doc_type_id = profile_type.document_types.document_types[0].id
+    profile_type.add_document_type_validation_rule(
+        document_type_id=doc_type_id,
+        name="Expiry check",
+        code="check_expiry",
+        field_ids=[],
+        description="Validates document is not expired",
+    )
+    profile_type.clear_events()
+    return profile_type
+```
+
+### CRUD-Collection Aggregate — Fully Populated Fixture
+
+Create a fixture with items in **every** collection for cross-collection and integration tests:
+
+```python
+@pytest.fixture
+def profile_type_6():
+    """ProfileType fully populated — fields, document types, reconciliation rules, and validation rules."""
+    profile_type = ProfileType.new(...)
+    profile_type.add_field(name="Full Name", ...)
+    profile_type.add_field(name="Date of Birth", ...)
+    profile_type.add_document_type(name="Identity Document", ...)
+    profile_type.add_reconciliation_rule(name="Name match", description="...")
+    profile_type.add_validation_rule(name="Required fields", code="req_fields", field_ids=[], description="...")
+    profile_type.clear_events()
+    return profile_type
+```
+
+### Collection Item Count for Update/Delete Testing
+
+When a collection will be targeted by `update_*` or `delete_*` tests, add **at least 2 items** so that delete can be tested while items remain in the collection.
 
 ## Scoping Rules
 
@@ -200,12 +296,27 @@ def load_3(load_1_data):
 
 ### Fixture Selection Guide
 
+#### Status-machine aggregates
+
 | Test Action | Required Fixture |
 | --- | --- |
 | `start_receiving()` | `load_1` (pending state) |
 | `pause_receiving()` | `load_2` (receiving state) |
 | `complete_receiving()` | `load_2` (receiving state) |
 | Test "already completed" error | `load_3` (completed state) |
+
+#### CRUD-collection aggregates
+
+| Test Action | Required Fixture |
+| --- | --- |
+| `add_field()` | `profile_type_1` (empty state) |
+| `update_field()` | `profile_type_2` (has fields) |
+| `delete_field()` | `profile_type_2` (has ≥ 2 fields) |
+| `add_document_type()` | `profile_type_1` (empty state) |
+| `add_document_type_validation_rule()` | `profile_type_3` (has document type) or test inline |
+| `add_reconciliation_rule()` | `profile_type_1` (empty state) |
+| `add_validation_rule()` | `profile_type_1` (empty state) |
+| Integration / persistence test | `profile_type_6` (fully populated) |
 
 ## State Mutation Guidelines
 

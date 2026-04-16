@@ -37,7 +37,34 @@ For each class whose stereotype is `<<Aggregate Root>>` (skip `<<Entity>>` class
 - Factory method name (look for a method annotated `«factory»` or named `new`, `from_data`, `from_<snake>_data`)
 - Factory method parameters (positional args other than self, from the method signature in the spec)
 - Associated TypedDict (if the spec lists a `<<TypedDict>>` class whose name ends in `Data` and is in the `composes` / `depends on` list for this aggregate, it is the data type)
-- Lifecycle methods that change state (any method that is not `new`/factory, not a query, and mutates status — look for methods in `<<Aggregate Root>>` that typically correspond to state transitions)
+- **All public mutation methods** (every method that is not `new`/factory and not a pure query — include add, update, delete, and status-transition methods)
+
+#### Classify the aggregate archetype
+
+After collecting methods, classify the aggregate:
+
+| Archetype | How to detect | Example |
+|-----------|--------------|---------|
+| **Status-machine** | Has a Status value object; methods transition between named statuses (e.g. `start_receiving`, `complete`, `cancel`) | `Load`, `Order` |
+| **CRUD-collection** | Has multiple independent collection value objects; methods are `add_*`, `update_*`, `delete_*` with no Status field | `ProfileType`, `Catalog` |
+| **Hybrid** | Has both status transitions and collection CRUD methods | — |
+
+#### Detect nested operations
+
+Flag any method that takes a **parent entity ID** as its first argument (e.g. `add_document_type_validation_rule(document_type_id, ...)` delegates through one collection to a child entity). These are **nested operations** and require dedicated fixture coverage.
+
+#### Group methods by collection area
+
+For CRUD-collection and hybrid aggregates, group mutation methods by the collection they operate on:
+
+```
+fields:               add_field, update_field, delete_field
+document_types:       add_document_type, update_document_type, delete_document_type
+document_type_rules:  add_document_type_validation_rule, ...  (nested)
+reconciliation_rules: add_reconciliation_rule, update_reconciliation_rule, delete_reconciliation_rule
+validation_rules:     add_validation_rule, update_validation_rule, delete_validation_rule
+details:              update_details
+```
 
 ### Step 3 — Decide fixture strategy per aggregate
 
@@ -49,14 +76,54 @@ Apply the decision rules from the loaded skills:
 **Data fixture NOT needed** when:
 - The aggregate is constructed with simple scalar parameters only (no nested TypedDict input)
 
-### Step 4 — Determine lifecycle fixture variants
+### Step 4 — Determine fixture variants
 
-For each aggregate, determine the lifecycle states that tests will need:
+For each aggregate, determine the fixture set based on the **archetype** classified in Step 2.
+
+#### Strategy A: Status-machine aggregates
 
 1. **Initial state** — `{aggregate}_1`: aggregate just created, `clear_events()` called.
-2. **Intermediate states** — `{aggregate}_2`, `{aggregate}_3`, …: one fixture per distinct lifecycle state reached by applying state-transition methods in natural order, `clear_events()` called after each set of mutations.
+2. **Intermediate states** — `{aggregate}_2`, `{aggregate}_3`, …: one fixture per distinct lifecycle status reached by applying state-transition methods in natural order, `clear_events()` called after each transition.
 
-Use the aggregate's state-transition methods (identified in Step 2) to determine which intermediate states exist. If no state-transition methods exist, create only `{aggregate}_1`.
+If no state-transition methods exist, create only `{aggregate}_1`.
+
+#### Strategy B: CRUD-collection aggregates
+
+1. **Initial state** — `{aggregate}_1`: aggregate just created with empty collections, `clear_events()` called.
+2. **One fixture per collection group** — `{aggregate}_2`, `{aggregate}_3`, …: each fixture adds item(s) to **one** collection area (from the groups identified in Step 2). This lets tests target each collection independently.
+   - For each collection group, call the `add_*` method with realistic arguments.
+   - If the collection has items needed for update/delete testing, add **at least 2 items** so delete can be tested while items remain.
+3. **Fully populated fixture** — `{aggregate}_N`: all collections have at least one item each. This supports cross-collection interaction tests and integration tests.
+4. **Nested operation fixture** — if nested operations were detected in Step 2, create a fixture that exercises the nested path (e.g., a document type with a validation rule added to it).
+5. **Detail update fixture** (if applicable) — if the aggregate has a non-collection update method (e.g. `update_details`), include one fixture where it has been called.
+
+#### Strategy C: Hybrid aggregates
+
+Combine both strategies: create status-progression fixtures first, then for each status that allows CRUD operations, add collection-populated variants.
+
+#### Coverage rule
+
+After planning all fixtures, verify that **every public mutation method** identified in Step 2 is exercised by at least one fixture. If any method is uncovered, add a fixture that calls it.
+
+### Step 4.5 — Validate fixture plan
+
+Before writing any code, build a **fixture plan table** for each aggregate:
+
+```
+| Fixture            | Mutations applied                          | State description                  | Methods covered                                    |
+|--------------------|--------------------------------------------|------------------------------------|---------------------------------------------------|
+| profile_type_1     | (none)                                     | Initial empty state                | —                                                 |
+| profile_type_2     | add_field × 2                              | Two fields added                   | add_field                                         |
+| profile_type_3     | add_document_type, add_doc_type_val_rule   | Document type with validation rule | add_document_type, add_document_type_validation_rule |
+| profile_type_4     | add_reconciliation_rule                    | One reconciliation rule            | add_reconciliation_rule                           |
+| profile_type_5     | add_validation_rule                        | One validation rule                | add_validation_rule                               |
+| profile_type_6     | all add_* methods                          | Fully populated                    | (all add methods)                                 |
+| profile_type_7     | fully populated + update_details           | Details updated                    | update_details                                    |
+```
+
+Check the **"Methods covered"** column: the union must equal the full set of public mutation methods from Step 2. If any method is missing, add a fixture that exercises it.
+
+**Note**: `update_*` and `delete_*` methods do not need their own pre-state fixtures — tests will call these methods on existing fixtures. But every `add_*` and status-transition method must appear in at least one fixture, and collections used for update/delete testing must have enough items (≥ 2).
 
 ### Step 5 — Read existing conftest.py
 
