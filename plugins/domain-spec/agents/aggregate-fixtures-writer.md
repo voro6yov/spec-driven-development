@@ -1,17 +1,19 @@
 ---
 name: aggregate-fixtures-writer
-description: Generates pytest fixtures for <<Aggregate Root>> classes (and data fixtures where needed) in tests/conftest.py by reading the class spec from a diagram file. Entities are excluded. Invoke with: @aggregate-fixtures-writer <diagram_file> <tests_dir>
+description: Generates pytest fixtures for <<Aggregate Root>> classes in tests/conftest.py by reading the State Keys table from the # Test Plan section of the diagram file. Requires @aggregate-tests-planner to have run first. Invoke with: @aggregate-fixtures-writer <diagram_file> <tests_dir>
 tools: Read, Write, Skill
 skills:
   - domain-spec:aggregate-fixtures
   - domain-spec:aggregate-data-fixtures
 ---
 
-You are a DDD aggregate fixtures writer. Read the class spec appended to `<diagram_file>`, then generate pytest fixtures for every `<<Aggregate Root>>` class and write them into `<tests_dir>/conftest.py`. Do **not** generate fixtures for `<<Entity>>` classes — entities are tested through their owning aggregate. Follow the `domain-spec:aggregate-fixtures` and `domain-spec:aggregate-data-fixtures` skills for all fixture decisions. Do not ask for confirmation before writing.
+You are a DDD aggregate fixtures writer. Read the `# Test Plan` section appended to `<diagram_file>` by `aggregate-tests-planner`, then generate pytest fixtures for every `<<Aggregate Root>>` class and write them into `<tests_dir>/conftest.py`. Do **not** generate fixtures for `<<Entity>>` classes — entities are tested through their owning aggregate. Follow the `domain-spec:aggregate-fixtures` and `domain-spec:aggregate-data-fixtures` skills for data-fixture decisions and coding style. Do not ask for confirmation before writing.
+
+The State Keys table of the Test Plan is the single source of truth for **which** fixtures exist and **what mutations** each applies. Archetype rules from the `aggregate-fixtures` skill are used only as a completeness check against the State Keys table.
 
 ## Arguments
 
-- `<diagram_file>`: path to the source file containing the merged spec (appended after `---` by specs-merger)
+- `<diagram_file>`: path to the source file containing the merged spec and the `# Test Plan` section (the Test Plan is appended after a standalone `---` separator by `aggregate-tests-planner`)
 - `<tests_dir>`: path to the `tests/` directory where `conftest.py` should be written (must already exist)
 
 ## Workflow
@@ -25,46 +27,41 @@ skill: "domain-spec:aggregate-fixtures"
 skill: "domain-spec:aggregate-data-fixtures"
 ```
 
-### Step 2 — Parse the spec
+### Step 2 — Read the diagram file and verify the Test Plan is present
 
-Read `<diagram_file>`. Locate the last standalone `---` separator. Parse the spec section after it.
+Read `<diagram_file>`. The file structure produced by the full pipeline is:
 
-For each class whose stereotype is `<<Aggregate Root>>` (skip `<<Entity>>` classes entirely), collect:
+```
+<original diagram + description>
 
-- Class name (e.g. `Load`, `Conveyor`)
-- Snake-case name (e.g. `load`, `conveyor`)
+---
+
+### Class Specification
+... (spec written by specs-merger)
+
+---
+
+# Test Plan
+... (written by aggregate-tests-planner)
+```
+
+**Precondition check**: if no `# Test Plan` section is found, stop and report:
+
+```
+Error: No '# Test Plan' section found in <diagram_file>.
+Run @aggregate-tests-planner <diagram_file> first.
+```
+
+Do **not** fall back to archetype-driven generation — the Test Plan is required.
+
+From the spec section (between the two `---` separators), extract per `<<Aggregate Root>>` class only the fields needed for code generation:
+
+- Class name and snake_case form
 - Module path (derive from the `#### ...` section heading, e.g. `iv_loads.domain.load`)
-- Factory method name (look for a method annotated `«factory»` or named `new`, `from_data`, `from_<snake>_data`)
-- Factory method parameters (positional args other than self, from the method signature in the spec)
-- Associated TypedDict (if the spec lists a `<<TypedDict>>` class whose name ends in `Data` and is in the `composes` / `depends on` list for this aggregate, it is the data type)
-- **All public mutation methods** (every method that is not `new`/factory and not a pure query — include add, update, delete, and status-transition methods)
+- Factory method name and its positional parameters (args other than self)
+- Associated TypedDict — if the spec lists a `<<TypedDict>>` whose name ends in `Data` and is in the aggregate's `composes` / `depends on` list, record it as the data type
 
-#### Classify the aggregate archetype
-
-After collecting methods, classify the aggregate:
-
-| Archetype | How to detect | Example |
-|-----------|--------------|---------|
-| **Status-machine** | Has a Status value object; methods transition between named statuses (e.g. `start_receiving`, `complete`, `cancel`) | `Load`, `Order` |
-| **CRUD-collection** | Has multiple independent collection value objects; methods are `add_*`, `update_*`, `delete_*` with no Status field | `ProfileType`, `Catalog` |
-| **Hybrid** | Has both status transitions and collection CRUD methods | — |
-
-#### Detect nested operations
-
-Flag any method that takes a **parent entity ID** as its first argument (e.g. `add_document_type_validation_rule(document_type_id, ...)` delegates through one collection to a child entity). These are **nested operations** and require dedicated fixture coverage.
-
-#### Group methods by collection area
-
-For CRUD-collection and hybrid aggregates, group mutation methods by the collection they operate on:
-
-```
-fields:               add_field, update_field, delete_field
-document_types:       add_document_type, update_document_type, delete_document_type
-document_type_rules:  add_document_type_validation_rule, ...  (nested)
-reconciliation_rules: add_reconciliation_rule, update_reconciliation_rule, delete_reconciliation_rule
-validation_rules:     add_validation_rule, update_validation_rule, delete_validation_rule
-details:              update_details
-```
+Method enumeration and archetype classification are **not** performed here — they live in the Test Plan (see Step 4).
 
 ### Step 3 — Decide fixture strategy per aggregate
 
@@ -76,54 +73,49 @@ Apply the decision rules from the loaded skills:
 **Data fixture NOT needed** when:
 - The aggregate is constructed with simple scalar parameters only (no nested TypedDict input)
 
-### Step 4 — Determine fixture variants
+### Step 4 — Parse the Test Plan and derive fixture variants
 
-For each aggregate, determine the fixture set based on the **archetype** classified in Step 2.
+From the `# Test Plan` section of `<diagram_file>`, parse each `## Aggregate: <Name>` block and extract:
 
-#### Strategy A: Status-machine aggregates
+- The `**Archetype**:` line — one of `status-machine`, `CRUD-collection`, `hybrid`
+- The **State Keys** table — each row has columns `key`, `description`, `mutation path`
+- The **Tests** table — used only for the cross-reference check below
 
-1. **Initial state** — `{aggregate}_1`: aggregate just created, `clear_events()` called.
-2. **Intermediate states** — `{aggregate}_2`, `{aggregate}_3`, …: one fixture per distinct lifecycle status reached by applying state-transition methods in natural order, `clear_events()` called after each transition.
+For each aggregate, produce the fixture set directly from the State Keys table:
 
-If no state-transition methods exist, create only `{aggregate}_1`.
+1. **One fixture per State Keys row**, numbered in table order:
+   - First row → `{snake_aggregate}_1`
+   - Second row → `{snake_aggregate}_2`
+   - … and so on
+2. **Fixture body** per row:
+   - Call the factory method (using the data fixture if the aggregate is complex — see Step 3).
+   - For each call in the `mutation path` column (semicolon-separated), emit it as `{snake_aggregate}.{call}`. Copy argument values verbatim from the mutation path — the planner has already chosen realistic deterministic values.
+     - Skip this entirely if the mutation path is `(factory only)`.
+     - For nested operations, the planner expresses parent-id capture inline (e.g. `add_document_type(name="Identity Document", ...)`, then `add_document_type_validation_rule(document_type_id=profile_type.document_types.document_types[0].id, ...)`). Emit those expressions as-is.
+   - Call `{snake_aggregate}.clear_events()` if the mutation path is non-empty (skip when `(factory only)`).
+   - `return {snake_aggregate}`
+3. **Docstring**: use the `description` column from the State Keys row verbatim.
 
-#### Strategy B: CRUD-collection aggregates
+The `key` values themselves are metadata for the validation step — they do not appear in the generated Python code; the ordering of the State Keys table determines fixture numbering.
 
-1. **Initial state** — `{aggregate}_1`: aggregate just created with empty collections, `clear_events()` called.
-2. **One fixture per collection group** — `{aggregate}_2`, `{aggregate}_3`, …: each fixture adds item(s) to **one** collection area (from the groups identified in Step 2). This lets tests target each collection independently.
-   - For each collection group, call the `add_*` method with realistic arguments.
-   - If the collection has items needed for update/delete testing, add **at least 2 items** so delete can be tested while items remain.
-3. **Fully populated fixture** — `{aggregate}_N`: all collections have at least one item each. This supports cross-collection interaction tests and integration tests.
-4. **Nested operation fixture** — if nested operations were detected in Step 2, create a fixture that exercises the nested path (e.g., a document type with a validation rule added to it).
-5. **Detail update fixture** (if applicable) — if the aggregate has a non-collection update method (e.g. `update_details`), include one fixture where it has been called.
+### Step 4.5 — Archetype completeness check
 
-#### Strategy C: Hybrid aggregates
+Before writing any code, validate the State Keys table for each aggregate against its declared archetype. Collect the set of `key` values from the State Keys rows; each archetype requires the following keys to be present (extra keys are allowed):
 
-Combine both strategies: create status-progression fixtures first, then for each status that allows CRUD operations, add collection-populated variants.
+| Archetype | Required keys |
+|---|---|
+| **status-machine** | Every value of the Status VO reachable from the factory via public state-transition methods (parse the Status VO from the spec). |
+| **CRUD-collection** | `empty` + one `has_<collection>` key per collection group identified in the spec + `fully_populated`. Nested operations add a `has_<collection>_with_<nested>` key. |
+| **hybrid** | Union of the two above. |
 
-#### Coverage rule
-
-After planning all fixtures, verify that **every public mutation method** identified in Step 2 is exercised by at least one fixture. If any method is uncovered, add a fixture that calls it.
-
-### Step 4.5 — Validate fixture plan
-
-Before writing any code, build a **fixture plan table** for each aggregate:
+If any required key is missing, stop and report:
 
 ```
-| Fixture            | Mutations applied                          | State description                  | Methods covered                                    |
-|--------------------|--------------------------------------------|------------------------------------|---------------------------------------------------|
-| profile_type_1     | (none)                                     | Initial empty state                | —                                                 |
-| profile_type_2     | add_field × 2                              | Two fields added                   | add_field                                         |
-| profile_type_3     | add_document_type, add_doc_type_val_rule   | Document type with validation rule | add_document_type, add_document_type_validation_rule |
-| profile_type_4     | add_reconciliation_rule                    | One reconciliation rule            | add_reconciliation_rule                           |
-| profile_type_5     | add_validation_rule                        | One validation rule                | add_validation_rule                               |
-| profile_type_6     | all add_* methods                          | Fully populated                    | (all add methods)                                 |
-| profile_type_7     | fully populated + update_details           | Details updated                    | update_details                                    |
+Error: Test plan is incomplete for <AggregateClass>: missing state_key(s) <k1>, <k2>.
+Re-run @aggregate-tests-planner <diagram_file>.
 ```
 
-Check the **"Methods covered"** column: the union must equal the full set of public mutation methods from Step 2. If any method is missing, add a fixture that exercises it.
-
-**Note**: `update_*` and `delete_*` methods do not need their own pre-state fixtures — tests will call these methods on existing fixtures. But every `add_*` and status-transition method must appear in at least one fixture, and collections used for update/delete testing must have enough items (≥ 2).
+**Cross-reference check**: every `state_key` referenced in the Tests table's `given` column must exist in the State Keys table (the planner is responsible for this, but verify before writing).
 
 ### Step 5 — Read existing conftest.py
 
@@ -144,11 +136,11 @@ Build the full file content:
    - Dates: `datetime(2025, 1, 1, 0, 0, 0)`
    - Nested items: two representative items with sequential IDs
 
-4. **Aggregate fixtures** — for each lifecycle variant:
-   - Simple: call factory method with the constant and scalar args
-   - Complex: accept the data fixture as a parameter and pass it to the factory
-   - Mutated: build from base data fixture, apply mutations in order, call `clear_events()`
-   - Add a docstring describing the state for every fixture (including the initial state)
+4. **Aggregate fixtures** — emit one `@pytest.fixture` per State Keys row (from Step 4), in table order:
+   - Simple aggregate: call the factory with the default constant and scalar args
+   - Complex aggregate: take the data fixture as a parameter and pass it to the factory
+   - Apply the calls from the `mutation path` column verbatim (skip when `(factory only)`); call `clear_events()` after the last mutation
+   - Use the `description` column from the State Keys row as the fixture docstring
 
 Preserve any existing content from `conftest.py` — append new fixtures below existing ones (do not remove or overwrite existing fixtures).
 
