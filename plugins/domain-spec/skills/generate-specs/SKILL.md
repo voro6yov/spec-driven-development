@@ -2,8 +2,6 @@
 name: generate-specs
 description: Orchestrates parallel DDD class spec generation for each category, then merges into sibling files next to the source diagram file. Invoke with: /generate-specs <diagram_file>
 argument-hint: <diagram_file>
-context: fork
-agent: general-purpose
 allowed-tools: Read, Bash, Agent
 ---
 
