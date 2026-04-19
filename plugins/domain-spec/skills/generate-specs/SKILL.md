@@ -17,7 +17,7 @@ Given `<diagram_file>` at `<dir>/<stem>.md`, spec outputs are written to sibling
 |---|---|---|
 | `<stem>.specs.md` | `specs-merger` | `### Class Specification` + `### Dependencies` |
 | `<stem>.exceptions.md` | `specs-merger` (stub) → `exceptions-specifier` (enriched) | `## Domain Exceptions` |
-| `<stem>.test-plan.md` | `aggregate-tests-planner` (separate step) | `# Test Plan` |
+| `<stem>.test-plan.md` | `aggregate-tests-planner` | `# Test Plan` |
 
 The diagram file itself is updated with an **Artifacts** index linking these siblings.
 
@@ -62,6 +62,12 @@ After the merge agent completes, invoke `domain-spec:exceptions-specifier` with 
 
 Output: enriched `<stem>.exceptions.md`.
 
-### Step 6 — Report
+### Step 6 — Spawn aggregate-tests-planner agent
+
+After the exceptions-specifier agent completes, invoke `domain-spec:aggregate-tests-planner` with `$ARGUMENTS` as the prompt.
+
+Output: `<stem>.test-plan.md` containing the `# Test Plan` section for every `<<Aggregate Root>>` class.
+
+### Step 7 — Report
 
 Confirm with one sentence: "Spec generation complete for `$ARGUMENTS`."
