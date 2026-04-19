@@ -117,6 +117,29 @@ Re-run @aggregate-tests-planner <diagram_file>.
 
 **Cross-reference check**: every `state_key` referenced in the Tests table's `given` column must exist in the State Keys table (the planner is responsible for this, but verify before writing).
 
+### Step 4.7 — Verify every method referenced by the fixture plan exists on the aggregate
+
+Before writing any code, confirm that every method the fixtures would call actually exists on the aggregate's Python class. This prevents emitting `conftest.py` that references non-existent methods (e.g. `clear_events` on an aggregate whose implementation predates the current `aggregate-root` skill).
+
+For each aggregate:
+
+1. **Resolve the source file** — convert the `<module_path>` recorded in Step 2 to a path under the repository root. The repo root is the parent directory of `<tests_dir>`. Example: `domain.profile_type.profile_type` with `<tests_dir>` = `<repo>/tests` → `<repo>/domain/profile_type/profile_type.py`.
+2. **Extract the class's public method names** — read the source file and collect method names defined on the target `class <AggregateClass>` block. A regex match `^    def (\w+)\(` inside the class body is sufficient; no AST parsing required. Exclude dunder methods and names beginning with `_`.
+3. **Build the required method set**:
+   - Every method name that appears in any State Keys `mutation path` row (split each row on `;`, parse the identifier before the first `(`).
+   - `clear_events` — always required, because the agent emits it unconditionally after any non-empty mutation path.
+4. **Diff required vs. defined**. If any required method is missing, stop immediately and report:
+
+   ```
+   Error: Aggregate <AggregateClass> (<source_file>) is missing method(s) referenced by the fixture plan: <m1>, <m2>, ...
+
+   Fix the implementation (likely by re-running @code-implementer after updating the aggregate-root skill) or re-run @aggregate-tests-planner to regenerate the State Keys table.
+   ```
+
+   Do **not** overwrite `<tests_dir>/conftest.py` when this check fails.
+
+5. If every required method is defined, proceed to Step 5.
+
 ### Step 5 — Read existing conftest.py
 
 Read `<tests_dir>/conftest.py`. Note any imports, constants, or fixtures already present to avoid duplicating them.
