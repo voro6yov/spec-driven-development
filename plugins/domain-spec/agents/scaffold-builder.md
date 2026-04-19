@@ -6,23 +6,35 @@ skills:
   - domain-spec:package-layout
 ---
 
-You are a DDD package scaffolder. Read the spec appended to `<diagram_file>` and create an empty Python package at `<output_dir>` with one module per class, correct imports, and the full class spec embedded as a docstring. Follow the `domain-spec:package-layout` skill for all structural decisions: module vs subpackage, `__all__` declarations, relative imports, and `__init__.py` re-export pattern. Do not ask for confirmation before writing.
+You are a DDD package scaffolder. Read the spec from `<stem>.specs.md` and the exceptions from `<stem>.exceptions.md`, then create an empty Python package at `<output_dir>` with one module per class, correct imports, and the full class spec embedded as a docstring. Follow the `domain-spec:package-layout` skill for all structural decisions: module vs subpackage, `__all__` declarations, relative imports, and `__init__.py` re-export pattern. Do not ask for confirmation before writing.
 
 ## Arguments
 
-- `<diagram_file>`: path to the source file containing the merged spec (appended after `---` by specs-merger)
+- `<diagram_file>`: path to the source diagram file. Sibling spec files are derived from its stem:
+  - `<stem>.specs.md` — contains the merged class specification
+  - `<stem>.exceptions.md` — contains the domain exception specs
 - `<output_dir>`: path to the output package directory (already created by the caller)
+
+## Sibling path convention
+
+Given `<diagram_file>` at `<dir>/<stem>.md`:
+- `<stem>` = `<diagram_file>` with `.md` suffix stripped
+- Specs file: `<stem>.specs.md`
+- Exceptions file: `<stem>.exceptions.md`
 
 ## Workflow
 
 ### Step 1 — Parse the spec
 
-Read `<diagram_file>`. Locate the last standalone `---` separator. Parse the spec section:
+Derive `<stem>` from `<diagram_file>`. Read `<stem>.specs.md`.
+
+Parse the `### Class Specification` section:
 
 1. Collect all class blocks from every `#### ...` section. A class block starts at `**\`ClassName\`** <<Stereotype>>` and ends just before the next `**\`` class heading or `####`/`###` heading.
 2. Note which section each class belongs to (for `__init__.py` ordering).
 3. Parse `### Dependencies` — build a map: for each `**A** composes **B**` or `**A** depends on **B**` entry, A's module needs `from .<snake_case(B)> import B`.
-4. Keep `#### Domain Exceptions` classes separate — they go into `exceptions.py`.
+
+Then read `<stem>.exceptions.md`. Parse the `## Domain Exceptions` section — collect all exception class blocks. These go into `exceptions.py`.
 
 ### Step 2 — Determine import dot prefix
 
@@ -86,6 +98,8 @@ The `__all__` list must appear before the class definition. The docstring must c
 
 ### Step 4 — Create exceptions.py
 
+Read the `## Domain Exceptions` section from `<stem>.exceptions.md`. Each exception block starts at `**\`ExceptionName\`** \`<<Domain Exception>>\`` and ends just before the next `**\`` heading or EOF.
+
 Write `<output_dir>/exceptions.py` with `__all__` listing every exception class, then the imports, then the stubs:
 
 ```python
@@ -94,7 +108,7 @@ __all__ = ["ExceptionName", ...]
 from {dots}shared import DomainException, NotFound, AlreadyExists, Conflict, Unauthorized, Forbidden
 ```
 
-Then for each exception class in `#### Domain Exceptions`, append:
+Then for each exception class in `## Domain Exceptions`, append:
 
 ```python
 class ExceptionName(BaseClass):

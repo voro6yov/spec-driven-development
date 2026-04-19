@@ -1,6 +1,6 @@
 ---
 name: generate-specs
-description: Orchestrates parallel DDD class spec generation for each category, then merges into a final specification appended to the source file. Invoke with: /generate-specs <diagram_file>
+description: Orchestrates parallel DDD class spec generation for each category, then merges into sibling files next to the source diagram file. Invoke with: /generate-specs <diagram_file>
 argument-hint: <diagram_file>
 context: fork
 agent: general-purpose
@@ -8,6 +8,20 @@ allowed-tools: Read, Bash, Agent
 ---
 
 You are a DDD spec generation orchestrator. Generate class specifications for all classes in `$ARGUMENTS` by running category agents in parallel, then merging the results.
+
+## Sibling file convention
+
+Given `<diagram_file>` at `<dir>/<stem>.md`, spec outputs are written to sibling files (not appended to the diagram):
+
+| File | Written by | Content |
+|---|---|---|
+| `<stem>.specs.md` | `specs-merger` | `### Class Specification` + `### Dependencies` |
+| `<stem>.exceptions.md` | `specs-merger` (stub) → `exceptions-specifier` (enriched) | `## Domain Exceptions` |
+| `<stem>.test-plan.md` | `aggregate-tests-planner` (separate step) | `# Test Plan` |
+
+The diagram file itself is updated with an **Artifacts** index linking these siblings.
+
+All agents derive `<stem>` by stripping the `.md` suffix from `<diagram_file>`.
 
 ## Category → Stereotype Mapping
 
@@ -40,9 +54,13 @@ After all class-specifier agents complete, spawn a `domain-spec:pattern-assigner
 
 After all pattern-assigner agents complete, invoke `domain-spec:specs-merger` with `$ARGUMENTS` as the prompt.
 
+Outputs: `<stem>.specs.md`, `<stem>.exceptions.md`, and an Artifacts index appended to the diagram file.
+
 ### Step 5 — Spawn exceptions-specifier agent
 
 After the merge agent completes, invoke `domain-spec:exceptions-specifier` with `$ARGUMENTS` as the prompt.
+
+Output: enriched `<stem>.exceptions.md`.
 
 ### Step 6 — Report
 
