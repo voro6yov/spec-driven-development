@@ -2,8 +2,6 @@
 name: generate-code
 description: Implements a DDD domain package from its class spec. Invoke with: /generate-code <domain_dir> <package_path> <diagram_file>
 argument-hint: <domain_dir> <package_path> <diagram_file>
-context: fork
-agent: general-purpose
 allowed-tools: Read, Bash, Agent
 ---
 
