@@ -84,6 +84,12 @@ class {{ aggregate_name }}(metaclass=Entity):
                 changes=changes,
             )
         )
+
+    def clear_events(self) -> None:
+        self.events.clear()
+
+    def clear_commands(self) -> None:
+        self.commands.clear()
 ```
 
 ## Placeholders

@@ -19,6 +19,7 @@ disable-model-invocation: false
 - Declare guards for every attribute to enforce immutability, types, or custom rules using `Guard` and `ImmutableCheck`.
 - Accept DTOs or primitives in constructors/factories; store collaborators such as collection value objects and info value objects.
 - Maintain `events: list[Event]` and optional `commands: list[Command]` lists as mutable collections on the instance.
+- Expose `clear_events() -> None` and (when commands are used) `clear_commands() -> None` that empty the respective lists. These are required by test fixtures to drain setup-mutation events before the action under test runs.
 
 ## Behavior checklist
 
@@ -26,6 +27,7 @@ disable-model-invocation: false
 - Expose intent-revealing methods that mutate state and delegate detailed work to collection/value objects.
 - Update timestamps or derived metadata whenever state changes.
 - Append events immediately after successful state transitions, either directly or via collaborators.
+- Implement `clear_events()` / `clear_commands()` as single-statement methods (`self.events.clear()` / `self.commands.clear()`) with no other side effects — they are infrastructure hooks for test fixtures, not domain operations.
 
 ## Testing guidance
 
