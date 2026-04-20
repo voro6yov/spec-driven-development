@@ -41,6 +41,20 @@ ls "$ARGUMENTS[0]/$ARGUMENTS[1]"/*.py | grep -v '__init__\.py' | grep -v 'except
 
 For each file path returned, invoke `domain-spec:code-implementer` with prompt `<file_path>`. Launch all invocations in parallel (do not wait for one before starting the next). Wait for all to complete.
 
-### Step 6 — Report
+### Step 6 — Generate fixtures
+
+Use Bash to derive the tests directory:
+
+```bash
+echo "$(dirname "$ARGUMENTS[0]")/tests"
+```
+
+Invoke `domain-spec:aggregate-fixtures-writer` with prompt `$ARGUMENTS[2] <tests_dir>`. Wait for completion.
+
+### Step 7 — Implement tests
+
+Invoke `domain-spec:aggregate-tests-implementator` with prompt `$ARGUMENTS[2] <tests_dir>`. Wait for completion.
+
+### Step 8 — Report
 
 Confirm with one sentence: "Implementation complete for `$ARGUMENTS[0]/$ARGUMENTS[1]`."
