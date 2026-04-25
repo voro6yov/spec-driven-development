@@ -83,54 +83,21 @@ config:
 ---
 
 classDiagram
-    class AggregateTable {
+    class \{Aggregate\}Table {
         <<Table>>
-        -id: UUID
-        -tenant_id: UUID
+        -id: String
     }
-    
-    class ChildTable {
-        <<Table>>
-        -id: UUID
-        -parent_id: UUID
-    }
-    
-    AggregateTable "1" --* "0..n" ChildTable : owns
 ```
 
 ### Table: `\{table_name\}`
 
 | Column | Type | Constraints | Description |
 | --- | --- | --- | --- |
-| `id` | UUID | PK | Primary identifier |
-| `tenant_id` | UUID | NOT NULL | Tenant scope |
+| `id` | String | PK | Primary identifier |
 | {column} | {TYPE} | {constraints} | {description} |
-
-### Table: `\{child_table_name\}` *(if applicable)*
-
-| Column | Type | Constraints | Description |
-| --- | --- | --- | --- |
-| `id` | UUID | PK | Child identifier |
-| `\{parent\}_id` | UUID | FK, NOT NULL | Parent reference |
-| `tenant_id` | UUID | NOT NULL | Tenant scope (denormalized) |
 
 ### Indexes
 
 | Index | Columns | Purpose |
 | --- | --- | --- |
-| `idx_\{table\}_\{column\}` | {column}, tenant_id | {Query optimization purpose} |
-
----
-
-## 4. Deferred Decisions
-
-| Decision | Status | Depends On |
-| --- | --- | --- |
-| {Decision topic} | ⏸️ Deferred | {Dependency} |
-
----
-
-## 5. References
-
-- **Domain Model**: {link to bounded context}
-- **Aggregate Spec**: {link to package spec}
+| `idx_\{table\}_\{column\}` | {column} | {Query optimization purpose} |
