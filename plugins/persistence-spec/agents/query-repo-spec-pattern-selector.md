@@ -24,7 +24,7 @@ If `<spec_file>` does not exist, stop and tell the user to run `@query-repo-spec
 
 ### Step 1 — Read inputs
 
-- Read `<diagram_file>` to extract the aggregate root, the class tagged `<<Query Repository>>` (or the query-side `<<Repository>>`), and any `<<Query DTO>>` classes (e.g. `{Aggregate}Info`, `{Aggregate}ListResult`, `{Aggregate}Filtering`).
+- Read `<diagram_file>` to extract the aggregate root and the class tagged `<<Repository>>` whose name starts with `Query` (e.g. `QueryOrderRepository`). The query DTOs in scope are exactly the `<<Query DTO>>` classes that the query repository depends on (incoming dependency edges on the repository class — typically rendered as `QueryOrderRepository ..> OrderInfo` or similar in Mermaid). Ignore `<<Query DTO>>` classes that are not wired to this repository.
 - Read `<command_spec_file>` to find the primary table name, child tables, and indexes already declared on the command side.
 - Read `<spec_file>`. If Section 1 or Section 2 already contains real content (any row without a `{placeholder}` value or `Yes / No`-style template choice), stop and tell the user the spec is already filled — do not overwrite. Re-running this agent is only safe on a freshly scaffolded file.
 - The `query-repository` and `query-context` skills are auto-loaded; consult them for DTO/mapper/repository pattern choices and context-integration wording.
@@ -41,22 +41,22 @@ Decide the following from the diagram and command spec:
 | Child Tables | Any child rows in Section 2 of `<command_spec_file>` |
 | Single Entity Lookup | The query repository interface declares `find_{aggregate}` (or equivalent single-result finder) |
 | Paginated List | The interface declares `find_{aggregates}` (or equivalent list/paginated finder) |
-| Filtering Fields | Fields on the `<<Query DTO>>` filtering class (e.g. `{Aggregate}Filtering`); empty → None |
-| Sorting Fields | A `<<Query DTO>>` sorting enum, or a `sorting` parameter on a list finder; empty → None |
+| Filtering Fields | Fields on the dependency `<<Query DTO>>` whose name ends in `Filtering` (e.g. `{Aggregate}Filtering`); no such DTO → None |
+| Sorting Fields | Fields on the dependency `<<Query DTO>>` whose name ends in `Sorting` (e.g. `{Aggregate}Sorting`); no such DTO → None |
 | Analytics | The interface declares an analytics/aggregation finder (e.g. `get_analytics`) |
-| Multi-tenant | Set to **Yes** if the command spec aggregate declares `tenant_id` (i.e. the command spec uses Composite PK Tables) |
+| Multi-tenant | Set to **Yes** if the aggregate root in `<diagram_file>` declares a `tenant_id` field |
 
 ### Step 3 — Fill Section 1 (Query Context Analysis)
 
 - Replace the **Purpose** placeholder with one sentence describing what reads this query repository serves (e.g. "Read-side query operations for the {Aggregate} aggregate in the {Context} bounded context.").
-- Fill the **Schema Reference** table with the link/name of the command spec, the primary table from the command spec, and child tables (or `None`).
+- Fill the **Schema Reference** table: link the Command Persistence Spec as `[<stem>.command-repo-spec.md](<stem>.command-repo-spec.md)` (relative to the diagram directory), then list the primary table from the command spec and child tables (or `None`).
 - Fill each row of the **Query Requirements** table with `Yes` / `No` or the field list from Step 2. Keep the **Pattern Implication** column wording from the template — the template values are correct.
 
 ### Step 4 — Fill Section 2 (Pattern Selection)
 
 Apply the per-artifact rules below using real names derived from the aggregate vocabulary (PascalCase for DTOs/mappers/repositories, snake_case plural for the context attribute).
 
-- **DTOs**: one row per `<<Query DTO>>` class declared in the diagram. If a DTO from the template (Info / ListResult / Filtering) has no corresponding diagram class, drop the row entirely. Do not invent DTOs.
+- **DTOs**: one row per `<<Query DTO>>` class wired as a dependency of the query repository (from Step 1). If a DTO from the template (Info / ListResult / Filtering) has no corresponding dependency, drop the row entirely. Do not invent DTOs.
 - **Mappers**: one `{Aggregate}InfoMapper` row using the **DTO Mapper** pattern. Add additional mapper rows only if the diagram declares additional read-side DTOs that need their own mapper.
 - **Repository**: a single `Query{Aggregate}Repository` row with pattern `Query Repository`.
 - **Context Integration** *(mandatory — never omit)*: always fill both `Abstract` + `SQLAlchemy` Query Context rows. Use the bounded-context name from the diagram title for `{Context}`; fall back to the aggregate name if no title is set. Fill the **Attribute** column with the snake_case plural form of the aggregate name typed against the repository class — e.g. `orders: QueryOrderRepository` on the abstract row and `orders: SqlAlchemyQueryOrderRepository` on the concrete row. This pins the Query Context wiring so downstream code generation does not need a separate context-integration spec step.
