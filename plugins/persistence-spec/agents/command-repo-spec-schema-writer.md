@@ -24,7 +24,7 @@ If `<spec_file>` does not exist, stop and tell the user to run `@command-repo-sp
 
 - Read `<diagram_file>` to extract the aggregate root, child entities, value objects, and the repository interface.
 - Read `<spec_file>`. **Idempotency guard**: if Section 3 contains none of the placeholder tokens `{column}`, `{TYPE}`, `{constraints}`, `{description}`, `{Domain}`, `idx_\{table\}_\{column\}`, then it has already been filled — stop and tell the user the schema section is already populated. Do not overwrite.
-- Read Section 1 to recover the bounded-context name (the `{Context}` value used in the UoW class names by the pattern-selector). Use it as the storage-model title; fall back to the aggregate name if Section 1 has no distinct context.
+- Read Section 1 to recover (a) the **Multi-tenant?** value (Yes / No) — this gates whether `tenant_id` columns appear at all — and (b) the bounded-context name (the `{Context}` value used in the UoW class names by the pattern-selector). Use the context name as the storage-model title; fall back to the aggregate name if Section 1 has no distinct context.
 - Read Section 2 to extract: the actual snake_case table names from the **Tables** sub-table, the chosen aggregate-mapper variant (Full / Minimal / With Children), the presence of a Polymorphic Mapper row, and the **Alternative Lookups** bullets (canonical index source).
 - The `table-definitions` skill is auto-loaded; consult its Column Types table and Naming Conventions for the field-to-column mapping rules.
 
@@ -32,8 +32,15 @@ If `<spec_file>` does not exist, stop and tell the user to run `@command-repo-sp
 
 For each table named in Section 2:
 
-1. **Identity columns** (always `String`, never `UUID` — the persistence layer stores IDs as `String` per the `table-definitions` skill):
-   - `Simple Table` → `id` `PK`; `tenant_id` `NOT NULL`.
+1. **Identity columns** (always `String`, never `UUID` — the persistence layer stores IDs as `String` per the `table-definitions` skill). Whether `tenant_id` appears is gated entirely by Section 1's **Multi-tenant?** value:
+
+   **If Multi-tenant? = No** → omit `tenant_id` from every table:
+   - `Simple Table` → `id` `PK`. No tenant column.
+   - `Table with FK` → `id` `PK`; `\{parent\}_id` `FK, NOT NULL`. FK constraint is on `\{parent\}_id` alone.
+   - `Composite PK Table` should not appear when Multi-tenant? = No; if it does, treat as a Section 2 inconsistency and stop with an error message asking the user to re-run `@command-repo-spec-pattern-selector`.
+
+   **If Multi-tenant? = Yes**:
+   - `Simple Table` → `id` `PK`; `tenant_id` `NOT NULL` (not part of PK).
    - `Composite PK Table` → `id` `PK`; `tenant_id` `PK`.
    - `Table with FK` → `id` `PK`; `\{parent\}_id` `FK, NOT NULL`; `tenant_id` `PK` (composite with parent).
 
@@ -55,8 +62,8 @@ For each table named in Section 2:
 
 The **Alternative Lookups** bullets in Section 2 are the canonical list — produce one index row per bullet, not by re-parsing the repository interface:
 
-- Lookup by scalar field → `idx_\{table\}_\{column\}` over `({column}, tenant_id)`.
-- Lookup via child entity → index on the child table's lookup column plus `tenant_id`.
+- Lookup by scalar field → `idx_\{table\}_\{column\}` over `({column}, tenant_id)` when Multi-tenant? = Yes, else `({column})` alone.
+- Lookup via child entity → index on the child table's lookup column, plus `tenant_id` only if Multi-tenant? = Yes.
 - Lookup over a JSONB value-object field → GIN index named `idx_\{table\}_\{jsonb_column\}_gin`, purpose noting the JSONB path queried.
 
 If Section 2 records `_None_` under Alternative Lookups, replace the index table body with `| _None_ | — | No non-CRUD finders declared. |`.
