@@ -51,9 +51,9 @@ Apply the per-artifact rules from the roadmap to populate each sub-table. Use re
 - **Migrations**: one `Create Table` row per table, one `Add Foreign Key` row per child table, one `Add Index` row per non-JSONB lookup column required by the repository finders, one `Add JSONB Index` row per JSONB column queried by a finder. Omit a row entirely if no instance of that pattern applies.
 - **Mappers**: one row per JSONB value object (Simple / Complex / Collection — pick by VO shape), one row per child entity, one aggregate mapper row (`With Children` / `Full` / `Minimal`). Add a `Polymorphic Mapper` row only if a discriminator hierarchy exists.
 - **Repository**: `Command{Aggregate}Repository` with `Simple` or `With Children`. Under **Alternative Lookups**, list one bullet per non-`*_of_id` finder declared on the domain repository interface; if none, replace the placeholder list with `_None_`.
-- **Context Integration**: keep both `Abstract` + `SQLAlchemy` Unit of Work rows. Use the bounded-context name from the diagram title (the `title:` directive in the Mermaid frontmatter) for `{Context}`; fall back to the aggregate name if no title is set.
+- **Context Integration**: keep both `Abstract` + `SQLAlchemy` Unit of Work rows. Use the bounded-context name from the diagram title (the `title:` directive in the Mermaid frontmatter) for `{Context}`; fall back to the aggregate name if no title is set. Fill the **Attribute** column with the snake_case plural form of the aggregate name typed against the repository class — e.g. `orders: CommandOrderRepository` on the abstract row and `orders: SqlAlchemyCommandOrderRepository` on the concrete row. This pins the UoW wiring so downstream code generation does not need a separate context-integration spec step.
 
-Leave Sections 3, 4, 5, and 6 untouched.
+Leave Sections 3, 4, and 5 untouched.
 
 ### Step 5 — Write back
 
