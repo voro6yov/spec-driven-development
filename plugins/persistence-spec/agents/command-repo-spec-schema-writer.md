@@ -23,49 +23,56 @@ If `<spec_file>` does not exist, stop and tell the user to run `@command-repo-sp
 ### Step 1 — Read inputs
 
 - Read `<diagram_file>` to extract the aggregate root, child entities, value objects, and the repository interface.
-- Read `<spec_file>`. If Section 3 already contains real content (any concrete column row beyond the `id` / `tenant_id` / `\{parent\}_id` defaults, or a non-placeholder index row), stop and tell the user the schema section is already filled — do not overwrite. Re-running this agent is only safe on a freshly scaffolded file.
-- The `table-definitions` skill is auto-loaded; consult its Column Types and Naming Conventions for the field-to-column mapping rules.
+- Read `<spec_file>`. **Idempotency guard**: if Section 3 contains none of the placeholder tokens `{column}`, `{TYPE}`, `{constraints}`, `{description}`, `{Domain}`, `idx_\{table\}_\{column\}`, then it has already been filled — stop and tell the user the schema section is already populated. Do not overwrite.
+- Read Section 1 to recover the bounded-context name (the `{Context}` value used in the UoW class names by the pattern-selector). Use it as the storage-model title; fall back to the aggregate name if Section 1 has no distinct context.
+- Read Section 2 to extract: the actual snake_case table names from the **Tables** sub-table, the chosen aggregate-mapper variant (Full / Minimal / With Children), the presence of a Polymorphic Mapper row, and the **Alternative Lookups** bullets (canonical index source).
+- The `table-definitions` skill is auto-loaded; consult its Column Types table and Naming Conventions for the field-to-column mapping rules.
 
 ### Step 2 — Build the storage model
 
-For each table listed in the Section 2 **Tables** sub-table:
+For each table named in Section 2:
 
-1. **Identity columns**:
-   - `Simple Table` → single `id` column, `primary_key=True`; `tenant_id` `NOT NULL`.
-   - `Composite PK Table` → `id` and `tenant_id` both `primary_key=True`.
-   - `Table with FK` → `id` `primary_key=True`, `\{parent\}_id` `NOT NULL`, `tenant_id` `primary_key=True` (composite with parent).
+1. **Identity columns** (always `String`, never `UUID` — the persistence layer stores IDs as `String` per the `table-definitions` skill):
+   - `Simple Table` → `id` `PK`; `tenant_id` `NOT NULL`.
+   - `Composite PK Table` → `id` `PK`; `tenant_id` `PK`.
+   - `Table with FK` → `id` `PK`; `\{parent\}_id` `FK, NOT NULL`; `tenant_id` `PK` (composite with parent).
 
-2. **Domain columns** — project the aggregate-root or child-entity fields from the diagram onto columns using the `table-definitions` Column Types table:
-   - Plain scalars (`str`, `int`, `bool`, enums) → `String` / `Integer` / `Boolean` / `String` (enum value).
-   - `<<Value Object>>` composed by the table's owning aggregate/entity → single `JSONB` column named after the field.
+2. **Standard columns driven by the mapper choice in Section 2**:
+   - **Full Aggregate Mapper** on the parent table → add `status: String NOT NULL`, `created_at: DateTime NOT NULL`, `updated_at: DateTime NOT NULL`.
+   - **With Children Aggregate Mapper** → same three on the parent.
+   - **Minimal Aggregate Mapper** → omit status and timestamps.
+   - **Polymorphic Mapper** present → add a discriminator column (e.g. `kind: String NOT NULL`) on the table whose rows hold the polymorphic data.
+
+3. **Domain columns** — project remaining aggregate-root or child-entity fields from the diagram using the `table-definitions` Column Types table:
+   - Plain scalars (`str`, `int`, `bool`, enums) → `String` / `Integer` / `Boolean` / `String` (enum stored as value).
+   - A `<<Value Object>>` composed by the table's owner → single `JSONB` column named after the field.
    - Collections of value objects → `JSONB` column.
-   - Datetimes (`created_at`, `updated_at`, plus any domain timestamps) → `DateTime`.
-   - A status value object → dedicated `String` column.
+   - Domain datetimes beyond `created_at` / `updated_at` → `DateTime`.
 
-3. **Constraints** — mark columns `NOT NULL` unless the diagram shows the field as optional (`Field?`, `Optional[...]`, default `None`). JSONB columns for optional value objects are nullable.
+4. **Constraints** — mark columns `NOT NULL` unless the diagram shows the field as optional (`Field?`, `Optional[...]`, default `None`). JSONB columns for optional value objects are nullable.
 
 ### Step 3 — Derive indexes
 
-For every method on the `<<Repository>>` interface that is **not** `\{aggregate\}_of_id`, `save`, `save_all`, or `delete`, add one index row:
+The **Alternative Lookups** bullets in Section 2 are the canonical list — produce one index row per bullet, not by re-parsing the repository interface:
 
 - Lookup by scalar field → `idx_\{table\}_\{column\}` over `({column}, tenant_id)`.
 - Lookup via child entity → index on the child table's lookup column plus `tenant_id`.
-- Lookup over a JSONB value-object field → GIN index, naming `idx_\{table\}_\{jsonb_column\}_gin`, purpose noting the JSONB path queried.
+- Lookup over a JSONB value-object field → GIN index named `idx_\{table\}_\{jsonb_column\}_gin`, purpose noting the JSONB path queried.
 
-If no non-CRUD finders exist, replace the index table body with a single row `| _None_ | — | No non-CRUD finders declared. |`.
+If Section 2 records `_None_` under Alternative Lookups, replace the index table body with `| _None_ | — | No non-CRUD finders declared. |`.
 
 ### Step 4 — Fill Section 3
 
 Replace the placeholder content under `## 3. Schema Specification`:
 
-1. **Entity Relationship diagram** — emit a `classDiagram` with one `<<Table>>` class per table from Section 2. List identity columns plus the most distinctive domain columns (cap at ~6 per class to keep the diagram legible). For aggregates with children, draw `Parent "1" --* "0..n" Child : owns`. Set the diagram `title:` to `{Aggregate} Storage Model` using the bounded-context name from Section 1 if available, else the aggregate name.
-2. **Per-table column tables** — keep the existing `### Table: ...` headings but replace each table body with the columns derived in Step 2. Use the `Column | Type | Constraints | Description` shape exactly. Use the SQLAlchemy type names from the Column Types table (`UUID` → write `String` since the skill stores UUIDs as `String`; reserve `UUID` only if the diagram explicitly uses a Postgres UUID type).
+1. **Entity Relationship diagram** — emit a `classDiagram` with one `<<Table>>` class per table from Section 2, named in PascalCase as `\{Aggregate\}Table` / `\{Child\}Table`. List identity columns + status + timestamps + discriminator (where applicable); skip JSONB blob columns to keep the diagram legible (cap ~6 lines per class). For aggregates with children, draw `\{Aggregate\}Table "1" --* "0..n" \{Child\}Table : owns`. Set the diagram `title:` to `\{Context\} Storage Model` using the bounded-context name from Section 1.
+2. **Per-table column tables** — rename **both** parent and child `### Table: ...` headings to use the actual snake_case table names from Section 2. Replace each table body with the columns derived in Step 2. Use the `Column | Type | Constraints | Description` shape exactly. Use SQLAlchemy type names verbatim from the Column Types table — `String` for all IDs (never `UUID`).
 3. **Indexes table** — populate from Step 3.
 
-If Section 2 lists no child table, delete the `### Table: \{child_table_name\}` block entirely (heading + table). Otherwise rename the heading to use the actual child table name and fill its columns.
+If Section 2 lists no child table, delete the `### Table: \{child_table_name\}` block entirely (heading + table). Otherwise rename the heading and fill the body as above.
 
 ### Step 5 — Write back
 
-Apply changes to `<spec_file>` using `Edit` — replace each placeholder block (ER diagram, parent-table body, optional child-table body, indexes table) one at a time. Do not modify Sections 1, 2, 4, 5 or `<diagram_file>`.
+Apply changes to `<spec_file>` using `Edit` — replace each placeholder block (ER diagram, parent-table heading + body, optional child-table heading + body, indexes table) one at a time. Scope each `Edit` by including the preceding `###` heading line in `old_string` so the match is unique (the seed `| {column} | {TYPE} | ... |` row appears in multiple tables otherwise). Do not modify Sections 1, 2, 4, 5 or `<diagram_file>`.
 
 Confirm with one sentence using the actual filename, e.g. "Filled Schema Specification in `order.command-repo-spec.md`."
