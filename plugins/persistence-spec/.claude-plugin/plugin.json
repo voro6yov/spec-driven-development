@@ -1,0 +1,10 @@
+{
+  "name": "persistence-spec",
+  "description": "Generate specs for repositories and implement them",
+  "version": "0.1.4",
+  "author": {
+    "name": "Valentin Vorobyev",
+    "email": "voro6yov.valentin@gmail.com",
+    "url": "https://github.com/voro6yov"
+  }
+}
