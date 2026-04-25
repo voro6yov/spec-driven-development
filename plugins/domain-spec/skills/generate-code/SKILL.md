@@ -15,13 +15,7 @@ Invoke `domain-spec:package-preparer` with prompt `$ARGUMENTS[0] $ARGUMENTS[1]`.
 
 ### Step 2 — Prepare test package
 
-Use Bash to derive the project root:
-
-```bash
-dirname "$ARGUMENTS[0]"
-```
-
-Invoke `domain-spec:test-package-preparer` with the resulting path. Wait for completion.
+Invoke `domain-spec:test-package-preparer` with prompt `$ARGUMENTS[0]`. Wait for completion.
 
 ### Step 3 — Scaffold package
 
@@ -43,17 +37,11 @@ For each file path returned, invoke `domain-spec:code-implementer` with prompt `
 
 ### Step 6 — Generate fixtures
 
-Use Bash to derive the tests directory:
-
-```bash
-echo "$(dirname "$ARGUMENTS[0]")/tests"
-```
-
-Invoke `domain-spec:aggregate-fixtures-writer` with prompt `$ARGUMENTS[2] <tests_dir>`. Wait for completion.
+Invoke `domain-spec:aggregate-fixtures-writer` with prompt `$ARGUMENTS[2] $ARGUMENTS[0]/tests`. Wait for completion.
 
 ### Step 7 — Implement tests
 
-Invoke `domain-spec:aggregate-tests-implementator` with prompt `$ARGUMENTS[2] <tests_dir>`. Wait for completion.
+Invoke `domain-spec:aggregate-tests-implementator` with prompt `$ARGUMENTS[2] $ARGUMENTS[0]/tests`. Wait for completion.
 
 ### Step 8 — Report
 
