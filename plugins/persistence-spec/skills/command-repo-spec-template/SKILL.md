@@ -63,10 +63,10 @@ disable-model-invocation: false
 
 ### Context Integration
 
-| Component | Pattern | Template |
-| --- | --- | --- |
-| `Abstract\{Context\}UnitOfWork` | Abstract Unit of Work | `persistence-spec:unit-of-work` |
-| `SqlAlchemy\{Context\}UnitOfWork` | SQLAlchemy Unit of Work | `persistence-spec:unit-of-work` |
+| Component | Attribute | Pattern | Template |
+| --- | --- | --- | --- |
+| `Abstract\{Context\}UnitOfWork` | `\{aggregate_plural\}: Command\{Aggregate\}Repository` | Abstract Unit of Work | `persistence-spec:unit-of-work` |
+| `SqlAlchemy\{Context\}UnitOfWork` | `\{aggregate_plural\}: SqlAlchemyCommand\{Aggregate\}Repository` | SQLAlchemy Unit of Work | `persistence-spec:unit-of-work` |
 
 ---
 
@@ -122,147 +122,7 @@ classDiagram
 
 ---
 
-## 4. Repository Method Specifications
-
-### `\{aggregate\}_of_id(id: str, tenant_id: str) -> \{Aggregate\} | None`
-
-**Purpose**: Retrieve {Aggregate} aggregate by ID {with/without loading related data}
-
-**Preconditions**:
-
-- `id` and `tenant_id` must be valid UUID strings
-
-**Method Flow**:
-
-1. Query {Aggregate} record by `id` and `tenant_id`
-2. If not found, return `None`
-3. {Additional loading steps if needed}
-4. Map row data to {Aggregate} aggregate using mapper
-5. Return {Aggregate} aggregate
-
-**Postconditions**:
-
-- If found: {Aggregate} returned {with specific state}
-- If not found: `None` returned
-
-**Error Handling**:
-
-- Database error → `PersistenceError`
-
----
-
-### `\{aggregate\}_with_\{lookup\}(\{lookup\}_id: str, tenant_id: str) -> \{Aggregate\} | None` *(if needed)*
-
-**Purpose**: Retrieve {Aggregate} aggregate by {lookup} reference
-
-**Preconditions**:
-
-- `\{lookup\}_id` and `tenant_id` must be valid UUID strings
-
-**Method Flow**:
-
-1. Query {child/related} record by `\{lookup\}_id` and `tenant_id`
-2. If not found, return `None`
-3. Extract `\{aggregate\}_id` from found record
-4. Delegate to `\{aggregate\}_of_id(\{aggregate\}_id, tenant_id)`
-5. Return {Aggregate} aggregate
-
-**Postconditions**:
-
-- If found: {Aggregate} returned with fully hydrated state
-- If not found: `None` returned
-
-**Implementation Notes**:
-
-- Uses index `idx_\{table\}_\{lookup\}_id` for efficient lookup
-- Useful for event handlers receiving `\{lookup\}_id` from domain events
-
----
-
-### `save(\{aggregate\}: \{Aggregate\}) -> None`
-
-**Purpose**: Persist {Aggregate} aggregate {with child entities}
-
-**Preconditions**:
-
-- `\{aggregate\}` must be a valid {Aggregate} aggregate with `id` and `tenant_id`
-
-**Method Flow**:
-
-1. Map {Aggregate} aggregate to persistence format using mapper
-2. Upsert {Aggregate} record
-3. {Handle child entities if applicable}
-4. {Handle orphan removal if applicable}
-5. Commit transaction
-
-**Postconditions**:
-
-- {Aggregate} record persisted
-- {Child records persisted/updated}
-- {Orphaned records removed if applicable}
-
-**Error Handling**:
-
-- Unique constraint violation → `Duplicate\{Aggregate\}Error`
-- Database error → `PersistenceError`
-
----
-
-### `save_all(\{aggregates\}: list[\{Aggregate\}]) -> None` *(if batch operations needed)*
-
-**Purpose**: Batch persist multiple {Aggregate} aggregates in a single transaction
-
-**Preconditions**:
-
-- All aggregates must have valid `id` and `tenant_id`
-- List should not exceed batch size limit (configurable, default 100)
-
-**Method Flow**:
-
-1. Begin transaction
-2. For each aggregate:
-    - Serialize to persistence format
-    - Add to batch upsert operation
-3. Execute batch upsert
-4. Commit transaction
-
-**Postconditions**:
-
-- All {Aggregate} records persisted atomically
-- `updated_at` timestamps refreshed
-
----
-
-### `delete(\{aggregate\}: \{Aggregate\}) -> None`
-
-**Purpose**: Hard delete a persisted {Aggregate} aggregate
-
-**Preconditions**:
-
-- `\{aggregate\}.id` and `\{aggregate\}.tenant_id` are valid UUID strings
-
-**Method Flow**:
-
-1. Delete {Aggregate} record
-2. {Child records cascade-deleted automatically / explicit child deletion}
-3. Do not create tombstones or soft-delete flags
-
-**Postconditions**:
-
-- {Aggregate} record removed
-- Associated child records removed
-
-**Error Handling**:
-
-- Database error → `PersistenceError`
-
-**Notes**:
-
-- {External cleanup notes, e.g., S3 files handled separately}
-
----
-
-## 5. Deferred Decisions
+## 4. Deferred Decisions
 
 | Decision | Status | Depends On |
 | --- | --- | --- |
@@ -270,7 +130,7 @@ classDiagram
 
 ---
 
-## 6. References
+## 5. References
 
 - **Domain Model**: {link to bounded context}
 - **Aggregate Spec**: {link to package spec}
