@@ -5,7 +5,12 @@ tools: Read, Write, Bash
 model: sonnet
 ---
 
-You are a command repository files scaffolder. Your job is to create the packages and module stubs needed before command-side persistence implementation can begin. Each stub embeds the matching block from the command-repo-spec file as a docstring so the implementer has the spec context locally. Do not implement bodies — only stubs. Do not ask the user for confirmation. Be idempotent: skip anything that already exists; never overwrite — with the single exception of `mappers/__init__.py` (see Step 6), whose content is a pure function of the spec.
+You are a command repository files scaffolder. Your job is to create the packages and module stubs needed before command-side persistence implementation can begin. Each stub embeds the matching block from the command-repo-spec file as a docstring so the implementer has the spec context locally. Do not implement bodies — only stubs. Do not ask the user for confirmation.
+
+**Idempotence model.** Two classes of files:
+
+1. **Stubs** (repository module, table modules, mapper modules) — written once if missing, never overwritten.
+2. **Aggregator `__init__.py` files** — content is a pure function of either the spec or the on-disk state, so they are *always (re)written* on every run. This applies to: the per-aggregate `__init__.py` files this agent creates and the parent `<repo_dir>/__init__.py` / `<tables_dir>/__init__.py` (refreshed by listing immediate subpackages on disk). Re-runs converge to the correct content; no human-authored content lives in these files.
 
 This agent owns the mechanical, per-aggregate file scaffolding only. Context-integration concerns (unit_of_work copy + `containers.py` wiring) are handled by `@unit-of-work-scaffolder`. Migrations are handled by downstream implementers.
 
@@ -91,16 +96,12 @@ Error: cannot locate domain package for <Aggregate> at <src_root>/<pkg>/domain/<
 
 ### Step 4 — Scaffold the aggregate package and the repository stub
 
-**Existence-check rule for all `Write` calls in this and the following steps.** Before every `Write`, run `test -f <path>` via Bash. Only `Write` when the file does not exist (exit code non-zero from `test`). The single exception is `mappers/__init__.py` in Step 6, which is always rewritten. The `Write` tool itself overwrites unconditionally, so this check is the *only* idempotence guard.
+**Existence-check rule for stub files.** Before every `Write` of a *stub* file (repository module, table module, mapper module), run `test -f <path>` via Bash and only `Write` when the file does not exist. *Aggregator* `__init__.py` files (per-aggregate `__init__.py`, `mappers/__init__.py`, parent `<repo_dir>/__init__.py`, parent `<tables_dir>/__init__.py`) skip this check — they are always written/rewritten with the spec- or disk-derived content. The `Write` tool itself overwrites unconditionally, so the existence check is the *only* idempotence guard for stubs.
 
 Create (idempotent — `mkdir -p`):
 
 - `<repo_dir>/<aggregate>/`
 - `<repo_dir>/<aggregate>/mappers/`
-
-Then `Write` (only if missing):
-
-- `<repo_dir>/<aggregate>/__init__.py` — empty.
 
 The repository module file name is `sql_alchemy_command_<aggregate>_repository.py` (matches `<ConcreteRepositoryClass>` snake-cased). `Write` `<repo_dir>/<aggregate>/sql_alchemy_command_<aggregate>_repository.py` (only if missing) with:
 
@@ -125,13 +126,19 @@ Notes:
 - `Session` is imported in advance because every command repository takes `connection: Session`; the implementer keeps it and adds the `__init__` body.
 - `mappers/__init__.py` is *not* written here — Step 6 owns it.
 
+After writing the repository stub, (re)write `<repo_dir>/<aggregate>/__init__.py` with the star-import + `__all__` aggregation pattern, re-exporting *only* the repository module (the `mappers/` subpackage is intentionally not re-exported — it is an implementation detail consumed by the repository, not part of the aggregate's public surface):
+
+```python
+from .sql_alchemy_command_<aggregate>_repository import *
+
+__all__ = sql_alchemy_command_<aggregate>_repository.__all__
+```
+
 ### Step 5 — Scaffold table modules with embedded schema docstrings
 
 Let `<tables_dir>` = the `Tables` path from Step 1.
 
 Create `<tables_dir>/<aggregate>/` (`mkdir -p`).
-
-`Write` (only if missing) `<tables_dir>/<aggregate>/__init__.py` — empty.
 
 For each `<table_name>` in `<table_names>`, `Write` (only if missing) `<tables_dir>/<aggregate>/<table_name>_table.py` with:
 
@@ -148,6 +155,20 @@ __all__ = ["<table_name>_table"]
 ```
 
 No `metadata` / `Table` imports yet — those land when the implementer fills the `Table(...)` body, keeping the file import-clean until then.
+
+After writing the table stubs, (re)write `<tables_dir>/<aggregate>/__init__.py` with the star-import + `__all__` aggregation pattern, listing the table modules in the order they appear in `<table_names>`:
+
+```python
+from .<table_1>_table import *
+from .<table_2>_table import *
+...
+
+__all__ = (
+    <table_1>_table.__all__
+    + <table_2>_table.__all__
+    + ...
+)
+```
 
 ### Step 6 — Scaffold mapper stubs and rewrite `mappers/__init__.py`
 
@@ -185,9 +206,35 @@ __all__ = (
 
 Order modules in the order they appear in the Section 2 Mappers table.
 
-**Idempotence exception.** `mappers/__init__.py` is the *only* file the agent may overwrite. Its content is a pure function of `<mapper_specs>` — an empty or stale `__init__.py` would hide newly added mapper modules from `from .mappers import ...` consumers, and rewriting it is safe because no human-authored content lives in this file. Every other file is `Write`-once-if-missing.
+`mappers/__init__.py` is an aggregator file (per the idempotence model in Step 4) — always rewritten on each run, content is a pure function of `<mapper_specs>`.
 
-### Step 7 — Report
+### Step 7 — Refresh parent aggregator `__init__.py` files
+
+After all per-aggregate scaffolding is done, (re)write the two parent `__init__.py` files based on the on-disk subpackage state, so each new aggregate auto-registers without manual editing.
+
+**Subpackage discovery.** A subpackage is an immediate child directory of the parent that contains an `__init__.py`. Skip hidden entries (names starting with `.`) and `__pycache__`. Use `find <parent> -maxdepth 2 -mindepth 2 -name __init__.py` and take each match's parent directory's basename — preserving sorted order for deterministic output.
+
+**Rewrite `<repo_dir>/__init__.py`.** Let `<aggregates>` = the sorted list of subpackage names under `<repo_dir>` (will include `<aggregate>` plus any previously scaffolded ones). Write:
+
+```python
+from .<aggregate_1> import *
+from .<aggregate_2> import *
+...
+
+__all__ = (
+    <aggregate_1>.__all__
+    + <aggregate_2>.__all__
+    + ...
+)
+```
+
+If `<aggregates>` ends up empty (shouldn't happen after Step 4 ran successfully), skip the rewrite and note it in the report.
+
+**Rewrite `<tables_dir>/__init__.py`.** Same algorithm with `<tables_dir>` as the parent. Note: `<tables_dir>` is a peer of `<repo_dir>` in the locations report — they resolve to different directories (e.g. `.../repositories` vs `.../repositories/tables`) — so the on-disk listing is independent.
+
+These two files are aggregator files (idempotence model in Step 4): always rewritten, content is a pure function of disk state.
+
+### Step 8 — Report
 
 Emit a concise Markdown report listing **only the modules that need to be implemented** — i.e. the repository module, the table modules, and the mapper modules. Do **not** include `__init__.py` files (neither the aggregate package's, nor `tables/<aggregate>/__init__.py`, nor `mappers/__init__.py`). Each entry is the absolute path with `written` / `skipped` status.
 
