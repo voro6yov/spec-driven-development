@@ -43,6 +43,33 @@ Invoke `domain-spec:aggregate-fixtures-writer` with prompt `$ARGUMENTS[2] $ARGUM
 
 Invoke `domain-spec:aggregate-tests-implementator` with prompt `$ARGUMENTS[2] $ARGUMENTS[0]/tests`. Wait for completion.
 
-### Step 8 — Report
+### Step 8 — Update diagram with implementation paths
+
+Compute two values:
+
+1. **Relative package path** — from the directory of `$ARGUMENTS[2]` to `$ARGUMENTS[0]/$ARGUMENTS[1]`. Use:
+
+   ```bash
+   python3 -c "import os,sys; print(os.path.relpath(sys.argv[1], sys.argv[2]))" "$ARGUMENTS[0]/$ARGUMENTS[1]" "$(dirname "$ARGUMENTS[2]")"
+   ```
+
+2. **Dotted import path** — `$ARGUMENTS[1]` with `/` replaced by `.`, with leading/trailing dots stripped.
+
+Read `$ARGUMENTS[2]`. Build the section text:
+
+```markdown
+## Implementation
+
+- Package: `<rel_path>`
+- Import path: `<dotted.path>`
+```
+
+Update the file as follows, then write it back with the Write tool:
+
+- If a `## Implementation` section already exists (line beginning with `## Implementation`), replace its block — from that heading up to (but not including) the next top-level `## ` heading or end-of-file — with the new section text.
+- Else if a `## Artifacts` section exists, insert the new section immediately before its `## Artifacts` heading, separated by a single blank line on each side.
+- Else append the new section at the end of the file, ensuring exactly one blank line before it and a trailing newline.
+
+### Step 9 — Report
 
 Confirm with one sentence: "Implementation complete for `$ARGUMENTS[0]/$ARGUMENTS[1]`."
