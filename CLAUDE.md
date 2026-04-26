@@ -32,7 +32,7 @@ The pipeline runs in two user-facing slash commands. Both fan out work to subage
 
 **`/generate-code <domain_dir> <package_path> <diagram_file>`** (`skills/generate-code/SKILL.md`):
 1. `package-preparer` → `test-package-preparer` → `scaffold-builder` → `exceptions-implementer` → parallel `code-implementer` per module → `aggregate-fixtures-writer` → `aggregate-tests-implementator`.
-2. The aggregate package is created at `<domain_dir>/<package_path>`. Tests live at `<domain_dir>/tests` (sibling of the aggregate package, **inside** `<domain_dir>` — not its parent).
+2. The aggregate package is created at `<domain_dir>/<package_path>`. Tests live at `<source_root>/tests`, where `<source_root>` is computed by walking upward from the aggregate package while each parent has an `__init__.py`; the parent of the topmost `__init__.py`-bearing directory is the source root.
 
 ## Conventions when editing skills/agents
 

@@ -15,7 +15,21 @@ Invoke `domain-spec:package-preparer` with prompt `$ARGUMENTS[0] $ARGUMENTS[1]`.
 
 ### Step 2 — Prepare test package
 
-Invoke `domain-spec:test-package-preparer` with prompt `$ARGUMENTS[0]`. Wait for completion.
+Compute the **source root** for the aggregate package: walk **upward** from `$ARGUMENTS[0]/$ARGUMENTS[1]` while each parent directory contains an `__init__.py`; the parent of the topmost `__init__.py`-bearing directory is the source root. Use:
+
+```bash
+python3 -c "
+import os, sys
+p = os.path.abspath(sys.argv[1])
+while os.path.isfile(os.path.join(os.path.dirname(p), '__init__.py')):
+    p = os.path.dirname(p)
+print(os.path.dirname(p))
+" "$ARGUMENTS[0]/$ARGUMENTS[1]"
+```
+
+Capture the result as `<source_root>` and use it for the rest of the workflow whenever a tests directory is needed.
+
+Invoke `domain-spec:test-package-preparer` with prompt `<source_root>`. Wait for completion.
 
 ### Step 3 — Scaffold package
 
@@ -37,11 +51,11 @@ For each file path returned, invoke `domain-spec:code-implementer` with prompt `
 
 ### Step 6 — Generate fixtures
 
-Invoke `domain-spec:aggregate-fixtures-writer` with prompt `$ARGUMENTS[2] $ARGUMENTS[0]/tests`. Wait for completion.
+Invoke `domain-spec:aggregate-fixtures-writer` with prompt `$ARGUMENTS[2] <source_root>/tests`. Wait for completion.
 
 ### Step 7 — Implement tests
 
-Invoke `domain-spec:aggregate-tests-implementator` with prompt `$ARGUMENTS[2] $ARGUMENTS[0]/tests`. Wait for completion.
+Invoke `domain-spec:aggregate-tests-implementator` with prompt `$ARGUMENTS[2] <source_root>/tests`. Wait for completion.
 
 ### Step 8 — Update diagram with implementation paths
 
