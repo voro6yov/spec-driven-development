@@ -47,13 +47,31 @@ Invoke `domain-spec:aggregate-tests-implementator` with prompt `$ARGUMENTS[2] $A
 
 Compute two values:
 
-1. **Relative package path** — from the directory of `$ARGUMENTS[2]` to `$ARGUMENTS[0]/$ARGUMENTS[1]`. Use:
+1. **Repo-root-relative package path** — path of `$ARGUMENTS[0]/$ARGUMENTS[1]` relative to the repository root. Use:
 
    ```bash
-   python3 -c "import os,sys; print(os.path.relpath(sys.argv[1], sys.argv[2]))" "$ARGUMENTS[0]/$ARGUMENTS[1]" "$(dirname "$ARGUMENTS[2]")"
+   python3 -c "import os,sys; print(os.path.relpath(os.path.abspath(sys.argv[1]), sys.argv[2]))" "$ARGUMENTS[0]/$ARGUMENTS[1]" "$(git -C "$(dirname "$ARGUMENTS[2]")" rev-parse --show-toplevel)"
    ```
 
-2. **Dotted import path** — `$ARGUMENTS[1]` with `/` replaced by `.`, with leading/trailing dots stripped.
+   If the diagram file is not inside a git repository, fall back to the absolute path of `$ARGUMENTS[0]/$ARGUMENTS[1]`.
+
+2. **Dotted import path** — the full Python module path of the created package. Walk **upward** from `$ARGUMENTS[0]/$ARGUMENTS[1]` while each parent directory contains an `__init__.py`; the highest ancestor that still has `__init__.py` is the top-level package, and its parent is the source root. Build the dotted path by joining the directory names from that top-level package down to `$ARGUMENTS[1]`'s last segment with `.`.
+
+   Example: for package `src/stps_templates/domain/domain_type` where `src/` has no `__init__.py` but `stps_templates/`, `domain/`, and `domain_type/` each do, the import path is `stps_templates.domain.domain_type`.
+
+   Use:
+
+   ```bash
+   python3 -c "
+   import os, sys
+   p = os.path.abspath(sys.argv[1])
+   parts = []
+   while os.path.isfile(os.path.join(p, '__init__.py')):
+       parts.append(os.path.basename(p))
+       p = os.path.dirname(p)
+   print('.'.join(reversed(parts)))
+   " "$ARGUMENTS[0]/$ARGUMENTS[1]"
+   ```
 
 Read `$ARGUMENTS[2]`. Build the section text:
 
