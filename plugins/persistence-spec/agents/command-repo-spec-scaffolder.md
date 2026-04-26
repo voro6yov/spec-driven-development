@@ -23,7 +23,29 @@ From `<diagram_file>` (the first argument):
 
 Write `<output>` using the template body from the loaded `command-repo-spec-template` skill. Copy the full content verbatim — sections 1 through 6 with all `{placeholder}` values intact — omitting only the skill frontmatter (the `---` block at the top).
 
-### Step 3 — Append artifact link to diagram file
+### Step 3 — Pre-fill Implementation values from diagram
+
+Read `<diagram_file>` and locate the `## Implementation` heading (case-sensitive, exact match). Within that section, parse the two bullet lines:
+
+```
+- Package: `<package-path>`
+- Import path: `<import-path>`
+```
+
+Strip backticks and surrounding whitespace from each value. If the `## Implementation` heading is missing, or either bullet is missing/empty, fail with:
+
+```
+Error: <diagram_file> is missing the '## Implementation' block (Package and Import path).
+```
+
+Then read the just-written `<output>` file and replace the two placeholder cells inside Section 1's `### Implementation` table:
+
+- `` `\{src/path/to/aggregate\}` `` → `` `<package-path>` `` (no escape backslashes — the value is now concrete)
+- `` `\{import.path.to.aggregate\}` `` → `` `<import-path>` ``
+
+Write the updated content back to `<output>`.
+
+### Step 4 — Append artifact link to diagram file
 
 Read `<diagram_file>`.
 
@@ -43,4 +65,4 @@ Read `<diagram_file>`.
 
 Replace `<stem>` with just the filename (not the full path) so the link is relative to the diagram file's directory. Write the updated content back to `<diagram_file>`.
 
-Confirm with one sentence: "Scaffolded command-repo-spec to `<stem>.command-repo-spec.md`."
+Confirm with one sentence: "Scaffolded command-repo-spec to `<stem>.command-repo-spec.md` (Implementation pre-filled from diagram)."

@@ -23,6 +23,13 @@ disable-model-invocation: false
 | JSONB Value Objects | {List or None} | {e.g., Value Object Mapper for each} |
 | Polymorphic Data? | Yes / No | {e.g., Polymorphic Mapper} |
 
+### Implementation
+
+| Field | Value |
+| --- | --- |
+| Package | `\{src/path/to/aggregate\}` |
+| Import path | `\{import.path.to.aggregate\}` |
+
 ---
 
 ## 2. Pattern Selection

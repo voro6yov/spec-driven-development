@@ -32,6 +32,13 @@ disable-model-invocation: false
 | Analytics/Aggregations | Yes / No | `get_analytics()` method |
 | Multi-tenant | Yes / No | All queries scoped by `tenant_id` |
 
+### Implementation
+
+| Field | Value |
+| --- | --- |
+| Package | `\{src/path/to/aggregate\}` |
+| Import path | `\{import.path.to.aggregate\}` |
+
 ---
 
 ## 2. Pattern Selection

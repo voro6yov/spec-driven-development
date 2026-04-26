@@ -71,27 +71,32 @@ If any required section cannot be located, fail with a precise error naming the 
 
 ### Step 3 — Resolve the domain interface import path
 
-Let `<repo_dir>` = the `Repository` path from Step 1. The Repository path is always of the form `<...>/src/<pkg>/infrastructure/repositories` (per `@target-locations-finder`), so `<pkg>` is the path segment immediately following `src` in `<repo_dir>`.
-
-Algorithm (bash):
-
-```bash
-# <repo_dir> is absolute
-src_parent="${repo_dir%%/src/*}"      # everything before "/src/"
-remainder="${repo_dir#*/src/}"        # everything after "/src/"
-pkg="${remainder%%/*}"                # first segment of remainder
-src_root="${src_parent}/src"
-domain_init="${src_root}/${pkg}/domain/${aggregate}/__init__.py"
-```
-
-If `<repo_dir>` does not contain `/src/`, fail with: `Error: Repository path <repo_dir> does not live under a 'src/' root.`
-
-Form `<domain_aggregate_module>` = `<pkg>.domain.<aggregate>`.
-
-Verify that `${domain_init}` exists (`test -f`). If not, fail with:
+Read Section 1's `### Implementation` table from `<command_spec_file>`. It has the shape:
 
 ```
-Error: cannot locate domain package for <Aggregate> at <src_root>/<pkg>/domain/<aggregate>/__init__.py
+| Field | Value |
+| --- | --- |
+| Package | `<package-path>` |
+| Import path | `<import-path>` |
+```
+
+Apply the same placeholder detection rule used elsewhere in this agent: if either Value cell still contains `{` or `}`, treat it as unfilled and fail with:
+
+```
+Error: spec is missing Implementation values (Package and/or Import path); re-run @command-repo-spec-scaffolder against an updated diagram.
+```
+
+Otherwise strip backticks and surrounding whitespace from each value and bind:
+
+- `<aggregate_package_path>` = `Package` value (e.g. `src/stps_templates/domain/domain_type`).
+- `<domain_aggregate_module>` = `Import path` value verbatim (e.g. `stps_templates.domain.domain_type`).
+
+Resolve `<aggregate_package_path>` to an absolute path. If it is already absolute, use it as-is. Otherwise infer the repo root from `<repo_dir>` (the `Repository` path from Step 1): take everything before the first `/src/` segment, falling back to the directory above the first segment of `<aggregate_package_path>` if `<repo_dir>` has no `/src/`. Join the repo root with `<aggregate_package_path>` to obtain `<absolute_package_path>`.
+
+Verify `<absolute_package_path>/__init__.py` exists (`test -f`). If not, fail with:
+
+```
+Error: cannot locate domain package for <Aggregate> — spec Package value '<aggregate_package_path>' resolves to '<absolute_package_path>/__init__.py' which does not exist.
 ```
 
 ### Step 4 — Scaffold the aggregate package and the repository stub
