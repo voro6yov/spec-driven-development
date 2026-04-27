@@ -65,6 +65,40 @@ def aggregate_with_item(self, item_id: str, tenant_id: str) -> Aggregate | None:
     return self.aggregate_of_id(row.id, tenant_id)
 ```
 
+### Existence check (returns bool)
+
+```python
+def has_aggregate_with_field(self, field: str, tenant_id: str) -> bool:
+    query = (
+        select(table.c.id)
+        .where(
+            and_(
+                table.c.tenant_id == tenant_id,
+                table.c.field == field,
+            ),
+        )
+        .limit(1)
+    )
+    return self._connection.execute(query).fetchone() is not None
+```
+
+For JSONB sub-key existence (e.g. `details->>'name' == name`):
+
+```python
+def has_aggregate_with_name(self, name: str, tenant_id: str) -> bool:
+    query = (
+        select(table.c.id)
+        .where(
+            and_(
+                table.c.tenant_id == tenant_id,
+                table.c.details["name"].astext == name,
+            ),
+        )
+        .limit(1)
+    )
+    return self._connection.execute(query).fetchone() is not None
+```
+
 ### Lookup via child entity
 
 ```python

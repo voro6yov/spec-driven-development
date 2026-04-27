@@ -83,7 +83,15 @@ If `### Repository` cannot be located or every row is a placeholder, fail with: 
 
 Immediately after the Repository table, the spec template has `**Alternative Lookups**` with a bullet list. Walk every line that starts with `- ` (dash + space) until a blank line or a new `###`/`##` heading. After placeholder detection, capture the bullet text verbatim into `<alt_hints>`.
 
-Bullets are **advisory only** — they never drive method dispatch. They are surfaced in error messages (Step 6) when a method cannot be resolved by signature, to help the user decide whether to extend the skill or rewrite the bullet/method. No bullet causes a hard failure on its own, and unmatched bullets do not fail the run.
+Bullets do **not** drive method dispatch (which is signature-driven), but they may carry structured **JSONB sub-key hints** consumed by Rule 5 (Existence check) and Rule 7 (JSONB-array-contains lookup). Walk each bullet looking for the patterns:
+
+- `<col>->>'<key>'` or `<col>->>"<key>"` — a JSON object sub-key access.
+- `JSONB field <col>->>'<key>'` — same as above, prefixed.
+- `<col>` ends in a known JSONB column name (cross-checked against `<columns[<aggregate>]>` in Step 2f).
+
+For each matched bullet, bind `<jsonb_subkey_hints>[<key>]` = `<col>` (key → JSONB column). If the same key maps to two different columns across bullets, fail with `Error: Alternative Lookups bullets disagree on JSONB sub-key '<key>': '<col_a>' vs '<col_b>'.`
+
+Bullets that match neither pattern are advisory only — surfaced in error messages (Step 6 fallback) but never cause a hard failure.
 
 #### 2f. Section 3 — index every table block
 
@@ -177,12 +185,13 @@ Resolution rules — apply in order; the first match wins:
 2. **Delete.** Parameter list is exactly one parameter whose annotation unwraps to `<Aggregate>`; return annotation is `None`; method name (case-insensitive) starts with `delete` or `remove`. Simple variant deletes the parent row. With-Children variant deletes every child table first (in `<children>` declaration order), then the parent row.
 3. **Save (single-aggregate upsert).** Method name (case-insensitive) is exactly `save`; parameter list is exactly one parameter whose annotation unwraps to `<Aggregate>`; return annotation is `None` (or absent). With-Children variant calls `self._sync_<child_attribute>(<aggregate>)` for every child in `<children>` after the parent upsert.
 4. **Save all (batch upsert).** Method name (case-insensitive) is exactly `save_all`; parameter list is exactly one parameter whose annotation unwraps to `list[<Aggregate>]` / `Sequence[<Aggregate>]` / `Iterable[<Aggregate>]`; return annotation is `None`. With-Children variant loops every `_sync_<child_attribute>` over the input list after the batch upsert.
-5. **Primary lookup (by id).** This is the method bound to `<primary_lookup_method>` in the pre-pass. The Simple variant emits `select(self.<aggregate>_columns) … fetchone() → <Aggregate>Mapper.from_row(row)`; the With-Children variant emits parent + children selects → `<Aggregate>Mapper.from_rows(...)`.
-6. **JSONB-array-contains lookup.** Return annotation unwraps to `<Aggregate> | None`; the aggregate table has exactly one column whose Section 3 type is `JSONB`, and the parameter list has exactly one non-`tenant_id` parameter that **does not** map to a column on the aggregate table (otherwise rule 9 fits better). Emit: `select(<aggregate>_table.c.<pk_col>).where(... <aggregate>_table.c.<jsonb_col>.contains([<param>]) ...).fetchone()`, then return `self.<primary_lookup_method>(row.<pk_col>, ...)`. `<pk_col>` is the singleton entry of `<pk_columns[<aggregate>]>`. If the table has zero or multiple JSONB columns, this rule does not apply.
-7. **Via-child lookup.** Return annotation unwraps to `<Aggregate> | None`; the parameter list has exactly one non-`tenant_id` parameter whose name maps (column-mapping rule below) to a column on **exactly one** child table in `<children>`. Let `<child_table>` be that child and `<matched_col>` the matched column. Bind `<parent_fk_col>` = `<parent_fk_col[<child_table>]>` (resolved in Step 3a). Emit: `select(<child_table>_table.c.<parent_fk_col>).where(... <child_table>_table.c.<matched_col> == <param> ...).fetchone()`, then return `self.<primary_lookup_method>(row.<parent_fk_col>, ...)`. If zero or multiple child columns match across `<children>`, this rule does not apply.
-8. **List-by-field lookup.** Return annotation unwraps to `list[<Aggregate>]`; parameter list has at least one non-`tenant_id` parameter, each mapping to a column on the aggregate table. Emit `select(self.<aggregate>_columns).where(and_(... <table>.c.<col_i> == <param_i> ...)).fetchall()` then `[<Aggregate>Mapper.from_row(row) for row in rows]`.
-9. **Single-field lookup.** Return annotation unwraps to `<Aggregate> | None`; this method is **not** the primary lookup; parameter list has at least one non-`tenant_id` parameter, each mapping to a column on the aggregate table. Same body as the primary lookup but with the parameter-derived where clause.
-10. **Fallback.** If no rule resolves, fail with: `Error: cannot dispatch abstract method '<method_name>' with signature '(<params>) -> <return_annotation>' to a known command-repository template. Alternative Lookups bullets in the spec: <alt_hints>. Extend the skill or rewrite the abstract method.`
+5. **Existence check.** Return annotation unwraps to `bool`; method name (case-insensitive) starts with `has_`, `exists_`, or `is_`; parameter list has at least one non-`tenant_id` parameter. For each parameter, resolve a where-clause expression via the **where-clause resolver** below; if any parameter cannot be resolved, this rule does not apply. Emit: `select(<aggregate>_table.c.<pk_col>).where(and_(<expr_1>, ..., <expr_n>)).limit(1)`, then `return self._connection.execute(query).fetchone() is not None`. `<pk_col>` is the singleton entry of `<pk_columns[<aggregate>]>`.
+6. **Primary lookup (by id).** This is the method bound to `<primary_lookup_method>` in the pre-pass. The Simple variant emits `select(self.<aggregate>_columns) … fetchone() → <Aggregate>Mapper.from_row(row)`; the With-Children variant emits parent + children selects → `<Aggregate>Mapper.from_rows(...)`.
+7. **JSONB-array-contains lookup.** Return annotation unwraps to `<Aggregate> | None`; the aggregate table has exactly one column whose Section 3 type is `JSONB`, and the parameter list has exactly one non-`tenant_id` parameter that **does not** map to a column on the aggregate table (otherwise rule 9 fits better). Emit: `select(<aggregate>_table.c.<pk_col>).where(... <aggregate>_table.c.<jsonb_col>.contains([<param>]) ...).fetchone()`, then return `self.<primary_lookup_method>(row.<pk_col>, ...)`. `<pk_col>` is the singleton entry of `<pk_columns[<aggregate>]>`. If the table has zero or multiple JSONB columns, this rule does not apply.
+8. **Via-child lookup.** Return annotation unwraps to `<Aggregate> | None`; the parameter list has exactly one non-`tenant_id` parameter whose name maps (column-mapping rule below) to a column on **exactly one** child table in `<children>`. Let `<child_table>` be that child and `<matched_col>` the matched column. Bind `<parent_fk_col>` = `<parent_fk_col[<child_table>]>` (resolved in Step 3a). Emit: `select(<child_table>_table.c.<parent_fk_col>).where(... <child_table>_table.c.<matched_col> == <param> ...).fetchone()`, then return `self.<primary_lookup_method>(row.<parent_fk_col>, ...)`. If zero or multiple child columns match across `<children>`, this rule does not apply.
+9. **List-by-field lookup.** Return annotation unwraps to `list[<Aggregate>]`; parameter list has at least one non-`tenant_id` parameter, each mapping to a column on the aggregate table. Emit `select(self.<aggregate>_columns).where(and_(... <table>.c.<col_i> == <param_i> ...)).fetchall()` then `[<Aggregate>Mapper.from_row(row) for row in rows]`.
+10. **Single-field lookup.** Return annotation unwraps to `<Aggregate> | None`; this method is **not** the primary lookup; parameter list has at least one non-`tenant_id` parameter, each mapping to a column on the aggregate table. Same body as the primary lookup but with the parameter-derived where clause.
+11. **Fallback.** If no rule resolves, fail with: `Error: cannot dispatch abstract method '<method_name>' with signature '(<params>) -> <return_annotation>' to a known command-repository template. Alternative Lookups bullets in the spec: <alt_hints>. Extend the skill or rewrite the abstract method.`
 
 **Column-mapping rule.** Given a parameter name `<param>` and a candidate column list `<cols>`:
 
@@ -194,9 +203,17 @@ Resolution rules — apply in order; the first match wins:
 
 If a rule above identifies more than one column, treat as no match (the dispatch rule then either falls through or fails).
 
+**Where-clause resolver.** Given a parameter `(<param_name>, <param_type>)` and the aggregate table:
+
+1. **Direct column match.** Apply the column-mapping rule to `<param_name>` against `<columns[<aggregate>]>`. On a unique match `<col>`, emit `<aggregate>_table.c.<col> == <param_name>`.
+2. **JSONB sub-key match.** If `<jsonb_subkey_hints>` (Step 2e) contains `<param_name>` as a key, let `<jsonb_col>` = `<jsonb_subkey_hints>[<param_name>]`. Verify `<jsonb_col>` exists in `<columns[<aggregate>]>` with type `JSONB`; otherwise fail with `Error: bullet hint '<col>->>'<key>'' refers to '<col>', which is not a JSONB column on '<aggregate>'.` Emit `<aggregate>_table.c.<jsonb_col>['<param_name>'].astext == <param_name>`.
+3. **Otherwise**, this parameter is unresolved.
+
+The `tenant_id` filter is added in addition to the resolved expressions when `<multi_tenant>` is true (matched against the corresponding parameter, which the column-mapping rule resolves to `tenant_id`).
+
 **`erase_all` is appended even when not declared on the ABC.** It is a test-cleanup convenience; callers using the abstract type cannot invoke it (they must depend on the concrete class). This is the only divergence from "ABC is the source of truth".
 
-If rule 6 or rule 7 fires but the pre-pass did not bind `<primary_lookup_method>`, fail with: `Error: '<method_name>' requires a primary lookup method on '<AbstractRepositoryClass>' to delegate to, but none was found.`
+If rule 7 or rule 8 fires but the pre-pass did not bind `<primary_lookup_method>`, fail with: `Error: '<method_name>' requires a primary lookup method on '<AbstractRepositoryClass>' to delegate to, but none was found.`
 
 ### Step 7 — Render the module body
 
