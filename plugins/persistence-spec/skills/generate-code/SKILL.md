@@ -21,7 +21,7 @@ Parse the `Context Integration` row's `Status` cell from the report. If the stat
 
 In a single message, invoke the following agents in parallel. Do not wait between them.
 
-- `persistence-spec:command-repo-files-scaffolder` with prompt `$ARGUMENTS <locations_report_text>`
+- `persistence-spec:command-repository-scaffolder` with prompt `$ARGUMENTS <locations_report_text>`
 - `persistence-spec:migrations-scaffolder` with prompt `$ARGUMENTS <locations_report_text>`
 - `persistence-spec:unit-of-work-scaffolder` with prompt `<locations_report_text>` — **skip this invocation entirely** if `<skip_uow>` is true.
 
