@@ -79,15 +79,46 @@ If `unit_of_work` is already present, skip this step.
 
 ### Step 5 — Ensure `empty_unit_of_work` fixture
 
-Render the fixture using the `Template` block from the autoloaded `persistence-spec:cleanup-fixtures` skill. Substitute `{{ repositories }}` with the ordered list of repository attribute names that should be erased (this aggregate's `<attr>`, plus any already present in the file).
+The autoloaded `persistence-spec:cleanup-fixtures` skill is the conceptual reference. The exact text to write is given concretely below — do **not** attempt to evaluate the skill's Jinja-style template; render the block directly from the recipe in this step.
 
-**Case A — fixture absent.** Append the rendered template (with the aggregate's `<attr>` substituted into the `{{ repositories }}` list) to the file.
+Determine the ordered list of repository attribute names to erase. Call this `<attrs>`:
 
-**Case B — fixture present, this aggregate's erase line absent from one or both blocks.** Determine independently for the pre-yield and post-yield `with unit_of_work:` blocks whether `unit_of_work.<attr>.erase_all()` is present. For each block where it is missing, perform a separate Edit that inserts the line (indented to match neighbouring `erase_all()` lines) immediately before that block's `unit_of_work.commit()`. Use enough surrounding context (the preceding `erase_all()` line plus the `commit()` line) to make each `old_string` unique. Do not reorder existing erase lines.
+- **Case A (fixture absent in file):** `<attrs> = [<attr>]` — exactly one entry, this aggregate's attribute. The list is **never empty**; if you would otherwise produce zero `erase_all()` lines, stop and emit `ERROR: empty <attrs> list — refusing to write a no-op cleanup fixture.`
+- **Case B (fixture present):** `<attrs>` is the union of attributes already erased in the file (in their existing order) plus this aggregate's `<attr>` if not already present.
+
+**Case A — fixture absent.** Append exactly the following block to the file (with one `unit_of_work.<attr>.erase_all()` line per entry in `<attrs>`, in order, both before *and* after the `yield`):
+
+```python
+@pytest.fixture(autouse=True)
+def empty_unit_of_work(unit_of_work):
+    try:
+        with unit_of_work:
+            unit_of_work.<attr1>.erase_all()
+            unit_of_work.<attr2>.erase_all()
+            unit_of_work.commit()
+    except Exception:
+        pass
+
+    yield
+
+    try:
+        with unit_of_work:
+            unit_of_work.<attr1>.erase_all()
+            unit_of_work.<attr2>.erase_all()
+            unit_of_work.commit()
+    except Exception:
+        pass
+```
+
+For a single-attr Case A, write one `unit_of_work.<attr>.erase_all()` line in each block (not zero).
+
+**Case B — fixture present, this aggregate's erase line absent from one or both blocks.** Determine independently for the pre-yield and post-yield `with unit_of_work:` blocks whether `unit_of_work.<attr>.erase_all()` is present. For each block where it is missing, perform a separate Edit that inserts the line (indented to match neighbouring lines) immediately before that block's `unit_of_work.commit()`. Anchor the Edit on the unique `commit()` line — if there is a preceding `erase_all()` line in that block, include it in `old_string` for uniqueness; otherwise anchor on the `with unit_of_work:` line plus the `commit()` line. Do not reorder existing erase lines.
 
 **Case C — fixture present and this aggregate's erase line already present in *both* blocks.** Skip; no edit.
 
 A partial-presence state (line in one block but not the other) is treated as Case B and the missing block is patched, leaving the present block untouched.
+
+After writing, **verify** by re-reading the relevant region of the file and confirming the count of `unit_of_work.<attr>.erase_all()` occurrences is exactly 2 (one per block). If the count is 0 or 1, the write failed silently — emit an ERROR and stop without claiming success.
 
 ### Step 6 — Report
 
