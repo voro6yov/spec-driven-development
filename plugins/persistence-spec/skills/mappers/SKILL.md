@@ -45,11 +45,11 @@ For aggregates that own child entities stored in separate tables.
 
 ### Simple Value Object Mapper (`value_object_mapper.py.j2`)
 
-For value objects stored in JSONB columns with datetime handling.
+For value objects stored in JSONB columns. Generic over the VO's attribute list — works for any number of Guard-declared attributes.
 
-- `to_json(value_object)` converts to JSON-compatible dict, handles datetime serialization.
-- `from_json(data)` reconstructs value object, handles datetime parsing with `contextlib.suppress`.
-- Returns `None` for `None` inputs.
+- `to_json(value_object)` converts to JSON-compatible dict; serializes datetime/date attributes via `.isoformat()`.
+- `from_json(data)` reconstructs value object; parses datetime/date attributes via `datetime.fromisoformat`.
+- Signatures track the **optionality contract** (see below): `| None` is added to parameter and return types iff the owning aggregate's attribute is Optional (or the JSONB column is nullable).
 
 ### Complex Value Object Mapper (`complex_value_object_mapper.py.j2`)
 
@@ -83,6 +83,15 @@ For type hierarchies stored in JSONB with a discriminator field.
 - `to_json(kind, entity)` dispatches to type-specific mapper based on discriminator.
 - `from_json(kind, data)` reconstructs correct type based on discriminator.
 - Returns `None` when kind or data is missing.
+
+## Optionality Contract
+
+A value-object or polymorphic mapper's signature must match the nullability of the owning aggregate's attribute (or, equivalently, the JSONB column it persists into):
+
+- If the aggregate declares the attribute as `Guard[VO](VO)` (required, non-nullable column) → mapper signature is `to_json(vo: VO) -> dict[str, Any]` and `from_json(data: dict[str, Any]) -> VO`. No `None` short-circuits.
+- If the aggregate declares it as `Guard[VO | None](VO)` / `Optional[...]` (or the column is nullable) → mapper signature is `to_json(vo: VO | None) -> dict[str, Any] | None` and `from_json(data: dict[str, Any] | None) -> VO | None`, with `if vo is None: return None` / `if data is None: return None` guards.
+
+The Polymorphic Mapper is always rendered as Optional — its discriminator pair (`<attr>_kind`, `<attr>_data`) is conventionally nullable.
 
 ## Datetime Handling
 
@@ -256,9 +265,14 @@ class {{ mapper_class }}:
 
 ### Simple Value Object Mapper
 
+Rendering rules:
+
+- **Imports.** Emit `from datetime import datetime` only when at least one entry in `{{ attributes }}` has a `datetime`/`date` type. Emit `import contextlib` only if the chosen `from_json` body uses `contextlib.suppress` (the canonical body below does not — it relies on `isinstance` checks instead).
+- **Optionality.** When `{{ optional }}` is true, append ` | None` to the parameter type and to the return type of both `to_json` and `from_json`, and prepend the corresponding `if X is None: return None` guard. When false, emit neither.
+- **Attribute loop.** For each attribute in `{{ attributes }}` (declaration order from the VO's class body), emit one entry in `to_json`'s returned dict and one kwarg in `from_json`'s constructor call. Use the datetime branch for `datetime`/`date` types, the plain branch otherwise. Do **not** emit unused branches.
+
 ```python
-import contextlib
-from datetime import datetime
+{{# imports — only the ones the body actually uses #}}
 from typing import Any
 
 from {{ domain_module }} import {{ value_object_name }}
@@ -267,31 +281,25 @@ __all__ = ["{{ mapper_class }}"]
 
 class {{ mapper_class }}:
     @staticmethod
-    def to_json({{ value_object_name_lower }}: {{ value_object_name }} | None) -> dict[str, Any] | None:
-        if {{ value_object_name_lower }} is None:
-            return None
-
-        value = {{ value_object_name_lower }}.{{ value_attribute }}
-        if isinstance(value, datetime):
-            value = value.isoformat()
+    def to_json({{ value_object_name_lower }}: {{ value_object_name }}{{ "| None" if optional }}) -> dict[str, Any]{{ "| None" if optional }}:
+        {{ "if " ~ value_object_name_lower ~ " is None: return None" if optional }}
 
         return {
-            "{{ value_attribute }}": value,
-            "{{ source_attribute }}": {{ value_object_name_lower }}.{{ source_attribute }},
-            "{{ confidence_attribute }}": {{ value_object_name_lower }}.{{ confidence_attribute }},
+            {{# for attr in attributes #}}
+            {{# datetime branch  #}} "{{ attr }}": {{ value_object_name_lower }}.{{ attr }}.isoformat() if {{ value_object_name_lower }}.{{ attr }} is not None else None,
+            {{# plain branch     #}} "{{ attr }}": {{ value_object_name_lower }}.{{ attr }},
+            {{# end for          #}}
         }
 
     @staticmethod
-    def from_json(data: dict[str, Any]) -> {{ value_object_name }}:
-        value = data["{{ value_attribute }}"]
-        if isinstance(value, str) and "T" in value:
-            with contextlib.suppress(ValueError, TypeError):
-                value = datetime.fromisoformat(value)
+    def from_json(data: dict[str, Any]{{ "| None" if optional }}) -> {{ value_object_name }}{{ "| None" if optional }}:
+        {{ "if data is None: return None" if optional }}
 
         return {{ value_object_name }}(
-            {{ value_attribute }}=value,
-            {{ source_attribute }}=data["{{ source_attribute }}"],
-            {{ confidence_attribute }}=data["{{ confidence_attribute }}"],
+            {{# for attr in attributes #}}
+            {{# datetime branch  #}} {{ attr }}=datetime.fromisoformat(data["{{ attr }}"]) if isinstance(data["{{ attr }}"], str) else data["{{ attr }}"],
+            {{# plain branch     #}} {{ attr }}=data["{{ attr }}"],
+            {{# end for          #}}
         )
 ```
 
@@ -472,9 +480,8 @@ class {{ mapper_class }}:
 | `{{ children_attribute }}` | Children collection attribute | `items`, `addresses` |
 | `{{ value_object_name }}` | Value object class name | `OrderInfo`, `Address` |
 | `{{ value_object_name_lower }}` | Value object name in snake_case | `order_info`, `address` |
-| `{{ value_attribute }}` | Value attribute name | `value`, `amount` |
-| `{{ source_attribute }}` | Source attribute name | `source`, `provider` |
-| `{{ confidence_attribute }}` | Confidence attribute name | `confidence`, `score` |
+| `{{ attributes }}` | Ordered list of the VO's Guard-declared attribute names (Simple VO Mapper) | `["name", "description"]` |
+| `{{ optional }}` | Whether the mapper signature carries `\| None` (per Optionality Contract) | `true`, `false` |
 | `{{ field_mapper_module }}` | Field mapper module | `mappers.field_mapper` |
 | `{{ field_mapper_class }}` | Field mapper class | `FieldMapper` |
 | `{{ type_field }}` | Type discriminator field | `type`, `kind` |
