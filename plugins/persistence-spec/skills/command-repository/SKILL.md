@@ -164,7 +164,7 @@ class {{ uow_repository_class }}({{ command_repository_interface }}):
 
     def {{ lookup_method }}(self, id_: str, tenant_id: str) -> {{ aggregate_name }} | None:
         query = (
-            select(self.{{ aggregate_name_lower }}_columns)
+            select(*self.{{ aggregate_name_lower }}_columns)
             .select_from({{ table_name }})
             .where(
                 and_(
@@ -174,7 +174,7 @@ class {{ uow_repository_class }}({{ command_repository_interface }}):
             )
         )
 
-        row = self._connection.execute(query).fetchone()
+        row = self._connection.execute(query).mappings().fetchone()
 
         if not row:
             return None

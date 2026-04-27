@@ -109,15 +109,40 @@ Find the first method whose definition matches `^    def <name>\(self\)(\s*->\s*
 
 ### Step 5 — Build the column-to-attribute resolver
 
-**Resolver function** `resolve(<param_name>, <fix>)`. Given an ABC method parameter name `<param_name>` and a fixture variable name `<fix>` (e.g. `load_1`, or a loop variable like `<aggregate>` inside `for <aggregate> in test_<plural>`), return a Python attribute-access expression by applying these rules in order; the first match wins:
+The resolver inspects the actual aggregate class (and any value-object/entity attributes nested inside it) to find where each ABC parameter lives. No spec hints required.
+
+**5a. Aggregate attribute map.** Re-read the aggregate class file from Step 4.
+
+- Bind `<aggregate_attrs>` to the ordered list of `(<name>, <annotation>)` pairs harvested from the `__init__` parameter list (excluding `self`). When the class delegates construction to a parent `__init__` the same harvest applies — read every base class up the chain that lives under `<domain_dir>` and merge their `__init__` parameters in MRO order.
+- Also collect every `@property` defined on the class. Bind `<aggregate_props>` = that name set.
+- Bind `<aggregate_attr_names>` = `{<name> for (<name>, _) in <aggregate_attrs>} ∪ <aggregate_props>`, excluding names starting with `_`.
+
+**5b. Nested attribute index.** For each `(<attr_name>, <annotation>)` in `<aggregate_attrs>` whose `<annotation>` is a single Capitalized identifier (a domain class — value object, entity, or status), locate that class:
+
+```bash
+grep -rln "^class <annotation>\b" <domain_dir>
+```
+
+If exactly one match, read the file and harvest its `__init__` parameter names plus its `@property` names (same rules as 5a) into `<nested_attrs[<attr_name>]>` (a name set). Skip annotations that resolve to zero or multiple files, primitive types (`str`, `int`, `bool`, `Decimal`, `datetime`, `date`, etc.), generics (`list[...]`, `dict[...]`, `Optional[...]`, `<X> | None`), and anything else not a bare class name.
+
+Build `<nested_index>` — a dict mapping each leaf name → list of `<attr_name>` candidates that expose it:
+
+```
+for <attr_name>, <leaf_names> in <nested_attrs>.items():
+    for <leaf> in <leaf_names>:
+        <nested_index>[<leaf>].append(<attr_name>)
+```
+
+**5c. Resolver function** `resolve(<param_name>, <fix>)`. Given an ABC method parameter name `<param_name>` and a fixture variable name `<fix>` (e.g. `domain_type_1`, or a loop variable inside `for <aggregate> in test_<plural>`), apply these rules in order; the first match wins:
 
 1. If `<param_name> == "id_"` → return `<fix>.id`.
-2. If `<param_name>` starts with `<aggregate>_` → return `<fix>.<suffix>`, where `<suffix>` = `<param_name>` minus the `<aggregate>_` prefix.
-3. Otherwise → return `<fix>.<param_name>`.
+2. If `<param_name>` starts with `<aggregate>_` and the suffix is in `<aggregate_attr_names>` → return `<fix>.<suffix>`.
+3. **Direct attribute match.** If `<param_name>` is in `<aggregate_attr_names>` → return `<fix>.<param_name>`.
+4. **Nested attribute match.** If `<param_name>` is a key in `<nested_index>` and the value list has exactly one entry `<attr_name>` → return `<fix>.<attr_name>.<param_name>`. (E.g. param `name` is found inside `details: Details`, so emit `<fix>.details.name`.)
+5. **Ambiguous nested match.** If `<param_name>` is in `<nested_index>` with multiple candidate attributes → output `ERROR: parameter '<param_name>' on '<method_name>' is ambiguous; found in <fix>.<a>.<param_name> and <fix>.<b>.<param_name>. Disambiguate the ABC parameter name (e.g. prefix with the value-object name).` and stop.
+6. **Fallback.** Output `ERROR: parameter '<param_name>' on '<method_name>' does not match any attribute on <Aggregate> or its nested value objects. Inspected attrs: <aggregate_attr_names>; nested: <nested_index keys>.` and stop.
 
 For each method in `<methods>`, apply `resolve(<p>, <aggregate>_1)` to every parameter (in ABC declaration order) to build `<arg_exprs[<method>]>`. The same function is reused inside the save-all loop with the loop variable name in place of `<aggregate>_1`.
-
-The agent does **not** verify that the resolved attribute exists on the aggregate class — typos in ABC parameter names will surface as `AttributeError` at test runtime, not at generation time.
 
 ### Step 6 — Dispatch each method to a scenario set
 

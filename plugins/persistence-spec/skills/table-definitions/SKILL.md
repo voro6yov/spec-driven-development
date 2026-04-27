@@ -71,7 +71,7 @@ Table(
 | --- | --- | --- |
 | String ID | `String` | Primary keys, foreign keys |
 | Enum/Status | `String` | Store enum value as string |
-| Timestamp | `DateTime` | `created_at`, `updated_at` |
+| Timestamp | `DateTime(timezone=True)` | `created_at`, `updated_at` (always timezone-aware to round-trip tz-aware UTC values without losing tzinfo) |
 | Value Object | `JSONB` | Nested structures, nullable |
 | Collection | `JSONB` | Arrays stored as JSON |
 
@@ -114,8 +114,8 @@ __all__ = ["{{ table_name }}"]
     Column("{{ tenant_id_column }}", String, nullable=False),
     Column("{{ jsonb_column }}", JSONB, nullable=True),
     Column("{{ status_column }}", String, nullable=False),
-    Column("created_at", DateTime, nullable=False),
-    Column("updated_at", DateTime, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    Column("updated_at", DateTime(timezone=True), nullable=False),
 )
 ```
 
@@ -136,8 +136,8 @@ __all__ = ["{{ table_name }}"]
     Column("{{ tenant_id_column }}", String, primary_key=True),
     Column("{{ additional_column }}", {{ additional_column_type }}, nullable={{ additional_column_nullable }}),
     Column("{{ status_column }}", String, nullable=False),
-    Column("created_at", DateTime, nullable=False),
-    Column("updated_at", DateTime, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    Column("updated_at", DateTime(timezone=True), nullable=False),
 )
 ```
 

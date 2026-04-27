@@ -94,7 +94,7 @@ For every `<slug>` in `<patterns>`, the implementer will need data from Section 
 
   Bind `<indexes>` = the ordered list of these tuples. May be empty.
 
-`<column_type>` to SQL type mapping (used in Step 4): `String → VARCHAR`, `Integer → INTEGER`, `DateTime → TIMESTAMP`, `JSONB → JSONB`.
+`<column_type>` to SQL type mapping (used in Step 4): `String → VARCHAR`, `Integer → INTEGER`, `DateTime → TIMESTAMP WITH TIME ZONE`, `JSONB → JSONB`. Timestamps are always timezone-aware so tz-aware UTC values round-trip without losing tzinfo.
 
 ### Step 3 — Discover stub worklist and check drift
 

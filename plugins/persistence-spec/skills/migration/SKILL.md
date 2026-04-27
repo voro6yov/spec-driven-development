@@ -76,12 +76,12 @@ databaseChangeLog:
             constraints:
               nullable: false
             name: created_at
-            type: TIMESTAMP
+            type: TIMESTAMP WITH TIME ZONE
         - column:
             constraints:
               nullable: false
             name: updated_at
-            type: TIMESTAMP
+            type: TIMESTAMP WITH TIME ZONE
 
     rollback:
     - dropTable:
@@ -123,12 +123,12 @@ databaseChangeLog:
             constraints:
               nullable: false
             name: created_at
-            type: TIMESTAMP
+            type: TIMESTAMP WITH TIME ZONE
         - column:
             constraints:
               nullable: false
             name: updated_at
-            type: TIMESTAMP
+            type: TIMESTAMP WITH TIME ZONE
 
     rollback:
     - dropTable:

@@ -117,6 +117,12 @@ The autoloaded `persistence-spec:table-definitions` skill defines three template
 
 Render the body following the chosen template, but with the column list, types, and constraints taken **verbatim from `<columns[<table_name>]>`** — do not invent extra columns and do not drop columns from the spec.
 
+**Type rendering.** Emit each `<column_type>` literally except for the following normalization (applied uniformly, regardless of column name):
+
+- `DateTime` → `DateTime(timezone=True)`. All timestamp columns are timezone-aware so tz-aware UTC values round-trip without losing tzinfo.
+
+`String`, `Integer`, and `JSONB` render as bare identifiers.
+
 **Constraint parsing.** For each column, tokenize its `<constraints>` cell on commas and slashes, lowercase each token, and apply these rules **in order** (first match wins for nullability):
 
 1. Token equals `pk` or contains `primary key` → set `primary_key=True`.
