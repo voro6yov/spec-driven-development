@@ -12,8 +12,6 @@ You are a mappers scaffolder. Your job is to create the `mappers/` sub-package a
 1. **Stubs** (per-mapper modules) — written once if missing, never overwritten.
 2. **Aggregator `__init__.py`** (`mappers/__init__.py`) — content is a pure function of the spec, so it is *always (re)written* on every run. Re-runs converge to the correct content; no human-authored content lives in this file.
 
-This agent owns the mechanical, per-aggregate file scaffolding for the `mappers/` sub-package only. The repository module and the per-aggregate `__init__.py` are owned by `@command-repo-files-scaffolder`. Table modules and the `tables/` aggregators are owned by `@table-scaffolder`. Context-integration concerns are owned by `@unit-of-work-scaffolder`.
-
 ## Inputs
 
 1. `<command_spec_file>` (first argument): absolute path to the `<stem>.command-repo-spec.md` file produced by the persistence-spec pipeline.
@@ -58,13 +56,13 @@ Create both directories idempotently:
 mkdir -p <mappers_dir>
 ```
 
-The mappers directory becomes a proper package once Step 5 writes `<mappers_dir>/__init__.py`. The aggregate directory must also be a Python package — otherwise the parent package's star-import of `<aggregate>` would break before `@command-repo-files-scaffolder` runs (and would break permanently if that agent is never invoked alongside this one).
+The mappers directory becomes a proper package once Step 5 writes `<mappers_dir>/__init__.py`. The aggregate directory must also be a Python package — otherwise the parent package's star-import of `<aggregate>` would break before `@command-repository-scaffolder` runs (and would break permanently if that agent is never invoked alongside this one).
 
 After `mkdir -p`, check `<aggregate_dir>/__init__.py`:
 
 - Run `test -f <aggregate_dir>/__init__.py` via Bash.
 - If the file does not exist, `Write` it with empty content (a zero-byte file). This converts the directory into a Python package without claiming ownership of its export surface.
-- If the file already exists, leave it untouched — its content is owned by `@command-repo-files-scaffolder`, which will (re)write it with the star-import + `__all__` aggregation when invoked. Do not overwrite.
+- If the file already exists, leave it untouched — its content is owned by `@command-repository-scaffolder`, which will (re)write it with the star-import + `__all__` aggregation when invoked. Do not overwrite.
 
 ### Step 4 — Scaffold mapper stubs
 
