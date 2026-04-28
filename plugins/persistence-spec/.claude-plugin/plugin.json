@@ -1,7 +1,7 @@
 {
   "name": "persistence-spec",
   "description": "Generate specs for repositories and implement them",
-  "version": "0.39.2",
+  "version": "0.39.3",
   "author": {
     "name": "Valentin Vorobyev",
     "email": "voro6yov.valentin@gmail.com",
