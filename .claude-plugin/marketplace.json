@@ -4,7 +4,7 @@
     "name": "Valentin Vorobyev",
     "email": "voro6yov.valentin@gmail.com"
   },
-  "version": "0.3.0",
+  "version": "0.4.0",
   "plugins": [
     {
       "name": "domain-spec",
@@ -15,6 +15,11 @@
       "name": "persistence-spec",
       "source": "./plugins/persistence-spec",
       "description": "Generate specs for repositories and implement them"
+    },
+    {
+      "name": "application-spec",
+      "source": "./plugins/application-spec",
+      "description": "Generate specs for application services and implement them"
     },
     {
       "name": "adr-log",
