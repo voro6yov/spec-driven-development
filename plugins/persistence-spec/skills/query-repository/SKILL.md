@@ -127,14 +127,38 @@ def _apply_pagination(self, query: Query, pagination: Pagination) -> Query:
 
 ## Field → column mapping
 
-Apply the same column-mapping rule as the command-side repository, in order:
+Apply the column-mapping rule, in order, against the aggregate table's column list:
 
 1. Exact match: field name equals a column on the aggregate table.
 2. Strip trailing underscore (`id_` → `id`).
 3. Strip aggregate prefix (`<aggregate>_<field>` → `<field>`).
 4. Append `_id` (`<field>` → `<field>_id`).
+5. **JSONB sub-field projection**: if no top-level column matches, look for the field inside a JSONB value-object column. Resolve by scanning the command-repo-spec mappers section: each Simple/Complex/Collection Value Object Mapper declares a JSONB column and the VO attribute names it persists. If exactly one JSONB column on the aggregate table holds a VO whose attributes include the field, project it as `<table>.c.<jsonb_col>["<field>"].astext.label("<field>")`.
 
-A field that resolves to multiple columns is treated as no match — the implementer fails with the offending field rather than guess.
+A field that resolves to multiple columns (or multiple JSONB sub-fields) is treated as no match — the implementer fails with the offending field rather than guess.
+
+### JSONB sub-field projection
+
+Query DTOs (`<Aggregate>Info`) are intentionally flat — they expose value-object attributes as top-level keys (`name`, `description`, …) even when the underlying schema stores them inside a JSONB column (`details`, `info`, `metadata`, …). The `<aggregate>_columns` property must project each such attribute as a labelled top-level column so that `dict(row)` produces the flat shape the DTO contract requires.
+
+```python
+@property
+def {{ aggregate_name_lower }}_columns(self) -> list[Column]:
+    return [
+        {{ table_name }}.c.id,
+        # Flat columns map 1:1
+        {{ table_name }}.c.enabled,
+        {{ table_name }}.c.created_at,
+        {{ table_name }}.c.updated_at,
+        # JSONB sub-fields are projected as labelled top-level columns
+        {{ table_name }}.c.{{ jsonb_col }}["name"].astext.label("name"),
+        {{ table_name }}.c.{{ jsonb_col }}["description"].astext.label("description"),
+    ]
+```
+
+Apply the same projection in `_apply_filtering` and `_apply_sorting` when a filter or sort field resolves to a JSONB sub-field — compare against `<table>.c.<jsonb_col>["<field>"].astext` rather than a non-existent top-level column.
+
+Use `.astext` for scalar string/number/bool sub-fields. For nested object or array sub-fields preserve them as JSON (drop `.astext`); the DTO key is then a `dict`/`list` rather than a string.
 
 ## Module shape
 
