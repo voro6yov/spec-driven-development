@@ -116,9 +116,9 @@ The repository imports the aggregate table, child tables, the aggregate mapper, 
 
 From `<locations_report_text>`, extract the `Tables` row's `Absolute path` cell — bind `<tables_dir>`. Verify `test -d <tables_dir>/<aggregate>`. If missing, fail with: `Error: '<tables_dir>/<aggregate>' is not scaffolded; run @table-scaffolder first.`
 
-Run `find <tables_dir>/<aggregate> -maxdepth 1 -mindepth 1 -name '*_table.py' -type f` and sort. Each match yields `<table_name>` = basename without `_table.py`. Bind `<table_modules>` = the sorted list.
+Run `find <tables_dir>/<aggregate> -maxdepth 1 -mindepth 1 -name '*.py' -not -name '__init__.py' -type f` and sort. Each match yields `<table_name>` = basename without `.py` (the module filename is the bare table name; the `_table` suffix is on the variable inside, not the file). Bind `<table_modules>` = the sorted list.
 
-- The **aggregate table** is the entry whose `<table_name>` equals `<aggregate>`. If absent, fail with: `Error: aggregate table module '<aggregate>_table.py' is missing under '<tables_dir>/<aggregate>'.`
+- The **aggregate table** is the entry whose `<table_name>` equals `<aggregate>`. If absent, fail with: `Error: aggregate table module '<aggregate>.py' is missing under '<tables_dir>/<aggregate>'.`
 - The **child tables** are every other entry. Cross-check against Section 2 Tables — every `Table with FK` row's name must appear here, and every non-aggregate entry here must appear in Section 2 (drift check; fail naming the offender).
 - For each child table `<child_table>`, verify that `<fk_targets[<child_table>]>` contains at least one entry whose `<parent_table>` equals `<aggregate>`. Bind `<parent_fk_col[<child_table>]>` to that column. If zero such entries, fail with: `Error: child table '<child_table>' has no `FK → <aggregate>.…` annotation in Section 3; cannot derive parent FK column for repository synchronization.` If more than one entry targets the aggregate, fail similarly with `(matches: <count>)`.
 

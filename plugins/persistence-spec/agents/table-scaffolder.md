@@ -1,6 +1,6 @@
 ---
 name: table-scaffolder
-description: "Scaffolds the per-aggregate table modules and the surrounding `__init__.py` aggregators from a command-repo-spec file and a target-locations-finder report. Emits bare placeholder stubs (`<table>_table = ...`) with no embedded spec text. Invoke with: @table-scaffolder <command_spec_file> <locations_report_text>"
+description: "Scaffolds the per-aggregate table modules and the surrounding `__init__.py` aggregators from a command-repo-spec file and a target-locations-finder report. Emits bare placeholder stubs in `<table>.py` files containing `<table>_table = ...`, with no embedded spec text. Invoke with: @table-scaffolder <command_spec_file> <locations_report_text>"
 tools: Read, Write, Bash
 model: sonnet
 ---
@@ -54,7 +54,7 @@ If `<table_names>` is empty after placeholder filtering, fail with a clear error
 
 Create `<tables_dir>/<aggregate>/` (`mkdir -p`).
 
-For each `<table_name>` in `<table_names>`, `Write` (only if missing) `<tables_dir>/<aggregate>/<table_name>_table.py` with:
+For each `<table_name>` in `<table_names>`, `Write` (only if missing) `<tables_dir>/<aggregate>/<table_name>.py` (note: the module filename is the bare `<table_name>` with no `_table` suffix; only the variable inside keeps the `_table` suffix) with:
 
 ```python
 __all__ = ["<table_name>_table"]
@@ -69,16 +69,18 @@ No imports, no docstring, no spec text. The implementer adds the `Table(...)` bo
 (Re)write `<tables_dir>/<aggregate>/__init__.py` with the star-import + `__all__` aggregation pattern, listing the table modules in the order they appear in `<table_names>`:
 
 ```python
-from .<table_1>_table import *
-from .<table_2>_table import *
+from .<table_1> import *
+from .<table_2> import *
 ...
 
 __all__ = (
-    <table_1>_table.__all__
-    + <table_2>_table.__all__
+    <table_1>.__all__
+    + <table_2>.__all__
     + ...
 )
 ```
+
+(The submodule names imported here are the bare `<table_name>` filenames — no `_table` suffix.)
 
 ### Step 5 — Refresh parent `<tables_dir>/__init__.py`
 
@@ -105,8 +107,8 @@ __all__ = (
 Emit a bare bullet list of absolute paths to every table stub module the spec implies — one bullet per module, nothing else on the line. Include all stubs regardless of whether this run wrote them or they already existed; the next agent uses the list as its worklist. Do **not** include `__init__.py` files, headers, status markers, or any other commentary.
 
 ```
-- <tables_dir>/<aggregate>/<table_1>_table.py
-- <tables_dir>/<aggregate>/<table_2>_table.py
+- <tables_dir>/<aggregate>/<table_1>.py
+- <tables_dir>/<aggregate>/<table_2>.py
 - ...
 ```
 
