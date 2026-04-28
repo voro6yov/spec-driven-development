@@ -1,11 +1,11 @@
 ---
 name: generate-code
-description: Implements the command-side persistence package for an aggregate from its command-repo-spec, then prepares the integration test package and writes the command-repository integration tests. Resolves target locations once, runs scaffolders in parallel, runs implementers in dependency order, wires the aggregate into the per-context unit of work, and finally generates fixtures and tests. Invoke with: /persistence-spec:generate-code <command_spec_file>
+description: Implements the command-side and query-side persistence package for an aggregate from its command-repo-spec, then prepares the integration test package and writes the repository integration tests. Resolves target locations once, runs scaffolders in parallel, runs implementers in dependency order, wires the aggregate into the per-context unit of work and query context, and finally generates fixtures and tests. Invoke with: /persistence-spec:generate-code <command_spec_file>
 argument-hint: <command_spec_file>
 allowed-tools: Read, Agent
 ---
 
-You are a persistence implementation orchestrator. Generate the command-side persistence code AND its integration tests for the aggregate described in `$ARGUMENTS` (a `<stem>.command-repo-spec.md` file).
+You are a persistence implementation orchestrator. Generate the command-side and query-side persistence code AND their integration tests for the aggregate described in `$ARGUMENTS` (a `<stem>.command-repo-spec.md` file).
 
 ## Workflow
 
@@ -17,7 +17,7 @@ Capture the agent's full Markdown table output verbatim as `<locations_report_te
 
 Parse two values from the report:
 
-- **`<skip_uow_scaffolder>`** — read the `Context Integration` row's `Status` cell. If the status is `exists`, set this flag to true; otherwise false. The `unit-of-work-scaffolder` is aggregate-agnostic and only needs to run once per context — skip it on subsequent runs as a caller-side optimization. The agent itself is idempotent, so re-running is safe; the skip just avoids redundant work.
+- **`<skip_uow_scaffolder>`** — read the `Context Integration` row's `Status` cell. If the status is `exists`, set this flag to true; otherwise false. Both `unit-of-work-scaffolder` and `query-context-scaffolder` are aggregate-agnostic and only need to run once per context — skip both on subsequent runs as a caller-side optimization. They are idempotent, so re-running is safe; the skip just avoids redundant work.
 - **`<tests_dir>`** — read the `Absolute path` cell of the `Tests` row. Bind that value verbatim — it is an absolute path (e.g. `/repo/src/tests`). If the `Tests` row is missing or its path cell is empty, output an `ERROR:` line explaining the failure and stop before any code generation.
 
 ### Step 2 — Spawn scaffolders in parallel
@@ -29,6 +29,7 @@ In a single message, invoke the following agents in parallel. Do not wait betwee
 - `persistence-spec:migrations-scaffolder` with prompt `$ARGUMENTS <locations_report_text>`
 - `persistence-spec:table-scaffolder` with prompt `$ARGUMENTS <locations_report_text>`
 - `persistence-spec:unit-of-work-scaffolder` with prompt `<locations_report_text>` — **skip this invocation entirely** if `<skip_uow_scaffolder>` is true.
+- `persistence-spec:query-context-scaffolder` with prompt `<locations_report_text>` — **skip this invocation entirely** if `<skip_uow_scaffolder>` is true.
 
 Each agent parses `<locations_report_text>` for the rows it needs and ignores the others.
 
@@ -46,19 +47,25 @@ In a single message, invoke the following agents in parallel:
 
 Wait for all three to complete.
 
-#### Phase 3b — Command repository implementer
+#### Phase 3b — Repository implementers
 
-After Phase 3a completes, invoke:
+After Phase 3a completes, invoke the following agents in parallel in a single message:
 
 - `persistence-spec:command-repository-implementer` with prompt `$ARGUMENTS <locations_report_text>`
+- `persistence-spec:query-repository-implementer` with prompt `$ARGUMENTS <locations_report_text>`
 
-Wait for completion. The command repository depends on mappers being implemented, so it must run after Phase 3a.
+Wait for both to complete. The command repository depends on mappers being implemented, so it must run after Phase 3a. The query repository has no mapper dependency but is grouped here for symmetry and because Step 4 needs both repositories implemented.
 
-### Step 4 — Integrate unit of work
+### Step 4 — Integrate unit of work and query context
 
-Invoke `persistence-spec:unit-of-work-integrator` with prompt `$ARGUMENTS <locations_report_text>`. This step always runs — it is per-aggregate wiring and is idempotent, so it is safe regardless of whether `unit-of-work-scaffolder` was skipped in Step 2.
+In a single message, invoke the following agents in parallel:
 
-Wait for completion.
+- `persistence-spec:unit-of-work-integrator` with prompt `$ARGUMENTS <locations_report_text>`
+- `persistence-spec:query-context-integrator` with prompt `$ARGUMENTS <locations_report_text>`
+
+Both steps always run — they are per-aggregate wiring and idempotent, so they are safe regardless of whether the scaffolders were skipped in Step 2.
+
+Wait for both to complete.
 
 ### Step 5 — Prepare the integration test package
 
@@ -78,11 +85,16 @@ Invoke `persistence-spec:integration-fixtures-writer` with prompt `<tests_dir> $
 
 This discovers the per-state aggregate fixtures (`<snake>_<N>`) in `<tests_dir>/conftest.py` and writes the `test_<plural>` collection fixture and `add_<plural>` persistence fixture into `<tests_dir>/integration/conftest.py`. The agent is idempotent and single-aggregate-scoped (no FK wiring).
 
-### Step 8 — Implement the command-repository integration tests
+### Step 8 — Implement the repository integration tests
 
-Invoke `persistence-spec:command-repository-tests-implementer` with prompt `<tests_dir> $ARGUMENTS`. Wait for completion.
+In a single message, invoke the following agents in parallel:
 
-This enumerates every `@abstractmethod` on the abstract `Command<Aggregate>Repository`, classifies each by signature, and writes the matching test scenarios into `<tests_dir>/integration/<aggregate>/test_<aggregate>_repository.py`. The agent is append-only and idempotent.
+- `persistence-spec:command-repository-tests-implementer` with prompt `<tests_dir> $ARGUMENTS`
+- `persistence-spec:query-repository-tests-implementer` with prompt `<tests_dir> $ARGUMENTS`
+
+Wait for both to complete.
+
+The command-side agent enumerates every `@abstractmethod` on `Command<Aggregate>Repository`, classifies each by signature, and writes scenarios into `<tests_dir>/integration/<aggregate>/test_<aggregate>_repository.py`. The query-side agent does the same for `Query<Aggregate>Repository` and writes into `<tests_dir>/integration/<aggregate>/test_query_<aggregate>_repository.py`. Both agents are append-only and idempotent.
 
 If any test-phase agent (Steps 5–8) fails, abort the workflow and report the failure.
 
@@ -90,9 +102,9 @@ If any test-phase agent (Steps 5–8) fails, abort the workflow and report the f
 
 Emit a phased Markdown summary grouping bullets by phase:
 
-- **Scaffolding** — one bullet per scaffolder invoked in Step 2 with its top-line outcome. If `unit-of-work-scaffolder` was skipped, list it with `skipped (Context Integration already exists)`.
-- **Implementation** — one bullet per implementer invoked in Step 3 (Phase 3a and 3b combined) with its top-line outcome.
-- **Integration** — one bullet for `unit-of-work-integrator` with its top-line outcome.
-- **Tests** — one bullet each for `integration-test-package-preparer`, `unit-of-work-fixtures-preparer`, `integration-fixtures-writer`, and `command-repository-tests-implementer` with their top-line outcomes.
+- **Scaffolding** — one bullet per scaffolder invoked in Step 2 with its top-line outcome. If `unit-of-work-scaffolder` and/or `query-context-scaffolder` were skipped, list each with `skipped (Context Integration already exists)`.
+- **Implementation** — one bullet per implementer invoked in Step 3 (Phase 3a and 3b combined, including `query-repository-implementer`) with its top-line outcome.
+- **Integration** — one bullet each for `unit-of-work-integrator` and `query-context-integrator` with their top-line outcomes.
+- **Tests** — one bullet each for `integration-test-package-preparer`, `unit-of-work-fixtures-preparer`, `integration-fixtures-writer`, `command-repository-tests-implementer`, and `query-repository-tests-implementer` with their top-line outcomes.
 
 End with: `Persistence code generation complete for $ARGUMENTS.`
