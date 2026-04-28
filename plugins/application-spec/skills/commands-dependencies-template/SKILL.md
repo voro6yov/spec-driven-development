@@ -7,8 +7,7 @@ disable-model-invocation: false
 
 # Commands Dependencies Template
 
-A command application service is named `<AggregateRoot>Commands` (see
-`commands-specification-template` for the parent spec). It declares its
+A command application service is named `<AggregateRoot>Commands`. It declares its
 collaborators in four sections, **rendered in this order**:
 
 1. **Repositories**
