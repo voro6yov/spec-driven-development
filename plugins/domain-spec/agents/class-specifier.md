@@ -2,6 +2,7 @@
 name: class-specifier
 description: Generates DDD class specifications for a specific category of classes from a diagram file, writes them to a temp file. Invoke with: @class-specifier <diagram_file> <category>
 tools: Read, Write, Bash
+model: opus
 skills:
   - class-spec-template
 ---

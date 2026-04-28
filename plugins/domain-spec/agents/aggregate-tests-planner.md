@@ -2,6 +2,7 @@
 name: aggregate-tests-planner
 description: Enumerates the full unit test list for every <<Aggregate Root>> class from the merged spec and writes a Test Plan section to the test-plan sibling file. Output includes State Keys (with mutation paths) that drive downstream fixture and test generation. Invoke with: @aggregate-tests-planner <diagram_file>
 tools: Read, Write, Skill
+model: opus
 skills:
   - domain-spec:aggregate-unit-tests
   - domain-spec:aggregate-fixtures

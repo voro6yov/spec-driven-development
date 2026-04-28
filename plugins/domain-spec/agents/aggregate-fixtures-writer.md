@@ -2,6 +2,7 @@
 name: aggregate-fixtures-writer
 description: Generates pytest fixtures for <<Aggregate Root>> classes in tests/conftest.py by reading the State Keys table from the test-plan sibling file. Requires @aggregate-tests-planner to have run first. Invoke with: @aggregate-fixtures-writer <diagram_file> <tests_dir>
 tools: Read, Write, Skill
+model: sonnet
 skills:
   - domain-spec:aggregate-fixtures
   - domain-spec:aggregate-data-fixtures

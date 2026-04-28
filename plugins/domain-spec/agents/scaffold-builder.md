@@ -2,6 +2,7 @@
 name: scaffold-builder
 description: Creates the package skeleton — empty class stubs with spec docstrings and inter-module imports — following the domain package layout conventions. Invoke with: @scaffold-builder <diagram_file> <output_dir>
 tools: Read, Write, Bash
+model: sonnet
 skills:
   - domain-spec:package-layout
 ---
