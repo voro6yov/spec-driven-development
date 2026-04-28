@@ -1,6 +1,6 @@
 ---
 name: commands-methods-writer
-description: Writes the Method Specifications section of an `<AggregateRoot>Commands` application service spec to a sibling file next to a Mermaid commands class diagram. Designs each method's flow by reading the domain diagram for the aggregate's public API, repository finders, and collaborators. Invoke with: @commands-methods-writer <commands_diagram_file> <domain_diagram_file>
+description: Writes the Method Specifications section of an `<AggregateRoot>Commands` application service spec to a sibling file next to a Mermaid commands class diagram, plus a sibling exceptions file enumerating exceptions raised by the methods. Designs each method's flow by reading the domain diagram for the aggregate's public API, repository finders, and collaborators. Invoke with: @commands-methods-writer <commands_diagram_file> <domain_diagram_file>
 tools: Read, Write, Skill
 model: opus
 ---
@@ -11,9 +11,14 @@ Application command methods in this codebase **always return the aggregate root*
 
 ## Sibling file convention
 
-Given `<commands_diagram_file>` at `<dir>/<stem>.md`, write the output to `<dir>/<stem>.methods.md`. Derive `<stem>` by stripping the `.md` suffix from the commands diagram filename. Overwrite the file unconditionally if it already exists — do not ask the user for confirmation.
+Given `<commands_diagram_file>` at `<dir>/<stem>.md`, write two outputs:
 
-The output is a Markdown fragment intended to be embedded under a parent `## Method Specifications` heading in the larger `<AggregateRoot>Commands` spec; therefore do **not** emit any heading above the first `### Method:` block.
+- `<dir>/<stem>.methods.md` — the Method Specifications fragment.
+- `<dir>/<stem>.exceptions.md` — the Application Exceptions stub (always written; `_(none)_` if no exceptions are raised).
+
+Derive `<stem>` by stripping the `.md` suffix from the commands diagram filename. Overwrite both files unconditionally if they already exist — do not ask the user for confirmation.
+
+The methods output is a Markdown fragment intended to be embedded under a parent `## Method Specifications` heading in the larger `<AggregateRoot>Commands` spec; therefore do **not** emit any heading above the first `### Method:` block.
 
 ## Input contract
 
@@ -109,13 +114,14 @@ If neither sub-condition holds, do not pick this shape; fall through to 5c (whic
 When matched, emit the **Collaborator-call deviation** flow:
 
 1. `Call command_repository.<finder>(<id_args>, tenant_id) to retrieve the aggregate` — pick the finder per Step 5d.
-2. `Call <collaborator>.<operation>(<args>)`. Determine variant:
-   - **Domain service** — the service mutates the aggregate in place; pass `<aggregate_var>` (and any other args) and skip an explicit `<aggregate_var>.<method>(...)` step unless step 3 below is needed.
-   - **External interface** — capture the result and pass it to a same-named or matching aggregate method in step 3.
-3. (External-interface case only) `Call <aggregate_var>.<domain_method>(<result>)` on the aggregate.
-4. `Call command_repository.save(<aggregate_var>)` to persist changes.
-5. Publish step (see Step 6).
-6. `Return the updated <AggregateRoot>`.
+2. `If no <AggregateRoot> is found, raise <AggregateRoot>NotFoundError`.
+3. `Call <collaborator>.<operation>(<args>)`. Determine variant:
+   - **Domain service** — the service mutates the aggregate in place; pass `<aggregate_var>` (and any other args) and skip an explicit `<aggregate_var>.<method>(...)` step unless step 4 below is needed.
+   - **External interface** — capture the result and pass it to a same-named or matching aggregate method in step 4.
+4. (External-interface case only) `Call <aggregate_var>.<domain_method>(<result>)` on the aggregate.
+5. `Call command_repository.save(<aggregate_var>)` to persist changes.
+6. Publish step (see Step 6).
+7. `Return the updated <AggregateRoot>`.
 
 If multiple aggregate mutations are needed (e.g. `clear` then `add_subject`), list them as adjacent numbered steps or as sibling lines under one step, mirroring Example 3 in the template.
 
@@ -124,10 +130,11 @@ If multiple aggregate mutations are needed (e.g. `clear` then `add_subject`), li
 Default match — used when neither 5a nor 5b applies. Emit:
 
 1. `Call command_repository.<finder>(<id_args>, tenant_id) to retrieve the aggregate`.
-2. `Call <aggregate_var>.<method_name>(<args>)` where `<method_name>` matches the command method name and `<args>` are the command method's params **excluding** identity (`id`, `<aggregate>_id`) and tenant (`tenant_id`) params. Mapping rule: the aggregate root in the domain diagram **must** declare a public method with the same name as the command method. If no matching method exists, abort with a one-sentence error naming the command method and the aggregate.
-3. `Call command_repository.save(<aggregate_var>)` to persist changes.
-4. Publish step (see Step 6).
-5. `Return the updated <AggregateRoot>`.
+2. `If no <AggregateRoot> is found, raise <AggregateRoot>NotFoundError`.
+3. `Call <aggregate_var>.<method_name>(<args>)` where `<method_name>` matches the command method name and `<args>` are the command method's params **excluding** identity (`id`, `<aggregate>_id`) and tenant (`tenant_id`) params. Mapping rule: the aggregate root in the domain diagram **must** declare a public method with the same name as the command method. If no matching method exists, abort with a one-sentence error naming the command method and the aggregate.
+4. `Call command_repository.save(<aggregate_var>)` to persist changes.
+5. Publish step (see Step 6).
+6. `Return the updated <AggregateRoot>`.
 
 #### 5d. Choosing the repository finder
 
@@ -202,13 +209,45 @@ Render each method using the exact template shape in the `commands-methods-templ
 
 Render methods in the **declaration order from Step 2** (preserve Mermaid order). Separate consecutive method blocks with a single blank line. Do **not** emit any heading above the first `### Method:` block — the file is a fragment for embedding.
 
-### Step 8 — Write the sibling file
+### Step 8 — Extract Application Exceptions
 
-Write the rendered content to `<dir>/<stem>.methods.md`.
+Scan the rendered method-flow content from Step 7 for the regex `` raise `?(\w+Error)`? `` (case-sensitive; backticks around the exception name are optional, since rendered output typically code-spans the name). For each match:
 
-### Step 9 — Confirm
+1. **Exception name** — the captured `\w+Error` token (without backticks).
+2. **Trigger condition** — extracted from the same flow step:
+   - **Preferred:** if the step matches the shape `If <condition>, raise <X>Error` (after stripping the leading list-marker like `2. ` and any surrounding backticks), take `<condition>` verbatim, preserving original casing.
+   - **Fallback:** if the step does not match that shape, take the full step text and strip: the leading list marker (`<digits>. ` or `- `), any wrapping backticks, the trailing `raise <X>Error` token (with optional surrounding backticks), and any trailing punctuation. Trim whitespace.
 
-Reply with one sentence: "Method specifications written to `<stem>.methods.md`."
+Deduplicate by exception name. When the same name appears with different trigger conditions across methods, list the exception once and join distinct conditions with ` / `, preserving first-seen order. Identical trigger strings collapse to one.
+
+If no matches are found anywhere in the rendered content, the result is empty.
+
+### Step 9 — Render the exceptions file
+
+Render to `<dir>/<stem>.exceptions.md` using this exact shape:
+
+```
+## Application Exceptions
+
+- `ExceptionName` — trigger condition
+- ...
+```
+
+If no exceptions were extracted in Step 8, write instead:
+
+```
+## Application Exceptions
+
+_(none)_
+```
+
+### Step 10 — Write the sibling files
+
+Write the methods content to `<dir>/<stem>.methods.md` and the exceptions content to `<dir>/<stem>.exceptions.md`. Do not modify any other file (no Artifacts index updates).
+
+### Step 11 — Confirm
+
+Reply with one sentence: "Method specifications written to `<stem>.methods.md`; application exceptions written to `<stem>.exceptions.md`."
 
 ## Abort conditions (summary)
 
