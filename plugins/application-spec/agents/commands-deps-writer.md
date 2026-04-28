@@ -2,6 +2,8 @@
 name: commands-deps-writer
 description: Writes the Dependencies section of an `<AggregateRoot>Commands` application service spec to a sibling file next to a Mermaid commands class diagram. Invoke with: @commands-deps-writer <diagram_file>
 tools: Read, Write, Skill
+skills:
+  - application-spec:commands-dependencies-template
 model: sonnet
 ---
 
@@ -26,24 +28,21 @@ Read `<diagram_file>` and locate fenced ```mermaid blocks whose first non-empty 
 
 ### Step 2 — Identify the application service node
 
-Find the class whose name matches `<AggregateRoot>Commands` (suffix `Commands`). There should be exactly one. Record:
+Find the unique class whose name ends with `Commands` and has at least one character before the suffix. If zero or more than one such class is found, abort with a one-sentence error. Record:
 
 - `<AggregateRoot>` — the class name with the `Commands` suffix removed (PascalCase).
 - The lines that link from this class to its collaborators.
 
 ### Step 3 — Classify outgoing links
 
-For each link whose **source** is the `<AggregateRoot>Commands` node, classify by syntax:
+For each link whose **source** is the `<AggregateRoot>Commands` node, classify the target into one of the four categories per the syntax table in the `commands-dependencies-template` skill. Recognise repositories by the `Command` prefix + `Repository` suffix on the target class name, and message publishers by an exact class-name match against `DomainEventPublisher` or `CommandProducer`; any other lollipop (`--()` / `()--`) target is a Domain Service. Any plain-arrow (`-->` / `<--`) target is an External Interface, regardless of name prefix. Ignore links whose syntax does not match one of these forms (e.g. `..>`, composition, inheritance).
 
-| Mermaid link syntax | Category |
-| --- | --- |
-| `<AggregateRoot>Commands --() Command<X>Repository : uses` | Repository |
-| `<AggregateRoot>Commands --() DomainEventPublisher : uses` | Message Publisher |
-| `<AggregateRoot>Commands --() CommandProducer : uses` | Message Publisher |
-| `<AggregateRoot>Commands --() <ServiceClass> : uses` (target name does **not** match `Command*Repository`, `DomainEventPublisher`, or `CommandProducer`) | Domain Service |
-| `<AggregateRoot>Commands --> <IInterfaceClass> : uses` | External Interface |
+Normalisation rules:
 
-Accept the reversed lollipop form `<target> ()-- <AggregateRoot>Commands : uses` and treat it as equivalent to `<AggregateRoot>Commands --() <target> : uses`. Likewise accept `<IInterfaceClass> <-- <AggregateRoot>Commands : uses` as equivalent to the forward arrow form. Ignore links whose source (after normalisation) is not `<AggregateRoot>Commands`. Ignore label text other than `uses`. Repository targets are recognised by the `Command` prefix and `Repository` suffix on the class name; Message Publisher targets are recognised by an exact class-name match against `DomainEventPublisher` or `CommandProducer`; everything else attached via lollipop is a Domain Service.
+- Accept the reversed lollipop form `<target> ()-- <AggregateRoot>Commands : uses` as equivalent to `<AggregateRoot>Commands --() <target> : uses`.
+- Accept `<IInterfaceClass> <-- <AggregateRoot>Commands : uses` as equivalent to the forward arrow form.
+- Ignore links whose source (after normalisation) is not `<AggregateRoot>Commands`.
+- Ignore label text other than `uses`.
 
 **Deduplicate** entries within each category by target class name — if the same target appears on multiple matching links, emit it once.
 
@@ -62,11 +61,13 @@ Examples: `Order` → `uow.orders`, `Customer` → `uow.customers`, `OrderItem` 
 
 ### Step 5 — Render the Dependencies section
 
-Render all four sections (Repositories, Domain Services, External Interfaces, Message Publishers) in that exact order using the skeleton defined by the `commands-dependencies-template` skill. Always emit all four headings; substitute `_None_` under any heading whose category has no entries. Within each section, preserve the order in which targets first appeared in the Mermaid diagram (after deduplication in Step 3).
+Render the section using the skeleton and category semantics defined by the `commands-dependencies-template` skill. Within each category, preserve the order in which targets first appeared in the Mermaid diagram (after deduplication in Step 3).
 
 ### Step 6 — Write the sibling file
 
-Write the rendered content to `<dir>/<stem>.deps.md`. The output is a Markdown fragment intended to be embedded under a parent `## Dependencies` heading in the larger `<AggregateRoot>Commands` spec; therefore do **not** emit any heading above `## Repositories`.
+If all four categories are empty after Step 3, abort with a one-sentence error rather than writing a file — this indicates a malformed diagram with no recognised collaborators.
+
+Otherwise, write the rendered content to `<dir>/<stem>.deps.md`. The output is a Markdown fragment intended to be embedded under a parent `## Dependencies` heading in the larger `<AggregateRoot>Commands` spec; therefore do **not** emit any heading above `## Repositories`.
 
 ### Step 7 — Confirm
 

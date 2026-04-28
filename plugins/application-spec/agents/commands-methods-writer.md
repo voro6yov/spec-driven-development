@@ -2,6 +2,8 @@
 name: commands-methods-writer
 description: Writes the Method Specifications section of an `<AggregateRoot>Commands` application service spec to a sibling file next to a Mermaid commands class diagram, plus a sibling exceptions file enumerating exceptions raised by the methods. Designs each method's flow by reading the domain diagram for the aggregate's public API, repository finders, and collaborators. Invoke with: @commands-methods-writer <commands_diagram_file> <domain_diagram_file>
 tools: Read, Write, Skill
+skills:
+  - application-spec:commands-methods-template
 model: opus
 ---
 
@@ -37,7 +39,7 @@ Recognise both forms of declaration:
 - Block declarations: `class <Name> { ... }`
 - Link-only references: a class name appearing as the source or target of a link, with no `class` declaration.
 
-Also retain the surrounding prose of each file (everything outside the Mermaid fences) as the `<commands_description>` and `<domain_description>` advisory text — used in Step 6 only.
+Also retain the surrounding prose of each file (everything outside the Mermaid fences) as the `<commands_description>` and `<domain_description>` advisory text — consumed by Step 5b (collaborator hints), Step 6 Purpose (label parsing), and Step 6 Postconditions (description-derived invariants).
 
 ### Step 2 — Identify the application service node and its methods
 
@@ -65,13 +67,13 @@ For each link whose **source** (after normalisation) is the `<AggregateRoot>Comm
 
 Accept the reversed lollipop form `<target> ()-- <AggregateRoot>Commands : uses` and the reversed arrow form `<IInterfaceClass> <-- <AggregateRoot>Commands : uses` as equivalent. Deduplicate within each category by target class name. Record the four lists.
 
-For Message Publishers, record specifically whether `DomainEventPublisher` is present — its presence governs the publish step naming (see Step 6). When absent (only `CommandProducer`), still emit a publish step but omit the domain-event extraction language.
+For Message Publishers, record which of `DomainEventPublisher` and `CommandProducer` are present. Step 6 selects the publish text accordingly.
 
 ### Step 4 — Index the domain model from the domain diagram
 
 From the domain diagram, build the following lookup tables:
 
-1. **Aggregate root public API** — find the class node whose name matches `<AggregateRoot>` in the domain diagram. Record all public methods (`+method(...)`) on that class plus on any nested entity / value-object / collection nodes that the aggregate owns. The aggregate-root method names are the primary domain methods callable from the application service.
+1. **Aggregate root public API** — find the class node whose name matches `<AggregateRoot>` in the domain diagram. Record all public methods (`+method(...)`) on that class plus on any nested entity / value-object / collection nodes that the aggregate owns. The aggregate-root method names are the primary domain methods callable from the application service. If the aggregate declares a static/class factory method (typically `new(...)` or a `<aggregate>_of_*` builder), record its parameter list separately as the **constructor signature** — used in Step 6 Postconditions for factory flows.
 2. **Repository finder methods** — for each `Command<X>Repository` listed as a Repository in Step 3, find the matching class node in the domain diagram. Record its public methods. The repository must declare `save(<aggregate>)` and at least one finder; if no finder is declared, abort with a one-sentence error naming the missing repository.
 3. **Domain Service / External Interface methods** — for each Domain Service and External Interface listed in Step 3, locate the matching class in the domain diagram and record its public methods. If a class is referenced from the commands diagram but missing from the domain diagram, abort with a one-sentence error naming the missing class.
 
@@ -88,17 +90,11 @@ Match conditions (both must hold):
 - The method name is `create`, `new`, or `add_<aggregate_var>` (e.g. `add_profile_type`).
 - The method **has no `id` parameter** (any param literally named `id`, or any param whose name ends in `_id` and references the aggregate's own identity, e.g. `profile_type_id`). Tenant scoping params like `tenant_id` do not count as identity.
 
-When matched, emit the **Factory deviation** flow:
+When matched, render the **Factory / Create** deviation flow from the `commands-methods-template` skill. Decisions specific to this agent:
 
-1. (Optional) Parameter-defaulting step (e.g. `If <param> is not provided, default to "<x>"`) — include only when the description blocks mention a default; otherwise omit.
-2. (Optional existence check) When the repository declares an existence/lookup finder keyed on a natural key that appears as a method parameter (e.g. `<aggregate>_of_name(name, tenant_id)`), emit:
-   - `Call command_repository.<finder>(<natural_key>, tenant_id) to check whether a <Aggregate> with the same <natural_key> already exists`
-   - `If a matching <Aggregate> exists, raise <Aggregate>AlreadyExistsError`
-   When no such finder exists in the repository, omit both steps without warning.
-3. `Call <AggregateRoot>.new(<args>)` to construct a new aggregate, where `<args>` are the method's parameters in declaration order (excluding any defaulted-away values handled in step 1).
-4. `Call command_repository.save(<aggregate_var>)` to persist the new aggregate.
-5. Publish step (see Step 6).
-6. `Return the created <AggregateRoot>`.
+- **Parameter-defaulting step** — prepend `If <param> is not provided, default to "<x>"` only when the description blocks mention a default; otherwise omit.
+- **Existence check** — include the optional finder + `<Aggregate>AlreadyExistsError` steps only when the repository declares an existence/lookup finder keyed on a natural key that appears as a method parameter (e.g. `<aggregate>_of_name(name, tenant_id)`). When no such finder exists, omit both steps without warning.
+- **Constructor args** — pass the method's parameters to `<AggregateRoot>.new(...)` in declaration order, excluding any values consumed by the defaulting step.
 
 #### 5b. Collaborator-call shape
 
@@ -106,35 +102,25 @@ Match conditions (deterministic — both must hold):
 
 1. The aggregate root **does not** declare a same-named public method. (If it does, fall through to 5c instead.)
 2. At least one of the following is true:
-   - A Domain Service or External Interface in the commands diagram dependencies declares a public method that takes the aggregate root as a parameter (i.e. a parameter typed `<AggregateRoot>`).
+   - A **Domain Service** in the commands diagram dependencies declares a public method that takes the aggregate root as a parameter (i.e. a parameter typed `<AggregateRoot>`) — the service mutates the aggregate in place.
+   - An **External Interface** in the commands diagram dependencies declares a public method whose return type is consumable by a public method on `<AggregateRoot>` (i.e. some aggregate method has a parameter whose type matches the interface method's return type) — the interface returns a result that the aggregate then consumes.
    - The description blocks (commands or domain) explicitly name a collaborator and operation for this method using the labelling convention defined in Step 6 (Purpose).
 
-If neither sub-condition holds, do not pick this shape; fall through to 5c (which will then abort because the aggregate has no same-named method).
+If none of the sub-conditions holds, do not pick this shape; fall through to 5c (which will then abort, since the aggregate has no same-named method).
 
-When matched, emit the **Collaborator-call deviation** flow:
+When matched, render the **Collaborator Call** deviation flow from the `commands-methods-template` skill. Decisions specific to this agent:
 
-1. `Call command_repository.<finder>(<id_args>, tenant_id) to retrieve the aggregate` — pick the finder per Step 5d.
-2. `If no <AggregateRoot> is found, raise <AggregateRoot>NotFoundError`.
-3. `Call <collaborator>.<operation>(<args>)`. Determine variant:
-   - **Domain service** — the service mutates the aggregate in place; pass `<aggregate_var>` (and any other args) and skip an explicit `<aggregate_var>.<method>(...)` step unless step 4 below is needed.
-   - **External interface** — capture the result and pass it to a same-named or matching aggregate method in step 4.
-4. (External-interface case only) `Call <aggregate_var>.<domain_method>(<result>)` on the aggregate.
-5. `Call command_repository.save(<aggregate_var>)` to persist changes.
-6. Publish step (see Step 6).
-7. `Return the updated <AggregateRoot>`.
-
-If multiple aggregate mutations are needed (e.g. `clear` then `add_subject`), list them as adjacent numbered steps or as sibling lines under one step, mirroring Example 3 in the template.
+- **Load step** — pick the finder per Step 5d and follow with `If no <AggregateRoot> is found, raise <AggregateRoot>NotFoundError`.
+- **Domain service variant** — the service mutates the aggregate in place; pass `<aggregate_var>` and skip the explicit `<aggregate_var>.<method>(...)` step.
+- **External interface variant** — capture the collaborator result and pass it to a same-named or matching aggregate method in the next step.
+- **Multi-mutation** — if multiple aggregate mutations are needed (e.g. `clear` then `add_subject`), list them as adjacent numbered steps or as sibling lines under one step.
 
 #### 5c. Canonical shape
 
-Default match — used when neither 5a nor 5b applies. Emit:
+Default match — used when neither 5a nor 5b applies. Render the **Canonical Method Shape** from the `commands-methods-template` skill. Decisions specific to this agent:
 
-1. `Call command_repository.<finder>(<id_args>, tenant_id) to retrieve the aggregate`.
-2. `If no <AggregateRoot> is found, raise <AggregateRoot>NotFoundError`.
-3. `Call <aggregate_var>.<method_name>(<args>)` where `<method_name>` matches the command method name and `<args>` are the command method's params **excluding** identity (`id`, `<aggregate>_id`) and tenant (`tenant_id`) params. Mapping rule: the aggregate root in the domain diagram **must** declare a public method with the same name as the command method. If no matching method exists, abort with a one-sentence error naming the command method and the aggregate.
-4. `Call command_repository.save(<aggregate_var>)` to persist changes.
-5. Publish step (see Step 6).
-6. `Return the updated <AggregateRoot>`.
+- **Load step** — pick the finder per Step 5d and follow with `If no <AggregateRoot> is found, raise <AggregateRoot>NotFoundError`.
+- **Aggregate call mapping** — `<aggregate_var>.<method_name>(<args>)` where `<method_name>` matches the command method name and `<args>` are the command method's params **excluding** identity (`id`, `<aggregate>_id`) and tenant (`tenant_id`) params. The aggregate root in the domain diagram **must** declare a public method with the same name as the command method. If no matching method exists, abort with: `Command method <name> on <AggregateRoot>Commands has no same-named public method on <AggregateRoot>, and did not match factory (5a) or collaborator-call (5b) shapes — check method naming or add a collaborator hint in the description.`
 
 #### 5d. Choosing the repository finder
 
@@ -168,11 +154,10 @@ The same labelling formats also apply to per-method invariants used by Postcondi
 
 #### Publish step
 
-Always emit a publish step regardless of whether the method is known to emit events. Render text:
+Always emit a publish step regardless of whether the method is known to emit events. The skill template covers the `DomainEventPublisher` case (`Extract events from the aggregate and publish via event_publisher`); this agent additionally handles the `CommandProducer` and combined cases:
 
-- When `DomainEventPublisher` is in dependencies: `Extract events from the aggregate and publish via event_publisher`.
-- When only `CommandProducer` is in dependencies: `Publish any pending commands via command_producer`.
-- When both are present: emit two adjacent lines, one per publisher.
+- When only `CommandProducer` is in dependencies: render `Publish any pending commands via command_producer` instead of the skill's event-publisher line.
+- When both publishers are present: emit two adjacent lines — the skill's event-publisher line followed by the command-producer line.
 - When neither is present (rare — Step 3 still emits the deps category as `_None_`): omit the publish step.
 
 #### Postconditions
@@ -181,37 +166,21 @@ Emit a bullet list combining:
 
 1. **Structural postconditions** — derived mechanically from the aggregate method(s) called:
    - For each mutating aggregate method, infer the state effect from its name (e.g. `update_<x>` → `<x> overwritten`, `add_<x>` → `<x> appended`, `remove_<x>` → `<x> removed`, `clear_<x>` → `<x> cleared`). Phrase concisely; one bullet per distinct effect.
-   - For factory flows, emit `A new <AggregateRoot> aggregate exists with generated id and ...` summarising initial empty/seeded fields per the aggregate constructor signature when discoverable; otherwise emit a generic `A new <AggregateRoot> aggregate exists with the provided details`.
-   - For mutating (non-factory) flows, append `updated_at set to current timestamp`.
-   - For factory flows, append `created_at and updated_at set to current timestamp`.
+   - For factory flows, emit `A new <AggregateRoot> aggregate exists with generated id and ...` summarising initial empty/seeded fields. Use the **constructor signature** recorded in Step 4 (e.g. `<AggregateRoot>.new(...)`) to enumerate the seeded fields when present; otherwise emit a generic `A new <AggregateRoot> aggregate exists with the provided details`.
+   - The timestamp postconditions (`updated_at` for mutating flows; `created_at` and `updated_at` for factory flows) come from the skill's worked examples — preserve them when rendering.
 2. **Description-derived invariants** — scan the description blocks (commands and domain) for any prose adjacent to or labelled for this method that names additional postconditions or invariants (uniqueness, terminal status transitions, event emissions, branching outcomes). Add each as its own bullet, phrased in present tense.
 
-When description prose suggests inline branching or short-circuits inside the flow (e.g. "may short-circuit if errors detected"), emit them as indented `**Note**:` sub-bullets under the relevant flow step, mirroring Example 3 in the template.
+When description prose suggests inline branching or short-circuits inside the flow (e.g. "may short-circuit if errors detected"), emit them as `**Note**:` sub-bullets per the convention defined in the `commands-methods-template` skill (see Example 3).
 
 ### Step 7 — Render the output
 
-Render each method using the exact template shape in the `commands-methods-template` skill:
-
-```
-### Method: `method_name(param1: type, param2: type) -> ReturnType`
-
-**Purpose**: ...
-
-**Method Flow**:
-
-1. ...
-2. ...
-
-**Postconditions**:
-
-- ...
-```
+Render each method using the exact template shape defined in the `commands-methods-template` skill (`### Method:` heading with `**Purpose**`, `**Method Flow**`, `**Postconditions**` subsections).
 
 Render methods in the **declaration order from Step 2** (preserve Mermaid order). Separate consecutive method blocks with a single blank line. Do **not** emit any heading above the first `### Method:` block — the file is a fragment for embedding.
 
 ### Step 8 — Extract Application Exceptions
 
-Scan the rendered method-flow content from Step 7 for the regex `` raise `?(\w+Error)`? `` (case-sensitive; backticks around the exception name are optional, since rendered output typically code-spans the name). For each match:
+Run the regex `` raise `?(\w+Error)`? `` against the in-memory rendered methods string produced by Step 7 (before writing it to disk). The match is case-sensitive; backticks around the exception name are optional, since rendered output typically code-spans the name. For each match:
 
 1. **Exception name** — the captured `\w+Error` token (without backticks).
 2. **Trigger condition** — extracted from the same flow step:
@@ -260,5 +229,5 @@ Abort with a single-sentence error in any of these cases:
 - `<AggregateRoot>` not declared in the domain diagram.
 - A `Command<X>Repository`, Domain Service, or External Interface referenced from the commands diagram is missing from the domain diagram.
 - A repository in the dependencies declares no finder method.
-- A canonical-shape command method has no same-named method on the aggregate root.
+- A command method that fell through to the canonical shape has no same-named public method on the aggregate root (and did not match factory or collaborator-call shapes).
 - No suitable finder exists for the load step of a non-factory method.
