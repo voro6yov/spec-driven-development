@@ -44,7 +44,9 @@ Strip backticks and bind `<Aggregate>` to the PascalCase value (e.g. `DomainType
 
 The stub package lives at `<tables_dir>/<aggregate>/`. Verify `test -d <tables_dir>/<aggregate>`; if missing, fail with: `Error: '<tables_dir>/<aggregate>' is not scaffolded; run @table-scaffolder first.`
 
-Use `find <tables_dir>/<aggregate> -maxdepth 1 -mindepth 1 -name '*_table.py' -type f`. Sort the result for deterministic order and bind `<worklist>` to the resulting absolute paths. If empty, fail with: `Error: no '*_table.py' stubs found under '<tables_dir>/<aggregate>'; run @table-scaffolder first.`
+Use `find <tables_dir>/<aggregate> -maxdepth 1 -mindepth 1 -name '*.py' -not -name '__init__.py' -type f`. Sort the result for deterministic order and bind `<worklist>` to the resulting absolute paths. If empty, fail with: `Error: no '*.py' table stubs found under '<tables_dir>/<aggregate>'; run @table-scaffolder first.`
+
+(Module filenames are bare `<table_name>.py` — the `_table` suffix only appears on the variable inside the module, not in the filename.)
 
 #### 2c. Database session import path
 
@@ -72,7 +74,7 @@ In Section 2 (`## 2. Pattern Selection`) under `### Tables`, walk every data row
 
 Build `<patterns>` = a mapping `<table_name> -> <pattern>`, preserving row order.
 
-**Spec/disk drift check.** For every `<table_name>` in `<patterns>`, verify that `<tables_dir>/<aggregate>/<table_name>_table.py` is present in `<worklist>` (compare basenames). If any row has no matching stub, fail with: `Error: Section 2 row '<table_name>' has no scaffolded stub at '<tables_dir>/<aggregate>/<table_name>_table.py'; re-run @table-scaffolder.`
+**Spec/disk drift check.** For every `<table_name>` in `<patterns>`, verify that `<tables_dir>/<aggregate>/<table_name>.py` is present in `<worklist>` (compare basenames). If any row has no matching stub, fail with: `Error: Section 2 row '<table_name>' has no scaffolded stub at '<tables_dir>/<aggregate>/<table_name>.py'; re-run @table-scaffolder.`
 
 #### 2e. Section 3 — per-table column blocks
 
@@ -94,7 +96,7 @@ If the column list is empty after placeholder filtering, fail with the same flav
 
 For each `<stub_path>` in `<worklist>`, in order:
 
-1. Derive `<table_name>` by stripping `_table.py` from `basename(<stub_path>)`.
+1. Derive `<table_name>` by stripping `.py` from `basename(<stub_path>)`.
 2. Verify `<table_name>` appears in `<patterns>`. If not, fail with: `Error: stub '<stub_path>' has no matching row in Section 2 Tables.`
 3. **Idempotence check.** Read `<stub_path>`. Treat the file as a placeholder stub iff its body — ignoring whitespace and the `__all__` line — is exactly:
 
@@ -162,8 +164,8 @@ No docstrings, no comments, no Index objects (indexes are owned by the migration
 Emit a bare bullet list of every absolute path in `<worklist>`, preserving its order — one bullet per line, nothing else on the line. Include all stubs regardless of whether this run wrote them or skipped them; downstream agents use the list as their worklist.
 
 ```
-- <tables_dir>/<aggregate>/<table_1>_table.py
-- <tables_dir>/<aggregate>/<table_2>_table.py
+- <tables_dir>/<aggregate>/<table_1>.py
+- <tables_dir>/<aggregate>/<table_2>.py
 - ...
 ```
 
