@@ -17,7 +17,7 @@ Capture the agent's full Markdown table output verbatim as `<locations_report_te
 
 Parse two values from the report:
 
-- **`<skip_uow_scaffolder>`** — read the `Context Integration` row's `Status` cell. If the status is `exists`, set this flag to true; otherwise false. Both `unit-of-work-scaffolder` and `query-context-scaffolder` are aggregate-agnostic and only need to run once per context — skip both on subsequent runs as a caller-side optimization. They are idempotent, so re-running is safe; the skip just avoids redundant work.
+- **`<skip_uow_scaffolder>`** — read the `Context Integration` row's `Status` cell. If the status is `exists`, set this flag to true; otherwise false. The `unit-of-work-scaffolder` is aggregate-agnostic and only needs to run once per context — skip it on subsequent runs as a caller-side optimization. The agent itself is idempotent, so re-running is safe; the skip just avoids redundant work. **Do not reuse this flag for `query-context-scaffolder`.** The locations report's `Context Integration` row tracks only the `unit_of_work` directory; the sibling `query_context/` directory may be missing even when `unit_of_work/` exists. The query-context scaffolder is idempotent, so always invoke it and let it no-op when the package is already in place.
 - **`<tests_dir>`** — read the `Absolute path` cell of the `Tests` row. Bind that value verbatim — it is an absolute path (e.g. `/repo/src/tests`). If the `Tests` row is missing or its path cell is empty, output an `ERROR:` line explaining the failure and stop before any code generation.
 
 ### Step 2 — Spawn scaffolders in parallel
@@ -29,7 +29,7 @@ In a single message, invoke the following agents in parallel. Do not wait betwee
 - `persistence-spec:migrations-scaffolder` with prompt `$ARGUMENTS <locations_report_text>`
 - `persistence-spec:table-scaffolder` with prompt `$ARGUMENTS <locations_report_text>`
 - `persistence-spec:unit-of-work-scaffolder` with prompt `<locations_report_text>` — **skip this invocation entirely** if `<skip_uow_scaffolder>` is true.
-- `persistence-spec:query-context-scaffolder` with prompt `<locations_report_text>` — **skip this invocation entirely** if `<skip_uow_scaffolder>` is true.
+- `persistence-spec:query-context-scaffolder` with prompt `<locations_report_text>` — always invoke; the agent is idempotent and the locations report cannot distinguish a present `query_context/` from a missing one.
 
 Each agent parses `<locations_report_text>` for the rows it needs and ignores the others.
 
@@ -102,7 +102,7 @@ If any test-phase agent (Steps 5–8) fails, abort the workflow and report the f
 
 Emit a phased Markdown summary grouping bullets by phase:
 
-- **Scaffolding** — one bullet per scaffolder invoked in Step 2 with its top-line outcome. If `unit-of-work-scaffolder` and/or `query-context-scaffolder` were skipped, list each with `skipped (Context Integration already exists)`.
+- **Scaffolding** — one bullet per scaffolder invoked in Step 2 with its top-line outcome. If `unit-of-work-scaffolder` was skipped, list it with `skipped (Context Integration already exists)`.
 - **Implementation** — one bullet per implementer invoked in Step 3 (Phase 3a and 3b combined, including `query-repository-implementer`) with its top-line outcome.
 - **Integration** — one bullet each for `unit-of-work-integrator` and `query-context-integrator` with their top-line outcomes.
 - **Tests** — one bullet each for `integration-test-package-preparer`, `unit-of-work-fixtures-preparer`, `integration-fixtures-writer`, `command-repository-tests-implementer`, and `query-repository-tests-implementer` with their top-line outcomes.
