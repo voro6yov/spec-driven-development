@@ -38,10 +38,12 @@ For each link whose **source** is the `<AggregateRoot>Commands` node, classify b
 | Mermaid link syntax | Category |
 | --- | --- |
 | `<AggregateRoot>Commands --() Command<X>Repository : uses` | Repository |
-| `<AggregateRoot>Commands --() <ServiceClass> : uses` (target name does **not** match `Command*Repository`) | Domain Service |
+| `<AggregateRoot>Commands --() DomainEventPublisher : uses` | Message Publisher |
+| `<AggregateRoot>Commands --() CommandProducer : uses` | Message Publisher |
+| `<AggregateRoot>Commands --() <ServiceClass> : uses` (target name does **not** match `Command*Repository`, `DomainEventPublisher`, or `CommandProducer`) | Domain Service |
 | `<AggregateRoot>Commands --> <IInterfaceClass> : uses` | External Interface |
 
-Accept the reversed lollipop form `<target> ()-- <AggregateRoot>Commands : uses` and treat it as equivalent to `<AggregateRoot>Commands --() <target> : uses`. Likewise accept `<IInterfaceClass> <-- <AggregateRoot>Commands : uses` as equivalent to the forward arrow form. Ignore links whose source (after normalisation) is not `<AggregateRoot>Commands`. Ignore label text other than `uses`. Repository targets are recognised by the `Command` prefix and `Repository` suffix on the class name; everything else attached via lollipop is a Domain Service.
+Accept the reversed lollipop form `<target> ()-- <AggregateRoot>Commands : uses` and treat it as equivalent to `<AggregateRoot>Commands --() <target> : uses`. Likewise accept `<IInterfaceClass> <-- <AggregateRoot>Commands : uses` as equivalent to the forward arrow form. Ignore links whose source (after normalisation) is not `<AggregateRoot>Commands`. Ignore label text other than `uses`. Repository targets are recognised by the `Command` prefix and `Repository` suffix on the class name; Message Publisher targets are recognised by an exact class-name match against `DomainEventPublisher` or `CommandProducer`; everything else attached via lollipop is a Domain Service.
 
 **Deduplicate** entries within each category by target class name — if the same target appears on multiple matching links, emit it once.
 
@@ -60,7 +62,7 @@ Examples: `Order` → `uow.orders`, `Customer` → `uow.customers`, `OrderItem` 
 
 ### Step 5 — Render the Dependencies section
 
-Render all three sections (Repositories, Domain Services, External Interfaces) in that exact order using the skeleton defined by the `commands-dependencies-template` skill. Always emit all three headings; substitute `_None_` under any heading whose category has no entries. Within each section, preserve the order in which targets first appeared in the Mermaid diagram (after deduplication in Step 3).
+Render all four sections (Repositories, Domain Services, External Interfaces, Message Publishers) in that exact order using the skeleton defined by the `commands-dependencies-template` skill. Always emit all four headings; substitute `_None_` under any heading whose category has no entries. Within each section, preserve the order in which targets first appeared in the Mermaid diagram (after deduplication in Step 3).
 
 ### Step 6 — Write the sibling file
 
