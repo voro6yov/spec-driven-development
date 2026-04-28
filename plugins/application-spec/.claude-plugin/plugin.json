@@ -1,0 +1,10 @@
+{
+  "name": "application-spec",
+  "description": "Generate specs for application services and implement them",
+  "version": "0.8.0",
+  "author": {
+    "name": "Valentin Vorobyov",
+    "email": "voro6yov.valentin@gmail.com",
+    "url": "https://github.com/voro6yov"
+  }
+}
