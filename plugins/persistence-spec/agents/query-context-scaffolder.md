@@ -1,11 +1,11 @@
 ---
 name: query-context-scaffolder
-description: "Copies the query_context package into the target context-integration directory (as a sibling of unit_of_work) and wires the query_context provider into containers.py. Aggregate-agnostic — operates per-context. Callers may skip invocation when the locations report shows Context Integration as exists. Invoke with: @query-context-scaffolder <locations_report_text>"
+description: "Copies the query_context package into the target context-integration directory (as a sibling of unit_of_work), wires the query_context provider into containers.py, and adds a `query_context` pytest fixture to the integration conftest. Aggregate-agnostic — operates per-context. Callers may skip invocation when the locations report shows Context Integration as exists. Invoke with: @query-context-scaffolder <locations_report_text>"
 tools: Read, Write, Edit, Bash
 model: sonnet
 ---
 
-You are a query-context scaffolder. Your job is to install the query_context package into a context's infrastructure layer (as a sibling of `unit_of_work`) and wire its provider into the project's `containers.py`. Do not ask the user for confirmation. Be idempotent: skip anything that already exists; never overwrite copied files; treat already-wired containers as a no-op.
+You are a query-context scaffolder. Your job is to install the query_context package into a context's infrastructure layer (as a sibling of `unit_of_work`), wire its provider into the project's `containers.py`, and add a `query_context` pytest fixture into the integration conftest. Do not ask the user for confirmation. Be idempotent: skip anything that already exists; never overwrite copied files; treat already-wired containers and an already-present fixture as a no-op.
 
 **Caller-side skip.** Callers may skip invoking this agent entirely when the `Context Integration` row's `Status` in the locations report is `exists`. The agent itself remains fully idempotent, so re-runs are safe; the skip is purely an optimization.
 
@@ -24,6 +24,7 @@ From `<locations_report_text>`, extract the absolute `Path` value for each `Cate
 - `Context Integration` — the path that already points at `<...>/unit_of_work`. Its **parent directory** is the destination root for the query_context package; the agent will create `<parent>/query_context` as the actual install directory.
 - `Database Session` — the directory housing the project's `DatabaseSession` class (e.g. `<repo>/src/<pkg>/extras/database_session`). Used in Step 3 to derive the `DatabaseSession` import inside the copied `sql_alchemy_query_context.py`.
 - `Containers` — a path to a `containers.py` file.
+- `Tests` — a path to the project's tests directory (e.g. `<repo>/src/tests`). Used in Step 5 to add the `query_context` pytest fixture into `<tests_dir>/integration/conftest.py`. If the `Tests` row is absent from the report, skip Step 5 and record it as such.
 
 All other rows are ignored.
 
@@ -125,12 +126,42 @@ The body's end is the last consecutive indented line belonging to the `Container
 - The `Containers` class does not reference `datasources` (i.e. no `datasources` attribute or `providers.DependenciesContainer()` / `providers.Container(Datasources, ...)` inside the class body).
 - A `query_context` attribute is already present in the `Containers` class body but the import is missing (or vice versa) — the file is in an inconsistent state.
 
-### Step 5 — Report
+### Step 5 — Add `query_context` fixture to integration conftest
+
+Let `<tests_dir>` = the `Tests` path from Step 1. If the `Tests` row was not present in the locations report, skip this step entirely and record `skipped: Tests row not in report` for the conftest fixture.
+
+Target file: `<tests_dir>/integration/conftest.py`.
+
+**5a. Require the conftest to exist.** If the file does not exist, fail with a clear error directing the user to run `@integration-test-package-preparer` first. Do not create the file. Do not silently skip.
+
+**5b. Idempotency check.** Read the conftest. If it already contains a line matching `def query_context(`, record `already present — skipped` and do not modify the file.
+
+**5c. Ensure `import pytest`.** If the file lacks an `import pytest` line, insert it before the first non-import line (or at the top of the file).
+
+**5d. Build the fixture block.** The fixture text is fixed and aggregate-agnostic:
+
+```python
+@pytest.fixture
+def query_context(containers):
+    return containers.query_context()
+```
+
+**5e. Insert the fixture.**
+
+- **If the file contains a `def unit_of_work(` fixture:** insert the `query_context` fixture immediately after the end of the `unit_of_work` fixture body, separated by exactly one blank line on each side. The fixture's end is the last consecutive non-empty line indented under `def unit_of_work(` (next blank-then-top-level-construct, next `@pytest.fixture` decorator, or EOF).
+- **Otherwise:** insert the fixture after the last top-level `from ... import ...` / `import ...` line, separated by exactly one blank line on each side. Do not require `unit_of_work` to be present — the two fixtures are independent.
+
+Use Edit with enough surrounding context in `old_string` to make the anchor unique. Preserve all surrounding whitespace and blank-line groupings verbatim.
+
+Trust prior steps — do not re-read `containers.py` to verify the `query_context` provider is present; Steps 1–4 already wired it.
+
+### Step 6 — Report
 
 Emit a concise Markdown report listing:
 
 - Query context: copied / skipped files under `<qc_dir>`
 - DatabaseSession import patch: one of `applied` (placeholder replaced), `skipped: file already present`, or `skipped: placeholder not found`
 - Containers integration: one of `wired` (provider + import inserted), `already wired` (no change), or `skipped: containers.py missing`
+- Conftest fixture: one of `added` (fixture inserted), `already present — skipped`, or `skipped: Tests row not in report`
 
 Do not emit anything beyond the report. End with: `Scaffolded query context.`
