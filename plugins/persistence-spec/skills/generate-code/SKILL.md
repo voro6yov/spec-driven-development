@@ -24,7 +24,7 @@ Parse two values from the report:
 
 In a single message, invoke the following agents in parallel. Do not wait between them.
 
-- `persistence-spec:command-repository-scaffolder` with prompt `$ARGUMENTS <locations_report_text>`
+- `persistence-spec:repositories-scaffolder` with prompt `$ARGUMENTS <locations_report_text>`
 - `persistence-spec:mappers-scaffolder` with prompt `$ARGUMENTS <locations_report_text>`
 - `persistence-spec:migrations-scaffolder` with prompt `$ARGUMENTS <locations_report_text>`
 - `persistence-spec:table-scaffolder` with prompt `$ARGUMENTS <locations_report_text>`

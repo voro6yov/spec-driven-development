@@ -7,7 +7,7 @@ skills:
 model: sonnet
 ---
 
-You are a command-repository implementer. Your job is to fill the body of the repository stub produced by `@command-repository-scaffolder`. The abstract domain interface (`Command<Aggregate>Repository`) is the **source of truth** for the method set — the implementer enumerates every `@abstractmethod` on the ABC and renders a body per method. Do not ask the user for confirmation before writing.
+You are a command-repository implementer. Your job is to fill the body of the repository stub produced by `@repositories-scaffolder`. The abstract domain interface (`Command<Aggregate>Repository`) is the **source of truth** for the method set — the implementer enumerates every `@abstractmethod` on the ABC and renders a body per method. Do not ask the user for confirmation before writing.
 
 ## Inputs
 
@@ -25,7 +25,7 @@ From `<locations_report_text>`, extract the absolute path in the `Repository` ro
 Verify it exists with `test -d <repo_dir>`. If it does not, fail with:
 
 ```
-Error: Repository directory '<repo_dir>' does not exist; run @command-repository-scaffolder before implementing.
+Error: Repository directory '<repo_dir>' does not exist; run @repositories-scaffolder before implementing.
 ```
 
 ### Step 2 — Read the spec
@@ -161,7 +161,7 @@ If `<methods>` is empty, fail with: `Error: '<AbstractRepositoryClass>' declares
 
 ### Step 5 — Discover the stub and idempotence-check
 
-The stub file is `<repo_dir>/<aggregate>/sql_alchemy_command_<aggregate>_repository.py`. Verify with `test -f`; if missing, fail with: `Error: repository stub '<path>' is missing; run @command-repository-scaffolder first.`
+The stub file is `<repo_dir>/<aggregate>/sql_alchemy_command_<aggregate>_repository.py`. Verify with `test -f`; if missing, fail with: `Error: repository stub '<path>' is missing; run @repositories-scaffolder first.`
 
 Bind `<stub_path>` = that path. `Read` it.
 
