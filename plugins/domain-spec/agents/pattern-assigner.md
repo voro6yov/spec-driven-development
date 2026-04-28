@@ -2,6 +2,7 @@
 name: pattern-assigner
 description: Assigns implementation patterns to each class in a single category temp spec file by applying the domain-pattern-selection guide. Invoke with: @pattern-assigner <diagram_file> <category>
 tools: Read, Write
+model: sonnet
 skills:
   - domain-pattern-selection
 ---

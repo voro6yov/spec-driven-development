@@ -2,6 +2,7 @@
 name: exceptions-specifier
 description: Enriches the Domain Exceptions section in the exceptions sibling file with full class specs for each exception. Invoke with: @exceptions-specifier <diagram_file>
 tools: Read, Write
+model: sonnet
 skills:
   - domain-exceptions
 ---

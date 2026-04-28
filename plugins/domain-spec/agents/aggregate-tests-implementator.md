@@ -2,6 +2,7 @@
 name: aggregate-tests-implementator
 description: Implements pytest test functions for <<Aggregate Root>> classes from the Tests table in the test-plan sibling file. Requires @aggregate-fixtures-writer to have run first. Invoke with: @aggregate-tests-implementator <diagram_file> <tests_dir>
 tools: Read, Write, Skill
+model: sonnet
 skills:
   - domain-spec:aggregate-unit-tests
 ---
