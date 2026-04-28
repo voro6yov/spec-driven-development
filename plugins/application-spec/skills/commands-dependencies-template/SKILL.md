@@ -9,22 +9,24 @@ disable-model-invocation: false
 
 A command application service is named `<AggregateRoot>Commands` (see
 `commands-specification-template` for the parent spec). It declares its
-collaborators in three sections, **rendered in this order**:
+collaborators in four sections, **rendered in this order**:
 
 1. **Repositories**
 2. **Domain Services**
 3. **External Interfaces**
+4. **Message Publishers**
 
-Always render all three sections — if a category has no entries, write
+Always render all four sections — if a category has no entries, write
 `_None_` under the heading.
 
-The three categories differ in how they appear in the class diagram:
+The four categories differ in how they appear in the class diagram:
 
 | Category | Diagram link from `<AggregateRoot>Commands` |
 | --- | --- |
 | Repository | `--() Command<AggregateRoot>Repository : uses` (lollipop) |
 | Domain Service | `--() <ServiceClass> : uses` (lollipop) |
 | External Interface | `--> <IInterfaceClass> : uses` (plain arrow, separate class node) |
+| Message Publisher | `--() DomainEventPublisher : uses` or `--() CommandProducer : uses` (lollipop) |
 
 ---
 
@@ -57,6 +59,23 @@ application service as private attributes
 the diagram as separate class nodes linked with a plain `-->` arrow. Use
 the plain class name as it appears in the diagram.
 
+## Message Publishers
+
+List one bullet per message publisher the command service depends on; a
+service may declare more than one. Message publishers are declared on the
+application service as private attributes following the same convention as
+domain services (`-<publisher_name>: <PublisherClass>`, e.g.
+`-domain_event_publisher: DomainEventPublisher` or
+`-command_producer: CommandProducer`).
+
+The publisher class name **must be exactly one of**:
+
+- `DomainEventPublisher` — emits domain events to a message bus.
+- `CommandProducer` — sends commands to other bounded contexts.
+
+Any other class linked via lollipop is a Domain Service, not a Message
+Publisher.
+
 ---
 
 ## Skeleton
@@ -75,6 +94,10 @@ the plain class name as it appears in the diagram.
 ## External Interfaces
 
 _None_
+
+## Message Publishers
+
+- {DomainEventPublisher | CommandProducer}
 ```
 
 ---
@@ -98,4 +121,9 @@ _None_
 
 - IPaymentGateway
 - IEmailNotifier
+
+## Message Publishers
+
+- DomainEventPublisher
+- CommandProducer
 ```
