@@ -1,4 +1,4 @@
-fix---
+---
 name: query-context-integrator
 description: "Wires a single aggregate's query repository into the per-context query_context package by patching `AbstractQueryContext` (attribute annotation + abstract-class import) and `SqlAlchemyQueryContext` (concrete instantiation in `__enter__` + concrete-class import). Idempotent per file; repairs partial wiring. Invoke with: @query-context-integrator <command_spec_file> <locations_report_text>"
 tools: Read, Write, Edit, Bash
@@ -13,7 +13,7 @@ This agent owns no scaffolding. If the `query_context/` package is not yet on di
 
 ## Inputs
 
-1. `<command_spec_file>` (first argument): absolute path to the `<stem>.command-repo-spec.md` file produced by the persistence-spec pipeline. The aggregate name and domain import path are read from this file; the agent does not require a query-repo-spec.
+1. `<command_spec_file>` (first argument): absolute path to the `<stem>.command-repo-spec.md` file produced by the persistence-spec pipeline. The aggregate name and domain import path are read from this file.
 2. `<locations_report_text>` (second argument): the Markdown table emitted by `@target-locations-finder` — seven rows mapping `Category` to absolute `Path` and `Status`. Parse it as text; do not re-run the finder.
 
 ## Workflow
