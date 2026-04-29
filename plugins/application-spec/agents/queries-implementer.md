@@ -95,6 +95,8 @@ Bind `<ctor_params>` to this ordered list. Each entry is `(attr, ClassName, cate
 
 ### Step 4 — Resolve dep import modules
 
+**Module resolution convention.** Whenever any rule below (or in Step 7) says "derive the dotted module" from a grep hit at `<pkg_root>/src/<pkg>/<area>/<X>/...` (where `<area>` is `domain`, `application`, or `infrastructure`), stop at the first path segment after `<area>` and bind the module to `<pkg>.<area>.<X>` — regardless of how deep the actual `.py` file lives. `<X>` may be a sub-package directory (e.g. `domain_type`, `shared`) or a single module file with `.py` stripped; both forms collapse to the same dotted shape. This relies on the project convention that aggregate and shared sub-packages re-export their public classes through their own `__init__.py`. Apply this to `Pagination`, `<X>Sorting`, DTO/TypedDict types, domain exceptions, and any other class resolved by file-path grep — never import the leaf file directly when a re-exporting parent package exists.
+
 For each `(attr, ClassName, category)` in `<ctor_params>`:
 
 #### 4a. Query Context
@@ -114,8 +116,10 @@ Bind `<module>` = `<settings_module>` (verified to exist in Step 2). The class n
 If any method's flow uses pagination defaults (Step 5 detects it), resolve `Pagination`:
 
 ```
-grep -RIl --include='*.py' -E '^class Pagination\(' <pkg_root>/src/<pkg>/domain/
+grep -RIl --include='*.py' -E '^class Pagination(\(|:)' <pkg_root>/src/<pkg>/domain/
 ```
+
+The trailing `(\(|:)` anchor accepts both parented (`class Pagination(...)`) and bare (`class Pagination:`, e.g. a `@dataclass`) declarations.
 
 If exactly one match, derive its dotted module and add `from <module> import Pagination` to the import block. Otherwise (zero or 2+ matches), emit `# TODO: import Pagination` in the import block; do not guess.
 
@@ -124,8 +128,10 @@ If exactly one match, derive its dotted module and add `from <module> import Pag
 For each method whose signature contains a parameter typed `<X>Sorting` (with or without `| None`), grep:
 
 ```
-grep -RIl --include='*.py' -E '^class <X>Sorting\(' <pkg_root>/src/<pkg>/
+grep -RIl --include='*.py' -E '^class <X>Sorting(\(|:)' <pkg_root>/src/<pkg>/
 ```
+
+The trailing `(\(|:)` anchor accepts both parented and bare declarations (`@dataclass`-style classes with no parent).
 
 Search both `domain/` and `application/` subtrees in that order; first hit wins. If exactly one match, derive its dotted module and import it; if zero or 2+, emit `# TODO: import <X>Sorting`. Apply the same rule to any DTO / TypedDict types that appear in method signatures and aren't yet covered by another import (best-effort; TODO on miss).
 
