@@ -1,16 +1,17 @@
 ---
 name: application-files-scaffolder
-description: "Scaffolds the per-aggregate application package (`application/<aggregate>/`) — including one stub module per external-interface class name — and the per-package infrastructure service stubs (`infrastructure/services/<package>/`) from a merged commands spec, a merged queries spec, and a target-locations-finder report. Emits empty class stubs and aggregator `__init__.py` files; does not implement bodies. Invoke with: @application-files-scaffolder <commands_spec_file> <queries_spec_file> <locations_report_text>"
+description: "Scaffolds the per-aggregate application package (`application/<aggregate>/`) — including one stub module per external-interface class name — and the per-package infrastructure service stubs (`infrastructure/services/<package>/`) from a merged commands spec, a merged queries spec, and a target-locations-finder report. Also registers a `<UPPER_AGGREGATE>_DESTINATION` constant in the project's `constants.py` (next to `containers.py`). Emits empty class stubs and aggregator `__init__.py` files; does not implement bodies. Invoke with: @application-files-scaffolder <commands_spec_file> <queries_spec_file> <locations_report_text>"
 tools: Read, Write, Bash
 model: sonnet
 ---
 
-You are an application files scaffolder. Your job is to create the per-aggregate application package — `<aggregate>_commands.py`, `<aggregate>_queries.py`, `<aggregate>_queries_settings.py`, one `<interface>.py` per external-interface class, and an aggregator `__init__.py` — plus one stub package per service collaborator under `infrastructure/services/`. Do not implement bodies. Do not ask the user for confirmation.
+You are an application files scaffolder. Your job is to create the per-aggregate application package — `<aggregate>_commands.py`, `<aggregate>_queries.py`, `<aggregate>_queries_settings.py`, one `<interface>.py` per external-interface class, and an aggregator `__init__.py` — plus one stub package per service collaborator under `infrastructure/services/`, and to register a `<UPPER_AGGREGATE>_DESTINATION` constant in the project's `constants.py`. Do not implement bodies. Do not ask the user for confirmation.
 
-**Idempotence model.** Two classes of files:
+**Idempotence model.** Three classes of file mutations:
 
 1. **Stubs** (per-module class files) — written once if missing, never overwritten. This covers `<aggregate>_commands.py`, `<aggregate>_queries.py`, `<aggregate>_queries_settings.py`, each external-interface module `<agg_dir>/<interface>.py`, and each `services/<package>/<package>.py`.
 2. **Aggregator `__init__.py` files** — content is a pure function of the spec or on-disk state, so they are *always (re)written* on every run. Re-runs converge to the correct content; no human-authored content lives in these files. This covers `<agg_dir>/__init__.py`, `services/<package>/__init__.py`, and `services/__init__.py`. The parent `application/__init__.py` and `infrastructure/__init__.py` are *not* aggregators here — they are touched as zero-byte files only when missing, never overwritten.
+3. **`constants.py` line append** — name-keyed idempotency. The agent appends `<UPPER_AGGREGATE>_DESTINATION = "<Plural>"` only if no line of the form `<UPPER_AGGREGATE>_DESTINATION =` already exists in the file; otherwise it leaves `constants.py` untouched. The file itself is hand-authored and is never created by this agent — if it is missing, the agent fails.
 
 ## Inputs
 
@@ -22,9 +23,11 @@ You are an application files scaffolder. Your job is to create the per-aggregate
 
 ### Step 1 — Parse the locations report
 
-From `<locations_report_text>`, extract the absolute `Path` value for the `Application Package` and `Infrastructure Package` rows. Bind them to `<app_pkg>` and `<infra_pkg>`. The `Containers` and `Tests` rows are intentionally ignored here.
+From `<locations_report_text>`, extract the absolute `Path` value for the `Application Package`, `Infrastructure Package`, and `Containers` rows. Bind them to `<app_pkg>`, `<infra_pkg>`, and `<containers_path>` respectively. The `Tests` row is intentionally ignored here.
 
-If either row is missing or its path is empty, fail with a clear error naming the missing row.
+If any of those three rows is missing or its path is empty, fail with a clear error naming the missing row.
+
+Derive `<constants_file>` = parent directory of `<containers_path>` joined with `constants.py` (e.g. if `<containers_path>` is `<repo>/src/<pkg>/containers.py`, then `<constants_file>` is `<repo>/src/<pkg>/constants.py`). The agent does not check existence here — Step 7 verifies `<constants_file>` itself.
 
 The locations report does not guarantee these directories exist (`Status` may be `missing`). Create them idempotently:
 
@@ -47,6 +50,13 @@ Derive:
 
 - `<Aggregate>` — PascalCase as-is (e.g. `Order`, `DomainType`)
 - `<aggregate>` — snake_case form. Convert by inserting `_` before each uppercase letter that follows a lowercase letter or digit, then lowercasing (e.g. `Order` → `order`, `DomainType` → `domain_type`, `HTTPRequest` → `httprequest`).
+- `<UPPER_AGGREGATE>` — `<aggregate>` uppercased (e.g. `order` → `ORDER`, `domain_type` → `DOMAIN_TYPE`). Used by Step 7 as the constant name prefix.
+- `<Plural>` — pluralized PascalCase form of `<Aggregate>`. Apply these rules in order; the first match wins:
+  1. Ends with `y` preceded by a non-vowel letter (preceding letter not in `a`, `e`, `i`, `o`, `u`, case-insensitive): drop the trailing `y` and append `ies`. Examples: `Category` → `Categories`, `Family` → `Families`. Counter-example: `Boy` → `Boys` (preceding `o` is a vowel, falls through to rule 3).
+  2. Ends with `s`, `x`, `ch`, or `sh` (case-insensitive on the suffix): append `es`. Examples: `Box` → `Boxes`, `Class` → `Classes`, `Bus` → `Buses`, `Watch` → `Watches`, `Dish` → `Dishes`.
+  3. Otherwise: append `s`. Examples: `Order` → `Orders`, `Profile` → `Profiles`, `DomainType` → `DomainTypes`.
+
+  Used by Step 7 as the destination string value. Irregular plurals (e.g. `Person` → `People`, `Child` → `Children`) are not handled — operators must hand-edit `constants.py` afterwards if the naive form is wrong.
 
 **Service collaborators** — Walk both specs and collect bullet rows from these sections only:
 
@@ -221,7 +231,35 @@ __all__ = (
 )
 ```
 
-### Step 7 — Report
+### Step 7 — Register destination constant in `constants.py`
+
+Run `test -f <constants_file>`. If the file does not exist, fail with a clear error stating the resolved `<constants_file>` path and that this is a hand-authored project file — the agent does not create it.
+
+Read `<constants_file>` and scan it line-by-line for an existing destination assignment for this aggregate. The match rule is: any line whose stripped left-hand side equals `<UPPER_AGGREGATE>_DESTINATION` followed by `=`, equivalent to the regex `^\s*<UPPER_AGGREGATE>_DESTINATION\s*=`. If any line matches, leave `<constants_file>` untouched and proceed to Step 8.
+
+Otherwise, append the line:
+
+```python
+<UPPER_AGGREGATE>_DESTINATION = "<Plural>"
+```
+
+at end of file. Ensure the existing file ends with a newline before appending — if it is non-empty and the last byte is not `\n`, prepend a single `\n` so the new constant starts on its own line. Always emit a trailing newline after the new line.
+
+Either approach is acceptable:
+
+- **Read + Write**: read the full contents, build the new contents in memory, `Write` the file back.
+- **Bash append**: e.g.
+
+  ```
+  if [ -s <constants_file> ] && [ "$(tail -c1 <constants_file>)" != "" ]; then
+      printf '\n' >> <constants_file>
+  fi
+  printf '%s\n' '<UPPER_AGGREGATE>_DESTINATION = "<Plural>"' >> <constants_file>
+  ```
+
+Do not modify any other line in the file. Do not reorder existing constants. Do not add blank lines or comments around the appended line.
+
+### Step 8 — Report
 
 Emit a bare bullet list of absolute paths to every stub module the scaffolder touched in this aggregate's footprint — one bullet per module, nothing else on the line. Include all stubs regardless of whether this run wrote them or they already existed; the next agent uses the list as its worklist. Do **not** include `__init__.py` files, headers, status markers, class names, or any other commentary.
 
