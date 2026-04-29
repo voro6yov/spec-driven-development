@@ -33,7 +33,13 @@ Find the unique class whose name matches `<AggregateRoot>Queries` (suffix `Queri
 - `<AggregateRoot>` — the class name with the `Queries` suffix removed (PascalCase).
 - The lines that link from this class to its collaborators.
 
-### Step 3 — Filter and classify outgoing links
+### Step 3 — Parse the application service member declarations
+
+From the `class <AggregateRoot>Queries { ... }` block body, collect every **private** member declaration of the form `-<attr_name>: <Type>`. Build a map from `<Type>` → `<attr_name>`. Ignore method declarations and any non-private members (`+`, `#`, no marker). If the same `<Type>` appears on more than one private member declaration, record all attribute names against that type so that ambiguity can be reported when matching in Step 5.
+
+If there is no `class <AggregateRoot>Queries { ... }` block (only link-only references), the map is empty — Step 5 will then report missing attributes for any External Interface target.
+
+### Step 4 — Filter and classify outgoing links
 
 Consider only links whose **source** is the `<AggregateRoot>Queries` node and whose label is exactly `uses`. **Ignore links with any other label** (e.g. `: returns`, `: takes as argument`) — they describe method signatures, not dependencies.
 
@@ -45,7 +51,17 @@ Query Repository targets are recognised by the `Query` prefix and `Repository` s
 
 **Deduplicate** entries within each category by target class name — if the same target appears on multiple matching links, emit it once.
 
-### Step 4 — Derive query-context attribute names
+### Step 5 — Resolve External Interface attribute names
+
+For each target classified as an **External Interface** in Step 4, look up the target class name in the type→attribute map built in Step 3:
+
+- If no private member of `<AggregateRoot>Queries` has that type, abort with a one-sentence error naming the missing target class.
+- If exactly one private member matches, record that attribute name for the target.
+- If more than one private member shares that type, abort with a one-sentence error naming the offending type and the conflicting attribute names — the agent does not pick a winner.
+
+Query Repositories do **not** require a member declaration; their query-context attribute names are derived by convention (Step 6).
+
+### Step 6 — Derive query-context attribute names
 
 For each repository `Query<X>Repository`, compute its query-context attribute by:
 
@@ -58,14 +74,14 @@ For each repository `Query<X>Repository`, compute its query-context attribute by
 
 Examples: `File` → `query_context.files`, `Customer` → `query_context.customers`, `OrderItem` → `query_context.order_items`, `MediaAsset` → `query_context.media_assets`, `Inventory` → `query_context.inventories`, `Address` → `query_context.addresses`.
 
-### Step 5 — Render the Dependencies section
+### Step 7 — Render the Dependencies section
 
-Render the output using the skeleton and per-section conventions defined by the `queries-dependencies-template` skill. Within each section, preserve the order in which targets first appeared in the Mermaid diagram (after deduplication in Step 3).
+Render the output using the skeleton and per-section conventions defined by the `queries-dependencies-template` skill. External Interfaces are rendered as `- <attr_name>: <IInterfaceClass>` bullets using the attribute names resolved in Step 5. Within each section, preserve the order in which targets first appeared in the Mermaid diagram (after deduplication in Step 4).
 
-### Step 6 — Write the sibling file
+### Step 8 — Write the sibling file
 
 Write the rendered content to `<dir>/<stem>.deps.md`. The output is a Markdown fragment intended to be embedded under a parent `## Dependencies` heading in the larger `<AggregateRoot>Queries` spec; therefore do **not** emit any heading above `## Query Repositories`.
 
-### Step 7 — Confirm
+### Step 9 — Confirm
 
 Reply with one sentence: "Dependencies written to `<stem>.deps.md`."

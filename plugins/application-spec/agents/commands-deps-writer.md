@@ -33,7 +33,13 @@ Find the unique class whose name ends with `Commands` and has at least one chara
 - `<AggregateRoot>` — the class name with the `Commands` suffix removed (PascalCase).
 - The lines that link from this class to its collaborators.
 
-### Step 3 — Classify outgoing links
+### Step 3 — Parse the application service member declarations
+
+From the `class <AggregateRoot>Commands { ... }` block body, collect every **private** member declaration of the form `-<attr_name>: <Type>`. Build a map from `<Type>` → `<attr_name>`. Ignore method declarations and any non-private members (`+`, `#`, no marker). If the same `<Type>` appears on more than one private member declaration, record all attribute names against that type so that ambiguity can be reported when matching in Step 5.
+
+If there is no `class <AggregateRoot>Commands { ... }` block (only link-only references), the map is empty — Step 5 will then report missing attributes for any Domain Service or External Interface target.
+
+### Step 4 — Classify outgoing links
 
 For each link whose **source** is the `<AggregateRoot>Commands` node, classify the target into one of the four categories per the syntax table in the `commands-dependencies-template` skill. Recognise repositories by the `Command` prefix + `Repository` suffix on the target class name, and message publishers by an exact class-name match against `DomainEventPublisher` or `CommandProducer`; any other lollipop (`--()` / `()--`) target is a Domain Service. Any plain-arrow (`-->` / `<--`) target is an External Interface, regardless of name prefix. Ignore links whose syntax does not match one of these forms (e.g. `..>`, composition, inheritance).
 
@@ -46,7 +52,17 @@ Normalisation rules:
 
 **Deduplicate** entries within each category by target class name — if the same target appears on multiple matching links, emit it once.
 
-### Step 4 — Derive UoW attribute names
+### Step 5 — Resolve Domain Service and External Interface attribute names
+
+For each target classified as a **Domain Service** or **External Interface** in Step 4, look up the target class name in the type→attribute map built in Step 3:
+
+- If no private member of `<AggregateRoot>Commands` has that type, abort with a one-sentence error naming the missing target class.
+- If exactly one private member matches, record that attribute name for the target.
+- If more than one private member shares that type, abort with a one-sentence error naming the offending type and the conflicting attribute names — the agent does not pick a winner.
+
+Repositories and Message Publishers do **not** require a member declaration; their attribute names are derived by convention (Step 6 for Repositories) or fixed by class name (Message Publishers).
+
+### Step 6 — Derive UoW attribute names
 
 For each repository `Command<X>Repository`, compute its UoW attribute by:
 
@@ -59,16 +75,16 @@ For each repository `Command<X>Repository`, compute its UoW attribute by:
 
 Examples: `Order` → `uow.orders`, `Customer` → `uow.customers`, `OrderItem` → `uow.order_items`, `MediaAsset` → `uow.media_assets`, `Inventory` → `uow.inventories`, `Address` → `uow.addresses`.
 
-### Step 5 — Render the Dependencies section
+### Step 7 — Render the Dependencies section
 
-Render the section using the skeleton and category semantics defined by the `commands-dependencies-template` skill. Within each category, preserve the order in which targets first appeared in the Mermaid diagram (after deduplication in Step 3).
+Render the section using the skeleton and category semantics defined by the `commands-dependencies-template` skill. Domain Services and External Interfaces are rendered as `- <attr_name>: <ClassName>` bullets using the attribute names resolved in Step 5. Within each category, preserve the order in which targets first appeared in the Mermaid diagram (after deduplication in Step 4).
 
-### Step 6 — Write the sibling file
+### Step 8 — Write the sibling file
 
-If all four categories are empty after Step 3, abort with a one-sentence error rather than writing a file — this indicates a malformed diagram with no recognised collaborators.
+If all four categories are empty after Step 4, abort with a one-sentence error rather than writing a file — this indicates a malformed diagram with no recognised collaborators.
 
 Otherwise, write the rendered content to `<dir>/<stem>.deps.md`. The output is a Markdown fragment intended to be embedded under a parent `## Dependencies` heading in the larger `<AggregateRoot>Commands` spec; therefore do **not** emit any heading above `## Repositories`.
 
-### Step 7 — Confirm
+### Step 9 — Confirm
 
 Reply with one sentence: "Dependencies written to `<stem>.deps.md`."
