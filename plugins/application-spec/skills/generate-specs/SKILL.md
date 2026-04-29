@@ -21,6 +21,7 @@ Each writer agent emits its outputs as siblings of its primary diagram file. Giv
 | `<queries_stem>.methods.md` | `queries-methods-writer` | Queries service Method Specifications fragment (consumed by merger) |
 | `<queries_stem>.exceptions.md` | `queries-methods-writer` (stub) → `application-exceptions-specifier` (enriched) | Application exceptions raised by queries methods (consumed by merger) |
 | `<queries_stem>.specs.md` | `specs-merger` | Final queries spec (deps + methods + exceptions merged) |
+| `<domain_stem>.services.md` | `services-finder` | Reconciled list of services the application layer must implement |
 
 The merger deletes the three fragment files (`.deps.md`, `.methods.md`, `.exceptions.md`) on each side after writing the consolidated `.specs.md`. This orchestrator does not modify any diagram file and does not update any Artifacts index — agents own their own outputs.
 
@@ -50,6 +51,10 @@ After the exceptions specifier returns, spawn two `application-spec:specs-merger
 
 Each merger consolidates its side's `.deps.md`, `.methods.md`, and `.exceptions.md` siblings into `<stem>.specs.md` and deletes the consumed fragments. Step 3 must wait for Step 2 because the merger trusts whatever is on disk and copies the exceptions body verbatim.
 
-### Step 4 — Report
+### Step 4 — Enumerate services
 
-After both mergers return, confirm with one sentence: "Application spec generation complete for `$ARGUMENTS[0]` and `$ARGUMENTS[1]`."
+After both mergers return, spawn `application-spec:services-finder` with prompt `$ARGUMENTS[2] $ARGUMENTS[0] $ARGUMENTS[1]`. It reads the freshly merged `.specs.md` siblings on both sides plus the domain diagram and writes `<domain_stem>.services.md` next to the domain diagram. Step 4 must wait for Step 3 because the finder reads the consolidated specs.
+
+### Step 5 — Report
+
+After the services finder returns, confirm with one sentence: "Application spec generation complete for `$ARGUMENTS[0]` and `$ARGUMENTS[1]`."
