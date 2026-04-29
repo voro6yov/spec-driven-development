@@ -54,6 +54,7 @@ Each side is processed independently — there is no cross-side merging. For eac
   - **Preferred:** if the step matches the shape `If <condition>, raise <X>Error` (after stripping the leading list-marker like `2. ` and any surrounding backticks), take `<condition>` verbatim, preserving original casing.
   - **Fallback:** strip the leading list marker (`<digits>. ` or `- `), wrapping backticks, the trailing `raise <X>Error` token, and trailing punctuation. Trim whitespace.
 - `raising_method`: the method signature parsed from the enclosing `### Method:` heading. The heading shape is `### Method: <name>(<params>) <return_type>`; capture the full parameter list.
+- `pair_args`: the verbatim comma-separated args from the **immediately preceding** flow step when that step matches `Call\s+\`?command(?:_[a-z_]+)?_repository\.[a-z_]+\((?P<args>[^)]+)\)\`?\s+to\s+(retrieve|load|check)\b` (covers both the load+raise pair and the existence-check + already-exists pair). Strip backticks and outer whitespace from each token. If the preceding step does not match (e.g. the raise stands alone, or the preceding step is a non-repo call), set to `None`.
 
 **Source B — `.exceptions.md` stub bullets.** Each bullet has the shape:
 
@@ -88,17 +89,31 @@ Apply the following rules in order (first match wins). Match against the joined 
 
 ### Step 5 — Infer constructor parameters for each exception
 
-**When `raising_method` is available** (from Source A on either side):
+Apply the rules below in order; **first match wins**. The goal is for the inferred ctor signature to match exactly what `@commands-implementer` / `@queries-implementer` will emit when translating the flow — the implementers pass the args of the load/existence-check finder verbatim into the `raise <X>(...)` call, so the ctor must accept that arg list.
 
-Parse the parameter list of the raising method (e.g., `find_file(id: str, tenant_id: str) -> File`). Extract parameters that are identity or context values: any `str`-typed parameter whose name ends with `_id`, equals `id`, or equals `id_`. These become the constructor parameters, preserving declaration order.
+#### 5a. Pair-derived (preferred when `pair_args` is set)
 
-If the method has no such parameters, fall back to the name-based inference below.
+When the exception is raised inside a load+raise or existence-check pair (i.e. `pair_args` was captured in Step 2 from the preceding `Call <repo>.<finder>(<args>) to retrieve|load|check…` step):
 
-**When `raising_method` is not available:**
+1. Tokenise `pair_args` on commas (depth-zero), strip whitespace and backticks. Each token is a Python identifier matching a parameter on the raising method.
+2. For each token, look up its declared type in `raising_method`'s parameter list. If found, use the declared type. If not (the token is a literal or doesn't match any param), default the type to `str`.
+3. Constructor params = those `(token, type)` pairs in original order.
+
+Example — flow `Call command_domain_type_repository.has_domain_type_with_name(name) to check…` followed by `raise DomainTypeAlreadyExistsError` raised inside `create(name: str, description: str)`: `pair_args = "name"`, the raising method declares `name: str`, so the ctor is `(name: str)`. The implementer will then emit `raise DomainTypeAlreadyExistsError(name)`, which now matches.
+
+Example — flow `Call command_repository.profile_type_of_id(id, tenant_id) to retrieve…` followed by `raise ProfileTypeNotFoundError` inside `update_details(id: str, tenant_id: str, …)`: `pair_args = "id, tenant_id"`, ctor is `(id: str, tenant_id: str)`.
+
+#### 5b. Identity-extraction fallback (when `pair_args` is `None` but `raising_method` is set)
+
+Parse the parameter list of the raising method. Extract parameters that are identity or context values: any `str`-typed parameter whose name ends with `_id`, equals `id`, or equals `id_`. These become the constructor parameters, preserving declaration order. If none qualify, fall through to 5c.
+
+#### 5c. Name-based inference (when `raising_method` is `None`, or 5b yielded no params)
 
 Strip known base-class suffixes (`NotFoundError`, `AlreadyExistsError`, `ConflictError`, `ForbiddenError`, `UnauthorizedError`, `Error`, `NotFound`, `AlreadyExists`, `Conflict`, `Forbidden`, `Unauthorized`) from the exception name to obtain the implied entity name (e.g., `OrderNotFoundError` → `Order`). Convert to snake_case and use `<entity>_id: str, tenant_id: str` as the constructor parameters.
 
-**Default fallback**: `(tenant_id: str)` — when no context is derivable at all.
+#### 5d. Default fallback
+
+`(tenant_id: str)` — when no context is derivable at all.
 
 ### Step 6 — Generate full class spec for each exception
 
@@ -119,10 +134,27 @@ Rules for each field:
 - **Code**: convert the exception class name from PascalCase to snake_case, dropping the trailing `_error` if the name ends with `Error` (e.g., `OrderNotFoundError` → `order_not_found`, `OrderConflict` → `order_conflict`).
 - **Pattern**: always `domain-spec:domain-exceptions` — application exceptions reuse the domain exceptions skill for codegen.
 - **Constructor**: the parameter list inferred in Step 5, formatted as a Python signature string.
-- **Message**: an f-string including all constructor parameters as a natural human-readable sentence. Use the (joined) trigger condition as a guide. Examples:
-  - `NotFound` base: `f"Order {order_id} not found for tenant {tenant_id}"`
-  - `AlreadyExists` base: `f"Order {order_id} already exists for tenant {tenant_id}"`
-  - `Conflict` base: rephrase the trigger using constructor parameters, e.g., `f"Items should not be empty for order {order_id} in tenant {tenant_id}"`
+- **Message**: an f-string including **all** constructor parameters as a natural human-readable sentence. Compose deterministically from the inferred ctor params (Step 5) so the message matches whatever shape the param list took:
+
+  1. Classify each param as **id-style** (name `id`, or ends in `_id`) or **key-style** (anything else).
+  2. Compute a label for each param: strip a trailing `_id` if present, then replace remaining underscores with spaces (`tenant_id` → `tenant`, `subject_kind` → `subject kind`, `name` → `name`).
+  3. **Primary segment** — the first param `<p>`:
+     - id-style: `<Aggregate> {<p>}`
+     - key-style: `<Aggregate> with <label> {<p>}`
+  4. **Verb segment** — derived from the inferred Base:
+     - `NotFound`: ` not found`
+     - `AlreadyExists`: ` already exists`
+     - `Conflict` / other: rephrase the joined trigger as a short verb phrase that includes any natural-key params (e.g. `Conflict` → ` should not be empty`).
+  5. **Context segments** — for each remaining param `<q>`, append ` for <label> {<q>}` in declaration order.
+
+  Worked examples (deterministic outputs of the rules above):
+
+  - Base `AlreadyExists`, ctor `(name: str)` → `f"DomainType with name {name} already exists"`
+  - Base `AlreadyExists`, ctor `(name: str, tenant_id: str)` → `f"DomainType with name {name} already exists for tenant {tenant_id}"`
+  - Base `NotFound`, ctor `(id: str)` → `f"DomainType {id} not found"`
+  - Base `NotFound`, ctor `(id: str, tenant_id: str)` → `f"Order {id} not found for tenant {tenant_id}"`
+  - Base `AlreadyExists`, ctor `(order_id: str, tenant_id: str)` → `f"Order {order_id} already exists for tenant {tenant_id}"`
+  - Base `Conflict`, ctor `(order_id: str, tenant_id: str)`, trigger "items should not be empty" → `f"Items should not be empty for order {order_id} in tenant {tenant_id}"` (rephrased per rule 4 catch-all)
 
 Separate each exception block from the next with a blank line.
 
