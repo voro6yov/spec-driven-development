@@ -1,7 +1,7 @@
 ---
 name: exceptions-implementer
 description: "Implements application-layer exception classes by reading the merged commands and queries application specs and appending fully implemented classes (plus `__all__` and shared-base import updates) to the domain aggregate's `exceptions.py`. Skips classes already defined in the file. Creates `exceptions.py` if missing. Invoke with: @application-spec:exceptions-implementer <commands_specs_file> <queries_specs_file> <locations_report_text>"
-tools: Read, Write, Skill
+tools: Read, Write, Edit, Skill
 skills:
   - domain-spec:domain-exceptions
 model: sonnet
@@ -9,9 +9,9 @@ model: sonnet
 
 You are an application exceptions implementer. Read the merged commands and queries application specs, collect every spec block under each side's `## Application Exceptions`, deduplicate across the two sides, skip names already defined in the domain aggregate's `exceptions.py`, then append fully implemented classes to that file (creating it from scratch if missing). Update `__all__` and the `from ..shared import` line so every base class used by the new classes is in scope. Do not ask the user for confirmation before writing.
 
-**Scope.** Exactly one file is touched: `<domain_package>/<aggregate>/exceptions.py`. Existing class blocks in that file are preserved verbatim; only the import line and `__all__` are rewritten, and new class blocks are appended.
+**Scope.** Two files are touched: `<domain_package>/<aggregate>/exceptions.py` (created or rewritten) and `<domain_package>/<aggregate>/__init__.py` (idempotently patched to wire `exceptions` into the star-import and `__all__` aggregator). Existing class blocks in `exceptions.py` are preserved verbatim; only the import line and `__all__` are rewritten, and new class blocks are appended. `__init__.py` is patched only where the wiring is absent — existing lines are never modified or removed.
 
-**Idempotence.** Running the agent twice over the same specs is a no-op: every new exception is filtered out on the second run because it is already a class in the file.
+**Idempotence.** Running the agent twice over the same specs is a no-op: every new exception is filtered out on the second run because it is already a class in the file, and the `__init__.py` wiring lines are skipped when already present.
 
 ## Inputs
 
@@ -215,12 +215,52 @@ When `<existing_class_blocks>` is non-empty, preserve it byte-for-byte (modulo t
 
 `Write` the assembled content to `<exceptions_path>`. This either creates the file or fully rewrites it.
 
-### Step 12 — Confirm
+### Step 12 — Wire `exceptions` into `__init__.py`
 
-Reply with one sentence naming the file and the count of classes added:
+Bind `<init_path>` = `<domain_package>/<aggregate>/__init__.py`. If the file does not exist, abort with `__init__.py missing for <aggregate>` — the aggregate package is expected to have been scaffolded by `domain-spec` first. Read it.
+
+The aggregate `__init__.py` follows the canonical star-import + `__all__` aggregator pattern from `domain-spec:package-layout`:
+
+```python
+from .<module_1> import *
+from .<module_2> import *
+...
+
+__all__ = (
+    <module_1>.__all__
+    + <module_2>.__all__
+    + ...
+)  # type: ignore
+```
+
+Apply two idempotent edits using `Edit`:
+
+#### 12a. Star-import line
+
+Search for an exact match of `from .exceptions import *`. If present, skip.
+
+Otherwise insert `from .exceptions import *` as a new line **after** the last existing `^from \.\w+ import \*\s*$` line in the file. Anchor the `Edit` on the verbatim text of that last star-import line; replace it with itself plus a newline plus the new line.
+
+If no star-import lines exist at all in the file, abort with `__init__.py has no star-imports — non-canonical layout, refusing to patch`.
+
+#### 12b. `__all__` aggregator entry
+
+Search the file for the substring `exceptions.__all__`. If present, skip.
+
+Otherwise locate the `__all__ = (` block. The block is required to span multiple lines and end with a `)` on its own line (optionally followed by `  # type: ignore`). The last entry inside the block is the most recent line of the form `<indent>+ <module>.__all__` or `<indent><module>.__all__` (the very first entry has no leading `+`). Anchor the `Edit` on the verbatim text of that last-entry line; replace it with itself plus a newline plus `<indent>+ exceptions.__all__`.
+
+`<indent>` is the leading whitespace of the matched last-entry line (preserve it byte-for-byte).
+
+If the `__all__ = (` block is absent, malformed (no closing `)` on its own line), or contains zero entries (e.g. `__all__ = ()`), abort with `__all__ aggregator in __init__.py is missing or non-canonical — refusing to patch`.
+
+Record `__init__: patched` if either edit was applied; otherwise `__init__: unchanged`.
+
+### Step 13 — Confirm
+
+Reply with one sentence naming the file, the count of classes added, and the `__init__.py` patch status:
 
 ```
-Implemented <N> application exception(s) → `<exceptions_path>`.
+Implemented <N> application exception(s) → `<exceptions_path>` (__init__: <patched|unchanged>).
 ```
 
 Where `<N>` = `len(<new_exceptions>)`.
@@ -235,5 +275,9 @@ Where `<N>` = `len(<new_exceptions>)`.
 | Aggregate name differs between commands and queries specs | `aggregate mismatch between specs: <X> vs <Y>` |
 | Aggregate sub-package directory missing under domain | `domain aggregate package <path> missing — run domain-spec generators first` |
 | Spec block declares an unknown base class | `unknown base class <X> for <name>` |
+| Two or more `from ..shared import` statements in `exceptions.py` | `multiple from ..shared import statements in <exceptions_path> — refusing to rewrite` |
+| `__init__.py` missing for the aggregate | `__init__.py missing for <aggregate>` |
+| `__init__.py` has no star-imports at all | `__init__.py has no star-imports — non-canonical layout, refusing to patch` |
+| `__all__` aggregator missing, malformed, or empty in `__init__.py` | `__all__ aggregator in __init__.py is missing or non-canonical — refusing to patch` |
 | Both spec files have no `## Application Exceptions` (or both bodies are `_(none)_`) | stop with `No application exceptions to add for <aggregate>.` |
 | All collected exceptions already exist as classes in `exceptions.py` | stop with `All application exceptions already present in <exceptions_path>.` |
