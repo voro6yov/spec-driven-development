@@ -91,6 +91,17 @@ Apply the following rules in order (first match wins). Match against the joined 
 
 Apply the rules below in order; **first match wins**. The goal is for the inferred ctor signature to match exactly what `@commands-implementer` / `@queries-implementer` will emit when translating the flow — the implementers pass the args of the load/existence-check finder verbatim into the `raise <X>(...)` call, so the ctor must accept that arg list.
 
+#### 5.0. Multi-tenancy detection (per side)
+
+Before evaluating the rules below, compute a per-side boolean `<has_tenant>`:
+
+- Scan every `### Method:` heading in the side's `.methods.md`. Parse each parameter list and check for a parameter whose **name is exactly `tenant_id`** and whose **type is exactly `str`**.
+- `<has_tenant>` is `True` iff at least one raising method on this side declares such a parameter. Otherwise `False`.
+
+This boolean only affects rules 5c and 5d — it does not override 5a (pair-derived) or 5b (identity-extraction), which already mirror exactly what the raising method declares. The detection is per-side: if the commands side declares `tenant_id` but the queries side does not, only commands-side fallback exceptions get the tenant suffix.
+
+If `.methods.md` was missing for the side (Step 1 fall-back), `<has_tenant>` defaults to `False`.
+
 #### 5a. Pair-derived (preferred when `pair_args` is set)
 
 When the exception is raised inside a load+raise or existence-check pair (i.e. `pair_args` was captured in Step 2 from the preceding `Call <repo>.<finder>(<args>) to retrieve|load|check…` step):
@@ -109,11 +120,15 @@ Parse the parameter list of the raising method. Extract parameters that are iden
 
 #### 5c. Name-based inference (when `raising_method` is `None`, or 5b yielded no params)
 
-Strip known base-class suffixes (`NotFoundError`, `AlreadyExistsError`, `ConflictError`, `ForbiddenError`, `UnauthorizedError`, `Error`, `NotFound`, `AlreadyExists`, `Conflict`, `Forbidden`, `Unauthorized`) from the exception name to obtain the implied entity name (e.g., `OrderNotFoundError` → `Order`). Convert to snake_case and use `<entity>_id: str, tenant_id: str` as the constructor parameters.
+Strip known base-class suffixes (`NotFoundError`, `AlreadyExistsError`, `ConflictError`, `ForbiddenError`, `UnauthorizedError`, `Error`, `NotFound`, `AlreadyExists`, `Conflict`, `Forbidden`, `Unauthorized`) from the exception name to obtain the implied entity name (e.g., `OrderNotFoundError` → `Order`). Convert to snake_case to form `<entity>_id: str`.
+
+The constructor is `(<entity>_id: str)`. If `<has_tenant>` is `True` for this side, append `, tenant_id: str` to give `(<entity>_id: str, tenant_id: str)`. **Never** synthesize `tenant_id` when `<has_tenant>` is `False`.
+
+If suffix stripping yields an empty entity name (the exception is literally named `Error`, `NotFound`, etc.), fall through to 5d.
 
 #### 5d. Default fallback
 
-`(tenant_id: str)` — when no context is derivable at all.
+When 5b yielded no params and 5c could not derive an entity name: emit `(tenant_id: str)` if `<has_tenant>` is `True` for this side, otherwise emit `()` (empty parameter list — see Step 6 for the empty-ctor message rule).
 
 ### Step 6 — Generate full class spec for each exception
 
@@ -147,11 +162,21 @@ Rules for each field:
      - `Conflict` / other: rephrase the joined trigger as a short verb phrase that includes any natural-key params (e.g. `Conflict` → ` should not be empty`).
   5. **Context segments** — for each remaining param `<q>`, append ` for <label> {<q>}` in declaration order.
 
+  6. **Empty ctor** — when Step 5d emitted `()` (no params), there is no primary segment to interpolate. Emit a static f-string of the form `f"<Aggregate><verb segment>"`, where `<Aggregate>` is the entity name derived from the exception class via the same suffix-stripping used in Step 5c, falling back to the exception class name itself if suffix stripping is degenerate.
+
   Worked examples (deterministic outputs of the rules above):
 
+  Single-tenant (no `tenant_id` declared in any raising method on this side; `<has_tenant>` = `False`):
+
   - Base `AlreadyExists`, ctor `(name: str)` → `f"DomainType with name {name} already exists"`
-  - Base `AlreadyExists`, ctor `(name: str, tenant_id: str)` → `f"DomainType with name {name} already exists for tenant {tenant_id}"`
   - Base `NotFound`, ctor `(id: str)` → `f"DomainType {id} not found"`
+  - Base `NotFound`, ctor `(domain_type_id: str)` → `f"DomainType {domain_type_id} not found"`
+  - Base `AlreadyExists`, ctor `(domain_type_id: str)` (5c name-based, no tenant) → `f"DomainType {domain_type_id} already exists"`
+  - Base `DomainException`, ctor `()` (5d empty fallback) → `f"Domain failure"`
+
+  Multi-tenant (at least one raising method declares `tenant_id: str`; `<has_tenant>` = `True`):
+
+  - Base `AlreadyExists`, ctor `(name: str, tenant_id: str)` → `f"DomainType with name {name} already exists for tenant {tenant_id}"`
   - Base `NotFound`, ctor `(id: str, tenant_id: str)` → `f"Order {id} not found for tenant {tenant_id}"`
   - Base `AlreadyExists`, ctor `(order_id: str, tenant_id: str)` → `f"Order {order_id} already exists for tenant {tenant_id}"`
   - Base `Conflict`, ctor `(order_id: str, tenant_id: str)`, trigger "items should not be empty" → `f"Items should not be empty for order {order_id} in tenant {tenant_id}"` (rephrased per rule 4 catch-all)
