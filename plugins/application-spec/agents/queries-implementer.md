@@ -309,13 +309,29 @@ For each method in `<methods>`:
 
    Then, when translating the subsequent `query_repository.<list_method>(<args>)` call, rewrite `<args>` by **replacing the adjacent positional pair `page, per_page`** (in that order, with optional whitespace, comma-separated) with the single keyword arg `pagination=Pagination(page=page, per_page=per_page)`. Concretely: split `<args>` on commas at bracket depth zero, find the first index `i` where `args[i].strip() == "page"` and `args[i+1].strip() == "per_page"`, replace those two segments with the single keyword arg, and rejoin. If no such adjacent pair exists, emit `# TODO: combine page and per_page into Pagination(...) for <list_method>` and pass `<args>` through unchanged. The repository ABC is expected to take a `pagination` keyword argument; if it doesn't, the user must edit the call manually.
 
+   **Derivation rule (logging)** (no flow-language match required):
+
+   The first executable statement inside `with self._query_context:` is **always** a single `self._logger.info(...)` call — emitted after any pagination-defaults block produced by the rules above, but before any translated load / external-interface / `return` statement. Build it as follows:
+
+   - `<subject>` = `<primary_plural>` when `method["shape"] == "paginated"`, else `<aggregate>`.
+   - Iterate `method["param_names"]` in declaration order to build two parallel lists `<format_parts>` and `<arg_parts>`:
+     - If `method["pagination_form"] == "pagination_param"` AND `<p>` == `method["pagination_param_name"]`: append `("page - %s", f"{<p>}.page")` then `("per page - %s", f"{<p>}.per_page")`.
+     - Otherwise: append `(f"{<p>.replace('_', ' ')} - %s", <p>)`.
+   - If `<format_parts>` is empty (zero-arg method): emit `self._logger.info("Finding <subject>...")` with no positional args.
+   - Otherwise: emit `self._logger.info("Finding <subject>: <format_parts joined by ', '>...", <arg_parts joined by ', '>)`.
+
+   Examples:
+   - `find_load(id: str, tenant_id: str)` (canonical) → `self._logger.info("Finding load: id - %s, tenant id - %s...", id, tenant_id)`.
+   - `find_loads(page: int | None = None, per_page: int | None = None)` (paginated, `page_per_page`) → `self._logger.info("Finding loads: page - %s, per page - %s...", page, per_page)` (emitted after the `page = page or …` / `per_page = per_page or …` lines).
+   - `find_loads(profile_id: str, pagination: Pagination | None = None)` (paginated, `pagination_param`) → `self._logger.info("Finding loads: profile id - %s, page - %s, per page - %s...", profile_id, pagination.page, pagination.per_page)` (emitted after the `if pagination is None: …` block; expansion of `pagination` into `.page` / `.per_page` happens in declaration order, so a pre-pagination param logs before the page pair).
+
    **Default:** any flow step not consumed by a rule above → emit `# TODO: <verbatim flow step text>` and continue. Do not invent logic.
 
    **Argument extraction.** For all rules above, `<args>` is the literal comma-separated content between the parentheses of the matched expression in the flow step (e.g. flow `query_repository.find_file(id, tenant_id)` → `<args>` = `id, tenant_id`). The agent does not rename or reorder; it copies verbatim.
 
 `with self._query_context:` invariant: when emitted, every `self._query_context.*` access is inside the block, and so is the external-interface call (`self._<external_attr>.<op>(...)`) and the final `return`. No nested `with self._query_context:` is ever emitted.
 
-If after translation the `with` block has zero executable statements (every flow step became a `# TODO:` comment), emit a `pass` line as the block body so the file parses.
+The mandatory `self._logger.info(...)` line (Derivation rule (logging)) guarantees the `with` block always has at least one executable statement, so a `pass` fallback is never needed even when every flow step degrades to a `# TODO:` comment.
 
 #### Worked examples
 
@@ -330,9 +346,11 @@ Flow text:
 2. Return the result
 ```
 
-Emitted body:
+Emitted body (logger line emitted first per the Derivation rule (logging); subject = `<aggregate>` = `file`):
 
 ```python
+self._logger.info("Finding file: id - %s, tenant id - %s...", id, tenant_id)
+
 return self._query_context.files.find_file_text(id, tenant_id)
 ```
 
@@ -349,6 +367,8 @@ Flow text:
 Emitted body:
 
 ```python
+self._logger.info("Finding file: id - %s, tenant id - %s, include - %s...", id, tenant_id, include)
+
 if (file := self._query_context.files.find_file(id, tenant_id, include)) is None:
     raise FileNotFoundError(id, tenant_id, include)
 
@@ -366,7 +386,7 @@ Flow text:
 3. Return the result
 ```
 
-Emitted body:
+Emitted body (logger emitted after pagination defaults; declaration order is `profile_id, tenant_id, filtering, pagination` so the page pair lands at the end):
 
 ```python
 if pagination is None:
@@ -374,6 +394,11 @@ if pagination is None:
         page=self._settings.default_page,
         per_page=self._settings.default_per_page,
     )
+
+self._logger.info(
+    "Finding files: profile id - %s, tenant id - %s, filtering - %s, page - %s, per page - %s...",
+    profile_id, tenant_id, filtering, pagination.page, pagination.per_page,
+)
 
 return self._query_context.files.find_files(profile_id, tenant_id, filtering, pagination)
 ```
@@ -389,11 +414,16 @@ Flow text:
 4. Return the result
 ```
 
-Emitted body (`page, per_page` are adjacent in `<args>`, so they collapse to the keyword arg):
+Emitted body (`page, per_page` are adjacent in `<args>`, so they collapse to the keyword arg; logger emitted after the `or`-defaults):
 
 ```python
 page = page or self._settings.default_page
 per_page = per_page or self._settings.default_per_page
+
+self._logger.info(
+    "Finding files: profile id - %s, tenant id - %s, page - %s, per page - %s...",
+    profile_id, tenant_id, page, per_page,
+)
 
 return self._query_context.files.find_files(
     profile_id, tenant_id, pagination=Pagination(page=page, per_page=per_page)
@@ -415,6 +445,8 @@ Flow text:
 Emitted body (bound var = `path`, derived from the external call's `<call_args>` minus method params; transform step becomes a TODO; downstream call references `redacted_path` verbatim, raising `NameError` until the user implements the transform):
 
 ```python
+self._logger.info("Finding file: id - %s, tenant id - %s...", id, tenant_id)
+
 if (path := self._query_context.files.find_file_path(id, tenant_id)) is None:
     raise FileNotFoundError(id, tenant_id)
 # TODO: Derive `redacted_path` from the original path by inserting `-redacted` before the file extension
@@ -436,6 +468,8 @@ Flow text:
 Emitted body (bound var = `path`, the only token in the external call's `<call_args>` that's not a method param):
 
 ```python
+self._logger.info("Finding file: id - %s, tenant id - %s...", id, tenant_id)
+
 if (path := self._query_context.files.find_file_path(id, tenant_id)) is None:
     raise FileNotFoundError(id, tenant_id)
 

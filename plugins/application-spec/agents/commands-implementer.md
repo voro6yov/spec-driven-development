@@ -298,6 +298,24 @@ For each method in `<methods>`:
 
    - After emitting the last `self._uow.<aggregate_plural>.save(...)` call in the method body, emit `self._uow.commit()` on the next line — exactly once per method, regardless of how many save calls precede it.
 
+   **Derivation rule (logging)** (no flow-language match required):
+
+   - For mutating methods (`method["mutating"]` is `True`), emit `self._logger.info("<Aggregate> <action> with id %s.", <var>.id)` immediately before the `return <var>` line, separated from the preceding statement by exactly one blank line and from the `return <var>` line by exactly one blank line. `<var>` is the most recent binding (typically `<aggregate>`).
+   - `<action>` is derived from `method["name"]`:
+     1. Split on `_`. The first token is `<verb>`; any remaining tokens form `<rest>` (joined back with single spaces).
+     2. Past-tense `<verb>`: append `d` if it ends in `e`, else append `ed` → `<past>`.
+     3. **Single-token method** (`<rest>` is empty): `<action>` = `<past>`.
+     4. **Compound method** (`<rest>` is non-empty): `<copula>` = `are` if `<rest>` ends in `s`, else `is`. `<action>` = `<rest> <copula> <past>`.
+   - Examples:
+     - `create` → `"DomainType created with id %s."`
+     - `enable` → `"DomainType enabled with id %s."`
+     - `disable` → `"DomainType disabled with id %s."`
+     - `update_details` → `"DomainType details are updated with id %s."`
+     - `update_status` → `"DomainType status is updated with id %s."`
+     - `add_line_item` → `"DomainType line item is added with id %s."`
+   - Skip emission for non-mutating methods.
+   - If `<var>` was not bound by any prior rule (e.g. every flow step became a `# TODO:`), skip emission rather than emitting a line that would `NameError`.
+
    **Default:** any flow step not consumed by a rule above → emit `# TODO: <verbatim flow step text>` and continue. Do not invent logic.
 
    **Argument extraction.** For all rules above, `<args>` is the literal comma-separated content between the parentheses of the matched expression in the flow step (e.g. flow `command_repository.<aggregate>_of_id(id, tenant_id)` → `<args>` = `id, tenant_id`). The agent does not rename or reorder; it copies verbatim. Each token is expected to be a Python identifier matching a method param. The writer's Step 5d resolves names; placeholder syntax (`<aggregate>_id`) reaching the implementer indicates a writer bug — emit the verbatim text and let Python flag the NameError.
