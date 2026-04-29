@@ -111,6 +111,8 @@ Bind `<ctor_params>` to this ordered list. Each entry is `(attr, ClassName, cate
 
 ### Step 4 — Resolve dep import modules
 
+**Module resolution convention.** Whenever any rule below (or in Step 7) says "derive the dotted module" from a grep hit at `<pkg_root>/src/<pkg>/<area>/<X>/...` (where `<area>` is `domain`, `application`, or `infrastructure`), stop at the first path segment after `<area>` and bind the module to `<pkg>.<area>.<X>` — regardless of how deep the actual `.py` file lives. `<X>` may be a sub-package directory (e.g. `domain_type`, `shared`, `services`) or a single module file with `.py` stripped (e.g. `retry_transaction`); both forms collapse to the same dotted shape. This relies on the project convention that aggregate and shared sub-packages re-export their public classes through their own `__init__.py`. The rule applies to publishers, domain services, exceptions, the retry decorator, the `<AGGREGATE>_DESTINATION` constant, and any other class resolved by file-path grep — never import the leaf file directly when a re-exporting parent package exists. (Single-file modules like `<pkg>/application/retry_transaction.py` collapse to `<pkg>.application.retry_transaction` under this rule, which is identical to the leaf form — no behaviour change for those.)
+
 For each `(attr, ClassName, category)` in `<ctor_params>`:
 
 #### 4a. UoW
@@ -177,7 +179,7 @@ Bind `<methods>` to the ordered list of dicts:
 
 - `shape` = `factory` iff `<method_name>` is `create`, `new`, or `add_<aggregate>`. Otherwise `canonical_or_collaborator`.
 - `mutating` is `True` iff `shape == "factory"` OR any flow step contains `command_repository.save`. (`.publish(` / `.send(` are not used as discriminators — they map to helpers that exist only on mutating methods anyway.)
-- `finder_name` is extracted from the first step matching `command_repository\.(?P<f>[a-z_]+)\(` for non-factory methods, **excluding** finders used in existence-check pairs (whose step text contains "to check for conflicts"). Factory methods set it to `None`. If a non-factory method's flow contains zero `command_repository.<finder>(...)` retrieve calls, set `finder_name` to `None` and emit no load step.
+- `finder_name` is extracted from the first step matching `command(?:_<aggregate>)?_repository\.(?P<f>[a-z_]+)\(` for non-factory methods (the repo prefix `command_repository` may also appear as `command_<aggregate>_repository`), **excluding** finders used in existence-check pairs (whose step text matches the existence-check pattern in Step 7's pair rules — i.e. begins with `command(?:_<aggregate>)?_repository\.<f>(...)` and continues with "to check\b…"). Factory methods set it to `None`. If a non-factory method's flow contains zero such retrieve calls, set `finder_name` to `None` and emit no load step.
 - `raised_exceptions` is the set of `<X>` class names captured by scanning each flow step for `raise <X>` (regex `raise\s+(?P<x>[A-Z][A-Za-z0-9_]*)`). The merged commands spec has **no `**Raises**` section** (per `@commands-methods-writer` the raises list is in the sibling exceptions file); flow text is the only source.
 
 If `## Method Specifications` is missing or empty, abort.
@@ -269,18 +271,20 @@ For each method in `<methods>`:
 
    **Pair rules** (consume two adjacent flow steps as a unit):
 
-   - **Load + raise pair.** Step *N* matches `command_repository\.[a-z_]+\(.+\) to retrieve` (or "to load") AND step *N+1* matches `If no <Aggregate> is found, raise <NotFoundClass>`. Consume both. Emit either:
+   - **Load + raise pair.** Step *N* matches `command(?:_<aggregate>)?_repository\.[a-z_]+\(.+\)\s+to (retrieve|load)\b` (the repo prefix `command_repository` may also appear as `command_<aggregate>_repository`) AND step *N+1* matches `(?i)^if no\b.*\braise\s+\`?<NotFoundClass>\`?` (the noun after "no" may be the aggregate name, "aggregate", or any synonym; the `<NotFoundClass>` token is captured by the same `raise\s+(?P<x>[A-Z][A-Za-z0-9_]*)` regex used to populate `raised_exceptions`). Consume both. Emit either:
      - **Helper case** (one shared finder across all non-factory methods): one line — `<aggregate> = self._find_<aggregate>(<args>)`.
      - **Inline case**: three lines —
        ```python
        if (<aggregate> := self._uow.<aggregate_plural>.<finder>(<args>)) is None:
            raise <not_found_class>(<args>)
        ```
-   - **Existence-check + already-exists pair (factory).** Step *N* matches `command_repository\.[a-z_]+\(.+\) to check for conflicts` AND step *N+1* matches `If a matching aggregate exists, raise <Aggregate>AlreadyExistsError`. Consume both. Emit:
+   - **Existence-check + already-exists pair (factory).** Step *N* matches `command(?:_<aggregate>)?_repository\.[a-z_]+\(.+\)\s+to check\b` (the "to check" prefix is sufficient — any trailing language about conflicts, duplicates, or "whether a `<Aggregate>` with the same `<key>` already exists" is allowed; the repo prefix `command_repository` may also appear as `command_<aggregate>_repository`) AND step *N+1* matches `(?i)^if a matching\b.*\braise\s+\`?<Aggregate>AlreadyExistsError\`?` (the noun after "matching" may be the aggregate name, "aggregate", or any synonym). Consume both. Emit:
      ```python
-     if self._uow.<aggregate_plural>.<existence_finder>(<args>) is not None:
+     if self._uow.<aggregate_plural>.<existence_finder>(<args>):
          raise <Aggregate>AlreadyExistsError(<args>)
      ```
+
+     The truthy check (no `is not None`) supports both finder shapes the spec may declare: a boolean predicate (`has_<aggregate>_with_<key>(...) -> bool`) and a nullable lookup (`<aggregate>_of_<key>(...) -> <Aggregate> | None`). Both correctly indicate existence when truthy; an `is not None` check would be a bug under the boolean shape (always `True`).
 
    **Single-step rules:**
 
