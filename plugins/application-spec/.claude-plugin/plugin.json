@@ -1,7 +1,7 @@
 {
   "name": "application-spec",
   "description": "Generate specs for application services and implement them",
-  "version": "0.17.0",
+  "version": "0.18.0",
   "author": {
     "name": "Valentin Vorobyov",
     "email": "voro6yov.valentin@gmail.com",
