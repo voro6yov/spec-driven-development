@@ -46,7 +46,10 @@ List one bullet per domain service the command service depends on; a
 service may declare more than one. Domain services are declared on the
 application service as private attributes
 (`-<service_name>: <ServiceClass>`, e.g. `-subject_detection: SubjectDetection`).
-Use the plain class name.
+The attribute name is **read from the diagram** — the
+`<AggregateRoot>Commands` class block must contain a private member
+declaration `-<service_name>: <ServiceClass>` whose type matches the
+linked target class. Render each entry as `- <service_name>: <ServiceClass>`.
 
 ## External Interfaces
 
@@ -55,8 +58,11 @@ service may declare more than one. External interfaces are declared on the
 application service as private attributes
 (`-<interface_name>: <IInterfaceClass>`, e.g.
 `-can_upload_file: ICanUploadFile`). Unlike domain services, they appear in
-the diagram as separate class nodes linked with a plain `-->` arrow. Use
-the plain class name as it appears in the diagram.
+the diagram as separate class nodes linked with a plain `-->` arrow. The
+attribute name is **read from the diagram** — the `<AggregateRoot>Commands`
+class block must contain a private member declaration
+`-<interface_name>: <IInterfaceClass>` whose type matches the linked target
+class. Render each entry as `- <interface_name>: <IInterfaceClass>`.
 
 ## Message Publishers
 
@@ -88,7 +94,7 @@ Publisher.
 
 ## Domain Services
 
-- {ServiceClass}
+- {service_name}: {ServiceClass}
 
 ## External Interfaces
 
@@ -113,13 +119,13 @@ _None_
 
 ## Domain Services
 
-- OrderPricingService
-- InventoryReservationService
+- order_pricing: OrderPricingService
+- inventory_reservation: InventoryReservationService
 
 ## External Interfaces
 
-- IPaymentGateway
-- IEmailNotifier
+- payment_gateway: IPaymentGateway
+- email_notifier: IEmailNotifier
 
 ## Message Publishers
 

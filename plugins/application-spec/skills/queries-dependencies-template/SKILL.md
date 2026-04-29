@@ -43,7 +43,11 @@ service may declare more than one. External interfaces are declared on the
 application service as private attributes
 (`-<interface_name>: <IInterfaceClass>`). Unlike query repositories, they
 appear in the diagram as separate class nodes linked with a plain `-->`
-arrow. Use the plain class name as it appears in the diagram.
+arrow. The attribute name is **read from the diagram** — the
+`<AggregateRoot>Queries` class block must contain a private member
+declaration `-<interface_name>: <IInterfaceClass>` whose type matches the
+linked target class. Render each entry as
+`- <interface_name>: <IInterfaceClass>`.
 
 ---
 
@@ -58,5 +62,5 @@ arrow. Use the plain class name as it appears in the diagram.
 
 ## External Interfaces
 
-_None_
+- {interface_name}: {IInterfaceClass}
 ```
