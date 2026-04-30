@@ -1,6 +1,6 @@
 ---
 name: generate-code
-description: Implements the application layer for an aggregate from its merged commands spec, merged queries spec, and services report siblings. Resolves target locations once, scaffolds the application/infrastructure stubs, fans out per-service implementers, then wires settings + exceptions and finally the commands + queries application services. Invoke with: /application-spec:generate-code <commands_diagram> <queries_diagram> <domain_diagram>
+description: Implements the application layer for an aggregate from its merged commands spec, merged queries spec, and services report siblings. Resolves target locations once, scaffolds the application/infrastructure stubs, fans out per-service implementers, wires settings + exceptions, implements the commands + queries application services, and finally generates the integration tests for both. Invoke with: /application-spec:generate-code <commands_diagram> <queries_diagram> <domain_diagram>
 argument-hint: <commands_diagram> <queries_diagram> <domain_diagram>
 allowed-tools: Bash, Agent
 ---
@@ -37,6 +37,10 @@ Invoke `application-spec:target-locations-finder` with an empty prompt. Wait for
 
 Capture the agent's full Markdown table output verbatim as `<locations_report_text>`. This text is the locations argument passed to every downstream agent in Steps 3–6. Pass it verbatim — do not trim, summarize, or reformat it.
 
+Parse one value from the report for use in Step 7:
+
+- **`<tests_dir>`** — read the `Absolute path` cell of the `Tests` row. Bind that value verbatim — it is an absolute path (e.g. `/repo/src/tests`). If the `Tests` row is missing or its path cell is empty, skip Step 7 entirely (emit a single bullet in the Step 8 report under the **Tests** phase noting `skipped (Tests location not reported)`).
+
 ### Step 3 — Scaffold application and infrastructure stubs
 
 Invoke `application-spec:application-files-scaffolder` with prompt `<commands_spec_file> <queries_spec_file> <locations_report_text>`. Wait for completion.
@@ -71,10 +75,12 @@ All invocations launch in parallel — do not sequence them. Wait for every invo
 
 ### Step 5 — Wire settings and exceptions in parallel
 
-In a single message, invoke the following agents in parallel:
+Emit both `Agent` calls in a single message — do not sequence them:
 
 - `application-spec:queries-settings-implementer` with prompt `<locations_report_text>`.
 - `application-spec:exceptions-implementer` with prompt `<commands_spec_file> <queries_spec_file> <locations_report_text>`.
+
+Both invocations MUST appear as two tool calls in the same assistant turn. Issuing them across two turns is a violation of this step's contract.
 
 Wait for both to complete. The settings implementer fills every `<aggregate>_queries_settings.py` stub under the application package; the exceptions implementer appends fully implemented application exception classes (and updates the `..shared` import + `__all__` and the aggregate `__init__.py` wiring) on the domain aggregate's `exceptions.py`.
 
@@ -82,16 +88,33 @@ These two agents touch disjoint files and are safe to run concurrently. They mus
 
 ### Step 6 — Implement commands and queries in parallel
 
-In a single message, invoke the following agents in parallel:
+Emit both `Agent` calls in a single message — do not sequence them:
 
 - `application-spec:commands-implementer` with prompt `<commands_spec_file> <locations_report_text>`.
 - `application-spec:queries-implementer` with prompt `<queries_spec_file> <locations_report_text>`.
+
+Both invocations MUST appear as two tool calls in the same assistant turn. Issuing them across two turns is a violation of this step's contract.
 
 Wait for both to complete. Both implementers validate that their dep providers (services from Step 4, settings/exceptions from Step 5, plus the persistence-spec providers) already exist in `containers.py` and abort with a clear error if a provider is missing.
 
 If either implementer aborts, propagate the failure and stop — do not retry.
 
-### Step 7 — Report
+### Step 7 — Implement integration tests in parallel
+
+Skip this step entirely if `<tests_dir>` was not bound in Step 2 (the `Tests` row was missing). The two test implementers require `<tests_dir>/conftest.py` and `<tests_dir>/integration/conftest.py` to exist (produced by the persistence-spec pipeline's `@integration-test-package-preparer` and the unit-of-work / integration fixtures preparers); they each abort with a one-sentence error if a prerequisite is missing — this orchestrator does not pre-validate.
+
+Emit both `Agent` calls in a single message — do not sequence them:
+
+- `application-spec:commands-tests-implementer` with prompt `<tests_dir> <commands_spec_file>`.
+- `application-spec:queries-tests-implementer` with prompt `<tests_dir> <queries_spec_file>`.
+
+Both invocations MUST appear as two tool calls in the same assistant turn. Issuing them across two turns is a violation of this step's contract.
+
+Wait for both to complete. Both agents are append-only and idempotent, so re-running this step against an existing test file only adds missing scenarios. They write to disjoint files (`test_<aggregate>_commands.py` vs `test_<aggregate>_queries.py`) under `<tests_dir>/integration/<aggregate>/` and never modify shared `conftest.py` files.
+
+If either implementer aborts, propagate the failure and stop — do not retry.
+
+### Step 8 — Report
 
 Emit a phased Markdown summary grouping bullets by phase:
 
@@ -99,5 +122,6 @@ Emit a phased Markdown summary grouping bullets by phase:
 - **Services** — one bullet per `service-implementer` invocation in Step 4 with its single-line status. If Step 4b was skipped (no services), emit the single bullet `- _None_ (services report empty; skipped)`.
 - **Settings & Exceptions** — one bullet each for `queries-settings-implementer` and `exceptions-implementer` with their top-line outcomes.
 - **Application Services** — one bullet each for `commands-implementer` and `queries-implementer` with their top-line outcomes.
+- **Tests** — one bullet each for `commands-tests-implementer` and `queries-tests-implementer` with their top-line outcomes (the `Commands tests ready at ...` / `Queries tests ready at ...` line plus any preceding per-method status). If Step 7 was skipped, emit the single bullet `- _None_ (Tests location not reported; skipped)`.
 
 End with: `Application code generation complete for $ARGUMENTS[0] and $ARGUMENTS[1].`
