@@ -49,7 +49,9 @@ In the commands diagram, find the class whose name matches `<AggregateRoot>Comma
 - `<aggregate_var>` — `<AggregateRoot>` converted to `snake_case` (insert `_` before each interior uppercase letter, lowercase the result). E.g. `ProfileType` → `profile_type`, `Order` → `order`, `MediaAsset` → `media_asset`. This is the local variable name used in flow steps.
 - The ordered list of **public methods** declared inside the class block. A method is public when its line either starts with `+` or has no visibility prefix at all. Lines beginning with `-` (private) or `#` (protected) are not public and must be skipped. Preserve declaration order — methods will appear in the output in this order.
 
-Each method line is parsed in Mermaid's class-method syntax: `[+|-|#|~]?<name>(<param1>: <type1>, <param2>: <type2>, ...) <return_type>` — the return type follows the closing `)` separated by whitespace (Mermaid does not use a colon between `)` and the return type). Record the full original signature string for verbatim re-emission in the spec heading. The hard invariant is that the return type must be `<AggregateRoot>` — if a different return type is declared, treat it as a diagram error and abort with a one-sentence error naming the offending method.
+Each method line is parsed in Mermaid's class-method syntax: `[+|-|#|~]?<name>(<param1>: <type1>, <param2>: <type2>, ...) <return_type>` — the return type follows the closing `)` separated by whitespace (Mermaid does not use a colon between `)` and the return type). Record the parameter list verbatim and the return type verbatim. The hard invariant is that the return type must be `<AggregateRoot>` — if a different return type is declared, treat it as a diagram error and abort with a one-sentence error naming the offending method.
+
+**Signature normalization for re-emission.** When rebuilding the signature string for the `### Method:` heading, emit Python-style `<name>(<params>) -> <return_type>` (literal ` -> ` between the closing paren and the return type). Mermaid uses a bare space; downstream consumers (e.g. `commands-tests-implementer`) split on ` -> ` to extract the return type, so the writer must convert the separator.
 
 If the commands class block declares no public methods, abort with a one-sentence error.
 
@@ -176,7 +178,7 @@ When description prose suggests inline branching or short-circuits inside the fl
 
 Render each method using the exact template shape defined in the `commands-methods-template` skill (`### Method:` heading with `**Purpose**`, `**Method Flow**`, `**Postconditions**` subsections).
 
-Render methods in the **declaration order from Step 2** (preserve Mermaid order). Separate consecutive method blocks with a single blank line. Do **not** emit any heading above the first `### Method:` block — the file is a fragment for embedding.
+Render methods in the **declaration order from Step 2** (preserve Mermaid order). Separate consecutive method blocks with a single blank line. Re-emit the method signature in the heading using the normalized form from Step 2 — parameter names and types unchanged from the Mermaid source, but the return-type separator is the literal ` -> ` (Python style), not Mermaid's bare space. Do **not** emit any heading above the first `### Method:` block — the file is a fragment for embedding.
 
 ### Step 8 — Extract Application Exceptions
 
