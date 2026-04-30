@@ -62,6 +62,10 @@ If no such row exists or the cell is unfilled, output `ERROR: commands spec miss
 
 Locate `### External Interfaces` (under `## Dependencies`). Each bullet is `- <attr>: <IInterfaceClass>`. Strip backticks; skip rows whose body is `_None_` or contains `{`/`}`. Bind `<external_interfaces>` to the ordered list of `(attr, ClassName)`. Empty list is allowed.
 
+#### 2d. Domain services (parsed for warning suppression only)
+
+Locate `### Domain Services` (under `## Dependencies`). Same bullet format as 2c. Bind `<domain_services>` to the ordered list of `(attr, ClassName)`. The agent does not test domain-service calls (they have real implementations in the test container) — this list exists only so Step 7d can distinguish "expected, ignored" calls from genuinely unknown attrs.
+
 ### Step 3 — Resolve domain locations
 
 Run `git -C <tests_dir> rev-parse --show-toplevel`. If the command fails, output `ERROR: cannot resolve repo root from <tests_dir>; not a git repository.` and stop. Bind `<repo_root>` to its output.
@@ -92,7 +96,17 @@ Exactly one match required. Otherwise: `ERROR: cannot uniquely locate 'Command<A
 
 Identical to `@command-repository-tests-implementer` Step 5 (only the file paths differ). Re-read `<aggregate_file>`:
 
-**4a. Aggregate attribute map.** Harvest `(<name>, <annotation>)` pairs from the `__init__` parameter list (excluding `self`). Walk every base class up the MRO that lives under `<domain_dir>` and merge their `__init__` parameters in declaration order. Bind `<aggregate_attrs>`.
+**4a. Aggregate attribute map.** Harvest `(<name>, <annotation>)` pairs from the `__init__` parameter list (excluding `self`).
+
+To walk base classes: match the class header against `^class\s+<Aggregate>\s*\((?P<bases>[^)]*)\)\s*:` and parse `<bases>` as a comma-separated list. For each base name `<B>`:
+
+```bash
+grep -rln "^class <B>\b" <domain_dir>
+```
+
+If exactly one match, recurse into that file (find the `class <B>` header and harvest its `__init__` params and bases). Skip bases that don't resolve under `<domain_dir>` (typically `Entity`, `ValueObject`, `Generic[T]`, etc., that live in the shared module — they contribute no aggregate-specific attributes). Merge harvested params in MRO order: derived class first, then base classes in declaration order. Deduplicate by name (first occurrence wins).
+
+Bind `<aggregate_attrs>` to the merged ordered list.
 
 Collect every `@property` defined on the class. Bind `<aggregate_props>` = that name set.
 
@@ -115,13 +129,17 @@ Build `<nested_index>` mapping each leaf name → list of `<attr_name>` candidat
 
 Read `<command_repo_file>`. Walk the class body and collect every `@abstractmethod`-decorated method as `(<method_name>, <params>, <return_annotation>)`.
 
-Identify the unique **rule-6 (primary lookup)** method using the same dispatch rule as `@command-repository-tests-implementer` Step 6:
+Identify the **primary lookup** method by the following dispatch — apply rules in order; the first match wins:
 
-> Returns `<Aggregate> | None` and accepts a single PK-shaped non-tenant parameter (plus optionally `tenant_id`).
+1. **Convention by name.** A method whose `<method_name>` matches `^<aggregate>_of_id$` AND returns `<Aggregate> | None`. (Multi-tenant repos may include `tenant_id` as a second param; that is allowed.)
+2. **Resolver-disambiguated structural match.** If rule 1 yields zero matches, narrow to candidates that return `<Aggregate> | None` and accept a single non-tenant parameter (plus optionally `tenant_id`). For each candidate, run `resolve(<first_non_tenant_param>, <fix>)` (Step 4c). The unique candidate whose first non-tenant param resolves to `<fix>.id` is the primary lookup.
 
 Bind `<primary_lookup>` to that `<method_name>`. Bind `<primary_lookup_params>` to the ordered list of its parameter names.
 
-If zero or multiple methods match, output `ERROR: 'Command<Aggregate>Repository' must declare exactly one PK-shaped lookup method; found <count>.` and stop.
+Failure modes:
+
+- Rule 1 yields multiple matches → `ERROR: multiple methods match the primary-lookup convention '<aggregate>_of_id' on 'Command<Aggregate>Repository'.` and stop.
+- Rule 2 yields zero or multiple candidates whose first non-tenant param resolves to `<fix>.id` → `ERROR: cannot uniquely identify the primary-lookup method on 'Command<Aggregate>Repository'; declare a method named '<aggregate>_of_id' to disambiguate.` and stop.
 
 For any `<fix>` later (`<aggregate>_1`, `result`, etc.), `<pk_args(<fix>)>` is the comma-joined list `[resolve(<p>, <fix>) for <p> in <primary_lookup_params>]`.
 
@@ -138,6 +156,8 @@ Bind `<available_fakes>` = the captured set of `fake_*` fixture names (without t
 Locate `## Method Specifications`. Each method is introduced by `### Method: \`<sig>\``. Match with `^###\s+Method:\s*` followed by an optional opening backtick, the captured signature group, and an optional closing backtick. Parse the signature for `<method_name>`, `<params>` (verbatim parameter declarations excluding `self`), and `<return_type>`.
 
 Under each method heading, find `**Method Flow**:` (or `**Flow**:`) followed by a numbered list of steps. Capture each step verbatim (including any indented `**Note**:` sub-bullets).
+
+If a method heading is present but no `**Method Flow**:` (or `**Flow**:`) marker is found, OR the marker is found but the numbered list under it is empty, output `ERROR: method '<method_name>' in <commands_spec_file> has no Method Flow; spec is incomplete.` and stop. Do not silently skip — generating tests against an empty flow would produce vacuous assertions.
 
 For each method, bind:
 
@@ -160,23 +180,27 @@ For each method, bind:
 #### 7a. Shape and mutation
 
 - `shape` = `factory` iff `<method_name>` ∈ {`create`, `new`} or matches `^add_<aggregate>$`. Otherwise `canonical`.
-- `mutating` = `True` iff `shape == "factory"` OR any flow step contains the substring `command_repository.save` (the prefix `command_<aggregate>_repository` is also accepted, matching `@commands-implementer`).
+- `mutating` = `True` iff `shape == "factory"` OR any flow step matches the regex `command(?:_<aggregate>)?_repository\.save\b` (matching the same alias prefix accepted by `@commands-implementer`).
 
-#### 7b. Load + raise pair detection
+#### 7b. Load detection (and opportunistic raise pairing)
 
-Mirrors `@commands-implementer` Step 7 pair rules. Walk `<flow>` left-to-right. For step `N`, if it matches:
+The canonical commands-methods template (`application-spec:commands-methods-template`) **does not** include an explicit "if no … raise" step — `@commands-implementer` derives the raise from the `_find_<aggregate>` helper. So this agent treats the load step alone as sufficient evidence that the method can raise NotFound.
+
+Walk `<flow>` left-to-right. For step `N`, match:
 
 ```
 command(?:_<aggregate>)?_repository\.(?P<f>[a-z_]+)\((?P<args>[^)]*)\)\s+to (retrieve|load)\b
 ```
 
-AND step `N+1` matches:
+If matched, bind `load_pair = (<f>, <args>)`. Then look at step `N+1` and try to capture the explicit class name from:
 
 ```
 (?i)^if no\b.*\braise\s+`?(?P<x>[A-Z][A-Za-z0-9_]*)`?
 ```
 
-Bind `load_pair = (<f>, <args>)` and `raised_not_found = <x>`. Consume both steps from the per-step external-call scan.
+If matched, bind `raised_not_found = <x>` and consume step `N+1`. Otherwise, default `raised_not_found = <Aggregate>NotFoundError` — Step 11's import resolver will then locate the class under `<repo_root>/src/*/domain/`. (If neither `<Aggregate>NotFoundError` nor `<Aggregate>NotFound` exists in the domain package, the import resolver falls through to its TODO behavior.)
+
+Either way, consume step `N` (the load) from the external-call scan in 7d.
 
 #### 7c. Existence-check + already-exists pair detection
 
@@ -202,7 +226,12 @@ For each remaining flow step (i.e. not consumed by 7b/7c), match against:
 ^Call\s+`?(?P<attr>[a-z_][a-z0-9_]*)\.(?P<op>[a-z_][a-z0-9_]*)\((?P<args>[^)]*)\)`?
 ```
 
-Filter so that `<attr>` corresponds to one of the spec's `<external_interfaces>` (i.e. `<attr>` ∈ `{a for (a, _) in <external_interfaces>}`). Append `(<attr>, <op>, <args>)` to `external_calls`. Steps whose `<attr>` is not an external interface (e.g. `<aggregate>.<method>`, `command_repository.<finder>`, `command_repository.save`) are ignored — the agent does not test domain methods or repository internals.
+Classify each captured `<attr>`:
+
+- `<attr>` ∈ `{a for (a, _) in <external_interfaces>}` → append `(<attr>, <op>, <args>)` to `external_calls` (these get fake-call assertions in Step 10).
+- `<attr>` ∈ `{a for (a, _) in <domain_services>}` → silently ignore (real implementation, no fake to assert against).
+- `<attr>` ∈ `{<aggregate>, "command_repository", "command_<aggregate>_repository"}` → silently ignore (domain method or repo finder/save; not tested here).
+- Anything else → append to `<unknown_call_attrs>` for the soft warning in Step 12. Do NOT abort — an unrecognized attr might be a legitimate dep the spec author forgot to declare, or a misspelling; the warning surfaces it so the user can investigate.
 
 If `external_calls` references an `<attr>` for which `fake_<attr>` is not in `<available_fakes>`, output `ERROR: external interface '<attr>' is referenced by <method_name>'s flow but 'fake_<attr>' is not defined in <tests_dir>/conftest.py. Run @service-implementer for the corresponding interface first.` and stop.
 
@@ -355,9 +384,15 @@ For each `(<attr>, <op>, <args_str>)` in `external_calls`, emit (after one blank
 Where `{arg_assertion}` is built as follows:
 
 - Split `<args_str>` on `,` (respecting nested parens — but flow args are flat in practice). Trim each token.
-- For each token, run `resolve(<token>, <fix>)` (or `resolve(<token>, result)` if `result` is the bound success var **and** the token resolves on `result` but not on `<fix>`).
-- If every token resolves cleanly, emit `assert fake_<attr>.<op>_calls[0] == (<resolved_1>, <resolved_2>, ...)`. A single token still emits a 1-tuple `(<resolved>,)`.
-- If any token does not resolve, emit `# TODO: assert fake_<attr>.<op>_calls[0] == (...)` instead of the tuple-equality line. Do not abort.
+- For each token, classify and rewrite:
+  1. **Domain reference** (token contains `.`, e.g. `profile_type.id`, `<aggregate>.tenant_id`). Split on the first `.`. The left side is the local-variable name used by the spec; the right side is the attribute path. Rewrite the prefix:
+     - For factory `__success`, replace the prefix with `result` (the new aggregate is bound to `result`).
+     - For canonical `__success` (mutating or non-mutating), replace the prefix with `<fix>` (i.e. `<aggregate>_1` — the persisted aggregate).
+     The rewritten token is e.g. `result.id` or `<fix>.tenant_id`. Skip the resolver entirely for this case.
+  2. **Bare identifier** (no `.`). Run `resolve(<token>, <fix>)`. If unresolved, fall back to `resolve(<token>, result)` when `result` is the bound success var.
+  3. **Literal** (quoted string, numeric, `True`/`False`/`None`). Pass through verbatim.
+- If every token rewrites cleanly under one of these rules, emit `assert fake_<attr>.<op>_calls[0] == (<rewritten_1>, <rewritten_2>, ...)`. A single token still emits a 1-tuple `(<rewritten>,)`.
+- If any token cannot be rewritten (e.g. the resolver would error), emit `# TODO: assert fake_<attr>.<op>_calls[0] == (...)` instead of the tuple-equality line. Do not abort.
 
 Custom-fake call-recording assumes the `application-spec:fake-implementations` convention where each Protocol method `<op>` is recorded into a list `self.<op>_calls` as a positional tuple. If a project uses a different fake convention (e.g. `Mock.assert_called_once_with`), the user adapts by hand.
 
@@ -380,6 +415,8 @@ Custom-fake call-recording assumes the `application-spec:fake-implementations` c
 
   - exactly one match → derive the dotted module from its path under `<repo_root>/src/<pkg>/domain/...` using the same convention as `@commands-implementer` Step 4 (collapse to `<pkg>.domain.<aggregate>`); add `from <module> import <X>`, grouping siblings sharing the module.
   - zero matches or 2+ → emit `# TODO: import <X>` in the import block. Do not guess.
+
+  **Convention-derived NotFound fallback.** When `<X>` was synthesized from the convention `<Aggregate>NotFoundError` (i.e. step 7b matched the load step but the spec did not provide an explicit `raise <X>`), retry the grep with `<Aggregate>NotFound` (no `Error` suffix) before falling through to the TODO branch. Update `pytest.raises(<X>)` and the test name to use whichever class actually exists. If neither exists, leave the bare `<Aggregate>NotFoundError` reference and emit `# TODO: import <Aggregate>NotFoundError` — the test will `NameError` until the user resolves it.
 
 When appending to an existing file, do not re-emit imports — assume the prior run already recorded them. If a newly added scenario references an exception class that the existing import block does not import, append a single `from <module> import <X>` line immediately after the last existing `from `/`import ` statement; if that exception cannot be uniquely resolved, emit `# TODO: import <X>` on its own line in the same position.
 
@@ -415,6 +452,14 @@ Then one final line:
 Commands tests ready at <tests_dir>/integration/<aggregate>/test_<aggregate>_commands.py.
 ```
 
+If `<unknown_call_attrs>` is non-empty, append one warning line per attr **before** the final ready line:
+
+```
+WARNING: flow step references 'Call `<attr>.<op>(...)`' but '<attr>' is neither in spec's External Interfaces nor Domain Services — call left untested. Add to spec or rename in flow text.
+```
+
+These are warnings, not errors — the agent still writes the file.
+
 ## Constraints
 
 - Never construct or persist domain objects inside test bodies — fixtures only (Rule 1 of the test rules).
@@ -439,10 +484,12 @@ Commands tests ready at <tests_dir>/integration/<aggregate>/test_<aggregate>_com
 | Cannot uniquely locate `Command<Aggregate>Repository` | `ERROR: cannot uniquely locate 'Command<Aggregate>Repository' under '<domain_dir>' (matches: <count>).` |
 | Resolver ambiguity | `ERROR: parameter '<p>' on '<method>' is ambiguous; ...` |
 | Resolver fallback | `ERROR: parameter '<p>' on '<method>' does not match any attribute on <Aggregate> ...` |
-| Zero or multiple primary lookup methods | `ERROR: 'Command<Aggregate>Repository' must declare exactly one PK-shaped lookup method; found <count>.` |
+| Multiple methods match the `<aggregate>_of_id` convention | `ERROR: multiple methods match the primary-lookup convention '<aggregate>_of_id' on 'Command<Aggregate>Repository'.` |
+| Cannot uniquely identify primary lookup via the resolver | `ERROR: cannot uniquely identify the primary-lookup method on 'Command<Aggregate>Repository'; declare a method named '<aggregate>_of_id' to disambiguate.` |
 | External interface referenced in flow without matching fake | `ERROR: external interface '<attr>' is referenced by <method>'s flow but 'fake_<attr>' is not defined in <tests_dir>/conftest.py. Run @service-implementer for the corresponding interface first.` |
 | Missing upstream fixture | `ERROR: fixture '<name>' not found in <conftest>. Run <agent> first.` |
 | `## Method Specifications` missing or empty | `ERROR: ## Method Specifications missing or empty in <commands_spec_file>.` |
+| Method has no Method Flow block | `ERROR: method '<method_name>' in <commands_spec_file> has no Method Flow; spec is incomplete.` |
 | Method un-dispatchable | `ERROR: cannot dispatch '<method_name>' to a known test scenario.` |
 
 ### Continues with TODO
