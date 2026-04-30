@@ -5,13 +5,13 @@ __all__ = ["Pagination"]
 
 @dataclass
 class Pagination:
-    limit: int
-    offset: int
+    page: int
+    per_page: int
 
     @property
     def first_element_index(self) -> int:
-        return self.limit * self.offset
+        return self.page * self.per_page
 
     @property
     def last_element_index(self) -> int:
-        return self.first_element_index + self.limit
+        return self.first_element_index + self.page

@@ -189,10 +189,10 @@ Required iff at least one Rule C method has a `pagination` parameter. Emit verba
 
 ```python
 def _apply_pagination(self, query: Query, pagination: Pagination) -> Query:
-    return query.limit(pagination["per_page"]).offset(
-        (pagination["page"] - 1) * pagination["per_page"]
-    )
+    return query.limit(pagination.per_page).offset(pagination.first_element_index)
 ```
+
+`Pagination` is the `@dataclass` defined in `<pkg>/domain/shared/pagination.py` (mirrored from `domain-spec`'s `modules/shared/pagination.py`), **not** a `TypedDict`. Use attribute access (`pagination.per_page`) — bracket access (`pagination["per_page"]`) raises `TypeError` at runtime. `page` is **0-indexed**; `first_element_index` is the precomputed `page * per_page` offset, so do not subtract one.
 
 ### Step 9 — Render the module body
 

@@ -48,7 +48,9 @@ In the queries diagram, find the class whose name matches `<AggregateRoot>Querie
 - `<AggregateRoot>` — the class name with the `Queries` suffix removed (PascalCase). Used to form the conventional `<AggregateRoot>NotFoundError` exception name (e.g. `MediaAsset` → `MediaAssetNotFoundError`, `File` → `FileNotFoundError`).
 - The ordered list of **public methods** declared inside the class block. A method is public when its line either starts with `+` or has no visibility prefix at all. Lines beginning with `-` (private) or `#` (protected) are not public and must be skipped. Preserve declaration order — methods will appear in the output in this order.
 
-Each method line is parsed in Mermaid's class-method syntax: `[+|-|#|~]?<name>(<param1>: <type1>, <param2>: <type2>, ...) <return_type>` — the return type follows the closing `)` separated by whitespace. When splitting parameters, respect bracket nesting so commas inside generics (`dict[str, Any]`, `list[Brief<X>Info]`) are not mistaken for parameter separators — split on commas only at bracket depth zero. Record the full original signature string (parameters + return type) for verbatim re-emission in the spec heading. Do **not** validate or normalise the return type — pass it through unchanged.
+Each method line is parsed in Mermaid's class-method syntax: `[+|-|#|~]?<name>(<param1>: <type1>, <param2>: <type2>, ...) <return_type>` — the return type follows the closing `)` separated by whitespace. When splitting parameters, respect bracket nesting so commas inside generics (`dict[str, Any]`, `list[Brief<X>Info]`) are not mistaken for parameter separators — split on commas only at bracket depth zero. Record the parameter list verbatim and the return type verbatim. Do **not** validate or normalise the return type's content — pass it through unchanged.
+
+**Signature normalization for re-emission.** When rebuilding the signature string for the `### Method:` heading, emit Python-style `<name>(<params>) -> <return_type>` (literal ` -> ` between the closing paren and the return type). Mermaid uses a bare space; downstream consumers (e.g. `queries-tests-implementer`) split on ` -> ` to extract the return type, so the writer must convert the separator. If the Mermaid line declares no return type, omit the ` -> <return_type>` suffix entirely.
 
 If the queries class block declares no public methods, abort with a one-sentence error.
 
@@ -180,7 +182,7 @@ When description prose suggests inline branching or short-circuits inside the fl
 
 Render each method using the `queries-methods-template` skill (auto-loaded via the `skills:` frontmatter): the canonical block layout (`### Method:` heading, `Purpose`, `Method Flow`, `Returns`) and the per-shape flow + Returns content come from the skill, with the substitutions chosen in Step 5 and the Purpose/addenda from Step 6.
 
-Render methods in the **declaration order from Step 2** (preserve Mermaid order). Separate consecutive method blocks with a single blank line. Re-emit the method signature in the heading **verbatim** from the queries diagram (parameter names, types, and return type unchanged). Do **not** emit any heading above the first `### Method:` block — the file is a fragment for embedding.
+Render methods in the **declaration order from Step 2** (preserve Mermaid order). Separate consecutive method blocks with a single blank line. Re-emit the method signature in the heading using the normalized form from Step 2 — parameter names, types, and return-type content are unchanged from the Mermaid source, but the return-type separator is the literal ` -> ` (Python style), not Mermaid's bare space. Do **not** emit any heading above the first `### Method:` block — the file is a fragment for embedding.
 
 ### Step 8 — Extract Application Exceptions
 

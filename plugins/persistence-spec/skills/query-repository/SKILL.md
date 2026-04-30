@@ -82,8 +82,8 @@ def find_{{ aggregate_name_lower_plural }}(
     total = self._connection.execute(total_query).scalar() or 0
     rows = self._connection.execute(query).mappings().fetchall()
 
-    per_page = pagination["per_page"] if pagination is not None else (total or 1)
-    page = pagination["page"] if pagination is not None else 1
+    per_page = pagination.per_page if pagination is not None else (total or 1)
+    page = pagination.page if pagination is not None else 0
     total_pages = (total + per_page - 1) // per_page if per_page else 0
 
     return {
@@ -113,17 +113,16 @@ def _apply_sorting(self, query: Query, sorting: {{ sorting_enum }}) -> Query:
     return query
 
 def _apply_pagination(self, query: Query, pagination: Pagination) -> Query:
-    return query.limit(pagination["per_page"]).offset(
-        (pagination["page"] - 1) * pagination["per_page"]
-    )
+    return query.limit(pagination.per_page).offset(pagination.first_element_index)
 ```
 
 ## DTO access conventions
 
-- `Filtering`, `Sorting`, `Pagination`, `<Aggregate>Info`, and `<Aggregate>ListResult` are `TypedDict`s.
+- `Filtering`, `<Aggregate>Info`, and `<Aggregate>ListResult` are `TypedDict`s.
 - Read TypedDict fields with bracket access (`filtering["status"]`) and presence checks via `.get(...)`.
 - Never call attribute access on a TypedDict (`filtering.status` does not work at runtime).
-- The Sorting parameter is an `Enum`, not a TypedDict — compare with `is` and reference members as `<Sorting>.<Member>`.
+- `Pagination` is a `@dataclass` (defined in `<pkg>/domain/shared/pagination.py`) with fields `page` (0-indexed) and `per_page`, plus the property `first_element_index = page * per_page`. Use attribute access (`pagination.per_page`, `pagination.first_element_index`) — bracket access raises `TypeError`.
+- The Sorting parameter is an `Enum` — compare with `is` and reference members as `<Sorting>.<Member>`.
 
 ## Field → column mapping
 
