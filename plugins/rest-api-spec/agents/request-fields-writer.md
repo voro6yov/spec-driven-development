@@ -109,7 +109,17 @@ The Validation column for nested fields follows the same mechanical rules as Ste
 
 Recurse: any further PascalCase types referenced by a nested type's fields also get `**Nested:**` sub-tables in the same endpoint group, in first-mention order, deduplicated within the endpoint.
 
-If a referenced type cannot be resolved on the domain diagram, abort with `Cannot resolve nested type <Name> referenced from <HTTP> <PATH>.`
+If a referenced type cannot be resolved on the domain diagram, consult the **Shared domain types registry** below. If still unresolved, abort with `Cannot resolve nested type <Name> referenced from <HTTP> <PATH>.`
+
+#### Shared domain types registry
+
+The following types are defined in the shared domain module and are always available — treat them as if they were declared on the domain diagram. **Never** edit the domain diagram to add them.
+
+| Type | Fields |
+| --- | --- |
+| `Pagination` | `page: int`, `per_page: int` |
+| `PaginatedResultMetadataInfo` | `result_set: ResultSetInfo` |
+| `ResultSetInfo` | `count: int`, `offset: int`, `limit: int`, `total: int` |
 
 ### Step 5 — Render Table 5
 
@@ -141,6 +151,7 @@ Print a one-line summary: `Wrote Table 5 of <output>: <C> request sub-blocks (<E
 - Validation column is mechanical: Required/Optional, plus `, non-empty list` for `list[T]`, plus `; valid UUID` only for `*_id: str` body fields. No fabricated domain rules.
 - Nested sub-tables are scoped per endpoint group; repeat across endpoints when the same type recurs.
 - Never overwrite Tables 1, 2, 3, 4, or 6.
+- Never modify any file other than the target `<domain_stem>.rest-api.md`. The domain diagram, queries diagram, and commands diagram are read-only inputs. If a referenced type is missing from the domain diagram and not in the Shared domain types registry, abort — never edit the diagram to add it.
 
 ## Error conditions — abort with explicit message and do not write
 

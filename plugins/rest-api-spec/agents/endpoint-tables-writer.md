@@ -155,6 +155,7 @@ Print a one-line summary: `Wrote Tables 2 and 3 of <output>: <Q> query endpoints
 - Path placeholders for the aggregate root are always `{id}`; nested ids are camelCase with `Id` suffix; tenant/user id parameters are dropped from the path.
 - Never overwrite Table 1.
 - Never modify any tables other than Tables 2 and 3.
+- Never modify any file other than the target `<domain_stem>.rest-api.md`. The domain diagram, queries diagram, and commands diagram are read-only inputs.
 - Mechanical heuristics (pluralization, stripping, humanization) may produce awkward output for irregular nouns — emit the mechanical result and let the user override manually.
 
 ## Error conditions — abort with explicit message and do not write
