@@ -98,12 +98,13 @@ Diff:
 
 ### Top-level sections
 
-- Every top-level section (`## Class Lifecycle`, `## Per-Class Changes`, `## Orphan Relationship Changes`, `## Orphan Prose Changes`, `## Affected Categories`) is always emitted, even when empty.
-- An empty top-level section contains the literal line `_None._` and nothing else.
+- `## Summary` and `## Affected Categories` are **always emitted**. All other top-level sections (`## Class Lifecycle`, `## Per-Class Changes`, `## Orphan Relationship Changes`, `## Orphan Prose Changes`) are **omitted entirely when empty** — do not emit the heading, do not emit a `_None._` placeholder.
+- `## Affected Categories` always emits its heading; when the category set is empty, its body is the single line `_None._`.
 
 ### `## Class Lifecycle`
 
-- Sub-sections (`### Added`, `### Removed`, `### Stereotype Changed`) follow the same rule individually: emit the heading, then either the bullet list or `_None._`.
+- Sub-sections (`### Added`, `### Removed`, `### Stereotype Changed`) are individually **omitted when empty** — do not emit the heading, do not emit a `_None._` placeholder.
+- If all three sub-sections are empty, omit the parent `## Class Lifecycle` section entirely (per the top-level rule).
 
 ### `## Per-Class Changes`
 
