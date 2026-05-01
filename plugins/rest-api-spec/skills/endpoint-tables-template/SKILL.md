@@ -1,6 +1,6 @@
 ---
 name: endpoint-tables-template
-description: Reference template for the Query Endpoints and Command Endpoints tables (Section 1, Tables 2 and 3) of a REST API resource input spec. Load when authoring or reviewing the endpoint inventory of a resource — covers column shape, path conventions, operation naming, HTTP verb mapping, Domain Ref traceability, special endpoint shapes (binary content, sub-resources, actions, bulk), and worked examples.
+description: Reference template for the Query Endpoints and Command Endpoints tables (Tables 2 and 3) of a REST API resource input spec. Load when authoring or reviewing the endpoint inventory of a resource — covers column shape, path conventions, operation naming, HTTP verb mapping, Domain Ref traceability, special endpoint shapes (binary content, sub-resources, actions, bulk), and worked examples.
 user-invocable: false
 ---
 
@@ -8,7 +8,7 @@ user-invocable: false
 
 ## Purpose
 
-Defines the canonical shape of **Section 1, Table 2: Query Endpoints** and **Section 1, Table 3: Command Endpoints** of a REST API resource input spec. Together these tables enumerate every HTTP endpoint the resource exposes and bind each one to a method on its application service (`<Resource>Queries` / `<Resource>Commands`). Status codes, request/response field details, and parameter mapping are the concern of later sections — these two tables are the endpoint *inventory*.
+Defines the canonical shape of **Table 2: Query Endpoints** and **Table 3: Command Endpoints** of a REST API resource input spec. Together these tables enumerate every HTTP endpoint the resource exposes and bind each one to a method on its application service (`<Resource>Queries` / `<Resource>Commands`). Status codes, request/response field details, and parameter mapping are the concern of later sections — these two tables are the endpoint *inventory*.
 
 Both tables share the same five-column shape:
 
@@ -38,7 +38,7 @@ Both tables share the same five-column shape:
 - **Singular fetch by id:** `find_<resource>` — e.g., `find_file`, `find_document`.
 - **Collection (paginated):** `find_<resources>` — e.g., `find_files`, `find_documents`.
 - **Sub-resource / projection:** `find_<resource>_<segment>` — e.g., `find_file_content`, `find_file_redacted_content`.
-- Always `find_*` for query endpoints. Do not use `get_*` — that prefix is reserved for serializer class names in Section 3.
+- Always `find_*` for query endpoints. Do not use `get_*` — that prefix is reserved for serializer class names.
 
 ---
 
@@ -92,7 +92,7 @@ Paths are relative to the resource's Router prefix (Table 1). A leading `/` is r
 - **Sub-resource segments are kebab-case nouns** — `redacted-content`, not `redactedContent` or `redacted_content`.
 - **Action verbs are snake-case verbs** — `assign_document_types`, mirroring the domain method. Path verbs that mirror methods stay snake-case; standalone path nouns stay kebab-case.
 - **No trailing slash** on action or sub-resource paths.
-- **No version segment** — versioning is handled by the router prefix in Section 5, not the path column here.
+- **No version segment** — versioning is handled by the router prefix, not the path column here.
 
 ### Special shapes
 
