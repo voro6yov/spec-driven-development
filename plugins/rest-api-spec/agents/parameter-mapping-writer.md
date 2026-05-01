@@ -56,10 +56,20 @@ Apply this rule set (first match wins):
    - Otherwise abort with `Path param {<camelPlaceholder>} expected on <HTTP> <PATH> for parameter <param_name> but not present.`
 4. **Command body field** (commands rows only). Any remaining parameter → `Request body \`<param_name>\``.
 5. **Query parameter** (queries rows only). First, normalize the parameter type by stripping a trailing `| None` so optional composites are handled the same as required ones (`Pagination | None` → test as `Pagination`).
-   - **Composite type.** If the (normalized) type is a custom PascalCase type (not `str`/`int`/`bool`/`float`/`bytes`/`datetime`/`list[...]`/`dict[...]`/`Literal[...]`), look it up on the domain diagram. If found and it declares ≥1 fields, emit `` Constructed from query params `<f1>`, `<f2>`, … → `<Type>` ``. The constituent fields are taken from the type's declared field list in declaration order. Append ` (defaults from settings if None)` when any constituent field's type is `T \| None` **or** the original parameter type was itself `T \| None`.
+   - **Composite type.** If the (normalized) type is a custom PascalCase type (not `str`/`int`/`bool`/`float`/`bytes`/`datetime`/`list[...]`/`dict[...]`/`Literal[...]`), look it up on the domain diagram, falling back to the **Shared domain types registry** below. If found and it declares ≥1 fields, emit `` Constructed from query params `<f1>`, `<f2>`, … → `<Type>` ``. The constituent fields are taken from the type's declared field list in declaration order. Append ` (defaults from settings if None)` when any constituent field's type is `T \| None` **or** the original parameter type was itself `T \| None`.
    - **`list[str]` / `list[int]` etc.** → `` Query param `<param_name>` ``.
    - **Primitive scalar or `T \| None` of a primitive.** → `` Query param `<param_name>` ``.
-   - **Falls through** (composite that cannot be resolved on domain) → abort with `Cannot resolve query-param composite <Type> for <HTTP> <PATH> on domain diagram.`
+   - **Falls through** (composite that cannot be resolved on domain or in the shared registry) → abort with `Cannot resolve query-param composite <Type> for <HTTP> <PATH> on domain diagram.`
+
+#### Shared domain types registry
+
+The following types are defined in the shared domain module and are always available — treat them as if they were declared on the domain diagram. **Never** edit the domain diagram to add them.
+
+| Type | Fields |
+| --- | --- |
+| `Pagination` | `page: int`, `per_page: int` |
+| `PaginatedResultMetadataInfo` | `result_set: ResultSetInfo` |
+| `ResultSetInfo` | `count: int`, `offset: int`, `limit: int`, `total: int` |
 
 #### Step 3b — Render the mapping table
 
@@ -119,6 +129,7 @@ Print a one-line summary: `Wrote Table 6 of <output>: <Q> query mappings, <C> co
 - Every parameter of every Domain Ref method must appear as a row.
 - Path placeholders for nested ids are matched in camelCase (`document_type_id` ↔ `{documentTypeId}`); a missing placeholder aborts the run.
 - Never overwrite Tables 1–5.
+- Never modify any file other than the target `<domain_stem>.rest-api.md`. The domain diagram, queries diagram, and commands diagram are read-only inputs. If a referenced type is missing from the domain diagram and not in the Shared domain types registry, abort — never edit the diagram to add it.
 
 ## Error conditions — abort with explicit message and do not write
 

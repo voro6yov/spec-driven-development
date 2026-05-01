@@ -68,7 +68,17 @@ Locate the DTO class on the **domain diagram**. It is one of:
 
 Record its declared field list verbatim — name and type — preserving declaration order.
 
-If the DTO cannot be found on the domain diagram, abort with `Cannot resolve response DTO <Name> for <HTTP> <PATH> on domain diagram.`
+If the DTO cannot be found on the domain diagram, consult the **Shared domain types registry** below before aborting. If still unresolved, abort with `Cannot resolve response DTO <Name> for <HTTP> <PATH> on domain diagram.`
+
+#### Shared domain types registry
+
+The following types are defined in the shared domain module and are always available — treat them as if they were declared on the domain diagram. **Never** edit the domain diagram to add them.
+
+| Type | Fields |
+| --- | --- |
+| `Pagination` | `page: int`, `per_page: int` |
+| `PaginatedResultMetadataInfo` | `result_set: ResultSetInfo` |
+| `ResultSetInfo` | `count: int`, `offset: int`, `limit: int`, `total: int` |
 
 #### Step 3c — Render the response-fields table
 
@@ -106,7 +116,7 @@ After the response-fields table (and after any nested sub-tables — see Step 3e
 - **GET / (collection / paginated list, no `id` parameter)** — every method parameter that is not `tenant_id` becomes a query parameter. Render:
   - `Type` — verbatim from the method signature (backticked; pipe-escaped).
   - `Default` — `—` if the parameter has no default in the signature; otherwise the literal default in backticks.
-  - **Composite-parameter decomposition.** When a parameter's type is a custom PascalCase type (e.g., `Pagination`, `<Resource>Filtering`), look the type up on the domain diagram (same lookup as Step 3b) and emit one row per declared field of the composite — **not** one row for the composite itself. Each constituent primitive row uses `Default = ``None``` and notes "(defaults from settings if None)" in Description when the field's type is `T \| None`. If the composite cannot be resolved on the domain diagram, abort with `Cannot resolve query-param composite <Type> for <HTTP> <PATH> on domain diagram.`
+  - **Composite-parameter decomposition.** When a parameter's type is a custom PascalCase type (e.g., `Pagination`, `<Resource>Filtering`), look the type up on the domain diagram (same lookup as Step 3b) — falling back to the Shared domain types registry — and emit one row per declared field of the composite — **not** one row for the composite itself. Each constituent primitive row uses `Default = ``None``` and notes "(defaults from settings if None)" in Description when the field's type is `T \| None`. If the composite cannot be resolved on the domain diagram or the shared registry, abort with `Cannot resolve query-param composite <Type> for <HTTP> <PATH> on domain diagram.`
   - `Description` — one line. Use a mechanical template: `Required <field_name>` for non-`T | None` types, `Optional <field_name>` for `T | None`. The user enriches manually after init; do not invent domain-specific phrasing.
   - Append the `include` row when the includable set is non-empty.
   - If after all decomposition the resulting parameter list is empty, emit `*No query parameters — tenant_id inherited from auth context.*` instead.
@@ -131,7 +141,7 @@ Resolve each type on the domain diagram (same lookup as Step 3b). Emit one row p
 
 Recurse: any further PascalCase types referenced by the nested type's fields also get `**Nested:**` sub-tables in the same endpoint group, in first-mention order, deduplicated within the endpoint. The Source column always references the **declaring** type's own subscript — never a path through a parent.
 
-If a referenced type cannot be resolved on the domain diagram, abort with `Cannot resolve nested type <Name> referenced from <HTTP> <PATH>.`
+If a referenced type cannot be resolved on the domain diagram, consult the Shared domain types registry. If still unresolved, abort with `Cannot resolve nested type <Name> referenced from <HTTP> <PATH>.`
 
 ### Step 4 — Render Table 4
 
@@ -164,6 +174,7 @@ Print a one-line summary: `Wrote Table 4 of <output>: <Q> response sub-blocks (<
 - Nested sub-tables are scoped per endpoint group; repeat them when the same type appears under multiple endpoints.
 - Path placeholders inside `**Endpoint:**` headers are wrapped in backticks; do not escape braces in `{id}`.
 - Never overwrite Tables 1, 2, 3, 5, or 6.
+- Never modify any file other than the target `<domain_stem>.rest-api.md`. The domain diagram, queries diagram, and commands diagram are read-only inputs. If a referenced type is missing from the domain diagram and not in the Shared domain types registry, abort — never edit the diagram to add it.
 
 ## Error conditions — abort with explicit message and do not write
 
