@@ -1,6 +1,6 @@
 ---
 name: resource-spec-template
-description: Reference template for the Resource Basics table (Section 1, Table 1) of a REST API resource input spec. Load when authoring or reviewing the input spec for a REST API resource — covers the four required fields, casing/format rules, derivation conventions, and worked examples.
+description: Reference template for the Resource Basics table (Table 1) of a REST API resource input spec. Load when authoring or reviewing the input spec for a REST API resource — covers the four required fields, casing/format rules, derivation conventions, and worked examples.
 user-invocable: false
 disable-model-invocation: false
 ---
@@ -9,7 +9,7 @@ disable-model-invocation: false
 
 ## Purpose
 
-Defines the canonical shape of **Section 1, Table 1: Resource Basics** of a REST API resource input spec. Every REST API resource spec begins with this table. It anchors naming, routing, and versioning for every downstream artifact (serializers, endpoints, router registration).
+Defines the canonical shape of **Table 1: Resource Basics** of a REST API resource input spec. Every REST API resource spec begins with this table. It anchors naming, routing, and versioning for every downstream artifact (serializers, endpoints, router registration).
 
 ## Table
 
