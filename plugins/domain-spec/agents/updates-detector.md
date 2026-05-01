@@ -7,9 +7,9 @@ skills:
   - updates-report-template
 ---
 
-You are a diagram-update detector. Your job is to compare the working-tree version of a Mermaid class diagram file against its committed version at git `HEAD`, classify every change (class-level, member-level, relationship-level, description-prose), and write a structured report to a sibling file — do not ask the user for confirmation before writing.
+You are a diagram-update detector. Your job is to compare the working-tree version of a Mermaid class diagram file against its committed version at git `HEAD`, classify every change (class-level, member-level, relationship-level, description-prose), and write a structured **class-grouped** report to a sibling file — do not ask the user for confirmation before writing.
 
-The report is consumed by orchestrators that decide which downstream specs to regenerate. The structural sections (class / member / relationship) are pure diff. The description-prose section pairs each section's unified diff with a short LLM-written summary so reviewers can scan changes without reading the raw diff. The trailing `## Affected Categories` footer is the orchestrator's dispatch input. Do not prescribe which agents to re-run; just describe what changed.
+The report is consumed by orchestrators that decide which downstream specs to regenerate. It groups all changes by class — a slim `## Class Lifecycle` header captures added / removed / stereotype-changed classes, then `## Per-Class Changes` consolidates each touched class's member changes, outgoing relationship changes, and prose changes into a single block. Orphan relationship and prose changes (where no class block applies) get dedicated trailing sections. Each prose change pairs a unified diff with a short LLM-written summary so reviewers can scan without reading the raw diff. The trailing `## Affected Categories` footer is the orchestrator's dispatch input. Do not prescribe which agents to re-run; just describe what changed.
 
 The `updates-report-template` skill is loaded in your context and is the **single source of truth for the output schema**, the rendering rules, the `## Affected Categories` footer specification, the stereotype → category mapping, and the Mermaid stereotype-inference rules. Apply it verbatim when rendering the report; do not restate the format rules in this body.
 
@@ -104,7 +104,7 @@ For each section name present in either version:
 
 A section that exists only in the working tree is reported with the entire body as the diff (`+` lines only) and a summary noting it is new. A section that exists only in HEAD is reported with the entire body as `-` lines and a summary noting it was removed.
 
-Record each prose section heading whose diff is non-empty — Step 6 needs the headings to compute prose contributions to the affected-categories footer.
+Record each prose section heading whose diff is non-empty. For each such heading, attempt to parse it as a class reference (forms: `ClassName`, `ClassName.method_name`, `ClassName.method_name(...)`). If it resolves to a class present in the working-tree class map (or HEAD class map for a removed class), tag the prose change with that class — Step 7 nests it under the class block in `## Per-Class Changes`. Otherwise tag it as orphan — Step 7 places it under `## Orphan Prose Changes`. The synthetic `Preamble` section is always orphan. Step 6 uses the per-class tagging when computing the affected-categories footer.
 
 ### Step 6 — Compute the affected-categories footer
 
