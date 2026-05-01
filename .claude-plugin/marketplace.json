@@ -4,7 +4,7 @@
     "name": "Valentin Vorobyev",
     "email": "voro6yov.valentin@gmail.com"
   },
-  "version": "0.4.0",
+  "version": "0.5.0",
   "plugins": [
     {
       "name": "domain-spec",
@@ -20,6 +20,11 @@
       "name": "application-spec",
       "source": "./plugins/application-spec",
       "description": "Generate specs for application services and implement them"
+    },
+    {
+      "name": "rest-api-spec",
+      "source": "./plugins/rest-api-spec",
+      "description": "Generate specs for REST API endpoints and implement them"
     },
     {
       "name": "adr-log",
