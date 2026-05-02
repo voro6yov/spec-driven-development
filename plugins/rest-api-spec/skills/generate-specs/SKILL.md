@@ -23,11 +23,11 @@ The artifact is structured as Table 1 (Resource Basics, including a `Surfaces` r
 
 Run agents one at a time using the Agent tool. Wait for each to complete before invoking the next.
 
-### Step 1 — Initialize the resource spec (Table 1)
+### Step 1 — Initialize the resource spec (Table 1 + Surface section headings)
 
-Use the Agent tool to invoke `rest-api-spec:resource-spec-initializer` with `$ARGUMENTS[2]` as the prompt.
+Use the Agent tool to invoke `rest-api-spec:resource-spec-initializer` with `$ARGUMENTS[0] $ARGUMENTS[1] $ARGUMENTS[2]` as the prompt.
 
-Populates: Table 1 (Resource Basics).
+Populates: Table 1 (Resource Basics) and one empty `## Surface: <name>` H2 heading per discovered surface (auto-derived from the `%% <name>` markers in the commands and queries diagrams; defaults to a single `v1` surface when no markers are present).
 
 ### Step 2 — Write endpoint tables (Tables 2 & 3)
 
