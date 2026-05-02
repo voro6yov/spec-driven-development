@@ -8,11 +8,31 @@ user-invocable: false
 
 ## Purpose
 
-Defines the canonical shape of **Table 2: Query Endpoints** and **Table 3: Command Endpoints** of a REST API resource input spec. Together these tables enumerate every HTTP endpoint the resource exposes and bind each one to a method on its application service (`<Resource>Queries` / `<Resource>Commands`). Status codes, request/response field details, and parameter mapping are the concern of later sections — these two tables are the endpoint *inventory*.
+Defines the canonical shape of **Table 2: Query Endpoints** and **Table 3: Command Endpoints** of a REST API resource input spec. Together these tables enumerate every HTTP endpoint the resource exposes on a single URL surface, and bind each one to a method on its application service (`<Resource>Queries` / `<Resource>Commands`). Status codes, request/response field details, and parameter mapping are the concern of later sections — these two tables are the endpoint *inventory*.
 
 Both tables share the same five-column shape:
 
 `HTTP | Path | Operation | Description | Domain Ref`
+
+## Per-surface scoping
+
+Tables 2 and 3 always live inside a `## Surface: <name>` H2 section (see `resource-spec-template`). A resource with N surfaces has N copies of Tables 2 and 3 — one pair per surface — each enumerating only the endpoints exposed on that surface. The Domain Ref of every row in a surface section must trace to a method tagged with that surface in the source diagram (per `surface-markers`); duplicate `(surface, method)` pairs are not allowed within a single Surface section.
+
+Empty-surface placeholders, used when a surface has zero query (or command) endpoints, replace the whole table:
+
+```
+### Table 2: Query Endpoints
+
+*No query endpoints in this surface.*
+```
+
+```
+### Table 3: Command Endpoints
+
+*No command endpoints in this surface.*
+```
+
+The italic line is the entire content of that table — never mix the placeholder with a real table.
 
 ---
 
@@ -92,7 +112,7 @@ Paths are relative to the resource's Router prefix (Table 1). A leading `/` is r
 - **Sub-resource segments are kebab-case nouns** — `redacted-content`, not `redactedContent` or `redacted_content`.
 - **Action verbs are snake-case verbs** — `assign_document_types`, mirroring the domain method. Path verbs that mirror methods stay snake-case; standalone path nouns stay kebab-case.
 - **No trailing slash** on action or sub-resource paths.
-- **No version segment** — versioning is handled by the router prefix, not the path column here.
+- **No surface segment** — surfaces (`/v1`, `/v2`, `/internal`, …) are handled by the version-router / internal-router and prepended at registration time, not duplicated in the Path column here.
 
 ### Special shapes
 
@@ -144,6 +164,11 @@ Paths are relative to the resource's Router prefix (Table 1). A leading `/` is r
 ---
 
 ## Validation checklist
+
+### Per-surface placement
+
+- [ ] Tables 2 and 3 appear inside a `## Surface: <name>` H2 section, not at the top level
+- [ ] An empty Table 2 in a surface uses `*No query endpoints in this surface.*`; an empty Table 3 uses `*No command endpoints in this surface.*`
 
 ### Table 2 — Query Endpoints
 

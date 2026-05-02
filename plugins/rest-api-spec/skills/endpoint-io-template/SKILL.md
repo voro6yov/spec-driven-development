@@ -14,7 +14,7 @@ paths:
 
 ## Purpose
 
-Defines the canonical shape of **Table 4: Response Fields**, **Table 5: Request Fields**, and **Table 6: Parameter Mapping** of a REST API resource input spec. Together these three tables specify, for every endpoint enumerated in Tables 2 and 3, exactly what JSON it accepts, what JSON it returns, and how each field of the underlying application-service method is sourced from the HTTP request.
+Defines the canonical shape of **Table 4: Response Fields**, **Table 5: Request Fields**, and **Table 6: Parameter Mapping** of a REST API resource input spec. Together these three tables specify, for every endpoint enumerated in Tables 2 and 3 of the enclosing Surface section, exactly what JSON it accepts, what JSON it returns, and how each field of the underlying application-service method is sourced from the HTTP request.
 
 The three tables are filled together because they share the same per-endpoint dispatch:
 
@@ -22,7 +22,37 @@ The three tables are filled together because they share the same per-endpoint di
 - Table 5 is filled per **command** endpoint (Table 3). It describes the request body.
 - Table 6 is filled per **endpoint** that calls into the application service (both command and query). It maps each application-service method parameter to its HTTP source.
 
-Each table is a **per-endpoint group** — repeat the sub-table once per endpoint, headed by an `**Endpoint:** <HTTP> <PATH>` line that matches a row in Table 2 or Table 3 verbatim. An optional ` (operation_name)` may follow the path to ease cross-referencing with Table 2/3.
+Each table is a **per-endpoint group** — repeat the sub-table once per endpoint, headed by an `**Endpoint:** <HTTP> <PATH>` line that matches a row in the enclosing Surface section's Table 2 or Table 3 verbatim. An optional ` (operation_name)` may follow the path to ease cross-referencing with Table 2/3.
+
+## Per-surface scoping
+
+Tables 4, 5, and 6 always live inside a `## Surface: <name>` H2 section (see `resource-spec-template`). A resource with N surfaces has N copies of each of Tables 4, 5, and 6 — one per surface — each describing only the endpoints exposed on that surface (i.e., the rows of that surface's Tables 2 and 3).
+
+When a surface has zero query endpoints (its Table 2 is the `*No query endpoints in this surface.*` placeholder), its Table 4 is replaced with the placeholder line:
+
+```
+### Table 4: Response Fields
+
+*No response fields in this surface — no query endpoints.*
+```
+
+When a surface has zero command endpoints (its Table 3 is the `*No command endpoints in this surface.*` placeholder), its Table 5 is replaced with:
+
+```
+### Table 5: Request Fields
+
+*No request fields in this surface — no command endpoints.*
+```
+
+When a surface has both Tables 2 and 3 empty, its Table 6 is replaced with:
+
+```
+### Table 6: Parameter Mapping
+
+*No parameter mapping in this surface — no endpoints.*
+```
+
+The italic line is the entire content of the affected table — never mix the placeholder with a real sub-block.
 
 ---
 
@@ -244,6 +274,14 @@ Two condensed end-to-end examples — File and Document — covering responses w
 ---
 
 ## Validation checklist
+
+### Per-surface placement
+
+- [ ] Tables 4, 5, and 6 appear inside a `## Surface: <name>` H2 section, not at the top level
+- [ ] Each `**Endpoint:**` header matches a row of Table 2 or Table 3 within the *same* enclosing Surface section
+- [ ] Surfaces with no query endpoints use `*No response fields in this surface — no query endpoints.*` for Table 4
+- [ ] Surfaces with no command endpoints use `*No request fields in this surface — no command endpoints.*` for Table 5
+- [ ] Surfaces with no endpoints at all use `*No parameter mapping in this surface — no endpoints.*` for Table 6
 
 ### Table 4 — Response Fields
 
