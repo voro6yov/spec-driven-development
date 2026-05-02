@@ -1,6 +1,6 @@
 ---
 name: rest-api-scaffolder
-description: "Scaffolds the per-resource REST API package layout under `api/` from a `<resource>.rest-api.md` spec file: creates `endpoints/` and `serializers/` sub-packages, materializes one empty per-surface sub-package under each (e.g. `endpoints/v1/`, `serializers/v1/`), copies the shared serializer modules (`error.py`, `configured_base_serializer.py`, `json_utils.py`) from the plugin's `modules/serializers/` reference into `api/serializers/`, and (re)writes `api/serializers/__init__.py` as a re-export aggregator over root modules + surface sub-packages. Idempotent. Does not touch `api/__init__.py`, `containers.py`, or `entrypoint.py`. Invoke with: @rest-api-scaffolder <locations_report_text> <rest_api_spec_file>"
+description: "Scaffolds the per-resource REST API package layout under `api/` from a `<resource>.rest-api.md` spec file: creates `endpoints/` and `serializers/` sub-packages, materializes one empty per-surface sub-package under each (e.g. `endpoints/v1/`, `serializers/v1/`), copies the shared serializer modules (`error.py`, `configured_base_serializer.py`, `json_utils.py`) from the plugin's `modules/serializers/` reference into `api/serializers/`, and (re)writes `api/serializers/__init__.py` as a re-export aggregator over root modules. Idempotent. Does not touch `api/__init__.py`, `containers.py`, or `entrypoint.py`. Invoke with: @rest-api-scaffolder <locations_report_text> <rest_api_spec_file>"
 tools: Read, Write, Bash
 model: sonnet
 ---
@@ -97,24 +97,12 @@ find <serializers_dir> -maxdepth 1 -mindepth 1 -name "*.py" ! -name "__init__.py
 
 Take each match's basename with the `.py` suffix stripped — sorted lexicographically for deterministic output. Call this list `<root_modules>`. After Step 6 it always contains at least `configured_base_serializer`, `error`, and `json_utils`.
 
-**7b. Discover surface sub-packages.** Find every immediate sub-directory of `<serializers_dir>` that contains an `__init__.py`. Skip hidden entries and `__pycache__`. Use:
-
-```
-find <serializers_dir> -maxdepth 2 -mindepth 2 -name "__init__.py" | sort
-```
-
-Take each match's parent basename. Call this list `<surface_pkgs>`. After Step 5 it always contains every entry of `<surfaces>`. Sort lexicographically for deterministic output (this may differ from the canonical surface order — that is intentional; the aggregator is sorted on disk by name).
-
-**7c. Render the aggregator.** Write the following content to `<serializers_dir>/__init__.py`, overwriting unconditionally:
+**7b. Render the aggregator.** Write the following content to `<serializers_dir>/__init__.py`, overwriting unconditionally:
 
 ```python
 # type: ignore
 from .<root_module_1> import *
 from .<root_module_2> import *
-...
-
-from . import <surface_pkg_1>
-from . import <surface_pkg_2>
 ...
 
 __all__ = (
@@ -127,8 +115,7 @@ __all__ = (
 Rules:
 
 - The `from .<x> import *` lines come first, in `<root_modules>` order, one per line.
-- One blank line, then the `from . import <surface>` lines in `<surface_pkgs>` order, one per line. Omit this block entirely when `<surface_pkgs>` is empty.
-- One blank line, then the `__all__` tuple. Each `<root_module>.__all__` term is on its own line, indented four spaces, joined with `+`. Do **not** include surface sub-packages in `__all__` — they are exposed as module attributes only.
+- One blank line, then the `__all__` tuple. Each `<root_module>.__all__` term is on its own line, indented four spaces, joined with `+`. Surface sub-packages are **not** imported or re-exported here — they are accessed by their fully qualified path (e.g. `from <pkg>.api.serializers.v1 import ...`).
 - If `<root_modules>` is empty (defensive — should not happen after Step 6), write a zero-byte file instead and skip the aggregator block.
 - The file ends with a single trailing newline.
 
