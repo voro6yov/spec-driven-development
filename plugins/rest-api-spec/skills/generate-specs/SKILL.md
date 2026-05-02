@@ -17,6 +17,8 @@ You are a REST API spec generation orchestrator. Populate the `<domain_stem>.res
 
 A single sibling file `<domain_stem>.rest-api.md`, located next to `<domain_diagram>`, where `<domain_stem>` is `<domain_diagram>` with the `.md` suffix stripped. Each step below populates a different set of tables in this file.
 
+The artifact is structured as Table 1 (Resource Basics, including a `Surfaces` row) followed by one `## Surface: <name>` H2 section per surface, each containing Tables 2–6 scoped to that surface. Surfaces are auto-derived from `%% <name>` markers inside the commands and queries class bodies — see the `rest-api-spec:surface-markers` skill. Diagrams without markers default to a single `v1` surface, so existing single-surface diagrams keep working unchanged.
+
 ## Workflow
 
 Run agents one at a time using the Agent tool. Wait for each to complete before invoking the next.

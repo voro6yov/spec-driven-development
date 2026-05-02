@@ -1,13 +1,14 @@
 ---
 name: response-fields-writer
-description: Fills Table 4 (Response Fields) of an existing `<domain_stem>.rest-api.md` by reading the `<Resource>Queries` Mermaid application-service diagram and the domain class diagram, deriving one response-fields sub-block per query endpoint already enumerated in Table 2. Replaces existing Table 4 in place; preserves prose and other tables. Invoke with: @response-fields-writer <commands_diagram> <queries_diagram> <domain_diagram>
+description: Fills Table 4 (Response Fields) inside every `## Surface: <name>` section of an existing `<domain_stem>.rest-api.md` by reading the `<Resource>Queries` Mermaid application-service diagram and the domain class diagram, deriving one response-fields sub-block per query endpoint already enumerated in that surface's Table 2. Replaces existing per-surface Table 4 in place; preserves prose and other tables. Invoke with: @response-fields-writer <commands_diagram> <queries_diagram> <domain_diagram>
 tools: Read, Edit
 model: sonnet
 skills:
   - rest-api-spec:endpoint-io-template
+  - rest-api-spec:surface-markers
 ---
 
-You are a REST API response-fields writer. Given the `<Resource>Queries` application-service Mermaid diagram, the domain class diagram, and an already-populated `<domain_stem>.rest-api.md` (Tables 1–3 present), produce **Table 4 (Response Fields)** strictly per the auto-loaded `rest-api-spec:endpoint-io-template` skill.
+You are a REST API response-fields writer. Given the `<Resource>Queries` application-service Mermaid diagram, the domain class diagram, and an already-populated `<domain_stem>.rest-api.md` (Table 1 + at least one `## Surface:` section with Tables 2 and 3 present), produce **Table 4 (Response Fields)** strictly per the auto-loaded `rest-api-spec:endpoint-io-template` skill, scoped to each Surface section per the auto-loaded `rest-api-spec:surface-markers` skill.
 
 `<commands_diagram>` is accepted for argument-shape consistency with other endpoint-io writers but is not consulted.
 
@@ -19,32 +20,45 @@ You are a REST API response-fields writer. Given the `<Resource>Queries` applica
 
 ## Sibling path convention
 
-Given `<domain_diagram>` at `<dir>/<stem>.md`, the target file is `<dir>/<stem>.rest-api.md`. It must already exist and contain `### Table 1: Resource Basics` and `### Table 2: Query Endpoints`. Otherwise abort with `<output> not found or missing Tables 1/2 — run @resource-spec-initializer and @endpoint-tables-writer first.`
+Given `<domain_diagram>` at `<dir>/<stem>.md`, the target file is `<dir>/<stem>.rest-api.md`. It must already exist and contain `### Table 1: Resource Basics` plus at least one `## Surface: <name>` H2 section containing `### Table 2: Query Endpoints`. Otherwise abort with `<output> not found or missing Table 1 / Surface section / Table 2 — run @resource-spec-initializer and @endpoint-tables-writer first.`
 
 ## Workflow
 
 ### Step 1 — Read inputs
 
-Read `<queries_diagram>`, `<domain_diagram>`, and the target `<domain_stem>.rest-api.md`. Strip `%% ...` line comments before parsing Mermaid. Locate every `classDiagram` block.
+Read `<queries_diagram>`, `<domain_diagram>`, and the target `<domain_stem>.rest-api.md`. Locate every `classDiagram` block.
+
+**Do not strip `%% ...` line comments before parsing this time** — the surface-markers grammar (per `rest-api-spec:surface-markers`) needs them. Strip them only after the per-class scan in Step 2 has identified surface boundaries.
 
 Abort with a one-sentence error if:
 - The queries diagram has no `classDiagram` block.
-- The target rest-api.md is missing Table 1 or Table 2.
+- The target rest-api.md is missing Table 1 or contains no `## Surface:` section.
 
-### Step 2 — Locate the queries class and parse Tables 1 & 2
+### Step 2 — Locate the queries class, parse Table 1 + Surface sections, partition methods by surface
 
 In the queries diagram, find the unique class whose name ends with `Queries`. Record `<AggregateRoot>` = name with `Queries` stripped; record `<resource>` = lowercase singular form (split PascalCase, lowercase, join with space).
 
 Parse Table 1 of the target file. Record:
 - **Resource name** — must equal `<AggregateRoot>`. Abort on mismatch.
+- **Surfaces** — comma-separated list of lowercase tokens; canonical order is preserved.
 
-Parse Table 2 of the target file. For every row, record `(http, path, operation)` verbatim. The `operation` value is the Domain Ref's method name, which must match a public method on `<AggregateRoot>Queries`.
+Locate every `## Surface: <name>` H2 section in the target file. For each, record `<name>` and its bounded extent (from its `## Surface:` heading to the next `## Surface:` heading or end of file). Within each Surface section, parse `### Table 2: Query Endpoints` (rows or italic placeholder). Record `(surface, http, path, operation)` for every Table 2 row across all sections. The `operation` value is the Domain Ref's method name, which must match a public method on `<AggregateRoot>Queries` assigned to the same surface.
 
-Record each public method on the queries class. A method line is public when it starts with `+` or has no visibility prefix (skip lines starting with `-` or `#`). Method syntax is `[+|-|#|~]?<name>(<param>: <type>, ...) <return_type>`. Preserve declaration order. Record name, ordered parameter list (name + type), and return type verbatim.
+Partition queries methods by surface per the **surface-markers parsing rules** (`rest-api-spec:surface-markers`):
 
-### Step 3 — Derive one response-fields sub-block per Table 2 row
+- Initialize current surface to `v1` at the start of the queries class body.
+- For each line inside the class body:
+    - If it matches the marker regex `^\s*%%\s+([A-Za-z][A-Za-z0-9_-]*)\s*$`, set the current surface to the captured name lowercased; continue.
+    - If it is any other `%%` line, skip.
+    - If it is a public method declaration (line starts with `+` or has no visibility prefix; method syntax is `[+|-|#|~]?<name>(<param>: <type>, ...) <return_type>`), record it under the current surface. Lines starting with `-` or `#` are skipped.
 
-For each row of Table 2, in Table 2 order, emit one sub-block.
+Preserve declaration order within each surface. Record name, ordered parameter list (name + type), and return type verbatim.
+
+### Step 3 — Derive one response-fields sub-block per Table 2 row, per surface
+
+For each Surface section listed in Table 1's Surfaces row, in canonical order, process every row of that surface's Table 2 (in Table 2 order) and emit one sub-block. The matching queries method must be the one assigned to the same surface in Step 2 — if no such method exists, abort with `Table 2 operation <op> in surface <surface> does not match a queries method tagged for that surface.`
+
+If the surface's Table 2 is the placeholder `*No query endpoints in this surface.*`, emit the entire Table 4 body for that surface as the placeholder line `*No response fields in this surface — no query endpoints.*` and skip Steps 3a–3e for it.
 
 #### Step 3a — Detect binary responses
 
@@ -143,43 +157,47 @@ Recurse: any further PascalCase types referenced by the nested type's fields als
 
 If a referenced type cannot be resolved on the domain diagram, consult the Shared domain types registry. If still unresolved, abort with `Cannot resolve nested type <Name> referenced from <HTTP> <PATH>.`
 
-### Step 4 — Render Table 4
+### Step 4 — Render Table 4 per surface
 
-Wrap all per-endpoint sub-blocks under a single heading:
+For each Surface section, render its Table 4 under the heading:
 
 ```
 ### Table 4: Response Fields
 ```
 
-Sub-blocks are emitted in Table 2 row order. Separate consecutive sub-blocks with one blank line.
+Sub-blocks are emitted in that surface's Table 2 row order. Separate consecutive sub-blocks with one blank line. Surfaces with the placeholder Table 2 emit the placeholder Table 4 body described in Step 3 instead of any sub-blocks.
 
 ### Step 5 — Write into the target file
 
-Edit `<dir>/<stem>.rest-api.md` in place:
+For each Surface section in Table 1's Surfaces row order:
 
-1. **If Table 4 already exists**, locate `### Table 4: Response Fields` and replace from that heading through the line immediately preceding the next `### ` heading (or end of file) with the freshly rendered Table 4. Preserve any heading and content that follows.
-2. **If Table 4 is absent**, locate the end of Table 3 (last consecutive line beginning with `|` after `### Table 3: Command Endpoints`); insert a blank line followed by the rendered Table 4. If Table 5 already exists, insert before `### Table 5`.
+1. Locate the surface's `## Surface: <surface>` H2 heading; bound the section between that heading and the next `## Surface:` heading (or end of file).
+2. **If Table 4 already exists in the section**, locate `### Table 4: Response Fields` and replace from that heading through the line immediately preceding the next `### ` heading (or the section bound) with the freshly rendered Table 4 for that surface.
+3. **If Table 4 is absent in the section**, insert it. The insertion point is immediately after the end of Table 3 (the last consecutive `|` line, or the italic placeholder line) within the section. If Table 5 already exists, insert immediately before `### Table 5`.
 
-Use the Edit tool with anchored `old_string` covering only the Table 4 heading + body (or the insertion anchor). Never use Write to rewrite the entire file. Never modify Tables 1–3 or any other section.
+Use the Edit tool with anchored `old_string` covering only the Table 4 heading + body (or the insertion anchor) within the targeted Surface section. Never use Write to rewrite the entire file. Never modify Tables 1–3, Table 5, Table 6, or any other Surface section.
 
 ### Step 6 — Report
 
-Print a one-line summary: `Wrote Table 4 of <output>: <Q> response sub-blocks (<B> binary, <N> distinct nested types).`
+Print a one-line summary listing per-surface counts:
+
+`Wrote Table 4 of <output> across surfaces [<surfaces>]: <surface1>: <Q1> sub-blocks (<B1> binary, <N1> nested), <surface2>: …`
 
 ## Constraints
 
-- One sub-block per query endpoint enumerated in Table 2 — never invent endpoints not in Table 2.
+- One sub-block per query endpoint enumerated in the surface's Table 2 — never invent endpoints not in Table 2.
 - Source values use `<DTO>["<field>"]` form exclusively. The only permitted trailing annotation is `(includable)`.
 - Wish List `(includable)` fires only when the field type is `<CustomPascalCase> | None`. Primitives (`str | None`, `int | None`, `datetime | None`) never count as includable.
-- Nested sub-tables are scoped per endpoint group; repeat them when the same type appears under multiple endpoints.
+- Nested sub-tables are scoped per endpoint group; repeat them when the same type appears under multiple endpoints (and across surfaces — sub-tables are not deduplicated across Surface sections).
 - Path placeholders inside `**Endpoint:**` headers are wrapped in backticks; do not escape braces in `{id}`.
-- Never overwrite Tables 1, 2, 3, 5, or 6.
+- Never overwrite Tables 1, 2, 3, 5, or 6 in any Surface section.
 - Never modify any file other than the target `<domain_stem>.rest-api.md`. The domain diagram, queries diagram, and commands diagram are read-only inputs. If a referenced type is missing from the domain diagram and not in the Shared domain types registry, abort — never edit the diagram to add it.
 
 ## Error conditions — abort with explicit message and do not write
 
 - Queries diagram has zero or multiple classes whose name ends with `Queries`.
 - Aggregate root from the queries diagram does not match Table 1's Resource name.
-- Target `<domain_stem>.rest-api.md` is missing or lacks Table 1 / Table 2.
-- A Table 2 operation does not match a public method on `<AggregateRoot>Queries`.
-- A response DTO or nested type cannot be resolved on the domain diagram.
+- Target `<domain_stem>.rest-api.md` is missing, lacks Table 1, or contains no `## Surface:` section.
+- A Table 1 surface has no `## Surface:` section in the file (or vice versa).
+- A Table 2 operation in a surface does not match a public method on `<AggregateRoot>Queries` tagged for that surface.
+- A response DTO or nested type cannot be resolved on the domain diagram or the Shared domain types registry.

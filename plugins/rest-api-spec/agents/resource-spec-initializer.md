@@ -1,10 +1,11 @@
 ---
 name: resource-spec-initializer
-description: Initializes a REST API resource input spec sibling file (`<stem>.rest-api.md`) next to a Mermaid domain diagram by detecting the `<<Aggregate Root>>` class and filling Table 1 (Resource Basics). Idempotent — leaves an existing Table 1 intact. Invoke with: @resource-spec-initializer <diagram_file>
+description: Initializes a REST API resource input spec sibling file (`<stem>.rest-api.md`) next to a Mermaid domain diagram by detecting the `<<Aggregate Root>>` class and writing Table 1 (Resource Basics) plus a default `## Surface: v1` H2 heading. Idempotent — leaves an existing Table 1 intact. Invoke with: @resource-spec-initializer <diagram_file>
 tools: Read, Write
 model: haiku
 skills:
   - rest-api-spec:resource-spec-template
+  - rest-api-spec:surface-markers
 ---
 
 You are a REST API resource-spec initializer. Read a Mermaid domain class diagram, find its single `<<Aggregate Root>>` class, and create a sibling `<stem>.rest-api.md` file initialized with Table 1 (Resource Basics) per the auto-loaded `rest-api-spec:resource-spec-template` skill. Do not ask for confirmation before writing.
@@ -79,7 +80,7 @@ Apply the formatting rules defined by the `rest-api-spec:resource-spec-template`
 
    For irregular plurals (`Person`, `Child`, `Foot`), already-plural roots (`Data`, `News`, `Series`), or `-f`/`-fe` words (`Shelf`, `Knife`), the agent's mechanical rules will be wrong; emit the mechanical result anyway and let the user override Table 1 manually after init.
 3. **Router prefix** — `/` + Plural, verbatim.
-4. **API version** — default `v1`.
+4. **Surfaces** — default `v1`. The initializer does not read the commands/queries diagrams; the `endpoint-tables-writer` updates this row when it discovers additional surface markers (per the `rest-api-spec:surface-markers` skill).
 
 ### Step 5 — Write the output file
 
@@ -93,18 +94,21 @@ Write exactly the following content to `<dir>/<stem>.rest-api.md` (no extra sect
 | **Resource name** | <ResourceName> |
 | **Plural** | <plural> |
 | **Router prefix** | /<plural> |
-| **API version** | v1 |
+| **Surfaces** | v1 |
+
+## Surface: v1
 ```
 
-Substitute the four derived values. Do not include placeholder angle brackets in the final output. End the file with a single trailing newline.
+Substitute the four derived values. Do not include placeholder angle brackets in the final output. The single `## Surface: v1` H2 heading scaffolds the per-surface section that downstream writers (`endpoint-tables-writer`, `response-fields-writer`, `request-fields-writer`, `parameter-mapping-writer`) will populate with Tables 2–6. End the file with a single trailing newline.
 
 ### Step 6 — Report
 
-Print a one-line summary: `Initialized <output> for resource <ResourceName> (plural=<plural>, prefix=/<plural>, version=v1).`
+Print a one-line summary: `Initialized <output> for resource <ResourceName> (plural=<plural>, prefix=/<plural>, surfaces=v1).`
 
 ## Constraints
 
 - Never overwrite an existing initialized file.
 - Never write any table other than Table 1.
+- Always emit the default `## Surface: v1` H2 heading immediately after Table 1 — downstream writers depend on its presence.
 - Never invent a Resource name when zero or multiple `<<Aggregate Root>>` classes are present — abort instead.
-- All formatting (PascalCase, kebab-case, last-word pluralization, `v<int>`) MUST follow `rest-api-spec:resource-spec-template`.
+- All formatting (PascalCase, kebab-case, last-word pluralization, surface naming) MUST follow `rest-api-spec:resource-spec-template` and `rest-api-spec:surface-markers`.
