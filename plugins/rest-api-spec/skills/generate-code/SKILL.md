@@ -73,7 +73,23 @@ This regenerates the per-surface `endpoints/<surface>/__init__.py` aggregators a
 
 If the integrator aborts, propagate the failure and stop.
 
-### Step 8 — Report
+### Step 8 — Prepare test fixtures
+
+Invoke `rest-api-spec:test-fixtures-preparer` with prompt `<locations_report_text>`. Wait for completion.
+
+This ensures the root `tests/conftest.py` defines the API client and authentication fixtures (`app`, `client`, `containers`, `token_payload`, `request_headers`) required by the REST API integration tests. Append-only and idempotent.
+
+If the preparer aborts, propagate the failure and stop — do not proceed to Step 9.
+
+### Step 9 — Implement REST API tests
+
+Invoke `rest-api-spec:tests-implementer` with prompt `<locations_report_text> $ARGUMENTS[0]`. Wait for completion.
+
+This writes one integration test module per surface at `<tests_dir>/integration/<resource>/test_<plural>_<surface>_api.py`, with success / not_found / already_exists / missing_required_field scenarios dispatched per endpoint shape. Append-only and idempotent.
+
+If the implementer aborts, propagate the failure and stop.
+
+### Step 10 — Report
 
 Emit a single completion line:
 
