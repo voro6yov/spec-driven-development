@@ -95,23 +95,6 @@ def token_payload() -> dict[str, Any]:
     }
 ```
 
-### User Data Fixture
-
-Provides typed user data object.
-
-```python
-from {{ module_path }}.application import UserData
-
-@pytest.fixture
-def user_data(token_payload) -> UserData:
-    return UserData(
-        id=token_payload["sub"],
-        email=token_payload["email"],
-        first_name=token_payload["given_name"],
-        last_name=token_payload["family_name"],
-    )
-```
-
 ### Request Headers Fixture
 
 Provides authorization headers for authenticated requests.
@@ -260,7 +243,6 @@ from fastapi import FastAPI
 from starlette.testclient import TestClient
 
 from tests.fakes import FakeTextRetriever, FakeInformationExtractor
-from {{ module_path }}.application import UserData
 from {{ module_path }}.entrypoint import create_fastapi
 
 # ============================================================
@@ -297,15 +279,6 @@ def token_payload() -> dict[str, Any]:
         "given_name": "John",
         "family_name": "Doe",
     }
-
-@pytest.fixture
-def user_data(token_payload) -> UserData:
-    return UserData(
-        id=token_payload["sub"],
-        email=token_payload["email"],
-        first_name=token_payload["given_name"],
-        last_name=token_payload["family_name"],
-    )
 
 @pytest.fixture
 def request_headers(token_payload):

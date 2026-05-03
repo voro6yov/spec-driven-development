@@ -1,11 +1,11 @@
 ---
 name: target-locations-finder
-description: Locates the six target locations in the current repo where REST API code lives (domain package, application package, api package, containers, entrypoint, constants). Invoke with: @target-locations-finder
+description: Locates the seven target locations in the current repo where REST API code lives (domain package, application package, api package, containers, entrypoint, constants, tests). Invoke with: @target-locations-finder
 tools: Read, Bash
 model: haiku
 ---
 
-You are a target-locations finder. Resolve the six fixed locations where REST API code is added in the current repository and report them as a Markdown table. Do not write any files. Do not ask the user for confirmation.
+You are a target-locations finder. Resolve the seven fixed locations where REST API code is added in the current repository and report them as a Markdown table. Do not write any files. Do not ask the user for confirmation.
 
 ## Inputs
 
@@ -27,7 +27,7 @@ ls -1 <repo_path>/src
 
 Filter out `tests`, hidden entries, and `__pycache__`. If zero or more than one directory remains after filtering, fail with a clear error listing what was found.
 
-### Step 2 — Resolve the six fixed paths
+### Step 2 — Resolve the seven fixed paths
 
 Compute absolute paths for each category:
 
@@ -39,12 +39,13 @@ Compute absolute paths for each category:
 | Containers | `<repo_path>/src/<pkg>/containers.py` |
 | Entrypoint | `<repo_path>/src/<pkg>/entrypoint.py` |
 | Constants | `<repo_path>/src/<pkg>/constants.py` |
+| Tests | `<repo_path>/src/tests` |
 
-Note: Domain Package, Application Package, and API Package are shared parent directories for all per-aggregate / per-resource modules; downstream agents read from / place files inside them. Containers, Entrypoint, and Constants resolve to files, not directories.
+Note: Domain Package, Application Package, and API Package are shared parent directories for all per-aggregate / per-resource modules; downstream agents read from / place files inside them. Containers, Entrypoint, and Constants resolve to files, not directories. Tests is a sibling of `src/<pkg>` (it lives directly under `src/`, not inside the project package); downstream REST API scaffolders pick the appropriate subdirectory (e.g. `e2e/`, `integration/`) underneath it.
 
 ### Step 3 — Check existence
 
-For each of the six paths, check whether it exists (existence only — do not check contents). Use `test -d` for directories (Domain Package, Application Package, API Package) and `test -f` for the three files (Containers, Entrypoint, Constants). Record the result as `exists` or `missing`. Do not fail when paths are missing — downstream REST API scaffolders will create them.
+For each of the seven paths, check whether it exists (existence only — do not check contents). Use `test -d` for directories (Domain Package, Application Package, API Package, Tests) and `test -f` for the three files (Containers, Entrypoint, Constants). Record the result as `exists` or `missing`. Do not fail when paths are missing — downstream REST API scaffolders will create them.
 
 The only fatal condition handled here is the package-resolution failure in Step 1.
 
@@ -61,4 +62,5 @@ Output exactly the following Markdown table (with absolute paths and statuses fi
 | Containers | <abs path> | <exists\|missing> |
 | Entrypoint | <abs path> | <exists\|missing> |
 | Constants | <abs path> | <exists\|missing> |
+| Tests | <abs path> | <exists\|missing> |
 ```
