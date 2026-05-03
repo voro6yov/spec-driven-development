@@ -10,7 +10,7 @@ You are an application files scaffolder. Your job is to create the per-aggregate
 **Idempotence model.** Three classes of file mutations:
 
 1. **Stubs** (per-module class files) — written once if missing, never overwritten. This covers `<aggregate>_commands.py`, `<aggregate>_queries.py`, `<aggregate>_queries_settings.py`, each external-interface module `<agg_dir>/<interface>.py`, and each `services/<package>/<package>.py`.
-2. **Aggregator `__init__.py` files** — content is a pure function of the spec or on-disk state, so they are *always (re)written* on every run. Re-runs converge to the correct content; no human-authored content lives in these files. This covers `<agg_dir>/__init__.py`, `services/<package>/__init__.py`, and `services/__init__.py`. The parent `application/__init__.py` and `infrastructure/__init__.py` are *not* aggregators here — they are touched as zero-byte files only when missing, never overwritten.
+2. **Aggregator `__init__.py` files** — content is a pure function of the spec or on-disk state, so they are *always (re)written* on every run. Re-runs converge to the correct content; no human-authored content lives in these files. This covers `<agg_dir>/__init__.py`, `services/<package>/__init__.py`, `services/__init__.py`, and the parent `<app_pkg>/__init__.py` (rewritten from on-disk aggregate subpackages by Step 6b, so each aggregate's public names are reachable as `<pkg>.application.<Symbol>`). The parent `infrastructure/__init__.py` is *not* an aggregator here — it is touched as a zero-byte file only when missing, never overwritten.
 3. **`constants.py` line append** — name-keyed idempotency. The agent appends `<UPPER_AGGREGATE>_DESTINATION = "<Plural>"` only if no line of the form `<UPPER_AGGREGATE>_DESTINATION =` already exists in the file; otherwise it leaves `constants.py` untouched. The file itself is hand-authored and is never created by this agent — if it is missing, the agent fails.
 
 ## Inputs
@@ -36,7 +36,9 @@ mkdir -p <app_pkg>
 mkdir -p <infra_pkg>
 ```
 
-Then ensure each is a Python package by running `test -f <pkg>/__init__.py` via Bash and `Write`-ing a zero-byte `__init__.py` only when the file does not exist. Never overwrite an existing parent `__init__.py` — its content is owned by other agents or by the developer.
+Then ensure `<infra_pkg>/__init__.py` exists by running `test -f <infra_pkg>/__init__.py` via Bash and `Write`-ing a zero-byte file only when missing. Never overwrite the existing `<infra_pkg>/__init__.py` — its content is owned by other agents or by the developer.
+
+`<app_pkg>/__init__.py` is handled differently: it is rewritten from on-disk state by Step 6b, so do not touch it here. If it already exists, leave it; if it is missing, Step 6b will create it.
 
 ### Step 2 — Parse the specs
 
@@ -227,6 +229,28 @@ from .<package_2> import *
 __all__ = (
     <package_1>.__all__
     + <package_2>.__all__
+    + ...
+)
+```
+
+### Step 6b — Refresh `<app_pkg>/__init__.py`
+
+(Re)write `<app_pkg>/__init__.py` based on on-disk aggregate subpackage state, so each aggregate's public names — including `<Aggregate>Commands` / `<Aggregate>Queries` — are reachable as `<pkg>.application.<Symbol>`. Endpoint modules (rest-api-spec) and other downstream code rely on this top-level re-export.
+
+**Aggregate subpackage discovery.** An aggregate subpackage is an immediate child directory of `<app_pkg>` that contains an `__init__.py`. Skip hidden entries (names starting with `.`) and `__pycache__`. Use `find <app_pkg> -maxdepth 2 -mindepth 2 -name __init__.py` and take each match's parent directory's basename — sorted for deterministic output.
+
+Let `<all_aggregates>` = that sorted list. If `<all_aggregates>` is empty, `Write` `<app_pkg>/__init__.py` with empty content (a zero-byte file) so the package remains importable.
+
+Otherwise, write:
+
+```python
+from .<aggregate_1> import *
+from .<aggregate_2> import *
+...
+
+__all__ = (
+    <aggregate_1>.__all__
+    + <aggregate_2>.__all__
     + ...
 )
 ```
