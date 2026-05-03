@@ -7,25 +7,6 @@ disable-model-invocation: false
 
 # Internal Router
 
-## Purpose
-
-- Group endpoints for service-to-service communication.
-- Bypass user authentication (may use service account auth).
-- Separate internal API surface from public/external endpoints.
-
-## Structure
-
-- Dedicated `internal/` directory under `endpoints/`.
-- Router with `/internal` prefix.
-- Endpoints marked with `Visibility.INTERNAL`.
-- Aggregates multiple internal resource routers.
-
-## Template Parameters
-
-- `{{ project_module }}` - Root module path
-- `{{ internal_prefix }}` - URL prefix (usually from constants)
-- `{{ resource_routers }}` - List of internal resource routers to include
-
 ## When to Use
 
 Use internal router pattern when:
@@ -34,80 +15,6 @@ Use internal router pattern when:
 - Analytics or metrics endpoints consumed by internal tools
 - Admin operations not exposed to end users
 - Bulk operations or data synchronization endpoints
-
-## Example
-
-### Internal Router Aggregation
-
-```python
-from fastapi import APIRouter
-
-from my_service.constants import INTERNAL_PREFIX
-
-from .conveyors import *
-from .tires import *
-
-__all__ = ["internal_router"]
-
-internal_router = APIRouter(prefix=INTERNAL_PREFIX)
-
-internal_router.include_router(conveyors_router)
-internal_router.include_router(tires_router)
-```
-
-### Internal Resource Endpoint
-
-```python
-from dependency_injector.wiring import Provide, inject
-from fastapi import APIRouter, Depends, status
-
-from my_service.application import TireQueries
-from my_service.containers import Containers
-
-from ...endpoint_marker import MarkerRoute
-from ...endpoint_visibility import Visibility
-
-__all__ = ["tires_router"]
-
-tires_router = APIRouter(prefix="/tires", tags=["Tires"], route_class=MarkerRoute)
-
-@tires_router.get(
-    "/analytics",
-    status_code=status.HTTP_200_OK,
-    openapi_extra={"visibility": Visibility.INTERNAL},
-    response_model=GetTiresAnalyticsResponse,
-)
-@inject
-def get_tires_analytics(
-    request: GetTiresAnalyticsRequest = Depends(),
-    tire_queries: TireQueries = Depends(Provide[Containers.tire_queries]),
-):
-    return GetTiresAnalyticsResponse.from_domain(
-        tire_queries.get_analytics(
-            conveyor_id=request.conveyor_id,
-            creation_time_from=request.creation_time_from,
-            creation_time_to=request.creation_time_to,
-        ),
-    )
-```
-
-## Directory Structure
-
-```
-api/endpoints/
-├── __init__.py           # Exports all routers including internal
-├── debug.py
-├── healthcheck.py
-├── service_info.py
-├── internal/             # Internal endpoints directory
-│   ├── __init__.py       # Internal router aggregation
-│   ├── conveyors.py      # Internal conveyor endpoints
-│   └── tires.py          # Internal tire endpoints
-├── v1/
-│   └── ...
-└── v2/
-    └── ...
-```
 
 ## Authentication Handling
 
@@ -134,39 +41,22 @@ For service-to-service authentication, consider:
 - Service account tokens
 - mTLS (mutual TLS)
 
-## Entrypoint Registration
+## Directory Structure
 
-```python
-def create_fastapi() -> FastAPI:
-    # ... FastAPI app creation
-    
-    fastapi_app.include_router(api.v1_router, prefix=constants.BASE_API_PREFIX)
-    fastapi_app.include_router(api.v2_router, prefix=constants.BASE_API_PREFIX)
-    fastapi_app.include_router(api.internal_router, prefix=constants.BASE_API_PREFIX)
-    
-    # ...
 ```
-
-## Endpoints Aggregation Export
-
-Update `api/endpoints/__init__.py`:
-
-```python
-from .debug import *
-from .healthcheck import *
-from .internal import *
-from .service_info import *
-from .v1 import *
-from .v2 import *
-
-__all__ = (
-    debug.__all__
-    + healthcheck.__all__
-    + service_info.__all__
-    + v1.__all__
-    + internal.__all__
-    + v2.__all__
-)
+api/endpoints/
+├── __init__.py
+├── debug.py
+├── healthcheck.py
+├── service_info.py
+├── internal/             # Internal endpoints directory
+│   ├── __init__.py       # Internal router aggregation
+│   ├── conveyors.py
+│   └── tires.py
+├── v1/
+│   └── ...
+└── v2/
+    └── ...
 ```
 
 ## Common Internal Endpoint Types
@@ -189,26 +79,6 @@ __all__ = (
 ---
 
 ## Template
-
-### Internal Router (`internal/__init__.py`)
-
-```python
-from fastapi import APIRouter
-
-from {{ project_module }}.constants import INTERNAL_PREFIX
-
-{% for router in resource_routers %}
-from .{{ router.module }} import *
-{% endfor %}
-
-__all__ = ["internal_router"]
-
-internal_router = APIRouter(prefix=INTERNAL_PREFIX)
-
-{% for router in resource_routers %}
-internal_router.include_router({{ router.name }})
-{% endfor %}
-```
 
 ### Internal Resource Endpoint
 
@@ -247,8 +117,6 @@ def {{ endpoint_function }}(
 
 | Placeholder | Description | Example |
 | --- | --- | --- |
-| `{{ project_module }}` | Root module path | `my_service` |
-| `{{ resource_routers }}` | List of router configs | `[{"module": "tires", "name": "tires_router"}]` |
 | `{{ application_module }}` | Application layer module | `my_service.application` |
 | `{{ containers_module }}` | Containers module | `my_service.containers` |
 | `{{ router_name }}` | Router variable name | `tires_router` |

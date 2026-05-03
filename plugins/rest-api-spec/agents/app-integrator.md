@@ -1,6 +1,6 @@
 ---
 name: app-integrator
-description: "Integrates per-aggregate REST API endpoints into the FastAPI application. From a `<domain_stem>.rest-api.md` spec and a target-locations report, regenerates per-surface aggregator `__init__.py` files (`v<N>/__init__.py`, `internal/__init__.py`, `<plain>/__init__.py`) and the top-level `endpoints/__init__.py` from a disk scan of `<api_pkg>/endpoints/`; patch-merges API constants into `<pkg>/constants.py`; and creates `<pkg>/entrypoint.py` from the full `rest-api-spec:entrypoint` skill template (with auth/error_handlers/messaging blocks conditioned on disk presence) or, if it already exists, additively inserts missing `include_router` lines into `create_fastapi` only. Per-aggregate, idempotent, multi-aggregate-safe. Does not write endpoint modules, serializers, `containers.py`, `api/__init__.py`, or any auth/error_handlers/messaging modules; never modifies any line outside `create_fastapi` in an existing entrypoint. Invoke with: @app-integrator <locations_report_text> <rest_api_spec_file>"
+description: "Integrates per-aggregate REST API endpoints into the FastAPI application. From a `<domain_stem>.rest-api.md` spec and a target-locations report, regenerates per-surface aggregator `__init__.py` files and the top-level `endpoints/__init__.py` from a disk scan of `<api_pkg>/endpoints/`; patch-merges API constants into `<pkg>/constants.py`; creates `<pkg>/entrypoint.py` from the full `rest-api-spec:entrypoint` skill template (with auth/error_handlers/messaging blocks conditioned on disk presence) or, if it already exists, additively inserts missing `include_router` lines into `create_fastapi` only; and when the `internal` surface is present, additively patches `<pkg>/api/auth.py` to add an auth-skip guard for internal paths plus the supporting `INTERNAL_API_PREFIX` import. Per-aggregate, idempotent, multi-aggregate-safe. Does not write endpoint modules, serializers, `containers.py`, `api/__init__.py`, `error_handlers.py`, or any messaging module; never modifies any line outside `create_fastapi` in an existing entrypoint or outside `set_user_from_token` in `auth.py`. Invoke with: @app-integrator <locations_report_text> <rest_api_spec_file>"
 tools: Read, Write, Edit, Bash
 model: sonnet
 skills:
@@ -16,7 +16,7 @@ This agent does **not**:
 
 - Touch endpoint modules under `<api_pkg>/endpoints/<surface>/<plural>.py` — those are owned by `@endpoints-implementer`.
 - Touch serializer modules — owned by the serializers implementers.
-- Touch `<api_pkg>/__init__.py`, `containers.py`, `auth.py`, `error_handlers.py`, or any messaging module.
+- Touch `<api_pkg>/__init__.py`, `containers.py`, `error_handlers.py`, or any messaging module. (`<pkg>/api/auth.py` is touched **only** when the `internal` surface is present in Table 1, and only to add a single early-return guard plus its supporting import — see [§ Internal auth-skip](#internal-auth-skip-pkgapiauthpy).)
 - Modify any part of an existing `entrypoint.py` outside the `create_fastapi` function body. `init_containers`, `register_auth`, `register_error_handler`, `run_api`, top-level imports — all preserved verbatim. Only missing `include_router` lines inside `create_fastapi` are added.
 - Create surface directories — they are owned by `@rest-api-scaffolder` and assumed to exist.
 
@@ -26,6 +26,7 @@ It **does**:
 - Regenerate `<api_pkg>/endpoints/__init__.py` by scanning subdirectories under `endpoints/`.
 - Patch-merge required constants into `<pkg>/constants.py` (creating the file if absent).
 - Create `<pkg>/entrypoint.py` from the full `rest-api-spec:entrypoint` skill template if absent (with auth, error handlers, messaging, and sub-container wires conditioned on disk presence), or additively insert missing `include_router` lines into the existing `create_fastapi` function — never touching any other line.
+- When the `internal` surface is in Table 1, additively patch `<pkg>/api/auth.py` to add an internal-endpoints auth-skip guard at the top of `set_user_from_token`, plus the supporting `INTERNAL_API_PREFIX` import.
 
 ## Inputs
 
@@ -39,9 +40,9 @@ The agent uses `Bash` for filesystem inspection only — never for editing or co
 - `test -d <path>` for directory existence checks (Step 1; per-surface dir verification in Step 2).
 - `ls -1 <api_pkg>/endpoints/<S>/*.py` (or equivalent glob) for resource-module discovery (Step 3).
 - `ls -1 -F <api_pkg>/endpoints/` filtered to subdirs containing `__init__.py` for top-level aggregation (Step 4).
-- `test -f <path>` to drive the entrypoint conditional-block table (`api/auth.py`, `api/error_handlers.py`, `messaging/`, `endpoints/service_info.py`, `endpoints/healthcheck.py`).
+- `test -f <path>` to drive the entrypoint conditional-block table (`api/auth.py`, `api/error_handlers.py`, `messaging/`, `endpoints/service_info.py`, `endpoints/healthcheck.py`) and the auth-skip prerequisite check.
 
-`Read` covers content inspection (existing `constants.py`, `entrypoint.py`, the spec). `Write` always rewrites in full (used for aggregators and from-scratch creation). `Edit` is used only for additive `include_router` line insertion in an existing entrypoint.
+`Read` covers content inspection (existing `constants.py`, `entrypoint.py`, `auth.py`, the spec). `Write` always rewrites in full (used for aggregators and from-scratch creation). `Edit` is used for additive `include_router` line insertion in an existing entrypoint and for the auth-skip patch (body guard + import) in `auth.py`.
 
 ## Design contract
 
@@ -84,7 +85,7 @@ Always regenerated from a disk scan of `<api_pkg>/endpoints/<S>/`:
 Render per the dispatched skill's template:
 
 - **Version surface (`v<N>`)** — render per `rest-api-spec:version-router`. Substitutions: `{{ router_name }}` = `v<N>_router`; `{{ version_prefix }}` = constant reference `V<N>_PREFIX` (imported from `<pkg>.constants`, **not** a literal string); `{{ resource_routers }}` = `<modules>` with `module = <m>` and `router_var = <m>_router`.
-- **Internal surface** — render per `rest-api-spec:internal-router` "Internal Router (`internal/__init__.py`)" template. Substitutions: `{{ project_module }}` = `<pkg>`; `{{ resource_routers }}` = `<modules>` (each `{module: <m>, name: <m>_router}`).
+- **Internal surface** — render per `rest-api-spec:version-router` (the canonical aggregator template — internal-router skill no longer carries one). Substitutions: `{{ router_name }}` = `internal_router`; `{{ version_prefix }}` = constant reference `INTERNAL_PREFIX` (imported from `<pkg>.constants`); `{{ resource_routers }}` = `<modules>` with `module = <m>` and `router_var = <m>_router`. The `rest-api-spec:internal-router` skill is consulted only for the auth-skip behavior (see [§ Internal auth-skip](#internal-auth-skip-pkgapiauthpy) below) and the `Visibility.INTERNAL` marker (already applied by `@endpoints-implementer`).
 - **Plain surface (anything else, e.g., `public`, `admin`)** — no skill template covers this. Render directly:
 
   ```python
@@ -164,6 +165,32 @@ Patch algorithm:
 4. If `constants` is not already imported in the file, record warning `entrypoint.py: existing file does not import constants module; new include_router lines reference constants.BASE_API_PREFIX — verify imports manually.` Do not add the import (top-level imports are outside the agent's owned surface). Still emit the lines.
 5. Never touch any line outside `create_fastapi`'s body. `init_containers`, `register_auth`, `register_error_handler`, `run_api`, the instrumentation block, top-level imports — all preserved verbatim.
 
+### Internal auth-skip: `<pkg>/api/auth.py`
+
+Triggered **only when the `internal` surface is present in Table 1**. The internal-router skill mandates that internal endpoints bypass user authentication; the agent enforces this by patching `<pkg>/api/auth.py` to short-circuit `set_user_from_token` for any path containing `INTERNAL_API_PREFIX`.
+
+The patch has two parts: a **body guard** in `set_user_from_token`, and the **import** that backs it.
+
+**Body guard.** Always prepend a dedicated early-return as the first executable line of `set_user_from_token`'s body:
+
+```python
+    if INTERNAL_API_PREFIX in request.url.path:
+        return
+```
+
+Idempotency: if the substring `INTERNAL_API_PREFIX` appears anywhere within the body of `set_user_from_token` (regex over the function block), the guard is considered already present and the agent makes no edit (recorded as `kept`). Otherwise the two lines above are inserted as the first statements of the body, preserving 4-space indentation. The agent does **not** attempt to merge into a pre-existing `PUBLIC_ENDPOINTS`-style early return — the dedicated guard is canonical even if a sibling early-return is already there.
+
+**Import.** Ensure `INTERNAL_API_PREFIX` is importable from `<pkg>.constants` inside `auth.py`:
+
+1. If a `from <pkg>.constants import …` line already exists at module level: if `INTERNAL_API_PREFIX` is in its name list, leave it (`kept`). Otherwise append `INTERNAL_API_PREFIX` to the imported names alphabetically (`added`).
+2. Else insert a new `from <pkg>.constants import INTERNAL_API_PREFIX` line in the project-imports group (after stdlib + third-party imports, before any other `from <pkg>.…` import; if no project imports exist, append after the last third-party import).
+
+**Out-of-scope edits.** The agent does not touch any other line of `auth.py`. Other functions, the `PUBLIC_ENDPOINTS` tuple, logging setup, etc., are preserved verbatim.
+
+**Missing prerequisites.** If `<pkg>/api/auth.py` does not exist, or the file exists but contains no `def set_user_from_token` definition, record warning `auth.py: set_user_from_token not found — skipping internal auth-skip patch.` and continue. Do **not** abort, do **not** scaffold a new auth.py.
+
+When the `internal` surface is **absent** from Table 1, the agent leaves `auth.py` untouched.
+
 ### Idempotency summary
 
 | Artifact | Policy |
@@ -172,6 +199,7 @@ Patch algorithm:
 | `<api_pkg>/endpoints/__init__.py` | Always regenerated from disk scan |
 | `<pkg>/constants.py` | Created if absent; patch-merge missing constants only |
 | `<pkg>/entrypoint.py` | Created if absent; patch-merge missing `include_router` lines only |
+| `<pkg>/api/auth.py` | Touched only if `internal` surface present; additive patch (body guard + import); warn-and-continue if file or function missing |
 
 Multi-aggregate runs are safe: each invocation rewrites the per-surface aggregator from the current disk state (which now includes the new aggregate's `<plural>.py`) and adds only the missing `include_router` lines for surfaces this aggregate participates in.
 
@@ -241,7 +269,19 @@ Record per constant: `added` / `kept`. The file-level outcome is `created` or `p
 
 Apply [§ Entrypoint](#entrypoint-pkgentrypointpy) verbatim. Re-sort surfaces from Table 1 order to render order (`v<N>` ascending → `internal` → plain alphabetical) before either rendering the full template or computing missing `include_router` lines. Record `created` / `patched (added: <N>)` / `unchanged`, plus any warnings emitted by the patch algorithm.
 
-### Step 7 — Report
+### Step 7 — Patch internal auth-skip (only if internal surface present)
+
+If `internal` is in `<surfaces>`, apply [§ Internal auth-skip](#internal-auth-skip-pkgapiauthpy):
+
+1. `test -f <pkg_dir>/api/auth.py` — if absent, record warning `auth.py: file not found — skipping internal auth-skip patch.` and continue.
+2. Read `auth.py`. Locate `def set_user_from_token(` block. If absent, record warning `auth.py: set_user_from_token not found — skipping internal auth-skip patch.` and continue.
+3. Scan the function body for `INTERNAL_API_PREFIX`. If found, record `auth.py: kept (guard already present)`. Otherwise, prepend the two-line guard as the first body statement (4-space indent), record `auth.py: patched (guard added)`.
+4. Patch the import per [§ Internal auth-skip](#internal-auth-skip-pkgapiauthpy): merge `INTERNAL_API_PREFIX` into the existing `from <pkg>.constants import …` line if any, else insert a new project-imports line.
+5. Write the modified file via `Edit` (do not regenerate via `Write`).
+
+If `internal` is not in `<surfaces>`, skip this step entirely.
+
+### Step 8 — Report
 
 Emit a concise Markdown summary, with one section per artifact category:
 
@@ -249,6 +289,7 @@ Emit a concise Markdown summary, with one section per artifact category:
 - **Top-level aggregator** — one line: `<api_pkg>/endpoints/__init__.py: regenerated` (or `aborted`).
 - **Constants** — one line: `<pkg_dir>/constants.py: created` or `<pkg_dir>/constants.py: patched (added: <N>, kept: <M>)` plus a short bulleted list of constants added.
 - **Entrypoint** — one line: `<pkg_dir>/entrypoint.py: created` / `patched (added: <N>)` / `unchanged` plus any warning messages.
+- **Auth-skip** — only when `internal` surface present: one line: `<pkg_dir>/api/auth.py: patched (guard added, import added/kept)` / `kept (guard already present)` / `skipped (file not found)` / `skipped (set_user_from_token not found)`. Omit this section entirely when `internal` is absent.
 
 End with: `Integrated <Resource> surfaces into FastAPI app.` where `<Resource>` is Table 1's Resource name.
 
@@ -442,6 +483,42 @@ def run_api():
         workers=int(os.getenv("WEB_CONCURRENCY", "3")),
     )
 ```
+
+### Auth-skip patched: `cargo/api/auth.py`
+
+`internal` is in Table 1 → Step 7 fires. Suppose `auth.py` exists with `set_user_from_token` but no `INTERNAL_API_PREFIX` reference. Before:
+
+```python
+from cargo.application import AuthCommands
+
+@inject
+def set_user_from_token(
+    request: Request,
+    auth_commands: AuthCommands = Provide[Containers.auth_commands],
+) -> None:
+    user_data = auth_commands.authorize(request.headers)
+    set_current_user(user_data)
+```
+
+After:
+
+```python
+from cargo.application import AuthCommands
+from cargo.constants import INTERNAL_API_PREFIX
+
+@inject
+def set_user_from_token(
+    request: Request,
+    auth_commands: AuthCommands = Provide[Containers.auth_commands],
+) -> None:
+    if INTERNAL_API_PREFIX in request.url.path:
+        return
+
+    user_data = auth_commands.authorize(request.headers)
+    set_current_user(user_data)
+```
+
+Re-running the agent produces no further changes — the `INTERNAL_API_PREFIX` substring is detected in the function body and the import is detected on the existing `from cargo.constants import …` line.
 
 ### Second-aggregate run (existing entrypoint, patch path)
 
