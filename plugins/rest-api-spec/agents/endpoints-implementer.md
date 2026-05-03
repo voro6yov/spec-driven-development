@@ -70,9 +70,9 @@ The agent emits a deterministic, sorted import block. Compute the union of needs
 | project | `get_tenant_id` (only if any endpoint has an `Auth context` mapping) | `<pkg>.api.auth` |
 | project (relative) | `MarkerRoute` | `...endpoint_marker` |
 | project (relative) | `Visibility` | `...endpoint_visibility` |
-| project (relative) | every request/response serializer class referenced by any endpoint in the module | `..serializers.<surface>` (or `..serializers.<surface>.<operation>` if the per-surface aggregator is missing — see below) |
+| project (relative) | every request/response serializer class referenced by any endpoint in the module | `...serializers.<surface>` (or `...serializers.<surface>.<operation>` if the per-surface aggregator is missing — see below) |
 
-Serializer imports go through `..serializers.<surface>` (the per-surface aggregator). Even if that aggregator is currently a zero-byte file, the serializers implementers will (re)write it on their next run; we import the public names. List names alphabetically.
+Serializer imports go through `...serializers.<surface>` (the per-surface aggregator). Three dots — endpoint modules live at `api/endpoints/<surface>/<plural>.py`, so two dots would resolve to `api/endpoints/serializers/<surface>` (wrong); three dots resolves to `api/serializers/<surface>` (correct). Even if that aggregator is currently a zero-byte file, the serializers implementers will (re)write it on their next run; we import the public names. List names alphabetically.
 
 `<pkg>` is the project package name resolved from the `Containers` path of `<locations_report_text>` — strip `<repo_path>/src/` from the front and `/containers.py` from the back. `<aggregate>` is the snake-case singular of Table 1's Resource name (e.g., `LineItem` → `line_item`).
 
