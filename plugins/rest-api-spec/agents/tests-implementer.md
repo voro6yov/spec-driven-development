@@ -1,6 +1,6 @@
 ---
 name: tests-implementer
-description: "Implements pytest integration tests for the REST API endpoints of one resource. Takes a target-locations report and a domain diagram; derives the `<domain_stem>.rest-api.md` sibling spec, parses every `## Surface:` section, and writes one test module per surface at `<tests_dir>/integration/<resource>/test_<plural>_<surface>_api.py`. Per-endpoint dispatch is Table-driven (success / not_found / already_exists / missing_required_field). Append-only and idempotent. Invoke with: @tests-implementer <locations_report_text> <domain_diagram>"
+description: "Implements pytest integration tests for the REST API endpoints of one resource. Takes a target-locations report and a domain diagram; derives the `<domain_stem>.rest-api.md` sibling spec, parses every `## Surface:` section, and writes one test module per surface at `<tests_dir>/integration/<resource>/test_<plural>_<surface>_api.py`. Per-endpoint dispatch is Table-driven (success / not_found / already_exists / missing_required_field). Mutating-endpoint JSON bodies are resolved from `<aggregate>_2` (success / not_found) and `<aggregate>_1` (already_exists) by snake_case-mapping Table 5 field names to fixture attributes, with type-based stub fallback when a field cannot be resolved. Append-only and idempotent. Invoke with: @tests-implementer <locations_report_text> <domain_diagram>"
 tools: Read, Write, Edit, Bash, Skill
 skills:
   - rest-api-spec:api-endpoint-test-rules
@@ -92,16 +92,18 @@ For each fixture below, scan the listed file for `^def <name>(` matches and chec
 grep -nE "^def client\(" <tests_dir>/conftest.py || true
 grep -nE "^def request_headers\(" <tests_dir>/conftest.py || true
 grep -nE "^def <aggregate>_1\(" <tests_dir>/conftest.py || true
+grep -nE "^def <aggregate>_2\(" <tests_dir>/conftest.py || true
 grep -nE "^def add_<plural_agg>\(" <tests_dir>/integration/conftest.py || true
 ```
 
-Per missing fixture, abort with the matching message:
+Per missing fixture, abort with the matching message — except `<aggregate>_2`, which is **non-fatal**: bind `<body_fix>` to `<aggregate>_2` if present, else fall back to `<aggregate>_1`. Body resolution (Step 7) reads from `<body_fix>`. When the fallback is taken, factory `__success` bodies will collide with the persisted fixture and surface 409 — preferable to authoring a synthetic second state.
 
 | Missing | Message |
 |---|---|
 | `client` | `ERROR: fixture 'client' not found in <tests_dir>/conftest.py. Run @test-fixtures-preparer first.` |
 | `request_headers` | `ERROR: fixture 'request_headers' not found in <tests_dir>/conftest.py. Run @test-fixtures-preparer first.` |
 | `<aggregate>_1` | `ERROR: fixture '<aggregate>_1' not found in <tests_dir>/conftest.py. Run @aggregate-fixtures-writer first.` |
+| `<aggregate>_2` | (non-fatal) emit a Step 9 warning: `WARNING: fixture '<aggregate>_2' not found — falling back to <aggregate>_1 for mutating __success bodies (factory tests will likely return 409).` |
 | `add_<plural_agg>` | `ERROR: fixture 'add_<plural_agg>' not found in <tests_dir>/integration/conftest.py. Run @integration-fixtures-writer first.` |
 
 ### Step 5 — Per surface: enumerate endpoints and dispatch scenarios
@@ -179,9 +181,23 @@ f"{<api_prefix_const>}<router_prefix><path_with_id_substituted>"
 
 Path substitution rules:
 - `{id}` → `{<fix>.id}` for `__success`/`__missing_required_field`; literal `non-existent-id` for `__not_found`/`__already_exists`.
-- Other camelCase placeholders (`{tireId}`, `{documentTypeId}`) → emit a literal `placeholder-id` and append a `# TODO: replace with fixture-derived value` comment on the URL line.
+- Other camelCase placeholders (`{tireId}`, `{documentTypeId}`) → resolve via the **Nested-id resolution** rule below. Use the same resolution for all scenarios; do **not** swap to `non-existent-id` for `__not_found` (the parent `{id}` is already non-existent, which is what triggers the 404).
 
 Where `<fix>` is `<aggregate>_1`.
+
+#### Nested-id resolution
+
+For each non-`{id}` camelCase placeholder `{<thingId>}`:
+
+1. Strip the trailing `Id` from the placeholder name (case-sensitive): `tireId` → `tire`, `documentTypeId` → `documentType`.
+2. snake_case the result (same regex as Step 3): `tire` → `tire`, `documentType` → `document_type`.
+3. Pluralize using these rules (first match wins; same as `application-spec` plural rules):
+   - ends with `y` preceded by a non-vowel letter → drop `y`, append `ies` (`policy` → `policies`).
+   - ends with `s`, `x`, `ch`, or `sh` → append `es` (`box` → `boxes`).
+   - otherwise → append `s` (`tire` → `tires`, `document_type` → `document_types`).
+4. Substitute the placeholder with `{<aggregate>_1.<plural>[0].id}` — e.g. `{tireId}` → `{load_1.tires[0].id}`, `{documentTypeId}` → `{load_1.document_types[0].id}`.
+
+If the resolution requires drilling but the aggregate fixture does not actually expose the collection (verifiable only at test runtime), the test will fail with `AttributeError`; the user is expected to either populate the collection in the aggregate fixture or rename the path placeholder. The agent does not attempt diagram-level verification.
 
 #### Templates
 
@@ -204,24 +220,78 @@ def test_<operation>__success(client, request_headers, <fix>, add_<plural_agg>):
 
 Body emission rules:
 
-- **Mutating method (POST/PUT/PATCH) with `has_body == True`**: emit `json={},  # TODO: fill in valid body per Table 5` plus a leading `# TODO: build a valid request body per Table 5 fields` comment. The agent does **not** attempt to derive a valid body.
+- **Mutating method (POST/PUT/PATCH) with `has_body == True`**: derive a `json=<dict>` argument per the **Body resolution** rules below. No TODO comments are emitted in the happy case; resolved-from-fixture references are inlined as Python expressions.
 - **Mutating method with `has_body == False`** (e.g. `POST /{id}/start-receiving` with `*No request body*`): omit `json=` entirely.
 - **GET / DELETE**: omit `json=` entirely.
 
-Concrete body-bearing form:
+#### Body resolution
+
+For each Table 5 field row `(name, type, required?)` selected for the body (selection rules in the next paragraph), build one entry of the JSON dict as `"<name>": <value_expr>`:
+
+1. **Key** — Table 5 `name` verbatim (camelCase preserved; matches the request serializer's HTTP surface).
+2. **Value resolution**:
+   - **Fixture-attribute lookup.** snake_case `<name>` (apply the same regex as Step 3: insert `_` before each `[A-Z][a-z]` boundary and each `[a-z0-9][A-Z]` boundary, then lowercase). Bind `<attr>`. Then verify the attribute exists on the source fixture by reading the fixture definition out of `<tests_dir>/conftest.py` — see "Fixture attribute discovery" below.
+     - If `<attr>` is found on `<src_fix>`, emit `<src_fix>.<attr>` as the value expression.
+     - If not found, fall to step 3.
+3. **Type-based stub fallback.** Strip a trailing `| None` from the Table 5 Type cell, then map by the leading token:
+   | Table 5 Type | Stub literal |
+   |---|---|
+   | `str` | `"test"` |
+   | `int` | `0` |
+   | `bool` | `False` |
+   | `float` / `Decimal` | `0` |
+   | `list` / `list[*]` / `tuple[*]` | `[]` |
+   | `dict` / `dict[*]` | `{}` |
+   | `datetime` / `date` | `"2024-01-01T00:00:00Z"` (datetime) or `"2024-01-01"` (date) |
+   | `bytes` | `b""` |
+   | anything else | `None` plus `# TODO: provide a value for <name>` trailing comment on that line |
+
+   When a stub is used, append a `# TODO: <name> stubbed (<reason>)` trailing comment on that line where `<reason>` is `not on <src_fix>` or `unsupported type <Type>`.
+
+**Body field selection.** Drives which Table 5 rows enter the dict:
+
+| Endpoint shape | Selection |
+|---|---|
+| Factory POST `/` (`__success`, `__already_exists`) | All Table 5 rows |
+| Mutating `/{id}` POST/PUT (`__success`, `__not_found`) | All Table 5 rows |
+| PATCH `/{id}` (`__success`, `__not_found`) | Required-only — Table 5 rows whose Type does **not** contain `\| None` |
+| Any `__missing_required_field` | Empty body (`json={}`); selection bypassed |
+
+**Source fixture per scenario** — bind `<src_fix>`:
+
+| Scenario | `<src_fix>` |
+|---|---|
+| `__success` (mutating) | `<body_fix>` (= `<aggregate>_2` if present, else `<aggregate>_1` per Step 4) |
+| `__not_found` (mutating, has_body) | `<body_fix>` |
+| `__already_exists` (factory POST) | `<aggregate>_1` (collision intent) |
+
+**Function args injection.** When body resolution emits at least one fixture-attribute reference, add the source fixture(s) to the test function's argument list (alphabetical after `client, request_headers`). When all body fields use stubs, no extra fixture is added.
+
+**Fixture attribute discovery.** Once per run, parse each fixture (`<aggregate>_1`, `<aggregate>_2` if present) by reading its body in `<tests_dir>/conftest.py`. Apply this rule:
+
+- If the fixture body contains a single top-level `return <Aggregate>(...)` (or `yield <Aggregate>(...)`) call, treat each kwarg name as an exposed attribute. The aggregate's flat constructor arguments map 1:1 to its public attributes (per `domain-spec:flat-constructor-arguments`).
+- Otherwise (more complex body) parse `<src_fix>(...)` kwargs from any `return` or `yield` statement in the fixture body and treat those kwarg names as attributes.
+
+This is a static heuristic — it does not import or instantiate the fixture; missing attributes degrade gracefully to type-stub fallback.
+
+Concrete body-bearing form (mutating, with body resolution applied):
 
 ```python
-def test_<operation>__success(client, request_headers, <fix>, add_<plural_agg>):
+def test_<operation>__success(client, request_headers, <fix>, add_<plural_agg>, <body_fix>):
     # GIVEN <aggregate> exists in DB
-    # TODO: build a valid request body per Table 5 fields
     response = client.<method>(
         f"{<api_prefix_const>}<router_prefix><path>",
         headers=request_headers,
-        json={},  # TODO: fill in valid body
+        json={
+            "<field_1>": <body_fix>.<attr_1>,
+            "<field_2>": <body_fix>.<attr_2>,
+        },
     )
 
     assert response.status_code == HTTPStatus.<EXPECTED>
 ```
+
+Drop `<body_fix>` from the parameter list when it equals `<fix>` (i.e. when `<aggregate>_2` was absent and the fallback is `<aggregate>_1`).
 
 Bodyless form:
 
@@ -261,24 +331,27 @@ def test_<operation>__not_found(client, request_headers):
     assert response.status_code == HTTPStatus.NOT_FOUND
 ```
 
-Body emission for `__not_found` follows the same rules as `__success`: omit `json=` entirely when `has_body == False` or method ∈ {GET, DELETE}; emit `json={}` when `has_body == True` for POST/PUT/PATCH.
+Body emission for `__not_found` follows the same **Body resolution** rules as `__success` (so the test reaches the not-found branch instead of failing validation first): omit `json=` entirely when `has_body == False` or method ∈ {GET, DELETE}; otherwise build the dict from `<body_fix>` per the resolution rules. Inject `<body_fix>` into the function args if any field resolved to a fixture reference.
 
 ##### `__already_exists` (factory POST `/` only)
 
 ```python
 def test_<operation>__already_exists(client, request_headers, <fix>, add_<plural_agg>):
     # GIVEN <aggregate> with the same key already exists in DB
-    # WHEN POSTing again with the same body
-    # TODO: build a body that collides with <fix>'s identity per Table 5 fields
     response = client.post(
         f"{<api_prefix_const>}<router_prefix>",
         headers=request_headers,
-        json={},  # TODO: fill in colliding body
+        json={
+            "<field_1>": <fix>.<attr_1>,
+            "<field_2>": <fix>.<attr_2>,
+        },
     )
 
     # THEN returns 409
     assert response.status_code == HTTPStatus.CONFLICT
 ```
+
+`<src_fix>` for `__already_exists` is `<aggregate>_1` (i.e. `<fix>`) so the body collides with the persisted aggregate. Body resolution otherwise mirrors `__success` (all Table 5 rows; fixture-attribute references; type-stub fallback for unresolved fields).
 
 ##### `__missing_required_field`
 
@@ -357,6 +430,18 @@ If any `<api_prefix_const>` warning was produced in Step 6, append one warning l
 WARNING: constant '<api_prefix_const>' not found in <constants_path> — run @app-integrator first or the tests will fail to import.
 ```
 
+If `<aggregate>_2` was absent (Step 4), append:
+
+```
+WARNING: fixture '<aggregate>_2' not found — falling back to <aggregate>_1 for mutating __success bodies (factory tests will likely return 409).
+```
+
+If body resolution stubbed any field, append one warning line per stubbed `(operation, field)` pair:
+
+```
+WARNING: <surface>/<operation>: field '<field>' stubbed (<reason>) — replace with a real value if the test fails.
+```
+
 These are warnings, not errors — the agent still writes the files.
 
 End with:
@@ -430,13 +515,15 @@ def test_find_load__not_found(client, request_headers):
     assert response.status_code == HTTPStatus.NOT_FOUND
 
 
-def test_create_load__success(client, request_headers, load_1, add_loads):
+def test_create_load__success(client, request_headers, load_1, add_loads, load_2):
     # GIVEN load exists in DB
-    # TODO: build a valid request body per Table 5 fields
     response = client.post(
         f"{V1_API_PREFIX}/loads",
         headers=request_headers,
-        json={},  # TODO: fill in valid body
+        json={
+            "warehouseId": load_2.warehouse_id,
+            "conveyor": load_2.conveyor,
+        },
     )
 
     assert response.status_code == HTTPStatus.CREATED
@@ -444,11 +531,13 @@ def test_create_load__success(client, request_headers, load_1, add_loads):
 
 def test_create_load__already_exists(client, request_headers, load_1, add_loads):
     # GIVEN load with the same key already exists in DB
-    # TODO: build a body that collides with load_1's identity per Table 5 fields
     response = client.post(
         f"{V1_API_PREFIX}/loads",
         headers=request_headers,
-        json={},  # TODO: fill in colliding body
+        json={
+            "warehouseId": load_1.warehouse_id,
+            "conveyor": load_1.conveyor,
+        },
     )
 
     assert response.status_code == HTTPStatus.CONFLICT
@@ -505,7 +594,7 @@ def test_delete_load__not_found(client, request_headers):
     assert response.status_code == HTTPStatus.NOT_FOUND
 ```
 
-Note: `start_receiving` and `delete_load` omit `json=` because Table 5 declares `*No request body*`; `create_load` emits `json={}` with a TODO because Table 5 has fields. `start_receiving` does **not** get a `__missing_required_field` test (no body to validate); `delete_load` does **not** get one either (DELETE excluded from the dispatch table).
+Note: `start_receiving` and `delete_load` omit `json=` because Table 5 declares `*No request body*`. `create_load` emits a body resolved from `load_2` for `__success` (avoids collision with the persisted `load_1`) and from `load_1` for `__already_exists` (forces collision); both bodies use camelCase keys mirroring Table 5. `start_receiving` does **not** get a `__missing_required_field` test (no body to validate); `delete_load` does **not** get one either (DELETE excluded from the dispatch table).
 
 ## Constraints
 
@@ -515,7 +604,7 @@ Note: `start_receiving` and `delete_load` omit `json=` because Table 5 declares 
 - Public attributes only on fixtures.
 - Never modify `<tests_dir>/conftest.py` or `<tests_dir>/integration/conftest.py`.
 - Endpoint scenario dispatch is signature- and Table-driven; do not infer scenarios from operation names alone.
-- Do not attempt to construct a valid request body — emit `json={}` with a `# TODO` comment for mutating endpoints. The user fills in project-specific bodies by hand.
+- Resolve mutating-endpoint bodies from existing aggregate fixtures per the **Body resolution** rules (Step 7). Do not author new fixtures, do not import the aggregate to introspect its attributes, and do not emit `json={}` placeholders for body-bearing happy-path / 4xx scenarios — that placeholder is reserved for `__missing_required_field`.
 - Skip 401-unauthorized, 403-forbidden, response-structure (camelCase), and query-param filter scenarios — out of scope for this agent.
 
 ## Failure modes summary
@@ -538,4 +627,6 @@ Note: `start_receiving` and `delete_load` omit `json=` because Table 5 declares 
 | Condition | Behavior |
 |---|---|
 | `<constants_path>` missing or `<api_prefix_const>` not present in it | Emit a single `WARNING:` line in Step 9's report; still write the test file (the import will resolve once `@app-integrator` runs). |
-| Non-`{id}` path placeholder in URL | Substitute `placeholder-id` and emit a `# TODO: replace with fixture-derived value` comment on the URL line. |
+| Non-`{id}` path placeholder in URL | Resolve via the **Nested-id resolution** rule (Step 7) — `{<thingId>}` → `{<aggregate>_1.<plural>[0].id}`. Test will fail at runtime with `AttributeError` if the collection is not exposed by the aggregate fixture. |
+| `<aggregate>_2` fixture missing | Emit a Step 9 warning and fall back to `<aggregate>_1` for mutating `__success` bodies; factory `__success` tests will return 409 instead of 201 — surfaces the gap without blocking generation. |
+| Body field cannot be resolved on `<src_fix>` | Substitute a type-based stub literal (Step 7 table) and append a `# TODO: <field> stubbed (...)` trailing comment; do not abort. |
