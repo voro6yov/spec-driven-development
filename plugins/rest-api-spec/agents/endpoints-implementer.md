@@ -65,7 +65,8 @@ The agent emits a deterministic, sorted import block. Compute the union of needs
 | third-party | `APIRouter, Depends, status` + any of `Path, Query, Body, File, UploadFile` actually used | `fastapi` |
 | third-party | `StreamingResponse` (only if a binary endpoint exists) | `fastapi.responses` |
 | project | `<aggregate>_commands` / `<aggregate>_queries` application classes (only those referenced) | `<pkg>.application` |
-| project | `Pagination` (only if Table 6 references `→ Pagination`) | `<pkg>.domain.<aggregate>` |
+| project | `Pagination` (only if Table 6 references `→ Pagination`) | `<pkg>.domain.shared` |
+| project | Per-aggregate domain composites referenced by Table 6 (e.g., `<Resource>Filtering`) | `<pkg>.domain.<aggregate>` |
 | project | `Containers` | `<pkg>.containers` |
 | project | `get_tenant_id` (only if any endpoint has an `Auth context` mapping) | `<pkg>.api.auth` |
 | project (relative) | `MarkerRoute` | `...endpoint_marker` |
@@ -148,7 +149,7 @@ Each endpoint's call to `commands.<method>(...)` or `queries.<method>(...)` is e
 | `Auth context` | `tenant_id=tenant_id` (parameter name comes from Table 6's left column verbatim — typically `tenant_id`, but if some other principal name is used, mirror it) |
 | `` Request body `<field>` `` | `<field>=request.<field>` |
 | `` Query param `<name>` `` | `<name>=request.<name>` |
-| `` Constructed from query params `<f1>`, `<f2>`, … → `<Type>` `` | `<param>=<Type>(<f1>=request.<f1>, <f2>=request.<f2>, …)` — the kwarg name is the left-column parameter name from Table 6 (e.g., `pagination`); the `<Type>` is imported from `<pkg>.domain.<aggregate>` for `Pagination` and other domain composites. Append ` if any(...) else None` only when the Table 6 cell ends with `(defaults from settings if None)` AND the original parameter is `T \| None` — in that case wrap as `<param>=<Type>(...) if (request.<f1> is not None or request.<f2> is not None or ...) else None`. |
+| `` Constructed from query params `<f1>`, `<f2>`, … → `<Type>` `` | `<param>=<Type>(<f1>=request.<f1>, <f2>=request.<f2>, …)` — the kwarg name is the left-column parameter name from Table 6 (e.g., `pagination`); the `<Type>` is imported from `<pkg>.domain.shared` for `Pagination` and from `<pkg>.domain.<aggregate>` for per-aggregate composites like `<Resource>Filtering`. Append ` if any(...) else None` only when the Table 6 cell ends with `(defaults from settings if None)` AND the original parameter is `T \| None` — in that case wrap as `<param>=<Type>(...) if (request.<f1> is not None or request.<f2> is not None or ...) else None`. |
 
 Important rules:
 
