@@ -109,9 +109,20 @@ Common rules across all three: no tags on the aggregator (resource routers alrea
 
 ### Top-level aggregator: `<api_pkg>/endpoints/__init__.py`
 
-Always regenerated from a disk scan of `<api_pkg>/endpoints/`. List immediate subdirectories containing an `__init__.py`, sort alphabetically as `<surfaces_on_disk>`. If empty, abort with: `Error: <api_pkg>/endpoints/ contains no surface subpackages.`
+Always regenerated from a disk scan of `<api_pkg>/endpoints/`. The scan produces **two ordered lists**, both sorted alphabetically:
 
-Render per the "Module Exports" example in `rest-api-spec:version-router` (or "Endpoints Aggregation Export" in `rest-api-spec:internal-router` — they show the same shape), with this addition required by the agent: emit a `from . import <S1>, <S2>, …` line between the star-imports and the `__all__` sum, so that callers can access `<api_pkg>.endpoints.<S>.__all__` for the sum and reference `<api_pkg>.endpoints.<S>_router` directly via the star-imports. All `<Si>` are rendered in alphabetical order.
+- `<top_modules_on_disk>` — immediate `*.py` files in `<api_pkg>/endpoints/`, excluding `__init__.py`. These are stand-alone routers like `debug.py`, `healthcheck.py`, `service_info.py` whose modules are owned by upstream scaffolding (not by this workflow) and must be preserved across regenerations.
+- `<surfaces_on_disk>` — immediate subdirectories containing an `__init__.py`. These are the per-surface aggregator packages (`v1`, `internal`, `public`, …).
+
+If both lists are empty, abort with: `Error: <api_pkg>/endpoints/ contains no top-level modules or surface subpackages.`
+
+Render per the "Module Exports" example in `rest-api-spec:version-router` (which already shows top-level `debug` / `healthcheck` / `service_info` modules co-existing with surface packages), with these additions required by the agent:
+
+- Star-import every entry of `<top_modules_on_disk>` first, then every entry of `<surfaces_on_disk>`. Within each group, alphabetical.
+- Emit a `from . import <name1>, <name2>, …` line listing **all** entries (top modules first, then surfaces; alphabetical within each group) between the star-imports and the `__all__` sum, so that callers can access each child's `__all__` via dotted reference and still get the routers themselves through the star-imports.
+- Build `__all__` as the parenthesized sum `<name1>.__all__ + <name2>.__all__ + …` over the same combined list, in the same order.
+
+The agent never deletes a top-level `.py` module it did not write. If a top-level module is present on disk, it stays in the aggregator. The only way a top-level module disappears from the aggregator is if a different workflow removes the file from disk before this agent runs.
 
 ### Constants: `<pkg>/constants.py`
 
@@ -252,11 +263,14 @@ For each `<S>` in `<surfaces>`:
 
 ### Step 4 — Regenerate top-level aggregator
 
-List immediate subdirectories of `<api_pkg>/endpoints/` containing an `__init__.py`. Sort alphabetically.
+Scan `<api_pkg>/endpoints/` to build two alphabetically-sorted lists:
 
-If empty, abort with `Error: <api_pkg>/endpoints/ contains no surface subpackages.`
+- Top-level modules: immediate `*.py` files (exclude `__init__.py`).
+- Surfaces: immediate subdirectories containing an `__init__.py`.
 
-Render `<api_pkg>/endpoints/__init__.py` per [§ Top-level aggregator](#top-level-aggregator-api_pkgendpoints__init__py) and write. Record `regenerated`.
+If both lists are empty, abort with `Error: <api_pkg>/endpoints/ contains no top-level modules or surface subpackages.`
+
+Render `<api_pkg>/endpoints/__init__.py` per [§ Top-level aggregator](#top-level-aggregator-api_pkgendpoints__init__py) — top-level modules first, then surfaces, alphabetical within each group — and write. Record `regenerated`.
 
 ### Step 5 — Patch-merge constants
 
@@ -322,6 +336,9 @@ So `<api_pkg>` = `/repo/src/cargo/api`, `<pkg_dir>` = `/repo/src/cargo`, `<pkg>`
 Disk after `@endpoints-implementer`:
 
 ```
+/repo/src/cargo/api/endpoints/debug.py          # pre-existing top-level module
+/repo/src/cargo/api/endpoints/healthcheck.py    # pre-existing top-level module
+/repo/src/cargo/api/endpoints/service_info.py   # pre-existing top-level module
 /repo/src/cargo/api/endpoints/v1/loads.py
 /repo/src/cargo/api/endpoints/internal/loads.py
 /repo/src/cargo/api/auth.py            # exists
@@ -363,18 +380,24 @@ internal_router.include_router(loads_router)
 ### Top-level aggregator emitted: `api/endpoints/__init__.py`
 
 ```python
+from .debug import *
+from .healthcheck import *
+from .service_info import *
 from .internal import *
 from .v1 import *
 
-from . import internal, v1
+from . import debug, healthcheck, service_info, internal, v1
 
 __all__ = (
-    internal.__all__
+    debug.__all__
+    + healthcheck.__all__
+    + service_info.__all__
+    + internal.__all__
     + v1.__all__
 )
 ```
 
-(Alphabetical: `internal` precedes `v1`.)
+(Top-level modules first — `debug`, `healthcheck`, `service_info` alphabetically — then surface packages, also alphabetically: `internal` before `v1`.)
 
 ### Constants emitted (file absent → created): `cargo/constants.py`
 
@@ -543,6 +566,6 @@ If `Conveyor`'s Table 1 instead listed `Surfaces: v2`, the agent would insert ex
 - Spec Table 1 lacks the `Surfaces` row.
 - A surface listed in Table 1 has no directory at `<api_pkg>/endpoints/<S>/`.
 - A surface directory has no `<plural>.py` modules.
-- `<api_pkg>/endpoints/` contains no surface subpackages at top-level aggregation time.
+- `<api_pkg>/endpoints/` contains neither top-level `*.py` modules nor surface subpackages at top-level aggregation time.
 
 In all error cases, report the error message verbatim and do not produce a partial run beyond what was already written before the error point. (Aggregator regeneration is per-surface; if surface 2 fails after surface 1 succeeded, surface 1's regeneration stands and the report records the abort at surface 2.)
