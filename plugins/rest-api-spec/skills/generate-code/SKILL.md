@@ -35,7 +35,7 @@ Capture the agent's full Markdown table output verbatim as `<locations_report_te
 
 Invoke `rest-api-spec:rest-api-scaffolder` with prompt `<locations_report_text> <rest_api_spec_file>`. Wait for completion.
 
-This emits the `endpoints/` and `serializers/` sub-packages, the per-surface sub-directories under each, the shared serializer modules (`error.py`, `configured_base_serializer.py`, `json_utils.py`) at `serializers/` root, and the root `serializers/__init__.py` aggregator. Subsequent steps assume these stubs exist on disk.
+This emits the `endpoints/` and `serializers/` sub-packages and the per-surface sub-directories under each. Subsequent steps assume these stubs exist on disk. The shared serializer modules (`error.py`, `configured_base_serializer.py`, `json_utils.py`) and the root `serializers/__init__.py` aggregator are **not** owned by this step — they are project-wide dependencies installed once by `/rest-api-spec:generate-rest-api-deps`. Run that skill before this one if it has not yet been run for this project.
 
 If the scaffolder aborts, propagate the failure and stop — do not proceed to Step 4.
 
