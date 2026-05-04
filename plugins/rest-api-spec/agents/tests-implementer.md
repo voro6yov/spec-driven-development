@@ -38,6 +38,8 @@ Extract from `<locations_report_text>`:
 
 Derive `<constants_path>` = sibling of `<containers_path>` named `constants.py` (i.e. `dirname(<containers_path>)/constants.py`).
 
+Derive `<src_root>` = `dirname(dirname(<containers_path>))` (containers.py lives at `<src_root>/<pkg>/containers.py`). This is used in Step 7 to locate the aggregate module on disk for attribute discovery.
+
 If any row is missing or malformed, abort with: `ERROR: locations report missing API Package, Containers, or Tests row.`
 
 Verify `<tests_dir>` and its `integration/` subdirectory exist:
@@ -267,12 +269,30 @@ For each Table 5 field row `(name, type, required?)` selected for the body (sele
 
 **Function args injection.** When body resolution emits at least one fixture-attribute reference, add the source fixture(s) to the test function's argument list (alphabetical after `client, request_headers`). When all body fields use stubs, no extra fixture is added.
 
-**Fixture attribute discovery.** Once per run, parse each fixture (`<aggregate>_1`, `<aggregate>_2` if present) by reading its body in `<tests_dir>/conftest.py`. Apply this rule:
+**Aggregate attribute discovery.** Once per run, parse the aggregate module on disk to enumerate its true public attribute set. The aggregate's flat constructor arguments do **not** 1:1-map to public attributes when the aggregate uses `domain-spec:flat-constructor-arguments` — flat primitives are folded into value objects (e.g. `name` + `description` → `details: Details`), so kwargs are misleading. The Guard declarations on the class body are authoritative.
 
-- If the fixture body contains a single top-level `return <Aggregate>(...)` (or `yield <Aggregate>(...)`) call, treat each kwarg name as an exposed attribute. The aggregate's flat constructor arguments map 1:1 to its public attributes (per `domain-spec:flat-constructor-arguments`).
-- Otherwise (more complex body) parse `<src_fix>(...)` kwargs from any `return` or `yield` statement in the fixture body and treat those kwarg names as attributes.
+Resolve the module path:
 
-This is a static heuristic — it does not import or instantiate the fixture; missing attributes degrade gracefully to type-stub fallback.
+- Bind `<aggregate_module>` = `<src_root>/<pkg>/domain/<aggregate>/<aggregate>.py` (uses `<src_root>` from Step 1).
+- If `<aggregate_module>` is missing, skip discovery, fall through to type-stub for every body field, and emit a Step 9 warning: `WARNING: aggregate module not found at <aggregate_module> — every body field stubbed.`
+
+Read `<aggregate_module>`. Apply the regex `^\s+([a-z_][a-z0-9_]*)\s*=\s*Guard\b` to harvest top-level Guard-declared attributes. Bind `<aggregate_attrs>` = that set.
+
+For each Guard whose type token is a domain class (PascalCase, not a Python builtin like `str`/`int`/`bool`/`float`/`bytes`/`list`/`dict`/`tuple`/`datetime`/`date`/`Decimal`), follow the import to the value-object module:
+
+- Scan the same module's top-level `from .<file> import …` lines for the class name. Resolve `<vo_module>` = `<src_root>/<pkg>/domain/<aggregate>/<file>.py`.
+- If the import is from a sub-package (e.g. `from .<sub>.<file> import …`), resolve `<vo_module>` accordingly.
+- Apply the same Guard regex to `<vo_module>` to harvest the value object's attribute set. Bind `<vo_attrs>[<vo_attr_name>]` per Guard-declared attribute on the value object. Drill at most one level — VO-of-VO is treated as opaque and stubs out.
+
+This produces a two-level attribute map: top-level Guards on the aggregate, plus one-level-deep Guards reachable via a Guard-typed VO attribute.
+
+**Fixture-attribute lookup (refined).** snake_case the Table 5 `name` to `<attr>`, then resolve in order:
+
+1. If `<attr>` ∈ `<aggregate_attrs>` → emit `<src_fix>.<attr>`.
+2. Else, for each `<vo_name>` in `<aggregate_attrs>` whose Guard type is a domain class (i.e. has a populated `<vo_attrs>[<vo_name>]`), if `<attr>` ∈ that VO's attrs → emit `<src_fix>.<vo_name>.<attr>`. First match wins; iteration order = source order in the aggregate module.
+3. Else → fall through to the type-based stub fallback table above. Append a `# TODO: <name> stubbed (not on <src_fix> nor reachable via a value object)` trailing comment on that line.
+
+This is a static analysis — it does not import or instantiate anything; unresolvable fields degrade gracefully to type-stub fallback.
 
 Concrete body-bearing form (mutating, with body resolution applied):
 
@@ -629,4 +649,5 @@ Note: `start_receiving` and `delete_load` omit `json=` because Table 5 declares 
 | `<constants_path>` missing or `<api_prefix_const>` not present in it | Emit a single `WARNING:` line in Step 9's report; still write the test file (the import will resolve once `@app-integrator` runs). |
 | Non-`{id}` path placeholder in URL | Resolve via the **Nested-id resolution** rule (Step 7) — `{<thingId>}` → `{<aggregate>_1.<plural>[0].id}`. Test will fail at runtime with `AttributeError` if the collection is not exposed by the aggregate fixture. |
 | `<aggregate>_2` fixture missing | Emit a Step 9 warning and fall back to `<aggregate>_1` for mutating `__success` bodies; factory `__success` tests will return 409 instead of 201 — surfaces the gap without blocking generation. |
+| `<aggregate_module>` not found on disk | Skip aggregate-attribute discovery (Step 7), stub every body field with type-based literals, and emit a Step 9 warning. |
 | Body field cannot be resolved on `<src_fix>` | Substitute a type-based stub literal (Step 7 table) and append a `# TODO: <field> stubbed (...)` trailing comment; do not abort. |
