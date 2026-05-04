@@ -40,28 +40,25 @@ import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.responses import Response
 
-from my_service import api, constants, messaging
+from my_service import api, constants
 from my_service.api.error_handlers import (
     json_error_handler,
     register_error_handler,
 )
 from my_service.containers import Containers
 from my_service.domain import Forbidden, Unauthorized
-from my_service.infrastructure.access_management import user
 from my_service.settings import Settings
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 def init_containers(settings: Settings) -> Containers:
-    containers = Containers(messaging_driver_settings=settings.messaging_driver_settings)
+    containers = Containers()
     containers.config.from_pydantic(settings)
     containers.init_resources()
     containers.wire(
-        packages=[api, messaging],
+        packages=[api],
     )
-
-    containers.message_brokers.broker_client().user_context = user
 
     containers.core.wire(
         modules=[api.endpoints.service_info],
@@ -200,7 +197,7 @@ import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.responses import Response
 
-from {{ project_module }} import api, constants{% if messaging_enabled %}, messaging{% endif %}
+from {{ project_module }} import api, constants
 
 from {{ project_module }}.api.error_handlers import (
     json_error_handler,
@@ -208,23 +205,18 @@ from {{ project_module }}.api.error_handlers import (
 )
 from {{ project_module }}.containers import Containers
 from {{ project_module }}.domain import Forbidden, Unauthorized
-from {{ project_module }}.infrastructure.access_management import user
 from {{ project_module }}.settings import Settings
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 def init_containers(settings: Settings) -> Containers:
-    containers = Containers({% if messaging_enabled %}messaging_driver_settings=settings.messaging_driver_settings{% endif %})
+    containers = Containers()
     containers.config.from_pydantic(settings)
     containers.init_resources()
     containers.wire(
-        packages=[api{% if messaging_enabled %}, messaging{% endif %}],
+        packages=[api],
     )
-{% if messaging_enabled %}
-
-    containers.message_brokers.broker_client().user_context = user
-{% endif %}
 
     containers.core.wire(
         modules=[api.endpoints.service_info],
@@ -308,7 +300,6 @@ def run_api():
 | Placeholder | Description | Example |
 | --- | --- | --- |
 | `{{ project_module }}` | Root module path | `my_service` |
-| `{{ messaging_enabled }}` | Whether messaging is used | `true` |
 | `{{ routers }}` | List of routers to include | See below |
 
 ### Router Definition Structure
