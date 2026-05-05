@@ -1,5 +1,9 @@
 # Domain Exceptions Template
 
+The template comes in two variants. Choose by inspecting the aggregate's class diagram for a tenancy attribute (`tenant_id`, `warehouse_id`, `organization_id`, …). When `{{ has_tenancy }}` is true, render the multi-tenant variant; otherwise render the single-tenant variant.
+
+## Multi-tenant variant (`{{ has_tenancy }}` = true)
+
 ```python
 from ..shared import AlreadyExists, Conflict, DomainException, NotFound
 
@@ -23,15 +27,41 @@ class {{ aggregate_name }}NotFound(NotFound):
         super().__init__(message)
 ```
 
+## Single-tenant variant (`{{ has_tenancy }}` = false)
+
+```python
+from ..shared import AlreadyExists, Conflict, DomainException, NotFound
+
+__all__ = [
+    "{{ aggregate_name }}AlreadyExists",
+    "{{ aggregate_name }}NotFound",
+]
+
+class {{ aggregate_name }}AlreadyExists(AlreadyExists):
+    code: str = "{{ aggregate_code }}_already_exists"
+
+    def __init__(self, {{ id_param }}: str):
+        message = f"{{ aggregate_name }} {{{ id_param }}} already exists"
+        super().__init__(message)
+
+class {{ aggregate_name }}NotFound(NotFound):
+    code: str = "{{ aggregate_code }}_not_found"
+
+    def __init__(self, {{ id_param }}: str):
+        message = f"{{ aggregate_name }} {{{ id_param }}} not found"
+        super().__init__(message)
+```
+
 ## Placeholders
 
 | Placeholder | Description | Example |
 | --- | --- | --- |
+| `{{ has_tenancy }}` | Whether the aggregate carries a tenancy attribute | `true`, `false` |
 | `{{ aggregate_name }}` | PascalCase aggregate name | `Load`, `Order`, `Profile` |
 | `{{ aggregate_code }}` | snake_case aggregate code | `load`, `order`, `profile` |
 | `{{ id_param }}` | Parameter name for entity ID | `load_id`, `order_id`, `id_` |
-| `{{ tenant_param }}` | Parameter name for tenant ID | `warehouse_id`, `tenant_id` |
-| `{{ tenant_label }}` | Human label for tenant | `warehouse`, `tenant`, `organization` |
+| `{{ tenant_param }}` | Parameter name for tenant ID — multi-tenant only | `warehouse_id`, `tenant_id` |
+| `{{ tenant_label }}` | Human label for tenant — multi-tenant only | `warehouse`, `tenant`, `organization` |
 
 ## Additional exception patterns
 

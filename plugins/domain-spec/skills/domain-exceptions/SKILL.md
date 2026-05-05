@@ -31,9 +31,18 @@ DomainException          # Root; generic domain error
 1. `__all__` at module top — lists all exported exceptions
 2. Import base exceptions from `..shared` (relative import within domain)
 3. Class-level `code` attribute — snake_case, unique identifier for API responses
-4. `__init__` with contextual parameters — accepts identifiers and context values
-5. Descriptive f-string message — human-readable, includes all relevant identifiers
+4. `__init__` with contextual parameters — accepts identifiers and context values; tenancy parameters appear iff the aggregate is multi-tenant (see Tenancy below)
+5. Descriptive f-string message — human-readable, includes exactly the constructor parameters
 6. Call `super().__init__(message)`
+
+## Tenancy
+
+Tenancy parameters (`tenant_id`, `warehouse_id`, `organization_id`, …) are **never invented** by the exception. They are propagated only when the owning aggregate already declares them.
+
+- **Multi-tenant aggregate** — the aggregate's class diagram declares a tenancy attribute (e.g. `tenant_id: str`). Exceptions raised on this aggregate accept that same parameter and include it in both the f-string message and the call site.
+- **Single-tenant aggregate** — the aggregate has no tenancy attribute. Exceptions take only the entity-id (or whatever identifiers the raising method actually exposes) and the message references only those parameters. Do **not** synthesize a `tenant_id` parameter and do **not** add a "for tenant ..." clause.
+
+Mismatches between the constructor signature and the message are a hard error — every interpolated `{...}` in the message must correspond to a constructor parameter, and every constructor parameter must appear in the message.
 
 ## Naming conventions
 

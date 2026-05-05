@@ -31,8 +31,17 @@ Extract the `### Partial Dependencies` section from the file. This section was w
 
 For each class block in the file (identified by a `**ClassName** <<Stereotype>>` heading), apply the four-step selection process from the `domain-pattern-selection` skill loaded in your context:
 
-1. **Stereotype** → primary pattern (see Primary Pattern table)
-2. **Attributes** → supporting patterns:
+1. **Stereotype** → primary pattern. **Every** class receives a primary pattern from the skill's Primary Pattern table — there are no exceptions. The full mapping is:
+   - `<<Aggregate Root>>` → `domain-spec:aggregate-root`
+   - `<<Entity>>` → `domain-spec:entity`
+   - `<<Value Object>>` → `domain-spec:value-object`
+   - `<<Event>>` → `domain-spec:domain-events`
+   - `<<Command>>` → `domain-spec:commands`
+   - `<<Repository>>` → `domain-spec:repositories`
+   - `<<Service>>` → `domain-spec:domain-services`
+   - `<<TypedDict>>` → `domain-spec:domain-typed-dicts`
+   - `<<Query DTO>>` → `domain-spec:query-dtos`
+2. **Attributes** → supporting patterns (apply only to `<<Aggregate Root>>`, `<<Entity>>`, `<<Value Object>>`):
    - Is Aggregate Root, Entity, or Value Object? → always add `domain-spec:guards-and-checks` **and** `domain-spec:constructor-guard-type-mapping` (inseparable pair)
    - Has optional attributes or union types? → add `domain-spec:optional-values`
    - Has complex value object attributes with multiple fields? → add `domain-spec:flat-constructor-arguments`
@@ -49,8 +58,16 @@ Build the result as a semicolon-separated list of skill names from the **Skill**
 - `domain-spec:aggregate-root; domain-spec:guards-and-checks; domain-spec:constructor-guard-type-mapping`
 - `domain-spec:value-object; domain-spec:statuses; domain-spec:optional-values; domain-spec:guards-and-checks; domain-spec:constructor-guard-type-mapping`
 - `domain-spec:value-object; domain-spec:collection-value-objects; domain-spec:delegation-and-event-propagation; domain-spec:guards-and-checks; domain-spec:constructor-guard-type-mapping`
+- `domain-spec:domain-events` (single-pattern; the only thing an `<<Event>>` ever gets)
+- `domain-spec:domain-typed-dicts` (single-pattern; the only thing a `<<TypedDict>>` ever gets)
+- `domain-spec:commands` (single-pattern; the only thing a `<<Command>>` ever gets)
+- `domain-spec:query-dtos` (single-pattern; the only thing a `<<Query DTO>>` ever gets)
 
-For classes that receive no patterns (`<<Event>>`, `<<TypedDict>>`), leave the `—` unchanged.
+`<<Event>>`, `<<Command>>`, `<<Query DTO>>`, and `<<TypedDict>>` classes receive **only** the primary pattern from Step 1 — Steps 2 (attributes), 3 (methods), and 4 (partial dependencies) do not contribute additional patterns to these stereotypes. Their `Pattern` line must still be filled with the single primary pattern; it must **not** be left as `—`.
+
+`<<Repository>>` and `<<Service>>` classes likewise typically receive only their primary pattern; Steps 2–4 contribute nothing extra in the standard case.
+
+The only stereotypes whose `Pattern` line may legitimately remain `—` are categories that are not assigned patterns at all by this pipeline (none, currently). If you find yourself wanting to leave a class with `<<Event>>`, `<<Command>>`, `<<Query DTO>>`, or `<<TypedDict>>` unfilled, that is a bug — fill it with the single primary pattern.
 
 ### Step 4 — Update temp file
 
