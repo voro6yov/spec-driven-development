@@ -178,12 +178,14 @@ The HTTP method on `client.<method>(...)` is the Table 2/3 HTTP cell **lowercase
 For each endpoint, the URL expression is:
 
 ```python
-f"{<api_prefix_const>}<router_prefix><path_with_id_substituted>"
+f"{<api_prefix_const>}<router_prefix><path_with_id_substituted><query_string>"
 ```
 
 Path substitution rules:
 - `{id}` → `{<fix>.id}` for `__success`/`__missing_required_field`; literal `non-existent-id` for `__not_found`/`__already_exists`.
 - Other camelCase placeholders (`{tireId}`, `{documentTypeId}`) → resolve via the **Nested-id resolution** rule below. Use the same resolution for all scenarios; do **not** swap to `non-existent-id` for `__not_found` (the parent `{id}` is already non-existent, which is what triggers the 404).
+
+`<query_string>` is built per **Query parameter resolution** below; it is the empty string when no required query params are declared.
 
 Where `<fix>` is `<aggregate>_1`.
 
@@ -200,6 +202,42 @@ For each non-`{id}` camelCase placeholder `{<thingId>}`:
 4. Substitute the placeholder with `{<aggregate>_1.<plural>[0].id}` — e.g. `{tireId}` → `{load_1.tires[0].id}`, `{documentTypeId}` → `{load_1.document_types[0].id}`.
 
 If the resolution requires drilling but the aggregate fixture does not actually expose the collection (verifiable only at test runtime), the test will fail with `AttributeError`; the user is expected to either populate the collection in the aggregate fixture or rename the path placeholder. The agent does not attempt diagram-level verification.
+
+#### Query parameter resolution
+
+For every endpoint that declares query parameters in Table 4, the agent emits required params on the test URL so Pydantic validation passes before the endpoint body runs.
+
+**Locating the sub-block.** Within the surface section, immediately after the endpoint's response field table (and after any `**Nested:**` sub-tables), look for a block of the form:
+
+```
+**Query Parameters:** <method> <path>
+```
+
+The endpoint header may appear backticked (`` `GET /` ``) or bare (`GET /`); accept either. Match the endpoint by `(method, path)` against the Table 2/3 row currently being rendered.
+
+The sub-block is one of:
+- A Markdown table with columns `Param Name | Type | Default | Description` — parse each data row.
+- The italic placeholder `*No query parameters …*` — treat as zero rows.
+- Absent — treat as zero rows (the endpoint accepts no query params).
+
+**Required signal.** A param is **required** iff its Type cell does **not** contain `| None`. This mirrors the convention used for Table 5 body fields and is robust to spec authors who fill the Default column with `None` for params whose serializer actually rejects None (e.g. `page: int = Field(default=None)` is required in Pydantic v2). The endpoint-io-template's canonical "Default == `—` = required" marker is honored only as a secondary tie-breaker — once `| None` is absent, the param is required regardless of Default.
+
+**Stub values.** For each required param, build a `<name>=<stub>` fragment where `<stub>` follows the same type-based stub fallback table as Step 7 body resolution (with one carve-out for query-string serialization):
+
+| Type cell (with `| None` already stripped, but here irrelevant since Type lacks `| None`) | Query-string stub |
+|---|---|
+| `str` | `test` |
+| `int` | `0` |
+| `bool` | `false` |
+| `float` / `Decimal` | `0` |
+| `datetime` | `2024-01-01T00:00:00Z` |
+| `date` | `2024-01-01` |
+| `list` / `list[*]` | omit (lists rarely belong in required query params; emit no fragment and append a Step 9 warning) |
+| anything else | `test` plus a Step 9 warning that the param was stubbed with an unverified literal |
+
+Param names are emitted **verbatim** from the Table 4 row (snake_case per the template), not camelCased — request serializers configured with `alias_generator=to_camel` accept both via `validate_by_name=True`, and snake_case matches the spec without translation.
+
+**Combining.** Concatenate fragments with `&` and prepend `?`. Bind `<query_string>` to the result, or to the empty string when no required params remain. Optional params (Type contains `| None`) are omitted — they default at the framework or settings layer and are not the agent's concern.
 
 #### Templates
 
@@ -335,6 +373,8 @@ def test_<operation>__success(client, request_headers, <fix>, add_<plural_agg>):
 | All other Table 2 / Table 3 rows | `OK` |
 
 For `__success` of list endpoints (Table 2 GET without `{id}`), drop the `<fix>` parameter unless it is needed by `add_<plural_agg>` — keep `add_<plural_agg>` to populate the DB.
+
+For `__success` of **factory POST `/`** (Table 3 POST with path == `/`), drop **both** `<fix>` and `add_<plural_agg>` from the function args — no aggregate may exist in the DB, otherwise the request collides on the aggregate's unique key and the endpoint returns 409 instead of 201. (`<aggregate>_2` and `<aggregate>_1` are not contracted to differ in unique-key fields, so resolving the body from one and persisting the other is structurally collision-prone.) The `# GIVEN` comment changes to `# GIVEN no <aggregate> exists in DB`. Keep `<body_fix>` in the args only when body resolution emitted at least one fixture-attribute reference; if every body field stubbed out, the function args are just `(client, request_headers)`.
 
 ##### `__not_found`
 
@@ -535,8 +575,8 @@ def test_find_load__not_found(client, request_headers):
     assert response.status_code == HTTPStatus.NOT_FOUND
 
 
-def test_create_load__success(client, request_headers, load_1, add_loads, load_2):
-    # GIVEN load exists in DB
+def test_create_load__success(client, request_headers, load_2):
+    # GIVEN no load exists in DB
     response = client.post(
         f"{V1_API_PREFIX}/loads",
         headers=request_headers,
@@ -614,7 +654,9 @@ def test_delete_load__not_found(client, request_headers):
     assert response.status_code == HTTPStatus.NOT_FOUND
 ```
 
-Note: `start_receiving` and `delete_load` omit `json=` because Table 5 declares `*No request body*`. `create_load` emits a body resolved from `load_2` for `__success` (avoids collision with the persisted `load_1`) and from `load_1` for `__already_exists` (forces collision); both bodies use camelCase keys mirroring Table 5. `start_receiving` does **not** get a `__missing_required_field` test (no body to validate); `delete_load` does **not** get one either (DELETE excluded from the dispatch table).
+Note: `start_receiving` and `delete_load` omit `json=` because Table 5 declares `*No request body*`. `create_load` __success drops both `load_1` and `add_loads` from its args (factory POST `/` requires an empty DB; otherwise the request collides on the unique key) and resolves its body from `load_2`; `create_load` __already_exists keeps `load_1` + `add_loads` to force the collision and resolves its body from `load_1`. Both bodies use camelCase keys mirroring Table 5. `start_receiving` does **not** get a `__missing_required_field` test (no body to validate); `delete_load` does **not** get one either (DELETE excluded from the dispatch table).
+
+If the spec also declared a Table 4 query-param sub-block (e.g. `find_loads` with required `page: int` and `per_page: int` rows), the list endpoint URL would gain a `?page=0&per_page=0` suffix and `find_loads.__success` would still keep `add_loads` (list endpoints want some data to list).
 
 ## Constraints
 
