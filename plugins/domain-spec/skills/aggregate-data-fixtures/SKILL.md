@@ -31,6 +31,7 @@ disable-model-invocation: false
 
 - Implemented as `@pytest.fixture` functions returning a TypedDict.
 - Named using pattern `{aggregate}_{n}_data` where `n` is a sequential identifier.
+- **One data fixture per aggregate state**: emit a `{aggregate}_<N>_data` fixture for every per-state aggregate fixture (`{aggregate}_<N>`). Bodies are otherwise identical — only the top-level identifier (`id`, `number`, etc.) varies, suffixed by `<N>` (e.g. `{aggregate}-001`, `{aggregate}-002`). This guarantees each persisted aggregate has a unique PK in integration test bundles even when the aggregate's persisted ID is derived from the data.
 - Contain all required fields for the aggregate's factory method.
 - Defined in root `tests/conftest.py` for project-wide availability.
 

@@ -65,7 +65,7 @@ Resolve `<repo_root>` with `git -C <tests_dir> rev-parse --show-toplevel`. Bind 
 
 Read the `Multi-tenant?` row's `Value` (Section 1). Lowercase; bind `<multi_tenant>` to `True` / `False`. Anything else → `ERROR: 'Multi-tenant?' value '<v>' is not Yes/No; spec is not ready.`
 
-Derive `<plural>` by **naive pluralization** — `<aggregate> + "s"` — to mirror `@query-context-integrator`. The query context attribute is `query_context.<plural>`. Section 2 of the command spec is **not** consulted (its `Context Integration` rows describe the unit-of-work attribute, which can in principle differ from the query-context attribute; the query-context-integrator commits to naive pluralization, so this agent matches that contract).
+Derive `<plural>` by **lightweight pluralization** — if `<aggregate>` already ends in `s`, use it verbatim; otherwise append `s` — to mirror `@query-context-integrator`. The query context attribute is `query_context.<plural>`. Section 2 of the command spec is **not** consulted (its `Context Integration` rows describe the unit-of-work attribute, which can in principle differ from the query-context attribute; the query-context-integrator commits to this same rule, so this agent matches that contract). The trailing-`s` carve-out keeps aggregate names that are already plural in PascalCase (e.g. `ConversionReqs`) from producing double-`s` attributes (`conversion_reqss`).
 
 #### 2d. Section 3 — aggregate column list and PK
 

@@ -43,6 +43,8 @@ def {{ aggregate_name }}_{{ fixture_number }}_data() -> {{ data_type }}:
 
 ## Example: Complex Aggregate with Nested Items
 
+Emit one `_<N>_data` fixture per per-state aggregate fixture, varying only the top-level identifier so each persisted aggregate has a unique PK.
+
 ```python
 from datetime import datetime
 
@@ -79,8 +81,37 @@ def load_1_data() -> LoadData:
 
 
 @pytest.fixture
+def load_2_data() -> LoadData:
+    return {
+        "id": "load-002",
+        "number_of_tires": 8,
+        "eta": datetime(2025, 7, 7, 0, 0, 0),
+        "status": "pending",
+        "items": [
+            {
+                "item_number": "ITEM-001",
+                "product_name": "Sample Product 1",
+                "quantity": 5,
+                "order_number": "ORDER-001",
+            },
+            {
+                "item_number": "ITEM-002",
+                "product_name": "Sample Product 2",
+                "quantity": 3,
+                "order_number": "ORDER-002",
+            },
+        ],
+    }
+
+
+@pytest.fixture
 def load_1(load_1_data):
     return Load.from_load_data(DEFAULT_WAREHOUSE_ID, "conveyor-001", load_1_data)
+
+
+@pytest.fixture
+def load_2(load_2_data):
+    return Load.from_load_data(DEFAULT_WAREHOUSE_ID, "conveyor-001", load_2_data)
 ```
 
 ## Counter-example: Simple Aggregate (NO data fixture)

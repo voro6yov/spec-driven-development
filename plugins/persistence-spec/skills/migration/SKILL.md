@@ -56,7 +56,7 @@ databaseChangeLog:
         - column:
             constraints:
               primaryKey: true
-              primaryKeyName: {{ id_column }}
+              primaryKeyName: pk_{{ table_name }}
             name: {{ id_column }}
             type: VARCHAR
         - column:
@@ -102,11 +102,13 @@ databaseChangeLog:
         - column:
             constraints:
               primaryKey: true
+              primaryKeyName: pk_{{ table_name }}
             name: {{ id_column }}
             type: VARCHAR
         - column:
             constraints:
               primaryKey: true
+              primaryKeyName: pk_{{ table_name }}
             name: {{ tenant_id_column }}
             type: VARCHAR
         - column:

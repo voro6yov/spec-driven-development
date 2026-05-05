@@ -152,16 +152,18 @@ Build the full file content:
 
 2. **Constants** — define a `DEFAULT_<TENANT>_ID` constant (e.g. `DEFAULT_WAREHOUSE_ID = "warehouse-001"`) derived from the first positional constructor parameter that looks like a tenant/owner ID. Reuse existing constants if present.
 
-3. **Data fixtures** (for complex aggregates only) — one `{aggregate}_1_data` fixture returning the TypedDict with all required fields populated using realistic deterministic values:
-   - String IDs: `"{aggregate}-001"`
-   - Dates: `datetime(2025, 1, 1, 0, 0, 0)`
-   - Nested items: two representative items with sequential IDs
+3. **Data fixtures** (for complex aggregates only) — emit **one `{aggregate}_<N>_data` fixture per State Keys row** (mirroring the aggregate fixture numbering 1..N). Each returns the TypedDict with realistic deterministic values that are **identical across N except for top-level identifier fields**, which must be unique per N so the fixtures coexist as distinct DB rows when bundled by `add_<plural>` integration fixtures:
+   - Top-level string IDs: `"{aggregate}-00<N>"` (e.g. `{aggregate}-001`, `{aggregate}-002`, …, zero-padded to 3 digits).
+   - Dates: `datetime(2025, 1, 1, 0, 0, 0)`.
+   - Nested items: two representative items per data fixture with sequential IDs (`<item>-001`, `<item>-002`).
+
+   **Why per-state, not shared.** A single shared data fixture means every aggregate fixture is constructed from the same identifier inputs. When the aggregate's persisted PK is derived from a constructor input (e.g. `id = name` or `id = evo_version`), the integration `add_<plural>` fixture overwrites earlier fixtures during sequential `save()` calls, and tests that assert `result.equals(<aggregate>_1)` see the state of `<aggregate>_<N>` instead. Per-state data fixtures eliminate the collision regardless of how the aggregate derives its identity.
 
 4. **Aggregate fixtures** — emit one `@pytest.fixture` per State Keys row (from Step 4), in table order:
-   - Simple aggregate: call the factory with the default constant and scalar args
-   - Complex aggregate: take the data fixture as a parameter and pass it to the factory
-   - Apply the calls from the `mutation path` column verbatim (skip when `(factory only)`); call `clear_events()` after the last mutation
-   - Use the `description` column from the State Keys row as the fixture docstring
+   - Simple aggregate: call the factory with the default tenant constant and scalar args. **Vary the principal natural-key argument by fixture index** so each persisted aggregate has a unique PK across the fixture set. The principal natural-key arg is the first positional `str`-typed factory parameter after the tenant arg (or the first positional `str` parameter when the aggregate is single-tenant). Append `-00<N>` (1-based, zero-padded to 3 digits) to its base value — e.g. `evo_version="evo-001"`, `evo_version="evo-002"`, … — and keep all other args constant. If no `str` positional parameter remains after the tenant arg, the aggregate's identity is generated internally and no variation is required.
+   - Complex aggregate: take `{aggregate}_<N>_data` (the per-state data fixture from step 3, matching this fixture's number) as the data parameter and pass it to the factory. The variation lives entirely in the per-state data fixture — the factory call itself is otherwise identical across N.
+   - Apply the calls from the `mutation path` column verbatim (skip when `(factory only)`); call `clear_events()` after the last mutation.
+   - Use the `description` column from the State Keys row as the fixture docstring.
 
 Preserve any existing content from `conftest.py` — append new fixtures below existing ones (do not remove or overwrite existing fixtures).
 

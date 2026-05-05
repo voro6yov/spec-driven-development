@@ -47,10 +47,10 @@ Use a separate data fixture when:
 
 - Aggregate has nested collections (items, line items, child entities)
 - Large amount of data is needed (e.g., 100 items)
-- Same data structure is reused across multiple aggregate fixtures
+- Same data **structure** is reused across multiple aggregate fixtures (each per-state copy varies only in identifier fields — see "Uniqueness across fixtures" below)
 
 ```python
-# Data fixture needed - complex structure with items
+# Per-state data fixtures — one per aggregate state, with unique top-level IDs.
 @pytest.fixture
 def load_1_data() -> LoadData:
     return {
@@ -62,8 +62,26 @@ def load_1_data() -> LoadData:
     }
 
 @pytest.fixture
+def load_2_data() -> LoadData:
+    return {
+        "id": "load-002",
+        "items": [
+            {"item_number": "ITEM-001", "quantity": 50},
+            {"item_number": "ITEM-002", "quantity": 50},
+        ],
+    }
+
+@pytest.fixture
 def load_1(load_1_data):
     return Load.from_load_data(DEFAULT_WAREHOUSE_ID, "conveyor-001", load_1_data)
+
+@pytest.fixture
+def load_2(load_2_data):
+    """Load in receiving state"""
+    load = Load.from_load_data(DEFAULT_WAREHOUSE_ID, "conveyor-001", load_2_data)
+    load.start_receiving()
+    load.clear_events()
+    return load
 ```
 
 ### Data Fixture NOT NEEDED (Simple Aggregates)
@@ -74,8 +92,11 @@ Skip data fixture when:
 - Construction is straightforward with few parameters
 - No nested collections
 
+When emitting multiple per-state fixtures, **vary the principal natural-key argument by fixture index** so each persisted aggregate has a unique PK across the fixture set (see "Uniqueness across fixtures" below).
+
 ```python
-# NO data fixture needed - simple construction
+# NO data fixture needed - simple construction.
+# Conveyor's identity is the conveyor_id arg, so vary it per fixture index.
 @pytest.fixture
 def conveyor_1():
     return Conveyor.new(
@@ -85,9 +106,32 @@ def conveyor_1():
     )
 
 @pytest.fixture
+def conveyor_2():
+    return Conveyor.new(
+        warehouse_id=DEFAULT_WAREHOUSE_ID,
+        conveyor_id="conveyor-002",
+        name="Main Conveyor",
+    )
+
+@pytest.fixture
 def user_1():
     return User.new(user_id="user-001", name="John Doe", role="operator")
 ```
+
+## Uniqueness across fixtures
+
+Per-state fixtures are bundled into integration `add_<plural>` fixtures that persist every aggregate sequentially through the same Unit of Work. If two fixtures end up with the same primary key in the database, the second `save()` overwrites the first and tests that assert against `<aggregate>_1` see the state of `<aggregate>_<N>` instead.
+
+This collision happens whenever the aggregate's persisted PK is **derived from a constructor input** rather than generated internally — e.g. `id = self.evo_version`, `id = self.name.slug`, or any pure function of factory args. Because mutations don't change identity, applying different `mutation path`s to the same factory output still leaves all fixtures sharing one PK.
+
+The convention to prevent collisions is:
+
+- **Simple aggregates**: vary the *principal natural-key argument* — the first positional `str`-typed parameter after the tenant arg (or the first positional `str` parameter when single-tenant). Suffix with `-00<N>` per fixture index.
+- **Complex aggregates** (data fixture path): emit one `<aggregate>_<N>_data` fixture per state with a unique top-level identifier (`{aggregate}-001`, `{aggregate}-002`, …). Each `<aggregate>_<N>` consumes its matching data fixture.
+
+The variation is purely in identifier inputs; everything else (collections, dates, descriptive text) stays constant across N. Unit tests are unaffected because each test still receives an isolated aggregate; integration tests get distinct DB rows.
+
+If the aggregate's PK is generated internally (uuid, snowflake, etc.) and is genuinely independent of factory inputs, the variation is harmless but unnecessary — keep it anyway for consistency.
 
 ## Structure
 
@@ -138,11 +182,13 @@ def load_1(load_1_data):
 
 ### Status-Machine Aggregate with Mutations
 
+Each fixture takes its **own** numbered data fixture so the persisted IDs differ across states.
+
 ```python
 @pytest.fixture
-def load_2(load_1_data):
+def load_2(load_2_data):
     """Load in receiving state"""
-    load = Load.from_load_data(DEFAULT_WAREHOUSE_ID, "conveyor-002", load_1_data)
+    load = Load.from_load_data(DEFAULT_WAREHOUSE_ID, "conveyor-002", load_2_data)
     load.start_receiving()
     load.clear_events()
     return load
@@ -150,7 +196,7 @@ def load_2(load_1_data):
 
 ### CRUD-Collection Aggregate — Per-Collection Fixtures
 
-For aggregates with multiple independent collections, create one fixture per collection group so tests can target each area independently:
+For aggregates with multiple independent collections, create one fixture per collection group so tests can target each area independently. **Vary the principal natural-key arg (`name`) by fixture index** so the persisted PKs differ:
 
 ```python
 @pytest.fixture
@@ -158,7 +204,7 @@ def profile_type_1():
     """ProfileType in initial state — all collections empty."""
     profile_type = ProfileType.new(
         tenant_id=DEFAULT_TENANT_ID,
-        name="Individual Profile",
+        name="Individual Profile-001",
         description="Profile type for individual clients",
         subject_kind="Individual",
     )
@@ -171,7 +217,7 @@ def profile_type_2():
     """ProfileType with two fields (enough for update/delete testing)."""
     profile_type = ProfileType.new(
         tenant_id=DEFAULT_TENANT_ID,
-        name="Individual Profile",
+        name="Individual Profile-002",
         description="Profile type for individual clients",
         subject_kind="Individual",
     )

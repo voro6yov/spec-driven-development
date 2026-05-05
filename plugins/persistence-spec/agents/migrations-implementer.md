@@ -138,7 +138,7 @@ Per-column rendering rules (apply to every variant that emits columns):
 - `name`: the column name.
 - `type`: the SQL type from the `<column_type>` → SQL mapping.
 - `constraints`: built from the column's `<constraints>` cell using the same parser as `@table-implementer` Step 4 (tokenize on commas/slashes, lowercase). First match wins:
-  - Token `pk` or contains `primary key` → `primaryKey: true` and `primaryKeyName: <column_name>`. Omit `nullable`.
+  - Token `pk` or contains `primary key` → `primaryKey: true` and `primaryKeyName: pk_<table_name>`. Omit `nullable`. The constraint name is **table-scoped** (not column-scoped) because in PostgreSQL PK constraint names share a relation namespace with tables and indexes — using a bare column name like `id` would collide across migrations whose tables both have an `id` PK column.
   - Token starts with `fk` or contains `foreign key` → does not affect the column block here (FK constraints are emitted by `Add Foreign Key`, not `Create Table`).
   - Token `not null` or `nullable=false` → `nullable: false`.
   - Token `null` / `nullable` / `nullable=true` → `nullable: true`.
@@ -147,7 +147,7 @@ Per-column rendering rules (apply to every variant that emits columns):
 
 #### 4b. `Create Table (Composite PK)`
 
-Identical to `Create Table` (4a) except the `<columns[<table_name>]>` table will contain **two or more** PK rows (those whose `<constraints>` cell carries `pk` or `primary key`). Emit each PK column with `constraints: { primaryKey: true }` (omit `primaryKeyName` — it is not unique on composite PKs). Single changeSet, single `dropTable` rollback.
+Identical to `Create Table` (4a) except the `<columns[<table_name>]>` table will contain **two or more** PK rows (those whose `<constraints>` cell carries `pk` or `primary key`). Emit each PK column with `constraints: { primaryKey: true, primaryKeyName: pk_<table_name> }` — repeat the same `primaryKeyName` on every PK column so Liquibase coalesces them into a single composite constraint with a table-scoped name. Single changeSet, single `dropTable` rollback.
 
 #### 4c. `Add Foreign Key`
 

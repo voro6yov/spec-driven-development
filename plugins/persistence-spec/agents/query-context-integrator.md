@@ -61,7 +61,7 @@ Derive the canonical class names:
 - `<AbstractRepositoryClass>` = `Query<Aggregate>Repository`
 - `<ConcreteRepositoryClass>` = `SqlAlchemyQuery<Aggregate>Repository`
 
-Derive the query-context attribute name by **naive pluralization**: `<attr>` = `<aggregate> + "s"` (e.g. `domain_type` → `domain_types`, `order` → `orders`). No smart rules; no irregular handling. The spec author is responsible for choosing aggregate names whose naive plural reads acceptably. The naming is symmetric with `@unit-of-work-integrator`.
+Derive the query-context attribute name by **lightweight pluralization**: if `<aggregate>` already ends in `s` (e.g. `conversion_reqs`, `metrics`), use it verbatim — `<attr>` = `<aggregate>`. Otherwise append `s` — `<attr>` = `<aggregate> + "s"` (e.g. `domain_type` → `domain_types`, `order` → `orders`). No other irregular handling; the spec author is responsible for choosing aggregate names whose plural reads acceptably under this rule. The naming is symmetric with `@unit-of-work-integrator` — both apply the same trailing-`s` carve-out so that an aggregate whose Pascal-case form is intentionally plural (e.g. `ConversionReqs`) does not produce a double-`s` attribute (`conversion_reqss`).
 
 #### 2b. Domain import path (for the abstract query repository)
 

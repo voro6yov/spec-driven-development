@@ -57,7 +57,7 @@ Derive the canonical class names:
 - `<AbstractRepositoryClass>` = `Command<Aggregate>Repository`
 - `<ConcreteRepositoryClass>` = `SqlAlchemyCommand<Aggregate>Repository`
 
-Derive the UoW attribute name by **naive pluralization**: `<attr>` = `<aggregate> + "s"` (e.g. `domain_type` → `domain_types`, `order` → `orders`). No smart rules; no irregular handling. The spec author is responsible for choosing aggregate names whose naive plural reads acceptably.
+Derive the UoW attribute name by **lightweight pluralization**: if `<aggregate>` already ends in `s` (e.g. `conversion_reqs`, `metrics`), use it verbatim — `<attr>` = `<aggregate>`. Otherwise append `s` — `<attr>` = `<aggregate> + "s"` (e.g. `domain_type` → `domain_types`, `order` → `orders`). No other irregular handling; the spec author is responsible for choosing aggregate names whose plural reads acceptably under this rule. The rationale for the trailing-`s` carve-out: aggregates whose Pascal-case form is intentionally plural (e.g. `ConversionReqs`) would otherwise produce double-`s` attributes (`conversion_reqss`) that fail to wire up.
 
 #### 2b. Domain import path (for the abstract repository)
 

@@ -21,6 +21,8 @@ def {{ aggregate_name }}_{{ fixture_number }}():
 
 ## Aggregate Fixture from Data Fixture (Complex)
 
+Each per-state fixture takes its **own** numbered data fixture (`_<N>_data`) so the persisted top-level identifier differs across states.
+
 ```python
 import pytest
 
@@ -49,14 +51,14 @@ from {{ module_path }}.domain import {{ aggregate_class }}
 
 
 @pytest.fixture
-def {{ aggregate_name }}_{{ fixture_number }}({{ aggregate_name }}_1_data):
+def {{ aggregate_name }}_{{ fixture_number }}({{ aggregate_name }}_{{ fixture_number }}_data):
     """{{ docstring }}"""
     {{ aggregate_name }} = {{ aggregate_class }}.{{ factory_method }}(
         {{ tenant_constant }},
         {% for arg in factory_args -%}
         {{ arg }},
         {% endfor -%}
-        {{ aggregate_name }}_1_data,
+        {{ aggregate_name }}_{{ fixture_number }}_data,
     )
 
     {% for mutation in mutations -%}

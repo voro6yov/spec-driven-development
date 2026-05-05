@@ -314,12 +314,17 @@ class {{ uow_repository_class }}({{ command_repository_interface }}):
             )
             self._connection.execute(delete_statement)
 
-        if {{ aggregate_name_lower }}.{{ children_attribute }}:
-            child_dicts = [
-                {{ child_mapper_class }}.to_dict(child, {{ aggregate_name_lower }}.id, {{ aggregate_name_lower }}.tenant_id)
-                for child in {{ aggregate_name_lower }}.{{ children_attribute }}
-            ]
+        child_dicts = [
+            {{ child_mapper_class }}.to_dict(child, {{ aggregate_name_lower }}.id, {{ aggregate_name_lower }}.tenant_id)
+            for child in {{ aggregate_name_lower }}.{{ children_attribute }}
+        ]
 
+        # Gate the executemany on the materialized list, not on the
+        # collection attribute. Collection value objects do not define
+        # __bool__ or __len__, so `if aggregate.children:` is always
+        # true even when empty — and `executemany` with `[]` emits
+        # `INSERT ... DEFAULT VALUES`, which violates NOT NULL on the PK.
+        if child_dicts:
             insert_child_command = insert({{ child_table_name }})
 
             # Option 1: Update all columns (simpler)
