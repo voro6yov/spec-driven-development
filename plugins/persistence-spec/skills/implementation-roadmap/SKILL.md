@@ -112,6 +112,7 @@ Use these rules to fill Section 2 of the command repository spec:
 **Tables**
 - Parent table → `Composite PK Table` if multi-tenant, else `Simple Table`.
 - One `Table with FK` per child entity collection.
+- **Child table naming**: prefix every child table name with the parent table's name plus a single `_`. For example, an aggregate root `ConversionReqs` (parent table `conversion_reqs`) with child entity `DomainType` produces child table `conversion_reqs_domain_types`, never `domain_types`. This keeps child tables globally unambiguous and prevents migration-slug collisions across aggregates that share a child entity name.
 
 **Migrations**
 - Parent → `Create Table (Composite PK)` if multi-tenant, else `Create Table`.
