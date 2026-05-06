@@ -44,19 +44,19 @@ For each table named in Section 2:
    - `Composite PK Table` → `id` `PK`; `tenant_id` `PK`.
    - `Table with FK` → `id` `PK`; `\{parent\}_id` `FK, NOT NULL`; `tenant_id` `PK` (composite with parent).
 
-2. **Standard columns driven by the mapper choice in Section 2**:
-   - **Full Aggregate Mapper** on the parent table → add `status: String NOT NULL`, `created_at: DateTime NOT NULL`, `updated_at: DateTime NOT NULL`.
-   - **With Children Aggregate Mapper** → same three on the parent.
-   - **Minimal Aggregate Mapper** → omit status and timestamps.
-   - **Polymorphic Mapper** present → add a discriminator column (e.g. `kind: String NOT NULL`) on the table whose rows hold the polymorphic data.
-
-3. **Domain columns** — project remaining aggregate-root or child-entity fields from the diagram using the `table-definitions` Column Types table:
+2. **Domain columns** — project every field listed on the table's owner in the Mermaid diagram (the aggregate root for the parent table; the matching `<<Entity>>` for each child table), **except** the identity fields covered in Step 1 (`id`, `tenant_id`, the parent FK on child tables). Use the `table-definitions` Column Types table:
    - Plain scalars (`str`, `int`, `bool`, enums) → `String` / `Integer` / `Boolean` / `String` (enum stored as value).
-   - A `<<Value Object>>` composed by the table's owner → single `JSONB` column named after the field.
+   - `datetime` / `date` → `DateTime(timezone=True)`. This naturally captures `created_at` / `updated_at` when the diagram lists them.
+   - A `<<Value Object>>` composed by the table's owner via `*--` (or any "1" / "0..1" composition) → single `JSONB` column named after the field.
    - Collections of value objects → `JSONB` column.
-   - Domain datetimes beyond `created_at` / `updated_at` → `DateTime`.
 
-4. **Constraints** — mark columns `NOT NULL` unless the diagram shows the field as optional (`Field?`, `Optional[...]`, default `None`). JSONB columns for optional value objects are nullable.
+   **Do not invent columns the diagram does not declare.** If the aggregate root has no `status` field, no `status` column appears; if it has no `created_at` / `updated_at`, no timestamp columns appear. The schema is the projection of the domain, not of the mapper-template's expectations.
+
+3. **Framework-managed expansions** driven by the mapper choice in Section 2 — apply only when the corresponding domain field actually exists on the diagram:
+   - **`Full Aggregate Mapper`, `With Children Aggregate Mapper`, or `Child Entity Mapper`** with a domain field named `status` typed as a `<<Value Object>>` (the framework `Status` VO convention) → replace the would-be JSONB `status` column with two columns: `status: String NOT NULL` and `status_error: String NULL`. This matches the Full / Child Entity mapper templates, which write `aggregate.status.status` and `aggregate.status.error` into separate columns rather than a JSONB blob. If the diagram has no `status` field, emit no `status` columns.
+   - **`Polymorphic Mapper`** declared in Section 2 → identify the polymorphic field on the aggregate root (the union-typed attribute the polymorphic dispatcher targets) and replace its single JSONB projection with the discriminator pair `<attr>_kind: String NULL` and `<attr>_data: JSONB NULL`. If no aggregate field matches, emit a single `kind: String NOT NULL` discriminator column on the table whose rows hold the polymorphic data (legacy fallback).
+
+4. **Constraints** — mark columns `NOT NULL` unless the diagram shows the field as optional (`Field?`, `Optional[...]`, default `None`). JSONB columns for optional value objects are nullable. The `status_error` column is always nullable per the framework convention; the polymorphic `<attr>_kind` / `<attr>_data` pair is always nullable.
 
 ### Step 3 — Derive indexes
 

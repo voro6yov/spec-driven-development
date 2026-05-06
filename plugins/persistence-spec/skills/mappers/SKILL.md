@@ -19,7 +19,7 @@ disable-model-invocation: false
 
 ### Full Aggregate Mapper (`mapper.py.j2`)
 
-Converts root aggregates with status, timestamps, and optional nested polymorphic data.
+The standard aggregate mapper. Each framework-managed block renders only when the aggregate's domain class actually declares the matching attributes; business scalars and JSONB value-object attributes enumerate dynamically. One template covers aggregates with any combination of: tenant, status, timestamps, polymorphic nested data, and arbitrary scalar/VO business fields.
 
 - `to_dict(aggregate)` converts domain aggregate to dictionary for database insertion.
 - `from_row(row)` converts single database row to domain aggregate.
@@ -125,28 +125,62 @@ if isinstance(value, str) and "T" in value:
 
 ### Full Aggregate Mapper
 
+Rendering rules:
+
+- **Imports.** Always emit `from collections.abc import Mapping` and `from typing import Any` (used by the rendered annotations). Emit one `from .{{ vo_mapper_module }} import {{ vo_mapper_class }}` per entry in `{{ business_vo_attributes }}`. Emit `from .{{ nested_mapper }} import {{ nested_mapper_class }}` only when `{{ has_polymorphic_field }}` is true. Do not emit `from datetime import datetime` or `import contextlib` — the canonical body round-trips datetimes through SQLAlchemy `DateTime(timezone=True)` columns without local conversion.
+- **Multi-tenancy.** When `{{ is_multi_tenant }}` is true, emit the `tenant_id` row in `to_dict`'s returned dict and the `tenant_id=row["{{ tenant_id_column }}"]` kwarg in `from_row`'s constructor call. When false, omit both.
+- **Status block.** When `{{ has_status }}` is true, emit the `status` and `status_error` rows in `to_dict`, the `status_error = row.get("{{ status_error_column }}")` helper before the constructor call, and the `status_value=` and `status_error=` kwargs in `from_row`. When false, omit all of those.
+- **Timestamps block.** When `{{ has_timestamps }}` is true, emit `created_at` and `updated_at` rows in `to_dict` and matching kwargs in `from_row`. When false, omit both.
+- **Business scalar attributes.** For each entry `<attr>` in `{{ business_scalar_attributes }}` (declaration order from the aggregate's class body, excluding identity/framework-managed/polymorphic/VO attrs), emit one direct-passthrough row in `to_dict` (`"<attr>": <agg>.<attr>,`) and one kwarg in `from_row` (`<attr>=row["<attr>"]`).
+- **Business value-object attributes.** For each entry `(<attr>, <vo_mapper_module>, <vo_mapper_class>, <vo_fields>)` in `{{ business_vo_attributes }}` (declaration order, JSONB-resident VOs composed by the aggregate, excluding the polymorphic field if any):
+  - In `to_dict`, emit one mapper-delegated row: `"<attr>": <vo_mapper_class>.to_json(<agg>.<attr>),`. The aggregate's `<attr>` property returns the Guard-projected VO instance, which the VO mapper can serialize directly.
+  - In `from_row`, emit one VO-reconstruction helper line **before** the constructor call: `<attr> = <vo_mapper_class>.from_json(row["<attr>"])`.
+  - In the constructor call, emit one kwarg per entry in `<vo_fields>` (the VO's own primitive attributes, in declaration order): `<vo_field>=<attr>.<vo_field>,`. This matches the framework's `domain-spec:flat-constructor-arguments` convention — the aggregate's `__init__` accepts the VO's primitives as flat kwargs and re-projects them into the VO internally (e.g. `self.details = Details.new(name, description)`), so the mapper must pass the primitives, not the VO instance.
+  - Each VO requires a sibling-mapper import.
+- **Polymorphic block.** When `{{ has_polymorphic_field }}` is true, emit the if/else dispatch in `to_dict` and the `<field>_entity` / `<field>_kind` resolution in `from_row` plus the matching kwargs in the constructor call. When false, omit all of those.
+- **Constructor argument order.** `id_`, `tenant_id` (if multi-tenant), polymorphic params (if any), `status_value`/`status_error` (if status), business scalars (declaration order), business VO flat-fields (one VO at a time, fields in VO declaration order), `created_at`/`updated_at` (if timestamps).
+
 ```python
+{{# imports — only the ones the rendered body actually uses #}}
 from collections.abc import Mapping
 from typing import Any
 
 from {{ domain_module }} import {{ aggregate_name }}
 
+{{# for vo_attr, vo_mapper_module, vo_mapper_class in business_vo_attributes #}}
+from .{{ vo_mapper_module }} import {{ vo_mapper_class }}
+{{# end for #}}
+{{# if has_polymorphic_field #}}
 from .{{ nested_mapper }} import {{ nested_mapper_class }}
+{{# end if #}}
 
 __all__ = ["{{ mapper_class }}"]
 
 class {{ mapper_class }}:
     @staticmethod
     def to_dict({{ aggregate_name_lower }}: {{ aggregate_name }}) -> dict[str, Any]:
-        result = {
+        result: dict[str, Any] = {
             "{{ id_column }}": {{ aggregate_name_lower }}.id,
+            {{# if is_multi_tenant #}}
             "{{ tenant_id_column }}": {{ aggregate_name_lower }}.tenant_id,
+            {{# end if #}}
+            {{# if has_status #}}
             "{{ status_column }}": {{ aggregate_name_lower }}.status.status,
             "{{ status_error_column }}": {{ aggregate_name_lower }}.status.error if {{ aggregate_name_lower }}.status.error else None,
+            {{# end if #}}
+            {{# for scalar_attr in business_scalar_attributes #}}
+            "{{ scalar_attr }}": {{ aggregate_name_lower }}.{{ scalar_attr }},
+            {{# end for #}}
+            {{# for vo_attr, vo_mapper_module, vo_mapper_class in business_vo_attributes #}}
+            "{{ vo_attr }}": {{ vo_mapper_class }}.to_json({{ aggregate_name_lower }}.{{ vo_attr }}),
+            {{# end for #}}
+            {{# if has_timestamps #}}
             "created_at": {{ aggregate_name_lower }}.created_at,
             "updated_at": {{ aggregate_name_lower }}.updated_at,
+            {{# end if #}}
         }
 
+        {{# if has_polymorphic_field #}}
         if {{ aggregate_name_lower }}.{{ nested_field }}:
             result["{{ nested_kind_column }}"] = {{ aggregate_name_lower }}.{{ nested_field }}.kind
             result["{{ nested_data_column }}"] = {{ nested_mapper_class }}.to_json(
@@ -156,32 +190,61 @@ class {{ mapper_class }}:
         else:
             result["{{ nested_kind_column }}"] = None
             result["{{ nested_data_column }}"] = None
+        {{# end if #}}
 
         return result
 
     @staticmethod
     def from_row(row: Mapping[str, Any]) -> {{ aggregate_name }}:
+        {{# if has_polymorphic_field #}}
         {{ nested_field }}_entity = {{ nested_mapper_class }}.from_json(
             row.get("{{ nested_kind_column }}"),
             row.get("{{ nested_data_column }}"),
         )
         {{ nested_field }}_kind = row.get("{{ nested_kind_column }}")
+        {{# end if #}}
 
+        {{# if has_status #}}
         status_error = row.get("{{ status_error_column }}")
+        {{# end if #}}
+
+        {{# for vo_attr, vo_mapper_module, vo_mapper_class, vo_fields in business_vo_attributes #}}
+        {{ vo_attr }} = {{ vo_mapper_class }}.from_json(row["{{ vo_attr }}"])
+        {{# end for #}}
 
         return {{ aggregate_name }}(
             id_=row["{{ id_column }}"],
+            {{# if is_multi_tenant #}}
             tenant_id=row["{{ tenant_id_column }}"],
+            {{# end if #}}
+            {{# if has_polymorphic_field #}}
             {{ nested_kind_param }}={{ nested_field }}_kind,
             {{ nested_entity_param }}={{ nested_field }}_entity,
+            {{# end if #}}
+            {{# if has_status #}}
             status_value=row["{{ status_column }}"],
             status_error=status_error,
+            {{# end if #}}
+            {{# for scalar_attr in business_scalar_attributes #}}
+            {{ scalar_attr }}=row["{{ scalar_attr }}"],
+            {{# end for #}}
+            {{# for vo_attr, vo_mapper_module, vo_mapper_class, vo_fields in business_vo_attributes #}}
+            {{# for vo_field in vo_fields #}}
+            {{ vo_field }}={{ vo_attr }}.{{ vo_field }},
+            {{# end for #}}
+            {{# end for #}}
+            {{# if has_timestamps #}}
             created_at=row["created_at"],
             updated_at=row["updated_at"],
+            {{# end if #}}
         )
 ```
 
 ### Minimal Aggregate Mapper
+
+Rendering rules:
+
+- **Multi-tenancy.** When `{{ is_multi_tenant }}` is true, emit the `tenant_id` row in `to_dict` and the `tenant_id=row["{{ tenant_id_column }}"]` kwarg in `from_row`'s constructor call. When false, omit both.
 
 ```python
 from collections.abc import Mapping
@@ -196,7 +259,9 @@ class {{ mapper_class }}:
     def to_dict({{ aggregate_name_lower }}: {{ aggregate_name }}) -> dict[str, Any]:
         return {
             "{{ id_column }}": {{ aggregate_name_lower }}.id,
+            {{# if is_multi_tenant #}}
             "{{ tenant_id_column }}": {{ aggregate_name_lower }}.tenant_id,
+            {{# end if #}}
             "{{ additional_column }}": {{ aggregate_name_lower }}.{{ additional_attribute }},
         }
 
@@ -208,12 +273,18 @@ class {{ mapper_class }}:
 
         return {{ aggregate_name }}(
             id_=row["{{ id_column }}"],
+            {{# if is_multi_tenant #}}
             tenant_id=row["{{ tenant_id_column }}"],
+            {{# end if #}}
             {{ additional_attribute }}={{ additional_attribute }},
         )
 ```
 
 ### Aggregate Mapper with Children
+
+Rendering rules:
+
+- **Multi-tenancy.** When `{{ is_multi_tenant }}` is true, emit the `tenant_id` row in `to_dict` and the `tenant_id=...` kwargs in both `from_row` and `from_rows` constructor calls. When false, omit them.
 
 ```python
 from collections.abc import Mapping
@@ -230,7 +301,9 @@ class {{ mapper_class }}:
     def to_dict({{ aggregate_name_lower }}: {{ aggregate_name }}) -> dict[str, Any]:
         return {
             "{{ id_column }}": {{ aggregate_name_lower }}.id,
+            {{# if is_multi_tenant #}}
             "{{ tenant_id_column }}": {{ aggregate_name_lower }}.tenant_id,
+            {{# end if #}}
             "{{ additional_column }}": {{ aggregate_name_lower }}.{{ additional_attribute }},
         }
 
@@ -242,7 +315,9 @@ class {{ mapper_class }}:
 
         return {{ aggregate_name }}(
             id_=row["{{ id_column }}"],
+            {{# if is_multi_tenant #}}
             tenant_id=row["{{ tenant_id_column }}"],
+            {{# end if #}}
             {{ additional_attribute }}={{ additional_attribute }},
             {{ children_attribute }}=None,
         )
@@ -257,7 +332,9 @@ class {{ mapper_class }}:
 
         return {{ aggregate_name }}(
             id_=aggregate_row["{{ id_column }}"],
+            {{# if is_multi_tenant #}}
             tenant_id=aggregate_row["{{ tenant_id_column }}"],
+            {{# end if #}}
             {{ additional_attribute }}={{ additional_attribute }},
             {{ children_attribute }}=children,
         )
@@ -391,6 +468,11 @@ class {{ mapper_class }}:
 
 ### Child Entity Mapper
 
+Rendering rules:
+
+- **Multi-tenancy.** When `{{ is_multi_tenant }}` is true, include the `tenant_id: str` parameter on `to_dict` and emit the `"{{ tenant_id_column }}": tenant_id` row in the returned dict. When false, drop the parameter and omit the row.
+- **Status block.** When `{{ has_status }}` is true, emit the `status` and `status_error` rows in `to_dict`, the `status_error = row.get("{{ status_error_column }}")` helper before the constructor call, and the `status_value=` and `status_error=` kwargs in `from_row`. When false, omit all of those.
+
 ```python
 from collections.abc import Mapping
 from typing import Any
@@ -401,25 +483,33 @@ __all__ = ["{{ mapper_class }}"]
 
 class {{ mapper_class }}:
     @staticmethod
-    def to_dict({{ entity_name_lower }}: {{ entity_name }}, {{ parent_id_param }}: str, tenant_id: str) -> dict[str, Any]:
+    def to_dict({{ entity_name_lower }}: {{ entity_name }}, {{ parent_id_param }}: str{{ ", tenant_id: str" if is_multi_tenant }}) -> dict[str, Any]:
         return {
             "{{ id_column }}": {{ entity_name_lower }}.id,
             "{{ parent_id_column }}": {{ parent_id_param }},
+            {{# if is_multi_tenant #}}
             "{{ tenant_id_column }}": tenant_id,
+            {{# end if #}}
             "{{ additional_column }}": {{ entity_name_lower }}.{{ additional_attribute }},
+            {{# if has_status #}}
             "{{ status_column }}": {{ entity_name_lower }}.status.status,
             "{{ status_error_column }}": {{ entity_name_lower }}.status.error if {{ entity_name_lower }}.status.error else None,
+            {{# end if #}}
         }
 
     @staticmethod
     def from_row(row: Mapping[str, Any]) -> {{ entity_name }}:
+        {{# if has_status #}}
         status_error = row.get("{{ status_error_column }}")
+        {{# end if #}}
 
         return {{ entity_name }}(
             id_=row["{{ id_column }}"],
             {{ additional_attribute }}=row["{{ additional_column }}"],
+            {{# if has_status #}}
             status_value=row["{{ status_column }}"],
             status_error=status_error,
+            {{# end if #}}
         )
 ```
 
@@ -462,6 +552,12 @@ class {{ mapper_class }}:
 | `{{ aggregate_name }}` | Aggregate class name | `Order`, `Profile` |
 | `{{ aggregate_name_lower }}` | Aggregate name in snake_case | `order`, `profile` |
 | `{{ mapper_class }}` | Mapper class name | `OrderMapper`, `ProfileMapper` |
+| `{{ is_multi_tenant }}` | Whether the owning aggregate carries `tenant_id` (Section 1 Multi-tenant flag, or presence of a `tenant_id` attribute on the domain class) | `true`, `false` |
+| `{{ has_status }}` | Whether the domain class declares a `status` attribute typed as a `<<Value Object>>` (the framework `Status` VO convention) | `true`, `false` |
+| `{{ has_timestamps }}` | Whether the domain class declares both `created_at` and `updated_at` `datetime` attributes | `true`, `false` |
+| `{{ has_polymorphic_field }}` | Whether the domain class declares a Union-typed (`A \| B`) attribute that the polymorphic mapper dispatches on | `true`, `false` |
+| `{{ business_scalar_attributes }}` | Ordered list of non-identity, non-framework-managed, non-VO scalar attribute names on the domain class | `["enabled"]`, `["count", "label"]` |
+| `{{ business_vo_attributes }}` | Ordered list of `(<attr>, <vo_mapper_module>, <vo_mapper_class>, <vo_fields>)` quadruples — one per JSONB-resident value-object attribute on the domain class, excluding the polymorphic field. `<vo_fields>` is the ordered list of the VO's own primitive attribute names, used to expand the aggregate's flat-constructor kwargs. | `[("details", "details_mapper", "DetailsMapper", ["name", "description"])]` |
 | `{{ id_column }}` | Primary key column name | `id`, `order_id` |
 | `{{ tenant_id_column }}` | Tenant ID column name | `tenant_id` |
 | `{{ status_column }}` | Status column name | `status` |

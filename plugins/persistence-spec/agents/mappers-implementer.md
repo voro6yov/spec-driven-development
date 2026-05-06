@@ -53,6 +53,8 @@ Bind `<domain_dir>` = `<repo_root>/<Package>` and verify `test -d <domain_dir>`.
 
 Bind `<domain_module>` to the dotted Import path verbatim. Every generated mapper imports its domain class with `from <domain_module> import <Class>`.
 
+In the same `Aggregate Summary` table, read the `Multi-tenant?` row's `Value` cell. Strip whitespace; lowercase. Bind `<is_multi_tenant>` = `true` iff the cell is exactly `yes`, else `false`. Apply placeholder detection — if the cell still reads `Yes / No` or contains braces, fail with: `Error: Multi-tenant cell in Section 1 is unfilled; spec is not ready.` This flag is the single source of truth for the `tenant_id` column on every aggregate, child-entity, and polymorphic mapper rendered downstream.
+
 #### 2c. Section 2 — Mappers subsection
 
 In Section 2 (`## 2. Pattern Selection`) under `### Mappers`, walk every data row. For each row that survives the placeholder detection rule:
@@ -126,9 +128,40 @@ A Polymorphic Mapper row is a *virtual dispatcher*: `<DomainClass>` need not exi
 
 Templates currently support exactly two members. If the union has more than two, fail with: `Error: 'persistence-spec:mappers' Polymorphic Mapper template supports two members; '<Aggregate>.<attr>' has <N>. Extend the skill or split the union.`
 
-#### 4c. Attribute ↔ column drift check
+#### 4c. Domain-shape flags and business-attribute partition
 
-For aggregate and child-entity mappers only. Frame as follows: for every column name in Step 2d that is **not** framework-managed (`status`, `status_error`, `created_at`, `updated_at`, the id column, the parent-id column, polymorphic kind/data column pairs `<attr>_kind`/`<attr>_data`), verify a matching attribute exists in `<domain[<DomainClass>]>` (snake_case identity). Likewise, every non-framework attribute on `<DomainClass>` should map to either a column or a JSONB-resident value object (i.e. its type is a value object referenced elsewhere in `<patterns>`). On any unmatched residual, fail with: `Error: '<MapperClass>': column '<col>' on table '<table>' has no matching attribute on '<DomainClass>' (or vice-versa).`
+For each `<DomainClass>` whose mapper variant is `Full Aggregate Mapper`, `Minimal Aggregate Mapper`, `Aggregate Mapper with Children`, or `Child Entity Mapper`, classify the attribute list captured in Step 4.3 into flags + lists. These feed the conditional rendering rules in `persistence-spec:mappers` so the same template body covers status-less, timestamp-less, single-tenant, and multi-attribute aggregates without forking a new variant.
+
+Bindings derived per `<DomainClass>`:
+
+- `<has_status[<DomainClass>]>` — `true` iff `<domain[<DomainClass>]>` contains an attribute named `status` whose unwrapped type is referenced by a `<<Value Object>>` row in `<patterns>` (i.e. the framework `Status` VO convention; the `.status.status` / `.status.error` shape the template's status block depends on). Otherwise `false`.
+- `<has_timestamps[<DomainClass>]>` — `true` iff `<domain[<DomainClass>]>` contains both a `created_at` and an `updated_at` attribute typed as `datetime`. If only one is present, fail with: `Error: '<DomainClass>' declares one of 'created_at' / 'updated_at' but not both; the framework treats them as a pair. Add the missing attribute or remove the other.`
+- `<has_polymorphic_field[<DomainClass>]>` — `true` iff Step 4b identified a Union-typed attribute on `<DomainClass>` whose members each resolve to mapper rows in `<patterns>`. Otherwise `false`.
+- `<is_multi_tenant>` — already bound in Step 2b from Section 1's Multi-tenant cell. The same value applies to every aggregate/child-entity mapper produced from this spec.
+
+Business-attribute partition over `<domain[<DomainClass>]>` (declaration order preserved):
+
+1. Drop framework-managed names: `id`, `tenant_id`, `created_at`, `updated_at`, the polymorphic field (only if `<has_polymorphic_field[<DomainClass>]>`), and `status` (only if `<has_status[<DomainClass>]>`).
+2. For each remaining attribute, partition by type:
+   - **Scalar** (type unwraps to one of `str`, `int`, `float`, `bool`, `datetime`, `date`, `Decimal`, `UUID`, or a `| None` of those) → append the attribute name to `<business_scalar_attributes[<DomainClass>]>`.
+   - **Value object** (type unwraps to a class `<VOClass>` with a matching `<VOClass>Mapper` row in `<patterns>`) → append the quadruple `(<attr>, <vo_mapper_module>, <vo_mapper_class>, <vo_fields>)` to `<business_vo_attributes[<DomainClass>]>` where:
+     - `<vo_mapper_module>` is the snake_case form of `<vo_mapper_class>`.
+     - `<vo_fields>` is the ordered list of `<VOClass>`'s own Guard-declared primitive attribute names — read from `<domain[<VOClass>]>` (which Step 4.3 already captured for any VO whose mapper is in `<patterns>`). These names are spread back into the aggregate's flat-constructor kwargs in `from_row`, per `domain-spec:flat-constructor-arguments`. If `<domain[<VOClass>]>` has not been resolved yet (e.g. the VO mapper is processed later in worklist order), run Step 4.1 / 4.2 / 4.3 against `<VOClass>` now to resolve it on demand.
+   - **Anything else** (collection of VOs, foreign aggregate reference, unrecognized class) → fail with `Error: attribute '<DomainClass>.<attr>' has type '<T>' that is neither a primitive nor a registered value-object mapper; extend Section 2 Mappers or revise the domain class.`
+
+These partitions feed the `{{ business_scalar_attributes }}` and `{{ business_vo_attributes }}` placeholders in Step 6.
+
+#### 4d. Attribute ↔ column drift check
+
+For aggregate and child-entity mappers only. The framework-managed column set is conditional on the flags captured in 4c — only the columns the domain actually requires count as framework-managed:
+
+- `<id_column>` and (when `<is_multi_tenant>` is true) `<tenant_id_column>` — always framework-managed.
+- `<parent_id_column>` — framework-managed for child-entity tables.
+- `status`, `status_error` — framework-managed iff `<has_status[<DomainClass>]>` is true.
+- `created_at`, `updated_at` — framework-managed iff `<has_timestamps[<DomainClass>]>` is true.
+- `<attr>_kind`, `<attr>_data` (for the polymorphic field `<attr>` resolved in Step 4b) — framework-managed iff `<has_polymorphic_field[<DomainClass>]>` is true.
+
+For every Section 3 column on the matching table that is **not** in the framework-managed set above, verify a matching name exists in either `<business_scalar_attributes[<DomainClass>]>` or `<business_vo_attributes[<DomainClass>]>`. Conversely, every entry in those two business lists must correspond to a Section 3 column. On any unmatched residual, fail with: `Error: '<MapperClass>': column '<col>' on table '<table>' has no matching attribute on '<DomainClass>' (or vice-versa).`
 
 ### Step 5 — Implement each stub
 
@@ -160,8 +193,10 @@ Substitute placeholders by drawing from these sources, in this priority order �
 | `{{ aggregate_name }}` / `{{ value_object_name }}` / `{{ entity_name }}` | `<DomainClass>` from Step 4 |
 | `{{ aggregate_name_lower }}` / `{{ value_object_name_lower }}` / `{{ entity_name_lower }}` | snake_case of `<DomainClass>` |
 | `{{ mapper_class }}` | `<MapperClass>` |
-| `{{ id_column }}`, `{{ tenant_id_column }}`, `{{ status_column }}`, `{{ status_error_column }}` | matching column names parsed in Step 2d (verify presence; do not invent) |
-| `{{ additional_column }}` / `{{ additional_attribute }}` | the single non-framework-managed column on the table; if more than one exists, the variant is wrong — fail with `Error: '<MapperClass>' uses '<Variant>' but table '<table>' has multiple business columns; pick a different variant.` |
+| `{{ id_column }}`, `{{ tenant_id_column }}`, `{{ status_column }}`, `{{ status_error_column }}` | matching column names parsed in Step 2d (verify presence; do not invent). `{{ tenant_id_column }}` is referenced only when `{{ is_multi_tenant }}` is true; `{{ status_column }}` / `{{ status_error_column }}` only when `{{ has_status }}` is true. |
+| `{{ is_multi_tenant }}`, `{{ has_status }}`, `{{ has_timestamps }}`, `{{ has_polymorphic_field }}` | the four shape flags bound in Step 2b (multi-tenant) and Step 4c (status / timestamps / polymorphic). Each gates the matching conditional block in the Full Aggregate Mapper / Minimal / With Children / Child Entity templates per the Rendering rules in `persistence-spec:mappers`. |
+| `{{ business_scalar_attributes }}`, `{{ business_vo_attributes }}` | the two ordered lists bound in Step 4c. The Full Aggregate Mapper template iterates over them to render one row per attribute in `to_dict` and one kwarg per attribute in `from_row`. Minimal / With Children / Child Entity continue to use the legacy single-attribute `{{ additional_column }}` / `{{ additional_attribute }}` placeholders — they do not consume these lists. |
+| `{{ additional_column }}` / `{{ additional_attribute }}` | for Minimal / With Children / Child Entity only: the single non-framework-managed column on the table; if more than one exists, the variant is wrong — fail with `Error: '<MapperClass>' uses '<Variant>' but table '<table>' has multiple business columns; pick 'Full Aggregate Mapper' instead.` |
 | `{{ additional_default }}` | Agent policy (not in spec or skill): `""` for `String`, `0` for `Integer`, `None` otherwise — keyed on the Section 3 column type. Documented here because the skill's template is silent on this fallback. |
 | `{{ nested_field }}`, `{{ nested_kind_column }}`, `{{ nested_data_column }}`, `{{ nested_kind_param }}`, `{{ nested_entity_param }}` | derive from the aggregate's polymorphic attribute — name = attribute name; `<attr>_kind` and `<attr>_data` for columns; `<attr>_kind` and `<attr>_entity` for params (must match the constructor signature parsed in Step 4) |
 | `{{ nested_mapper_class }}` / `{{ nested_mapper }}` (module) | sibling mapper from `<nested[…]>`; module = snake_case of mapper class |

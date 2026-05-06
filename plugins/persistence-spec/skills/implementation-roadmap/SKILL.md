@@ -60,8 +60,8 @@ Convert between domain aggregates/value objects and database rows. Order: value 
 | Value Object with Collection Mapper | Value objects containing collections |
 | Child Entity Mapper | Entities in child tables |
 | Polymorphic Mapper | Type hierarchies with discriminator |
-| Full Aggregate Mapper | Aggregate with status, timestamps, nested data |
-| Minimal Aggregate Mapper | Simple aggregate without status/timestamps |
+| Full Aggregate Mapper | Standard aggregate mapper. Conditionally renders tenant_id, status, timestamps, polymorphic, and arbitrary scalar/VO business attributes based on the actual domain class shape. Default choice for any non-trivial aggregate without children. |
+| Minimal Aggregate Mapper | Trivial aggregate with exactly one flat scalar business attribute and none of: children, status, timestamps, value-object fields, polymorphic data. |
 | Aggregate Mapper with Children | Aggregate owning child entities |
 
 Template skill: `persistence-spec:mappers`
@@ -126,7 +126,7 @@ Use these rules to fill Section 2 of the command repository spec:
   - `Complex Value Object Mapper` — has nested optional sub-objects.
   - `Value Object with Collection Mapper` — contains a list/set of inner items.
 - One Child Entity Mapper per child entity table.
-- Aggregate mapper: `Aggregate Mapper with Children` if children exist, else `Full` (status + timestamps) or `Minimal` (neither).
+- Aggregate mapper: `Aggregate Mapper with Children` if children exist; otherwise `Full Aggregate Mapper` whenever the aggregate has any of {a `status: <<Value Object>>` field, a `created_at` / `updated_at` pair, more than one business attribute, a composed value-object field, or a polymorphic union attribute}; reserve `Minimal Aggregate Mapper` only for aggregates with exactly one flat scalar attribute and none of those features.
 - Add `Polymorphic Mapper` if a type hierarchy with discriminator is present.
 
 **Repository**
