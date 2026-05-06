@@ -17,7 +17,7 @@ You are a commands implementer. Your job is to wire one aggregate's `<Aggregate>
 
 **Prerequisites.** This agent assumes the persistence-spec generators (which add `unit_of_work`, the `Command<Aggregate>Repository` plural-named UoW attr, and the `AbstractUnitOfWork` import to `containers.py`) and `@service-implementer` (which wires every collaborator dep and adds a `containers` fixture to `<tests_dir>/conftest.py`) have already run. If a required dep provider is missing in `containers.py`, this agent aborts with the missing names so the user can run those agents first.
 
-**Domain API assumptions.** The generated body presumes the aggregate exposes `.events` and `.commands` collections (the standard `application-spec:commands` skill convention). If the domain class does not, the generated `_publish_events` / `_send_commands` helpers will not type-check; the user must adjust the domain or remove the helpers.
+**Translation philosophy.** Method body translation is **judgment-driven, not regex-driven**. The agent reads each flow step in plain English and emits idiomatic Python guided by the actual API exposed by the aggregate domain class and the repository ABCs (which the agent reads from disk in Step 6). The structural skeleton — imports, `__init__`, `@retry_on_transaction_error`, the `with self._uow:` wrapper, `self._uow.commit()` placement, helpers, the mandatory `self._logger.info(...)` line, the final `return`, and all DI/conftest patching — remains deterministic. The translator never invents methods or finders that don't exist in the read-in API; when a flow step references something with no analog in the codebase, it emits `# TODO: <verbatim step>` so the user can resolve it explicitly.
 
 ## Inputs
 
@@ -68,7 +68,7 @@ Each row is `| <RepoClass> | uow.<plural> |` (or `| <RepoClass> | \`uow.<plural>
 
 For each row, bind `(RepoClass, plural)`. The **primary repository** is the row whose `<RepoClass>` equals `Command<Aggregate>Repository`; bind `<aggregate_plural>` to its `<plural>` value. If no such row exists, abort with `commands spec missing primary repository Command<Aggregate>Repository`.
 
-Repositories are **not** constructor parameters — they are accessed through `self._uow.<plural>`. Their only role here is supplying `<aggregate_plural>`.
+Bind `<repos>` to the ordered list of `(RepoClass, plural)`. Repositories are **not** constructor parameters — they are accessed through `self._uow.<plural>`.
 
 #### 3b. `### Domain Services` (bullets)
 
@@ -111,7 +111,7 @@ Bind `<ctor_params>` to this ordered list. Each entry is `(attr, ClassName, cate
 
 ### Step 4 — Resolve dep import modules
 
-**Module resolution convention.** Whenever any rule below (or in Step 7) says "derive the dotted module" from a grep hit at `<pkg_root>/src/<pkg>/<area>/<X>/...` (where `<area>` is `domain`, `application`, or `infrastructure`), stop at the first path segment after `<area>` and bind the module to `<pkg>.<area>.<X>` — regardless of how deep the actual `.py` file lives. `<X>` may be a sub-package directory (e.g. `domain_type`, `shared`, `services`) or a single module file with `.py` stripped (e.g. `retry_transaction`); both forms collapse to the same dotted shape. This relies on the project convention that aggregate and shared sub-packages re-export their public classes through their own `__init__.py`. The rule applies to publishers, domain services, exceptions, the retry decorator, the `<AGGREGATE>_DESTINATION` constant, and any other class resolved by file-path grep — never import the leaf file directly when a re-exporting parent package exists. (Single-file modules like `<pkg>/application/retry_transaction.py` collapse to `<pkg>.application.retry_transaction` under this rule, which is identical to the leaf form — no behaviour change for those.)
+**Module resolution convention.** Whenever any rule below (or in Step 8) says "derive the dotted module" from a grep hit at `<pkg_root>/src/<pkg>/<area>/<X>/...` (where `<area>` is `domain`, `application`, or `infrastructure`), stop at the first path segment after `<area>` and bind the module to `<pkg>.<area>.<X>` — regardless of how deep the actual `.py` file lives. `<X>` may be a sub-package directory (e.g. `domain_type`, `shared`, `services`) or a single module file with `.py` stripped (e.g. `retry_transaction`); both forms collapse to the same dotted shape. This relies on the project convention that aggregate and shared sub-packages re-export their public classes through their own `__init__.py`. The rule applies to publishers, domain services, exceptions, the retry decorator, the `<AGGREGATE>_DESTINATION` constant, and any other class resolved by file-path grep — never import the leaf file directly when a re-exporting parent package exists. (Single-file modules like `<pkg>/application/retry_transaction.py` collapse to `<pkg>.application.retry_transaction` under this rule, which is identical to the leaf form — no behaviour change for those.)
 
 For each `(attr, ClassName, category)` in `<ctor_params>`:
 
@@ -159,7 +159,7 @@ Bind `<import_table>` keyed by `<attr>` to `(ClassName, module)`. The module for
 
 Locate `## Method Specifications`. Each method is introduced by a heading of the form `### Method: \`<sig>\`` (verified against `@commands-methods-writer` Step 7). Match with the regex `^###\s+Method:\s*` followed by an optional opening backtick, the captured signature group, and an optional closing backtick. Parse the captured signature for `<method_name>`, params, and return type.
 
-Under each method heading, find `**Method Flow**:` (or the equivalent `**Flow**:`) followed by a numbered list of steps. Capture each numbered top-level step verbatim (including any indented `**Note**:` sub-bullets). Optional `**Postconditions**` and `**Raises**` blocks are read but only used for Step 7 `# TODO` comments.
+Under each method heading, find `**Method Flow**:` (or the equivalent `**Flow**:`) followed by a numbered list of steps. Capture each numbered top-level step **verbatim** (including any indented `**Note**:` sub-bullets). Optional `**Postconditions**` and `**Raises**` blocks are read but not used for emission.
 
 Bind `<methods>` to the ordered list of dicts:
 
@@ -168,28 +168,85 @@ Bind `<methods>` to the ordered list of dicts:
   "name": <method_name>,
   "signature": "<verbatim def line>",
   "params": [<param_decl>, ...],
+  "param_names": [<param_name>, ...],
   "return_type": <ReturnType>,
   "flow": [<step_1_text>, <step_2_text>, ...],
   "raised_exceptions": {<ExceptionClass>, ...},
-  "shape": "factory" | "canonical_or_collaborator",
-  "mutating": <bool>,
-  "finder_name": <finder_name> | None,
 }
 ```
 
-- `shape` = `factory` iff `<method_name>` is `create`, `new`, or `add_<aggregate>`. Otherwise `canonical_or_collaborator`.
-- `mutating` is `True` iff `shape == "factory"` OR any flow step contains `command_repository.save`. (`.publish(` / `.send(` are not used as discriminators — they map to helpers that exist only on mutating methods anyway.)
-- `finder_name` is extracted from the first step matching `command(?:_<aggregate>)?_repository\.(?P<f>[a-z_]+)\(` for non-factory methods (the repo prefix `command_repository` may also appear as `command_<aggregate>_repository`), **excluding** finders used in existence-check pairs (whose step text matches the existence-check pattern in Step 7's pair rules — i.e. begins with `command(?:_<aggregate>)?_repository\.<f>(...)` and continues with "to check\b…"). Factory methods set it to `None`. If a non-factory method's flow contains zero such retrieve calls, set `finder_name` to `None` and emit no load step.
-- `raised_exceptions` is the set of `<X>` class names captured by scanning each flow step for `raise <X>` (regex `raise\s+(?P<x>[A-Z][A-Za-z0-9_]*)`). The merged commands spec has **no `**Raises**` section** (per `@commands-methods-writer` the raises list is in the sibling exceptions file); flow text is the only source.
+`raised_exceptions` is the set of `<X>` class names captured by scanning each flow step for `raise <X>` (regex `raise\s+(?P<x>[A-Z][A-Za-z0-9_]*)`). The merged commands spec has **no `**Raises**` section** (per `@commands-methods-writer` the raises list is in the sibling exceptions file); flow text is the only source.
 
 If `## Method Specifications` is missing or empty, abort.
 
-After parsing, validate publisher invariants:
+After parsing, validate publisher invariants by inspecting flow text for publisher / dispatch references:
 
-- If any method's flow references "publish" / "publish via `event_publisher`" / `.publish(` and `<has_event_publisher>` is `False`, abort with `flow references event publishing but DomainEventPublisher is not declared in dependencies`.
-- If any method's flow references "Send commands" / "dispatch commands" / `.send(` (in publisher position) and `<has_command_producer>` is `False`, abort with `flow references command dispatch but CommandProducer is not declared in dependencies`.
+- If any flow step describes publishing domain events (e.g. mentions "publish", "domain events", "event_publisher", "DomainEventPublisher") and `<has_event_publisher>` is `False`, abort with `flow references event publishing but DomainEventPublisher is not declared in dependencies`.
+- If any flow step describes sending or dispatching commands (e.g. mentions "send commands", "dispatch commands", "command_producer", "CommandProducer") and `<has_command_producer>` is `False`, abort with `flow references command dispatch but CommandProducer is not declared in dependencies`.
 
-### Step 6 — Validate the stub file
+These invariants are checked by reading the flow text with judgment — there is no fixed regex for the trigger phrases.
+
+### Step 6 — Read codebase artifacts that inform translation
+
+Method body translation is judgment-driven; the agent must ground its judgment in the actual API exposed by the aggregate and the repositories. Read the following before generating any method body. These reads are mandatory — skipping them is the difference between this agent and the previous regex-driven version.
+
+#### 6a. Aggregate domain class
+
+Resolve the aggregate class file:
+
+```
+grep -RIl --include='*.py' -E '^class <Aggregate>\(' <pkg_root>/src/<pkg>/domain/
+```
+
+If zero or 2+ matches, abort with `aggregate domain class <Aggregate> not uniquely resolvable in <pkg>/domain/`. Otherwise, **read the matched file in full** and capture:
+
+- Public instance methods (defined with `def <name>(self, ...)` where `<name>` does not start with `_`).
+- Public class/static methods (`@classmethod` / `@staticmethod` decorators, or names like `new`, `create`, `from_*`).
+- Public properties (`@property` and any attribute exposed via `__init__` self-assignment).
+
+Bind `<aggregate_api>` = `{"factories": [<sig>, ...], "methods": [<sig>, ...], "properties": [<name>, ...]}`. This catalog is the source of truth for what the translator may call on the aggregate or its class.
+
+#### 6b. Primary repository ABC
+
+Resolve `Command<Aggregate>Repository`:
+
+```
+grep -RIl --include='*.py' -E '^class Command<Aggregate>Repository\(' <pkg_root>/src/<pkg>/domain/
+```
+
+If exactly one match, **read the file in full** and capture every `@abstractmethod`-decorated method's name and signature into `<primary_repo_methods>` (a list of `(name, signature)` tuples). This is the source of truth for finder names and parameter shapes when the flow references repository operations on the primary repo.
+
+If zero or 2+ matches, set `<primary_repo_methods>` = `[]` and continue. The translator falls back to TODO comments for any flow step that would require a repository call it cannot resolve.
+
+#### 6c. Non-primary repository ABCs
+
+For each non-primary `(RepoClass, plural)` in `<repos>`, run the same grep (`grep -RIl --include='*.py' -E '^class <RepoClass>\(' <pkg_root>/src/<pkg>/domain/`). When exactly one match is found, read it and capture its abstract methods into `<repo_api>[RepoClass] = {"plural": plural, "methods": [(name, signature), ...]}`. Zero or 2+ matches → record an empty `methods` list and continue.
+
+When translating a flow step that references a finder, prefer the non-primary repo whose method list contains the called finder name; fall back to the primary repo (using `<aggregate_plural>`) otherwise.
+
+#### 6d. Domain exception classes
+
+For each exception in `union(method["raised_exceptions"] for method in <methods>)`, run:
+
+```
+grep -RIl --include='*.py' -E '^class <ExceptionClass>(\(|:)' <pkg_root>/src/<pkg>/domain/
+```
+
+Record the resolution in `<exception_imports>`. Exactly-one match → bind to its dotted module. Zero or 2+ → mark unresolved (the import block emits a TODO; method bodies still emit the verbatim `raise <X>(...)` from flow text).
+
+Bind `<not_found_class>` to the unique exception name in the union whose pattern matches `<Aggregate>NotFound(?:Error)?`. If both `<Aggregate>NotFound` and `<Aggregate>NotFoundError` are observed across flow text, abort with `inconsistent NotFound class names in flow text`. If the union contains no NotFound-shaped class but at least one method's flow describes a load-then-raise sequence, abort with `flow text references a load-then-raise but no <Aggregate>NotFound* raise — spec is inconsistent`.
+
+#### 6e. AGGREGATE_DESTINATION constant
+
+If any method's flow describes publishing domain events, resolve the destination constant:
+
+```
+grep -RIl --include='*.py' -E '<AGGREGATE>_DESTINATION\s*=' <pkg_root>/src/<pkg>/
+```
+
+If exactly one match, derive its dotted module and record `<destination_module>`. Otherwise, mark unresolved (the `_publish_events` helper emits the bare constant name + a TODO in the import block).
+
+### Step 7 — Validate the stub file
 
 Path: `<app_pkg>/<aggregate>/<aggregate>_commands.py`. Read it. Required exact stub content (trailing whitespace and one trailing newline tolerated):
 
@@ -203,9 +260,9 @@ class <commands_class>:
 
 If missing, abort with `commands stub missing — application-files-scaffolder must run first`. If diverged, abort with `<aggregate>_commands.py is non-stub; refusing to overwrite`.
 
-### Step 7 — Generate the implementation
+### Step 8 — Generate the implementation
 
-Invoke the `Skill` tool for `application-spec:commands`, `application-spec:retry-transaction`, and `application-spec:dependency-injection-patterns` before writing.
+Invoke the `Skill` tool for `application-spec:commands`, `application-spec:retry-transaction`, and `application-spec:dependency-injection-patterns` before writing. These provide the canonical structural template and DI conventions; the generated file should match their shape exactly outside the method bodies.
 
 #### Imports
 
@@ -214,18 +271,11 @@ In order:
 1. `import logging`.
 2. Per `(attr, ClassName, category)` in `<ctor_params>`, emit `from <module> import <ClassName>`. Group multiple deps sharing a module into one import line. UoW is `from <uow_module> import AbstractUnitOfWork`.
 3. `from <pkg>.domain.<aggregate> import <Aggregate>` always.
-4. For each exception in `union(method["raised_exceptions"] for method in <methods>)`, resolve by running:
-
-   ```
-   grep -RIl --include='*.py' -E '^class <ExceptionClass>(\(|:)' <pkg_root>/src/<pkg>/domain/
-   ```
-
-   - exactly one match → derive the dotted module and add `from <module> import <ExceptionClass>`, grouping with siblings sharing the module.
-   - zero matches or 2+ → emit `# TODO: import <ExceptionClass>` in the import block. Do not guess.
-
-   Bind `<not_found_class>` to the unique exception name in the union whose pattern matches `<Aggregate>NotFound(?:Error)?` — used by the load helper / inline load. If both `<Aggregate>NotFound` and `<Aggregate>NotFoundError` are observed across flow text, abort with `inconsistent NotFound class names in flow text`. If the union contains no NotFound-shaped class but at least one non-factory method has `finder_name is not None`, abort with `flow text references a load step but no <Aggregate>NotFound* raise — spec is inconsistent`.
-
-5. `from <retry_module> import retry_on_transaction_error`.
+4. For each exception in `union(method["raised_exceptions"] for method in <methods>)` resolved in Step 6d:
+   - Resolved → emit `from <module> import <ExceptionClass>`, grouping with siblings sharing the module.
+   - Unresolved → emit `# TODO: import <ExceptionClass>` in the import block.
+5. If any method's flow publishes events and Step 6e resolved the destination constant, emit `from <destination_module> import <AGGREGATE>_DESTINATION`. If unresolved, emit `# TODO: define <AGGREGATE>_DESTINATION constant and import it` in the import block.
+6. `from <retry_module> import retry_on_transaction_error`.
 
 #### `__all__`
 
@@ -258,81 +308,140 @@ class <commands_class>:
         self._logger = logging.getLogger(self.__class__.__name__)
 ```
 
-Omit any group whose category has zero entries. Keep one blank line between consecutive non-empty groups in `__init__` for readability. The `unit_of_work` parameter is always first; logger init is always last.
+Omit any group whose category has zero entries. Keep one blank line between consecutive non-empty groups in `__init__` for readability. The `unit_of_work` parameter is always first; logger init is always last. The DI structure is structural, not flow-driven — these rules are exact.
 
-#### Methods
+#### Methods — judgment-driven translation
 
 For each method in `<methods>`:
 
-1. Emit `@retry_on_transaction_error()` if `method["mutating"]` is `True`.
-2. Emit the verbatim signature as a `def` line.
-3. Open `with self._uow:` immediately if `method["mutating"]` is `True`, body indented one extra level. Emit translated steps within. Exit the block before any `_publish_events` / `_send_commands` call and before any `return` statement that does not depend on uow state. If after translation the `with` block has zero executable statements (every flow step became a `# TODO:` comment), emit a `pass` line as the block body so the file parses. Non-mutating methods (`shape != "factory"` AND no flow step contains `command_repository.save`) emit translated steps at method scope without a `with` wrapper.
-4. Translate `method["flow"]` into Python statements **best-effort**. Apply the rules below in order; each rule consumes one or more flow steps and emits zero or more Python lines.
+##### Mutating decision
 
-   **Pair rules** (consume two adjacent flow steps as a unit):
+A method is **mutating** iff its flow describes any of the following (judged by reading the prose):
 
-   - **Load + raise pair.** Step *N* matches `command(?:_<aggregate>)?_repository\.[a-z_]+\(.+\)\s+to (retrieve|load)\b` (the repo prefix `command_repository` may also appear as `command_<aggregate>_repository`) AND step *N+1* matches `(?i)^if no\b.*\braise\s+\`?<NotFoundClass>\`?` (the noun after "no" may be the aggregate name, "aggregate", or any synonym; the `<NotFoundClass>` token is captured by the same `raise\s+(?P<x>[A-Z][A-Za-z0-9_]*)` regex used to populate `raised_exceptions`). Consume both. Emit either:
-     - **Helper case** (one shared finder across all non-factory methods): one line — `<aggregate> = self._find_<aggregate>(<args>)`.
-     - **Inline case**: three lines —
-       ```python
-       if (<aggregate> := self._uow.<aggregate_plural>.<finder>(<args>)) is None:
-           raise <not_found_class>(<args>)
-       ```
-   - **Existence-check + already-exists pair (factory).** Step *N* matches `command(?:_<aggregate>)?_repository\.[a-z_]+\(.+\)\s+to check\b` (the "to check" prefix is sufficient — any trailing language about conflicts, duplicates, or "whether a `<Aggregate>` with the same `<key>` already exists" is allowed; the repo prefix `command_repository` may also appear as `command_<aggregate>_repository`) AND step *N+1* matches `(?i)^if a matching\b.*\braise\s+\`?<Aggregate>AlreadyExistsError\`?` (the noun after "matching" may be the aggregate name, "aggregate", or any synonym). Consume both. Emit:
-     ```python
-     if self._uow.<aggregate_plural>.<existence_finder>(<args>):
-         raise <Aggregate>AlreadyExistsError(<args>)
-     ```
+- Persisting / saving the aggregate via the primary repository.
+- Creating a new aggregate via a factory method on the aggregate class.
+- Calling any state-changing method on the aggregate (state changes are evidenced by domain methods in `<aggregate_api>["methods"]` that aren't pure getters).
 
-     The truthy check (no `is not None`) supports both finder shapes the spec may declare: a boolean predicate (`has_<aggregate>_with_<key>(...) -> bool`) and a nullable lookup (`<aggregate>_of_<key>(...) -> <Aggregate> | None`). Both correctly indicate existence when truthy; an `is not None` check would be a bug under the boolean shape (always `True`).
+If unsure, default to mutating — the only cost of being wrong is an extra `with self._uow:` block, which is cheap. Bind `<mutating>` to the boolean.
 
-   **Single-step rules:**
+##### Decorator and signature
 
-   | Flow language | Emitted Python |
-   |---|---|
-   | "Call `<Aggregate>.new(<args>)`" | `<aggregate> = <Aggregate>.new(<args>)` |
-   | "Call `<aggregate>.<domain_method>(<args>)`" | `<aggregate>.<domain_method>(<args>)` |
-   | "Call `command_repository.save(<aggregate>)`" | `self._uow.<aggregate_plural>.save(<aggregate>)` |
-   | "Extract events and publish via `event_publisher`" | `self._publish_events(<aggregate>)` (emitted **after** the `with` block) |
-   | "Send commands" / "dispatch commands" | `self._send_commands(<aggregate>)` (emitted **after** the `with` block) |
-   | "Call `<service>.<op>(<args>)`" / "Call `<external_attr>.<op>(<args>)`" | `self._<service>.<op>(<args>)` (with result-capture if the next step references the result) |
-   | "Return the …" | emit `return <var>` after the `with` block; `<var>` is the most recent binding (typically `<aggregate>`) |
+- Emit `@retry_on_transaction_error()` iff `<mutating>` is `True`.
+- Emit the verbatim signature from `method["signature"]` as a `def` line.
 
-   **Derivation rule** (no flow-language match required):
+##### Body skeleton
 
-   - After emitting the last `self._uow.<aggregate_plural>.save(...)` call in the method body, emit `self._uow.commit()` on the next line — exactly once per method, regardless of how many save calls precede it.
+If `<mutating>` is `True`:
 
-   **Derivation rule (logging)** (no flow-language match required):
+```python
+    @retry_on_transaction_error()
+    def <name>(<params>) -> <ReturnType>:
+        with self._uow:
+            <translated body>          # see "Flow translation" below
 
-   - For mutating methods (`method["mutating"]` is `True`), emit `self._logger.info("<Aggregate> <action> with id %s.", <var>.id)` immediately before the `return <var>` line, separated from the preceding statement by exactly one blank line and from the `return <var>` line by exactly one blank line. `<var>` is the most recent binding (typically `<aggregate>`).
-   - `<action>` is derived from `method["name"]`:
-     1. Split on `_`. The first token is `<verb>`; any remaining tokens form `<rest>` (joined back with single spaces).
-     2. Past-tense `<verb>`: append `d` if it ends in `e`, else append `ed` → `<past>`.
-     3. **Single-token method** (`<rest>` is empty): `<action>` = `<past>`.
-     4. **Compound method** (`<rest>` is non-empty): `<copula>` = `are` if `<rest>` ends in `s`, else `is`. `<action>` = `<rest> <copula> <past>`.
-   - Examples:
-     - `create` → `"DomainType created with id %s."`
-     - `enable` → `"DomainType enabled with id %s."`
-     - `disable` → `"DomainType disabled with id %s."`
-     - `update_details` → `"DomainType details are updated with id %s."`
-     - `update_status` → `"DomainType status is updated with id %s."`
-     - `add_line_item` → `"DomainType line item is added with id %s."`
-   - Skip emission for non-mutating methods.
-   - If `<var>` was not bound by any prior rule (e.g. every flow step became a `# TODO:`), skip emission rather than emitting a line that would `NameError`.
+        <publish/send helpers>          # only if the flow describes publishing/sending
+        <logger info line>              # always, per "Logger derivation"
+        <return statement>              # if return type is non-None
+```
 
-   **Default:** any flow step not consumed by a rule above → emit `# TODO: <verbatim flow step text>` and continue. Do not invent logic.
+If `<mutating>` is `False`:
 
-   **Argument extraction.** For all rules above, `<args>` is the literal comma-separated content between the parentheses of the matched expression in the flow step (e.g. flow `command_repository.<aggregate>_of_id(id, tenant_id)` → `<args>` = `id, tenant_id`). The agent does not rename or reorder; it copies verbatim. Each token is expected to be a Python identifier matching a method param. The writer's Step 5d resolves names; placeholder syntax (`<aggregate>_id`) reaching the implementer indicates a writer bug — emit the verbatim text and let Python flag the NameError.
+```python
+    def <name>(<params>) -> <ReturnType>:
+        <translated body>               # at method scope, no with-block
+        <return statement>              # if return type is non-None
+```
 
-`with self._uow:` invariant: when emitted, every `self._uow.*` access (find, save, commit) is inside the block. `_find_<aggregate>(...)` calls also belong inside the block — the helper assumes the caller has already entered the uow context. No nested `with self._uow:` is ever emitted.
+##### Flow translation
+
+This is the heart of the agent. For each numbered flow step, **read the prose carefully** and emit one or more Python statements that faithfully implement the described action. Use `<aggregate_api>`, `<primary_repo_methods>`, and `<repo_api>` as the source of truth for what calls are available; do not invent identifiers.
+
+Apply these conventions consistently:
+
+- **Repository access.** All repository calls go through `self._uow.<plural>`. The `<plural>` to use is determined by which repository's ABC declares the called method:
+  - If a non-primary repo's ABC declares the method → use that repo's `<plural>`.
+  - Otherwise → use the primary repo's `<aggregate_plural>`.
+- **Aggregate access via factory.** When the flow says "Create a new `<Aggregate>` via `<Aggregate>.<factory>(<args>)`" (or any equivalent prose like "instantiate", "build a new"), emit `<aggregate> = <Aggregate>.<factory>(<args>)`. The factory name must exist in `<aggregate_api>["factories"]`; if not, emit `# TODO: <verbatim step>`.
+- **Aggregate state mutation.** When the flow says "Invoke `<aggregate>.<method>(<args>)`" or "Call `<aggregate>.<method>(<args>)`" (or equivalent prose), emit `<aggregate>.<method>(<args>)`. The method must exist in `<aggregate_api>["methods"]`; if not, emit `# TODO: <verbatim step>`.
+- **Repository load (load + raise pattern).** When two adjacent flow steps describe (a) retrieving the aggregate by some key via a finder, then (b) raising `<Aggregate>NotFound*` if the result is `None`, emit either:
+  - **Helper form** if the helper is emitted (see Helpers): `<aggregate> = self._find_<aggregate>(<args>)`.
+  - **Inline form** otherwise:
+    ```python
+    if (<aggregate> := self._uow.<plural>.<finder>(<args>)) is None:
+        raise <NotFoundClass>(<args>)
+    ```
+  The `<finder>` and `<args>` come from the flow text; the `<plural>` is determined by the repository-routing rule above. Verify `<finder>` exists in the repo ABC's method list; if not, emit a TODO.
+- **Existence check (factory pattern).** When two adjacent flow steps describe (a) checking whether an aggregate already exists for some key, then (b) raising `<Aggregate>AlreadyExists*` if it does, emit:
+  ```python
+  if self._uow.<plural>.<finder>(<args>):
+      raise <AlreadyExistsClass>(<args>)
+  ```
+  The truthy check (no `is not None`) supports both shapes the spec may declare: a boolean predicate (`has_<aggregate>_with_<key>(...) -> bool`) and a nullable lookup (`<aggregate>_of_<key>(...) -> <Aggregate> | None`). Both correctly indicate existence when truthy; an `is not None` check would be a bug under the boolean shape.
+- **Repository save.** When the flow says "Persist the aggregate via `<Aggregate>Repository.save(<aggregate>)`" (or equivalent prose like "save", "store"), emit `self._uow.<aggregate_plural>.save(<aggregate>)`. Always uses the primary plural.
+- **Other repository operations (e.g. retrieve all, list filtered).** When the flow describes a repository call that doesn't fit the load/save patterns above, look up the matching method in `<primary_repo_methods>` or `<repo_api>`. Emit `<var> = self._uow.<plural>.<method>(<args>)` with a sensible variable name (e.g. plural noun if returning a list). If no method matches, emit `# TODO: <verbatim step>`.
+- **Domain service / external interface calls.** When the flow says "Invoke `<service>.<op>(<args>)`" (or "Call …"), emit `<result_var> = self._<service_attr>.<op>(<args>)` if the result is consumed by a later step; otherwise drop the assignment and emit `self._<service_attr>.<op>(<args>)` as a statement. The `<service_attr>` comes from `<domain_services>` or `<external_interfaces>`.
+- **Conditional branching.** When the flow describes a conditional (e.g. "If `parsing_result.has_error` is `True`, calls X; if `False`, calls Y"), emit the branch faithfully:
+  ```python
+  if <condition>:
+      <branch_a>
+  else:
+      <branch_b>
+  ```
+  Translate `<condition>` from the prose where possible (e.g. "If `parsing_result.has_error` is `True`" → `if parsing_result.has_error:`). Each branch's body is itself translated by these same rules.
+- **Publish events.** When the flow describes publishing domain events (any prose mentioning "publish", "domain events", "event_publisher"), emit `self._publish_events(<aggregate>)` **after** the `with self._uow:` block. Helper body is appended below.
+- **Send commands.** When the flow describes sending or dispatching commands, emit `self._send_commands(<aggregate>)` **after** the `with` block.
+- **Return.** When the flow says "Return the …" or the method's return type is non-None and the body builds an aggregate, emit `return <var>` after the `with` block (and after publish/send/log statements). `<var>` is whichever local variable holds the aggregate at the end (typically `<aggregate>`).
+
+##### Mandatory `self._uow.commit()`
+
+For mutating methods, emit `self._uow.commit()` immediately after the **last** `self._uow.<plural>.save(...)` call inside the `with` block. Exactly once per method, regardless of how many save calls precede it. This is structural — it does not require a flow-text trigger.
+
+##### Logger derivation
+
+For mutating methods, emit a single `self._logger.info(...)` line **after** the `with` block, **after** any `_publish_events` / `_send_commands` calls, and immediately before the final `return`. Separated from preceding statements by exactly one blank line, and from the `return` line by exactly one blank line.
+
+Build the message:
+
+- `<verb_tokens>` = `method["name"].split("_")`. The first token is `<verb>`; remaining tokens form `<rest>` (joined back with single spaces).
+- Past-tense `<verb>`: append `d` if it ends in `e`, else append `ed` → `<past>`.
+- **Single-token method** (`<rest>` is empty): `<action>` = `<past>`.
+- **Compound method** (`<rest>` is non-empty): `<copula>` = `are` if `<rest>` ends in `s`, else `is`. `<action>` = `<rest> <copula> <past>`.
+
+Emit:
+
+```python
+self._logger.info("<Aggregate> <action> with id %s.", <var>.id)
+```
+
+`<var>` is the most recent binding (typically `<aggregate>`). If no binding exists (every flow step degraded to a TODO), skip the logger line rather than emit a `NameError`.
+
+Examples:
+
+- `create` → `"DomainType created with id %s."`
+- `enable` → `"DomainType enabled with id %s."`
+- `update_details` → `"DomainType details are updated with id %s."`
+- `update_status` → `"DomainType status is updated with id %s."`
+- `add_line_item` → `"DomainType line item is added with id %s."`
+
+Skip emission for non-mutating methods.
+
+##### `with self._uow:` invariant
+
+When emitted, every `self._uow.*` access (find, save, commit) is inside the block. `_find_<aggregate>(...)` calls also belong inside the block — the helper assumes the caller has already entered the uow context. `_publish_events(...)` / `_send_commands(...)` / the logger line / `return` go **outside** the block. No nested `with self._uow:` is ever emitted.
+
+##### Translation safety net
+
+If a flow step describes an action that has no analog in the codebase you read in Step 6 — no matching domain method, no matching ABC finder, no matching domain service operation, no matching external interface op — emit `# TODO: <verbatim flow step text>` and continue. **Do not invent identifiers.** It is better to surface a TODO than to emit code that won't import or that calls a nonexistent method.
+
+If after translation the `with self._uow:` block has zero executable statements (every step degraded to a TODO and the mandatory commit was skipped because there was no save), emit a `pass` line so the file parses.
 
 #### Helpers
 
 After the method block, append helpers conditionally:
 
-- **`_find_<aggregate>`** — emit a single helper iff the set `{m["finder_name"] for m in <methods> if m["shape"] != "factory" and m["finder_name"] is not None}` has **exactly one** element. Bind `<find_method>` to that element. Otherwise (zero finders, or multiple distinct finders), do **not** emit the helper — the Load + raise pair rule then uses the inline case for every calling method.
+- **`_find_<aggregate>`** — emit a single helper iff multiple non-factory methods all describe the same load + raise pattern using the same finder. Concretely: scan each non-factory method's flow for the load step and capture the finder name + identity-arg tuple; if all such tuples are equal across methods, emit the helper. Otherwise (zero, multiple distinct finders, or differing identity-arg shapes), inline the load + raise pattern in each calling method.
 
-  When the helper is emitted, derive its parameter list from the calling method's signature by keeping params whose names are in the **identity set** `{"id", "<aggregate>_id", "tenant_id", "warehouse_id"}` plus any additional `*_id`-suffixed params. If the resulting list is empty, abort with `cannot derive _find_<aggregate> signature — no identity params on calling method <name>`. The helper body:
+  When the helper is emitted, derive its parameter list from the calling methods' identity params (`id`, `<aggregate>_id`, `tenant_id`, `warehouse_id`, plus any other `*_id`-suffixed params). If different non-factory methods have differing identity-param sets and all map to the same finder, use the **superset** signature (every identity param that appears in any caller, in declaration order from the first caller). Helper body:
 
   ```python
       def _find_<aggregate>(self, <param_decls>) -> <Aggregate>:
@@ -342,11 +451,9 @@ After the method block, append helpers conditionally:
           return <aggregate>
   ```
 
-  Argument-passing assumption: `<find_method>` is invoked positionally with the calling-method identity params in declaration order. The agent does not read the finder ABC; if the ABC declares params in a different order, the user must rename the calling-method params or rewrite the helper to keyword form manually.
+  If different non-factory methods have differing finder names, fall back to inlining (no helper).
 
-  If different non-factory methods have different identity-param sets and all map to the same `<find_method>`, use the **superset** signature (every identity param that appears in any caller, in declaration order from the first caller). If callers differ in identity params irreconcilably (e.g. one has `id, tenant_id` and another has only `id`), fall back to inlining (no helper).
-
-- **`_publish_events`** — emit iff `<has_event_publisher>` is `True` AND any method's flow translates to `self._publish_events(...)`. Body:
+- **`_publish_events`** — emit iff `<has_event_publisher>` is `True` AND any method's body emits `self._publish_events(...)`. Body:
 
   ```python
       def _publish_events(self, <aggregate>: <Aggregate>) -> None:
@@ -357,15 +464,15 @@ After the method block, append helpers conditionally:
           )
   ```
 
-  Resolve `<AGGREGATE_DESTINATION>` by running `grep -RIl --include='*.py' -E '<AGGREGATE>_DESTINATION\s*=' <pkg_root>/src/<pkg>/`. If exactly one match, derive its dotted module and add `from <module> import <AGGREGATE>_DESTINATION` to the import block; substitute the bare constant name in the helper. Otherwise, emit the bare constant name unresolved AND prepend `# TODO: define <AGGREGATE>_DESTINATION constant and import it` to the import block. The resulting code raises `NameError` until the user defines the constant — intentional, never silently substitute a string literal.
+  Substitute `<AGGREGATE_DESTINATION>` from Step 6e (or leave the bare unresolved name if Step 6e marked it unresolved — the import block will carry the TODO).
 
-- **`_send_commands`** — emit iff `<has_command_producer>` is `True` AND any method's flow translates to `self._send_commands(...)`. Body verbatim from the `application-spec:commands` skill template.
+- **`_send_commands`** — emit iff `<has_command_producer>` is `True` AND any method's body emits `self._send_commands(...)`. Body verbatim from the `application-spec:commands` skill template.
 
 #### Write
 
 `Write` the file, fully replacing the stub. Record `commands implemented`.
 
-### Step 8 — Validate dep providers in `containers.py`
+### Step 9 — Validate dep providers in `containers.py`
 
 Read `<containers_file>`. Locate the unique `class Containers(containers.DeclarativeContainer):` block (abort if zero or 2+).
 
@@ -375,7 +482,7 @@ For every `(attr, ClassName, category)` in `<ctor_params>`, search the container
 commands provider <commands_class> cannot be wired — missing dep providers in <containers_file>: <attr_1>, <attr_2>, ... (run @service-implementer / persistence-spec generators first)
 ```
 
-### Step 9 — Patch `<containers_file>`
+### Step 10 — Patch `<containers_file>`
 
 Apply two idempotent edits using `Edit`:
 
@@ -400,7 +507,7 @@ Apply two idempotent edits using `Edit`:
 
 Record `di: patched` if either edit was applied, else `di: unchanged`.
 
-### Step 10 — Patch `<tests_dir>/conftest.py`
+### Step 11 — Patch `<tests_dir>/conftest.py`
 
 If `<tests_dir>/conftest.py` does not exist, create it with:
 
@@ -425,12 +532,125 @@ Otherwise read it. Apply idempotent edits:
 
 Record `conftest: patched` if any edit was applied; otherwise `conftest: unchanged`. If the missing-`containers` TODO was emitted, the report's `conftest` field becomes `patched (warning: missing containers fixture)`.
 
-### Step 11 — Report
+### Step 12 — Report
 
 Emit a single status line and nothing else:
 
 ```
 Commands <commands_class> wired (commands: implemented, di: <patched|unchanged>, conftest: <patched|unchanged|patched (warning: missing containers fixture)>)
+```
+
+## Worked examples
+
+Each example shows a parsed flow on the left and the emitted body on the right. Imports, `__init__`, decorators, and helpers are shared across the class and are omitted for brevity. The `with self._uow:` wrapper is shown explicitly because its placement matters.
+
+### Example A — Canonical mutating method (load + invoke + save + publish)
+
+Flow:
+
+```
+1. Retrieve the `<Aggregate>` via `Command<Aggregate>Repository.<aggregate>_of_id(id)`
+2. If `None`, raise `<Aggregate>NotFound`
+3. Invoke `<aggregate>.activate()`
+4. Persist via `Command<Aggregate>Repository.save(<aggregate>)`
+5. Publish events via `DomainEventPublisher`
+```
+
+Emitted (helper used because all non-factory methods share `<aggregate>_of_id` as the finder):
+
+```python
+@retry_on_transaction_error()
+def activate(self, id: str) -> <Aggregate>:
+    with self._uow:
+        <aggregate> = self._find_<aggregate>(id)
+        <aggregate>.activate()
+        self._uow.<aggregate_plural>.save(<aggregate>)
+        self._uow.commit()
+
+    self._publish_events(<aggregate>)
+
+    self._logger.info("<Aggregate> activated with id %s.", <aggregate>.id)
+
+    return <aggregate>
+```
+
+### Example B — Factory with existence check, sibling-repo retrieval, and creation
+
+Flow:
+
+```
+1. Invokes `RequirementsGathering.identify_evo_version()` to obtain the current EVO version
+2. Calls `CommandConversionReqsRepository.has_reqs_for_evo(evo_version)` to check whether a `ConversionReqs` already exists for that EVO version
+3. Raises `ReqsAlreadyExists` if `has_reqs_for_evo` returns `True`
+4. Retrieves all available `DomainTypeData` items via `CommandDomainTypeRepository.all()`
+5. Creates a new `ConversionReqs` aggregate via `ConversionReqs.new(evo_version, domain_types)`
+6. Persists the new aggregate via `CommandConversionReqsRepository.save(reqs)`
+7. Publishes domain events collected from `reqs.events` via `DomainEventPublisher`
+```
+
+The agent reads `CommandDomainTypeRepository` and finds an `all()` method (or whatever the ABC actually declares for "retrieve all"). It uses the actual method name verbatim. It also recognises that steps 2+3 are an existence-check pair (the prose `has_reqs_for_evo` returning `True` triggers the `AlreadyExists` raise) and emits the truthy guard:
+
+```python
+@retry_on_transaction_error()
+def create(self) -> ConversionReqs:
+    with self._uow:
+        evo_version = self._requirements_gathering.identify_evo_version()
+
+        if self._uow.conversion_reqses.has_reqs_for_evo(evo_version):
+            raise ReqsAlreadyExists(evo_version)
+
+        domain_types = self._uow.domain_types.all()
+
+        conversion_reqs = ConversionReqs.new(evo_version, domain_types)
+        self._uow.conversion_reqses.save(conversion_reqs)
+        self._uow.commit()
+
+    self._publish_events(conversion_reqs)
+
+    self._logger.info("ConversionReqs created with id %s.", conversion_reqs.id)
+
+    return conversion_reqs
+```
+
+### Example C — Method with conditional branching
+
+Flow:
+
+```
+1. Retrieves the `ConversionReqs` aggregate via `CommandConversionReqsRepository.reqs_of_id(id)`
+2. Raises `ConversionReqsNotFound` if `reqs_of_id` returns `None`
+3. Invokes `RequirementsGathering.gather_domain_type_requirements(reqs.evo_version, domain_type)` to obtain a `ParsingResult`
+4. If `parsing_result.has_error` is `True`, calls `ConversionReqs.add_error(domain_type["id"], parsing_result.error)`
+5. If `parsing_result.has_error` is `False`, calls `ConversionReqs.add_domain_model(domain_type["id"], parsing_result.result)`
+6. Persists the updated aggregate via `CommandConversionReqsRepository.save(reqs)`
+7. Publishes domain events collected from `reqs.events` via `DomainEventPublisher`
+```
+
+The agent verifies `add_error` and `add_domain_model` exist in `<aggregate_api>["methods"]`, then emits a single `if/else` for the branching pair:
+
+```python
+@retry_on_transaction_error()
+def on_domain_type_added(self, id: str, domain_type: DomainTypeData) -> ConversionReqs:
+    with self._uow:
+        conversion_reqs = self._find_conversion_reqs(id)
+
+        parsing_result = self._requirements_gathering.gather_domain_type_requirements(
+            conversion_reqs.evo_version, domain_type
+        )
+
+        if parsing_result.has_error:
+            conversion_reqs.add_error(domain_type["id"], parsing_result.error)
+        else:
+            conversion_reqs.add_domain_model(domain_type["id"], parsing_result.result)
+
+        self._uow.conversion_reqses.save(conversion_reqs)
+        self._uow.commit()
+
+    self._publish_events(conversion_reqs)
+
+    self._logger.info("ConversionReqs domain type is added with id %s.", conversion_reqs.id)
+
+    return conversion_reqs
 ```
 
 ## Failure modes summary
@@ -446,25 +666,24 @@ Commands <commands_class> wired (commands: implemented, di: <patched|unchanged>,
 | Stub file diverged | `<aggregate>_commands.py is non-stub; refusing to overwrite` |
 | `Command<Aggregate>Repository` row missing | `commands spec missing primary repository Command<Aggregate>Repository` |
 | Unknown publisher class | `unknown publisher class <X>` |
-| Flow references publish/send while corresponding publisher absent | `flow references … but … is not declared in dependencies` |
+| Flow describes publishing/dispatching while corresponding publisher absent | `flow references … but … is not declared in dependencies` |
 | `## Method Specifications` missing or empty | abort |
 | `AbstractUnitOfWork` not imported in `containers.py` | `AbstractUnitOfWork not imported in <containers_file> — run persistence-spec generators first` |
+| Aggregate domain class `<Aggregate>` not uniquely resolvable in `<pkg>/domain/` | `aggregate domain class <Aggregate> not uniquely resolvable in <pkg>/domain/` |
 | Publisher / domain-service class not uniquely resolvable | naming the class |
 | External interface stub file missing | `external interface stub <path> missing — run @application-files-scaffolder first` |
 | `retry_on_transaction_error` not found / multi-match | naming the issue |
 | Unique `class Containers(containers.DeclarativeContainer):` not found | abort |
 | Any dep provider missing from `containers.py` | listing missing attrs |
-| `_find_<aggregate>` helper signature derivation yields zero identity params | naming the calling method |
 | Both `<Aggregate>NotFound` and `<Aggregate>NotFoundError` observed in flow text | `inconsistent NotFound class names in flow text` |
-| Flow text references a load step but no `<Aggregate>NotFound*` raise | `flow text references a load step but no <Aggregate>NotFound* raise — spec is inconsistent` |
+| Flow describes a load-then-raise but no `<Aggregate>NotFound*` raise present | `flow text references a load-then-raise but no <Aggregate>NotFound* raise — spec is inconsistent` |
 
 ### Continues with TODO
 
 | Condition | Behavior |
 |---|---|
+| Flow step describes a domain method / factory / finder / external-interface op that has no analog in the codebase | `# TODO: <verbatim flow step text>`; method body continues with subsequent steps |
 | Domain exception in flow text not uniquely resolvable in `<pkg>/domain/` | `# TODO: import <X>` in import block; method body still emits `raise <X>(...)` from the flow step |
-| Flow step doesn't match any known pattern | `# TODO: <verbatim line>` |
 | `<AGGREGATE>_DESTINATION` constant not uniquely resolvable | bare constant name (raises `NameError` until defined) + `# TODO: define <AGGREGATE>_DESTINATION constant and import it` in import block |
 | `containers` fixture not defined in `<tests_dir>/conftest.py` | TODO comment above new fixture; report `patched (warning: missing containers fixture)` |
-| Multiple distinct finders across non-factory methods | inline the find+raise pattern in each calling method instead of emitting a shared helper |
 | All flow steps in a mutating method become `# TODO:` | `with self._uow:` block emits `pass` so the file parses |
