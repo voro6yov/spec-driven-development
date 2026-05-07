@@ -147,6 +147,8 @@ where `<parent_table>` is the parent table's snake_case identifier (matching a `
 - Accept `FK -> ...` and `FK → ...` interchangeably.
 - The `<parent_table>` token must match exactly one `### Table: <name>` heading in Section 3; otherwise fail with: `Error: FK target '<parent_table>' on '<table_name>.<column_name>' does not match any '### Table:' block in Section 3.`
 
+**Composite PK guard (Table with FK).** After parsing constraints, count the columns whose constraints carry `pk` (or `primary key`). For any table whose Section 2 pattern is `Table with FK`, the count must be ≥ 2 — child entity ids are aggregate-scoped, so the PK must include the parent FK column in addition to `id`. If the count is exactly 1, fail with: `Error: child entity table '<table_name>' has a single-column PK; child ids are unique only within the aggregate — the parent FK column must also carry the PK constraint. Re-run @command-repo-spec-schema-writer.`
+
 Group all FK annotations on the same `<parent_table>` into a single `ForeignKeyConstraint(local_columns, ["<parent_table>.<col1>", "<parent_table>.<col2>", ...], ondelete="CASCADE")`, preserving column order. If any FK column lacks a parseable annotation, fail with: `Error: FK column '<table_name>.<column_name>' has no 'FK → <parent_table>.<column>' annotation; cannot derive ForeignKeyConstraint.`
 
 The generated module must contain only:

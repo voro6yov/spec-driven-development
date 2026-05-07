@@ -174,8 +174,13 @@ For each method, bind:
   "external_calls": [(<attr>, <op>, <args>), ...],
   "raised_not_found": <ClassName> | None,
   "raised_already_exists": <ClassName> | None,
+  "requires_state": <state_key_string> | None,
 }
 ```
+
+#### 7-pre. Capture `Requires Aggregate State`
+
+Under each `### Method:` heading, look for a single line matching `^\*\*Requires Aggregate State\*\*:\s*` followed by either a backticked `<state_key>` or the literal `(none)`. Strip backticks to obtain `<state_key_string>`. If the line is absent, leave `requires_state = None` and Step 9b will treat the method as if it requires `empty` for canonical shapes / `(none)` for factories — preserving legacy behavior so older specs continue to work.
 
 #### 7a. Shape and mutation
 
@@ -239,7 +244,7 @@ If `external_calls` references an `<attr>` for which `fake_<attr>` is not in `<a
 
 If `## Method Specifications` is missing or empty, output `ERROR: ## Method Specifications missing or empty in <commands_spec_file>.` and stop.
 
-### Step 8 — Verify upstream fixtures
+### Step 8 — Verify upstream fixtures and index aggregate fixtures
 
 Now that `<aggregate>` and `<plural>` are resolved, verify:
 
@@ -258,6 +263,41 @@ Per missing fixture, abort with the matching message:
 | `<aggregate>_1` | `ERROR: fixture '<aggregate>_1' not found in <tests_dir>/conftest.py. Run @aggregate-fixtures-writer first.` |
 | `add_<plural>` | `ERROR: fixture 'add_<plural>' not found in <tests_dir>/integration/conftest.py. Run @integration-fixtures-writer first.` |
 | `unit_of_work` | `ERROR: fixture 'unit_of_work' not found in <tests_dir>/integration/conftest.py. Run @unit-of-work-fixtures-preparer first.` |
+
+#### 8a. Discover the full `<aggregate>_N` set
+
+```bash
+grep -nE "^def <aggregate>_([0-9]+)\(" <tests_dir>/conftest.py
+```
+
+For every match, capture the `N` and bind `<fixture_indexes>` = the sorted ascending list of integers. The minimum is `1` (verified above).
+
+#### 8b. Build the State Keys → fixture index map
+
+Locate the domain test-plan sibling of the commands spec: it lives next to the domain diagram, not the commands diagram. Resolve it as:
+
+```bash
+ls <repo_root>/src/*/domain/<aggregate>/*.test-plan.md 2>/dev/null
+ls <repo_root>/docs/**/<aggregate>*.test-plan.md 2>/dev/null
+```
+
+Take the first match; if both fail, search wider via `find <repo_root> -name "*.test-plan.md" -path "*<aggregate>*"`. If still empty, bind `<state_key_to_index>` = `{}` (legacy fallback — Step 9b will default every method to `<aggregate>_1`).
+
+When found, read the file. Locate the `## Aggregate: <Aggregate>` block matching `<Aggregate>`, then find its `### State Keys` table. Parse each row to extract `<key>` (column 1, strip backticks) and the row's position (1-based). Bind `<state_key_to_index>` = `{ <key>: <position> }`.
+
+Also bind `<state_key_mutations>` = `{ <key>: <mutation_path_string> }` from column 3 — used by Step 10 to map child-id parameters to fixture-resident child ids. Strip backticks; preserve the semicolon-delimited body verbatim.
+
+#### 8c. Resolve fixture for each method
+
+For each method `<m>` (from Step 7), compute `<fix_var(<m>)>`:
+
+1. If `<m>.shape == "factory"`, `<fix_var> = <aggregate>_1`. (Factory tests don't pre-load the aggregate; `_1` is just the args carrier.)
+2. Else if `<m>.requires_state` is `None` or `(none)` or `empty`, `<fix_var> = <aggregate>_1`.
+3. Else look up `<m>.requires_state` in `<state_key_to_index>`:
+    - Hit → `<fix_var> = <aggregate>_<N>` where `<N>` is the matched index, provided `<N>` ∈ `<fixture_indexes>`. If not, soft-warn (Step 12) and fall back to `<aggregate>_1`.
+    - Miss → soft-warn `WARNING: method '<m.name>' requires state '<m.requires_state>' but no matching State Keys row in <test_plan_path>; falling back to <aggregate>_1.` and fall back to `<aggregate>_1`.
+
+The default `<fix>` symbol referenced throughout Step 10 is overridden per-method by `<fix_var(<m>)>`.
 
 ### Step 9 — Dispatch each method to a scenario set
 
@@ -288,7 +328,18 @@ Apply the rules from `application-spec:application-service-integration-test-rule
 
 Test function naming: `test_<method_name>__<scenario>`. `<scenario>` ∈ {`success`, `not_found`, `already_exists`}.
 
-Each test follows GIVEN / WHEN / THEN comment structure. Use the templates below; `<fix>` = `<aggregate>_1`, `<repo>` = `unit_of_work.<plural>`, `<args>` = comma-joined `[resolve(<p>, <fix>) for <p> in <param_names>]`, `<pk_args>` = `<pk_args(<fix>)>`.
+Each test follows GIVEN / WHEN / THEN comment structure. Use the templates below; `<fix>` is the per-method fixture variable resolved by Step 8c (defaults to `<aggregate>_1` when no state requirement applies). `<repo>` = `unit_of_work.<plural>`, `<args>` = comma-joined `[resolve(<p>, <fix>) for <p> in <param_names>]` with the **child-id mapping override** below applied first, `<pk_args>` = `<pk_args(<fix>)>`.
+
+#### Child-id mapping override
+
+When `<fix>` is not `<aggregate>_1` (i.e. Step 8c picked a populated fixture), some `<param_names>` may reference child entity ids that don't exist on the aggregate but on its children. The resolver (Step 4c) cannot find them as direct attributes, so apply this override **before** invoking `resolve(<p>, <fix>)`:
+
+1. For each parameter `<p>` whose name matches `<child_singular>_id` for any child collection on the aggregate (discovered as part of the aggregate-attr walk in Step 4a — child collections appear as `<<Collection of Entity>>` value objects):
+2. Look up `<state_key_mutations>[<m.requires_state>]` to obtain the mutation-path string applied to `<fix>` by the fixture writer.
+3. Scan that string for the **first** invocation that creates a `<child_singular>` (e.g. `add_<child_plural>(id="dt-1", ...)`) and capture the `id=` literal value, then rewrite the parameter's resolved expression to that literal (a quoted string).
+4. If no `id=` literal is parseable from the mutation path, fall through to the resolver — the test will likely surface a runtime mismatch, but never invent a value (the soft-warn from Step 8c already flagged the missing state).
+
+This rewrite ensures `on_domain_type_added(conversion_reqs.id, ..., domain_type_id, ...)` is invoked with `"dt-1"` (the child id seeded by `<aggregate>_2`'s mutation path) rather than a parameter-name-derived placeholder.
 
 #### Common fixtures
 
@@ -296,7 +347,7 @@ The fixture argument list per scenario is built by concatenating, in order:
 
 1. `<aggregate>_commands` — always.
 2. `unit_of_work` — for mutating success (reload required).
-3. `<fix>` — always (`<aggregate>_1`).
+3. `<fix>` — always (per-method, resolved by Step 8c; defaults to `<aggregate>_1`).
 4. `add_<plural>` — for `__success` of canonical methods, `__not_found` is excluded, `__already_exists` is included; for factory `__success`, **excluded** (the new aggregate must not pre-exist).
 5. `fake_<attr>` — one entry per distinct `<attr>` in `external_calls` (only included in `__success`).
 
@@ -306,7 +357,7 @@ Drop any fixture whose target is not used in the test body to avoid pytest unuse
 
 ```python
 def test_<method>__success(<aggregate>_commands, unit_of_work, <fix>{, fake_<attr>...}):
-    # GIVEN args derived from <aggregate>_1
+    # GIVEN args derived from <fix>
     # WHEN creating
     result = <aggregate>_commands.<method>(<args>)
 
@@ -387,7 +438,7 @@ Where `{arg_assertion}` is built as follows:
 - For each token, classify and rewrite:
   1. **Domain reference** (token contains `.`, e.g. `profile_type.id`, `<aggregate>.tenant_id`). Split on the first `.`. The left side is the local-variable name used by the spec; the right side is the attribute path. Rewrite the prefix:
      - For factory `__success`, replace the prefix with `result` (the new aggregate is bound to `result`).
-     - For canonical `__success` (mutating or non-mutating), replace the prefix with `<fix>` (i.e. `<aggregate>_1` — the persisted aggregate).
+     - For canonical `__success` (mutating or non-mutating), replace the prefix with `<fix>` (the per-method fixture variable resolved by Step 8c — `<aggregate>_1` for unrequired or `empty` state, otherwise the State-Keys-matched fixture).
      The rewritten token is e.g. `result.id` or `<fix>.tenant_id`. Skip the resolver entirely for this case.
   2. **Bare identifier** (no `.`). Run `resolve(<token>, <fix>)`. If unresolved, fall back to `resolve(<token>, result)` when `result` is the bound success var.
   3. **Literal** (quoted string, numeric, `True`/`False`/`None`). Pass through verbatim.

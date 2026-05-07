@@ -133,6 +133,8 @@ Resolve `<table_name>` from the slug per rule (1). Look up `<columns[<table_name
 - `changes`: a single `createTable` with `tableName: <table_name>` and one `- column:` entry **per row** in `<columns[<table_name>]>`, in declaration order — verbatim, no synthesized columns.
 - `rollback`: a single `- dropTable: { tableName: <table_name> }`.
 
+**Composite PK guard for child tables.** If `<columns[<table_name>]>` contains any column whose constraints carry an `FK → ...` annotation (i.e. this is a child entity table), count the columns whose constraints carry `pk` or `primary key`. The count must be ≥ 2 — child ids are aggregate-scoped, so the PK must include the parent FK column in addition to `id`. If the count is exactly 1, fail with: `Error: child entity migration '<filename_stem>' targets table '<table_name>' with a single-column PK; the parent FK column must also carry the PK constraint. Re-run @command-repo-spec-schema-writer.` This guard mirrors the one in `@table-implementer` so the table module and the migration cannot drift.
+
 Per-column rendering rules (apply to every variant that emits columns):
 
 - `name`: the column name.

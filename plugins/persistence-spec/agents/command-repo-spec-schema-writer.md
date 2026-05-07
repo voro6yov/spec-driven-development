@@ -32,17 +32,19 @@ If `<spec_file>` does not exist, stop and tell the user to run `@command-repo-sp
 
 For each table named in Section 2:
 
-1. **Identity columns** (always `String`, never `UUID` — the persistence layer stores IDs as `String` per the `table-definitions` skill). Whether `tenant_id` appears is gated entirely by Section 1's **Multi-tenant?** value:
+1. **Identity columns** (always `String`, never `UUID` — the persistence layer stores IDs as `String` per the `table-definitions` skill). Whether `tenant_id` appears is gated entirely by Section 1's **Multi-tenant?** value.
+
+   **Child entity rule** — child tables (those typed `Table with FK` in Section 2) **always** carry a composite PK anchored on the parent FK column. Child entity ids are unique within their owning aggregate, not globally; a single-column PK on `id` collides whenever two aggregates legitimately share a child id. In Section 3 the parent FK column must therefore carry the `PK` constraint token in addition to its FK annotation. Order columns so the parent FK comes first, then `id`, then `tenant_id` (multi-tenant only):
 
    **If Multi-tenant? = No** → omit `tenant_id` from every table:
    - `Simple Table` → `id` `PK`. No tenant column.
-   - `Table with FK` → `id` `PK`; `\{parent\}_id` `FK, NOT NULL`. FK constraint is on `\{parent\}_id` alone.
+   - `Table with FK` → `\{parent\}_id` `PK, FK → \{parent\}.id`; `id` `PK`. Composite PK = (`\{parent\}_id`, `id`).
    - `Composite PK Table` should not appear when Multi-tenant? = No; if it does, treat as a Section 2 inconsistency and stop with an error message asking the user to re-run `@command-repo-spec-pattern-selector`.
 
    **If Multi-tenant? = Yes**:
    - `Simple Table` → `id` `PK`; `tenant_id` `NOT NULL` (not part of PK).
    - `Composite PK Table` → `id` `PK`; `tenant_id` `PK`.
-   - `Table with FK` → `id` `PK`; `\{parent\}_id` `FK, NOT NULL`; `tenant_id` `PK` (composite with parent).
+   - `Table with FK` → `\{parent\}_id` `PK, FK → \{parent\}.id`; `id` `PK`; `tenant_id` `PK`. Composite PK = (`\{parent\}_id`, `id`, `tenant_id`); the FK is composite over (`\{parent\}_id`, `tenant_id`) and the `table-implementer` will group same-parent FK columns into one `ForeignKeyConstraint`.
 
 2. **Domain columns** — project every field listed on the table's owner in the Mermaid diagram (the aggregate root for the parent table; the matching `<<Entity>>` for each child table), **except** the identity fields covered in Step 1 (`id`, `tenant_id`, the parent FK on child tables). Use the `table-definitions` Column Types table:
    - Plain scalars (`str`, `int`, `bool`, enums) → `String` / `Integer` / `Boolean` / `String` (enum stored as value).

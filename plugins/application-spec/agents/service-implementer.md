@@ -248,6 +248,25 @@ Otherwise apply the auto-loaded `application-spec:fake-implementations` skill te
 - `fake_class_name` = `Fake<service_identifier>`.
 - `methods` — the same deduplicated method list assembled in Step 5. Per method, set `tracking_attr = <name>_calls`. The tuple-type for `tracking_attr` uses the `<param_type>` form derived in Step 3c (defaults stripped, `*`/`/` markers dropped from the type list); if `<param_type>` is empty (zero-arg method), emit `list[tuple[()]]`.
 
+**Return-value handling.** Classify each method's `<ReturnType>` (verbatim from `<iface_table>`):
+
+- `None` (or absent) — record calls only; no setter, no return statement.
+- Anything else (including `Optional[...]` / `<X> | None`) — emit a configurable seed:
+    1. In `__init__`, declare `self._<method>_return: object = _UNSET`.
+    2. The method body records the call, then raises `NotImplementedError(...)` if `_UNSET`, otherwise returns the seeded value.
+    3. Emit a public `set_<method>_return(value: <ReturnType>) -> None` setter.
+    4. `reset()` restores `_UNSET`.
+
+This shape is mandatory for non-`None` return types: a bare `return None` poisons the application service's success path (a missing `evo_version` propagates into the aggregate factory and surfaces as a misleading `IllegalArgument` far from the test). The explicit `NotImplementedError` fails loud at the call site instead, pointing the author straight at the missing seed.
+
+If **any** method in the deduplicated list has a non-`None` return type, declare a single module-level sentinel above the class:
+
+```python
+_UNSET = object()
+```
+
+Otherwise omit it.
+
 Module body:
 
 ```python
@@ -258,19 +277,37 @@ from <import_module_2> import <Base2>
 __all__ = ["Fake<service_identifier>"]
 
 
+_UNSET = object()  # only when at least one method has a non-None return type
+
+
 class Fake<service_identifier>(<Base1>, <Base2>, ...):
     def __init__(self) -> None:
         self.<method_1>_calls: list[tuple[<param_type_1_a>, <param_type_1_b>, ...]] = []
+        # for each method with non-None return:
+        self._<method_1>_return: object = _UNSET
         self.<method_2>_calls: list[tuple[...]] = []
 
     def <method_1>(self, <param_decl_1_a>, <param_decl_1_b>) -> <ReturnType>:
         self.<method_1>_calls.append((<param_name_1_a>, <param_name_1_b>))
-        # if ReturnType != None: emit `return None  # type: ignore[return-value]`
+        # if ReturnType != None:
+        if self._<method_1>_return is _UNSET:
+            raise NotImplementedError(
+                "Fake<service_identifier>.<method_1> has no configured return value — "
+                "call set_<method_1>_return(...) before invoking, "
+                "or override the default in __init__."
+            )
+        return self._<method_1>_return  # type: ignore[return-value]
+
+    # one setter per method with non-None return:
+    def set_<method_1>_return(self, value: <ReturnType>) -> None:
+        self._<method_1>_return = value
 
     ...
 
     def reset(self) -> None:
         self.<method_1>_calls.clear()
+        # for each method with non-None return:
+        self._<method_1>_return = _UNSET
         self.<method_2>_calls.clear()
 ```
 

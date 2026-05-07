@@ -138,6 +138,23 @@ For non-factory flows, choose the finder method on `Command<AggregateRoot>Reposi
 
 When the command depends on multiple repositories (e.g. cross-aggregate commands), use the repository whose target type is the aggregate root being commanded for the load step. Additional repositories may be referenced inside flow steps when the description blocks describe such cross-aggregate access — otherwise leave them unused.
 
+### Step 5e — Derive `Requires Aggregate State`
+
+For each method, infer a single `Requires Aggregate State` value from the chosen flow shape, the method's parameters, and the aggregate's child-collection structure. The value drives downstream fixture selection in `@commands-tests-implementer`.
+
+Index, ahead of this step, the **child entity collections** owned by the aggregate root. From the domain diagram, identify each `<<Entity>>` class linked to `<AggregateRoot>` via `*--`/`o--` (composition/aggregation) or referenced inside a `<<Collection of Entity>>` value object owned by the aggregate. For each, record the snake_case plural form used in the aggregate's collection accessor (e.g. `DomainType` → `domain_types`).
+
+Apply the rules in order — first match wins:
+
+1. **Factory shape (5a)** → emit `(none)`.
+2. **Method targets a child entity** — the method has a non-identity, non-tenant parameter whose name matches `<child_singular>_id` for some indexed child collection, OR the flow contains a step calling an aggregate method whose name shape is `add_<child>_<verb>`, `update_<child>`, `remove_<child>`, `on_<child>_<event>`, or `<verb>_<child>` keyed on `<child_id>`. Emit `has_<child_plural>:2` (use `2` to leave a remainder observable when the operation removes one).
+3. **Method gates on a status** — the description blocks (commands or domain) state, in prose adjacent to the method's labelled section, that the operation requires the aggregate to be in a specific status (e.g. "the load must be `receiving`"). Emit that bare status name verbatim. If the method also targets a child, combine as `<status>+has_<child_plural>:2`.
+4. **Default for canonical and collaborator-call shapes** → emit `empty`. The aggregate exists but no children/state pre-population is required.
+
+The vocabulary mirrors the `State Keys` table that `@aggregate-tests-planner` produces in the domain test plan, so `@commands-tests-implementer` can resolve the value by exact-match lookup. If the rule above produces a key that does not appear in the test plan, the tests-implementer falls back to `<aggregate>_1` (current behavior) and surfaces a soft warning — the writer does not need to verify against the test plan because the planner runs in a separate workflow.
+
+Render the field as a single line **immediately after `**Purpose**:`** in every emitted method block: `**Requires Aggregate State**: \`<key>\``.
+
 ### Step 6 — Render Purpose, Postconditions, and the publish step
 
 For each method:

@@ -27,8 +27,12 @@ Purpose: Provide lightweight test doubles for Protocol interfaces to enable isol
 ## Behavior Checklist
 
 - Use list of tuples to track method calls with all arguments.
-- Return sensible defaults (None, empty collections) for return values.
-- Keep implementation minimal - capture calls, don't add complex logic.
+- For methods whose return type is `None`, do not return anything — record the call only.
+- For methods with a non-`None` return type, **never return a bare `None`**. Bare `None` poisons the application service's success path (e.g. a missing `evo_version` becomes `IllegalArgument` deep inside the aggregate factory). Instead, expose a configurable per-method seed with two safe outcomes:
+    1. A `set_<method>_return(value)` setter that overrides the default.
+    2. A method body that returns the seeded value if set; otherwise raises `NotImplementedError(f"Fake<X>.<method> has no configured return value — call set_<method>_return(...) before invoking, or override the default in __init__.")`. This fails loud at the call site instead of cascading a `None` through the success path.
+- Initialize `self._<method>_return: <ReturnType> | _Sentinel = _UNSET` in `__init__`. The `reset()` method clears both call lists and configured returns.
+- Keep implementation minimal — capture calls, raise loud on misconfiguration, don't add complex logic.
 - Name tracking attributes as `{method_name}_calls`.
 - Implement all Protocol methods.
 
@@ -66,7 +70,44 @@ class FakeConveyorClient(ICanStopConveyor):
         self.stop_conveyor_calls.clear()
 ```
 
-### Fake with Return Values
+### Fake with Return Values (configurable seed pattern)
+
+```python
+from tss_load_processing.application import ICanIdentifyEvoVersion
+
+__all__ = ["FakeEvoVersionIdentifier"]
+
+_UNSET = object()
+
+
+class FakeEvoVersionIdentifier(ICanIdentifyEvoVersion):
+    def __init__(self):
+        self.identify_evo_version_calls: list[tuple[str]] = []
+        self._identify_evo_version_return: object = _UNSET
+
+    def identify_evo_version(self, conversion_reqs_id: str) -> str:
+        self.identify_evo_version_calls.append((conversion_reqs_id,))
+        if self._identify_evo_version_return is _UNSET:
+            raise NotImplementedError(
+                "FakeEvoVersionIdentifier.identify_evo_version has no configured return value — "
+                "call set_identify_evo_version_return(...) before invoking, "
+                "or override the default in __init__."
+            )
+        return self._identify_evo_version_return  # type: ignore[return-value]
+
+    def set_identify_evo_version_return(self, value: str) -> None:
+        self._identify_evo_version_return = value
+
+    def reset(self) -> None:
+        self.identify_evo_version_calls.clear()
+        self._identify_evo_version_return = _UNSET
+```
+
+The `_UNSET` sentinel + `NotImplementedError` is intentional: a bare `None` would silently propagate into the application service and surface as a confusing aggregate-factory error far from the test, while the explicit raise points the author straight at the missing seed.
+
+### Fake with Default Return (lookup-style)
+
+When a method's contract is "return what was set, default empty," prefer storing real values:
 
 ```python
 from tss_load_processing.application import ICanGetLoadDetails
@@ -89,6 +130,8 @@ class FakeLoadDetailsRepository(ICanGetLoadDetails):
         self.load_of_id_calls.clear()
         self._loads.clear()
 ```
+
+This shape is appropriate when the method's return type is `Optional[T]` and the contract explicitly allows `None` to mean "not found." For non-optional return types, use the configurable seed pattern above.
 
 ### Fake with Error Simulation
 
@@ -170,30 +213,55 @@ __all__ = (
    - methods: List of method objects with:
      - name: method name
      - parameters: List of parameter objects with name and type
-     - return_type: return type (e.g., None, str, dict)
+     - return_type: return type (e.g., None, str, dict). When non-None, an
+       _UNSET sentinel is rendered and the method raises NotImplementedError
+       until set_<name>_return(...) is called by the test.
      - tracking_attr: attribute name to track calls (e.g., stop_conveyor_calls)
 #}
 from {{ interface_module }} import {{ interface_name }}
 
 __all__ = ["{{ fake_class_name }}"]
 
+{% set has_returns = methods | selectattr('return_type', 'ne', 'None') | list | length > 0 %}
+{% if has_returns %}
+_UNSET = object()
+{% endif %}
+
+
 class {{ fake_class_name }}({{ interface_name }}):
-    def __init__(self):
+    def __init__(self) -> None:
 {% for method in methods %}
         self.{{ method.tracking_attr }}: list[tuple[{% if method.parameters %}{{ method.parameters | map(attribute='type') | join(', ') }}{% else %}(){% endif %}]] = []
+{% if method.return_type != 'None' %}
+        self._{{ method.name }}_return: object = _UNSET
+{% endif %}
 {% endfor %}
 
 {% for method in methods %}
     def {{ method.name }}(self{% for param in method.parameters %}, {{ param.name }}: {{ param.type }}{% endfor %}) -> {{ method.return_type }}:
         self.{{ method.tracking_attr }}.append(({% for param in method.parameters %}{{ param.name }}{% if not loop.last %}, {% endif %}{% endfor %}))
 {% if method.return_type != 'None' %}
-        return {{ method.default_return | default('None') }}
+        if self._{{ method.name }}_return is _UNSET:
+            raise NotImplementedError(
+                "{{ fake_class_name }}.{{ method.name }} has no configured return value — "
+                "call set_{{ method.name }}_return(...) before invoking, "
+                "or override the default in __init__."
+            )
+        return self._{{ method.name }}_return  # type: ignore[return-value]
 {% endif %}
 
+{% if method.return_type != 'None' %}
+    def set_{{ method.name }}_return(self, value: {{ method.return_type }}) -> None:
+        self._{{ method.name }}_return = value
+
+{% endif %}
 {% endfor %}
     def reset(self) -> None:
 {% for method in methods %}
         self.{{ method.tracking_attr }}.clear()
+{% if method.return_type != 'None' %}
+        self._{{ method.name }}_return = _UNSET
+{% endif %}
 {% endfor %}
 ```
 

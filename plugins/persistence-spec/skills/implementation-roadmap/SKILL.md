@@ -29,7 +29,7 @@ Define SQLAlchemy Table objects for database schema representation. Order: paren
 | --- | --- |
 | Simple Table | Single primary key, no children |
 | Composite PK Table | Multi-tenant (`id + tenant_id` as PK) |
-| Table with FK | Child table referencing parent |
+| Table with FK | Child entity table referencing parent — **always composite PK anchored on `parent_id`** (single-tenant: `(parent_id, id)`; multi-tenant: `(parent_id, id, tenant_id)`). Child ids are aggregate-scoped, not global. |
 
 Template skill: `persistence-spec:table-definitions`
 
@@ -111,7 +111,7 @@ Use these rules to fill Section 2 of the command repository spec:
 
 **Tables**
 - Parent table → `Composite PK Table` if multi-tenant, else `Simple Table`.
-- One `Table with FK` per child entity collection.
+- One `Table with FK` per child entity collection. **Child entity tables always have a composite PK** — `(parent_id, id)` single-tenant, `(parent_id, id, tenant_id)` multi-tenant — because child ids are unique only within the owning aggregate. The schema-writer encodes this by stamping `PK` on both the parent FK column and `id`.
 - **Child table naming**: prefix every child table name with the parent table's name plus a single `_`. For example, an aggregate root `ConversionReqs` (parent table `conversion_reqs`) with child entity `DomainType` produces child table `conversion_reqs_domain_types`, never `domain_types`. This keeps child tables globally unambiguous and prevents migration-slug collisions across aggregates that share a child entity name.
 
 **Migrations**

@@ -22,6 +22,8 @@ The dominant shape is `load → mutate → save → publish → return`. Use it 
 
 **Purpose**: [One-liner describing what this method does]
 
+**Requires Aggregate State**: `<state_key>` | `(none)`
+
 **Method Flow**:
 
 1. Call `command_repository.<lookup_method>(<params>)` to retrieve the aggregate
@@ -37,6 +39,18 @@ The dominant shape is `load → mutate → save → publish → return`. Use it 
 - `updated_at` set to current timestamp
 - [Domain event published, if relevant to the postcondition]
 ```
+
+### Requires Aggregate State
+
+A single line that names the lifecycle precondition the method needs the persisted aggregate to satisfy. Vocabulary mirrors the State Keys table in the domain test plan (`<stem>.test-plan.md`):
+
+- `(none)` — factory methods that construct the aggregate from scratch.
+- `empty` — canonical methods that operate on a freshly-created aggregate with no children populated.
+- `has_<collection>:<n>` (or `has_<collection>_with_<nested>`) — canonical methods that target a child entity already on the aggregate. `<n>` is the minimum count required; use `2` when the test must observe a remainder after the operation.
+- `<status>` — canonical methods gated on a specific status of the aggregate (e.g. `receiving`, `completed`).
+- `<status>+<collection_state>` — hybrid: both a status and a child-collection precondition (e.g. `receiving+has_items:2`).
+
+The downstream `commands-tests-implementer` reads this field to pick the correct fixture (`<aggregate>_1`, `<aggregate>_2`, …) and to map child-id parameters in the test's args to actual child ids on that fixture. When `Requires Aggregate State` is `(none)` or `empty`, the implementer defaults to `<aggregate>_1`; otherwise it scans the State Keys table for the matching key and uses that fixture's index.
 
 ### Inline notes inside flow steps
 
@@ -100,6 +114,8 @@ The three examples below cover the canonical shape, the factory deviation, and a
 
 **Purpose**: Updates the core identity attributes (name, description, subject kind) of an existing ProfileType.
 
+**Requires Aggregate State**: `empty`
+
 **Method Flow**:
 
 1. If `subject_kind` is not provided, default to `"CustomEntity"`
@@ -121,6 +137,8 @@ The three examples below cover the canonical shape, the factory deviation, and a
 ### Method: `create(tenant_id: str, name: str, description: str, subject_kind: str) -> ProfileType`
 
 **Purpose**: Creates a new ProfileType aggregate with the given details.
+
+**Requires Aggregate State**: `(none)`
 
 **Method Flow**:
 
@@ -145,6 +163,8 @@ The three examples below cover the canonical shape, the factory deviation, and a
 ### Method: `on_profile_submitted(id: str, tenant_id: str) -> Profile`
 
 **Purpose**: Event handler that triggers subject detection and reconciliation when a user explicitly submits a profile.
+
+**Requires Aggregate State**: `empty`
 
 **Method Flow**:
 

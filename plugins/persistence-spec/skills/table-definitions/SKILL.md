@@ -47,14 +47,33 @@ Table(
 
 ### Table with Foreign Key (`table_definition_with_fk.py.j2`)
 
-Child table referencing parent with composite FK constraint.
+Child entity table referencing parent. **The PK is always composite, anchored on `parent_id`.** Child entity ids are unique within their owning aggregate, not globally — without `parent_id` in the PK, two aggregates that legitimately share the same child id (e.g. `dt-1`) collide on `INSERT … ON CONFLICT DO UPDATE` and the second save silently overwrites the first aggregate's children.
+
+**Single-tenant — composite PK `(parent_id, id)`:**
 
 ```python
 Table(
     "child_entity",
     metadata,
+    Column("parent_id", String, primary_key=True),
     Column("id", String, primary_key=True),
-    Column("parent_id", String, nullable=False),
+    ...
+    ForeignKeyConstraint(
+        ["parent_id"],
+        ["parent.id"],
+        ondelete="CASCADE",
+    ),
+)
+```
+
+**Multi-tenant — composite PK `(parent_id, id, tenant_id)`:**
+
+```python
+Table(
+    "child_entity",
+    metadata,
+    Column("parent_id", String, primary_key=True),
+    Column("id", String, primary_key=True),
     Column("tenant_id", String, primary_key=True),
     ...
     ForeignKeyConstraint(
@@ -141,7 +160,7 @@ __all__ = ["{{ table_name }}"]
 )
 ```
 
-### Table with Foreign Key
+### Table with Foreign Key (single-tenant)
 
 ```python
 from sqlalchemy import Column, ForeignKeyConstraint, String, Table
@@ -154,8 +173,33 @@ __all__ = ["{{ table_name }}"]
 {{ table_name }} = Table(
     "{{ table_name_snake }}",
     metadata,
+    Column("{{ parent_id_column }}", String, primary_key=True),
     Column("{{ id_column }}", String, primary_key=True),
-    Column("{{ parent_id_column }}", String, nullable=False),
+    Column("{{ additional_column }}", {{ additional_column_type }}, nullable={{ additional_column_nullable }}),
+    Column("{{ status_column }}", String, nullable=False),
+    ForeignKeyConstraint(
+        ["{{ parent_id_column }}"],
+        ["{{ parent_table }}.{{ parent_id_column_ref }}"],
+        ondelete="CASCADE",
+    ),
+)
+```
+
+### Table with Foreign Key (multi-tenant)
+
+```python
+from sqlalchemy import Column, ForeignKeyConstraint, String, Table
+from sqlalchemy.dialects.postgresql import JSONB
+
+from {{ extras_module }} import metadata
+
+__all__ = ["{{ table_name }}"]
+
+{{ table_name }} = Table(
+    "{{ table_name_snake }}",
+    metadata,
+    Column("{{ parent_id_column }}", String, primary_key=True),
+    Column("{{ id_column }}", String, primary_key=True),
     Column("{{ tenant_id_column }}", String, primary_key=True),
     Column("{{ additional_column }}", {{ additional_column_type }}, nullable={{ additional_column_nullable }}),
     Column("{{ status_column }}", String, nullable=False),
