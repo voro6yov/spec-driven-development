@@ -27,6 +27,11 @@
       "description": "Generate specs for REST API endpoints and implement them"
     },
     {
+      "name": "messaging-spec",
+      "source": "./plugins/messaging-spec",
+      "description": "Generate specs for messaging and implement them"
+    },
+    {
       "name": "adr-log",
       "source": "./plugins/adr-log",
       "description": "Generated ADRs"
