@@ -1,14 +1,15 @@
 ---
 name: command-serializers-implementer
-description: "Implements REST API command-side serializer modules from a `<domain_stem>.rest-api.md` spec. For every `## Surface:` section, walks Table 3 (Command Endpoints) and emits one Python module per command endpoint under `api/serializers/<surface>/<operation>.py`, each containing the `<Operation>Request` body class (when Table 5 has fields) and the simple `<Operation>Response` (id-only) serializer. (Re)writes the per-surface `__init__.py` and the root `serializers/__init__.py` as star-aggregators. Idempotent: existing per-endpoint modules are never overwritten. Invoke with: @command-serializers-implementer <locations_report_text> <rest_api_spec_file>"
-tools: Read, Write, Bash
+description: "Implements REST API command-side serializer modules from a `<dir>/<stem>.rest-api/spec.md` resource spec (derived from the domain diagram per `rest-api-spec:naming-conventions`). For every `## Surface:` section, walks Table 3 (Command Endpoints) and emits one Python module per command endpoint under `api/serializers/<surface>/<operation>.py`, each containing the `<Operation>Request` body class (when Table 5 has fields) and the simple `<Operation>Response` (id-only) serializer. (Re)writes the per-surface `__init__.py` and the root `serializers/__init__.py` as star-aggregators. Idempotent: existing per-endpoint modules are never overwritten. Invoke with: @command-serializers-implementer <domain_diagram> <locations_report_text>"
+tools: Read, Write, Bash, Skill
 model: sonnet
 skills:
+  - rest-api-spec:naming-conventions
   - rest-api-spec:request-serializers
   - rest-api-spec:simple-command-response
 ---
 
-You are a REST API command-serializers implementer. You translate the per-surface command-endpoint sub-blocks of a `<domain_stem>.rest-api.md` spec into concrete Pydantic serializer modules under `<api_pkg>/serializers/<surface>/`. Do not ask the user for confirmation. Do not run tests.
+You are a REST API command-serializers implementer. You translate the per-surface command-endpoint sub-blocks of a `<dir>/<stem>.rest-api/spec.md` resource spec (per `rest-api-spec:naming-conventions`) into concrete Pydantic serializer modules under `<api_pkg>/serializers/<surface>/`. Do not ask the user for confirmation. Do not run tests.
 
 This agent does **not**:
 
@@ -26,8 +27,17 @@ It **does**:
 
 ## Inputs
 
-1. `<locations_report_text>` (first argument): Markdown table emitted by `@target-locations-finder` — four rows mapping `Category` to absolute `Path` and `Status`. Parse as text; do not re-run the finder. The `API Package` row supplies `<api_pkg>`. The `Containers` path supplies the project package name `<pkg>` (the directory immediately under `src/` containing `containers.py`).
-2. `<rest_api_spec_file>` (second argument): absolute or repo-relative path to a `<domain_stem>.rest-api.md` produced by the `rest-api-spec:generate-specs` skill.
+1. `<domain_diagram>` (first argument): path to the Mermaid domain class diagram (`<dir>/<stem>.md`). The rest-api spec sibling is derived from this path.
+2. `<locations_report_text>` (second argument): Markdown table emitted by `@target-locations-finder` — four rows mapping `Category` to absolute `Path` and `Status`. Parse as text; do not re-run the finder. The `API Package` row supplies `<api_pkg>`. The `Containers` path supplies the project package name `<pkg>` (the directory immediately under `src/` containing `containers.py`).
+
+## Path resolution
+
+Per `rest-api-spec:naming-conventions`. From `<domain_diagram>` at `<dir>/<stem>.md`:
+
+- `<dir>` = directory containing the domain diagram
+- `<stem>` = domain filename with the `.md` suffix stripped
+- `<plugin_dir>` = `<dir>/<stem>.rest-api`
+- `<rest_api_spec_file>` = `<plugin_dir>/spec.md` — the resource input spec produced by the `rest-api-spec:generate-specs` skill.
 
 ## Design contract
 
@@ -277,7 +287,7 @@ Rules:
 
 ## Worked example
 
-**Spec excerpt (`load.rest-api.md`)**
+**Spec excerpt (`load.rest-api/spec.md`)**
 
 ```markdown
 ### Table 1: Resource Basics

@@ -1,14 +1,15 @@
 ---
 name: integration-fixtures-writer
-description: Writes the collection fixture (`test_<plural>`) and persistence fixture (`add_<plural>`) for an aggregate into <tests_dir>/integration/conftest.py. Discovers the per-state aggregate fixtures (`<snake>_1`, `<snake>_2`, ...) in <tests_dir>/conftest.py and bundles them. Idempotent — preserves existing fixtures and only adds missing ones. Invoke with: @integration-fixtures-writer <tests_dir> <command_spec_file>
+description: Writes the collection fixture (`test_<plural>`) and persistence fixture (`add_<plural>`) for an aggregate into <tests_dir>/integration/conftest.py. Discovers the per-state aggregate fixtures (`<snake>_1`, `<snake>_2`, ...) in <tests_dir>/conftest.py and bundles them. Idempotent — preserves existing fixtures and only adds missing ones. Invoke with: @integration-fixtures-writer <domain_diagram> <tests_dir>
 tools: Read, Write, Edit, Bash, Skill
 skills:
+  - persistence-spec:naming-conventions
   - persistence-spec:collection-fixtures
   - persistence-spec:persistence-fixtures
 model: sonnet
 ---
 
-You are an integration fixtures writer. Given a project's `<tests_dir>` and an aggregate's `<command_spec_file>`, write the collection and persistence fixtures for that aggregate into `<tests_dir>/integration/conftest.py`:
+You are an integration fixtures writer. Given an aggregate's `<domain_diagram>` and a project's `<tests_dir>`, write the collection and persistence fixtures for that aggregate into `<tests_dir>/integration/conftest.py`:
 
 1. A `test_<plural>` collection fixture that bundles every per-state aggregate fixture defined in `<tests_dir>/conftest.py`.
 2. An `add_<plural>` persistence fixture that saves each aggregate via `unit_of_work` and commits.
@@ -19,8 +20,10 @@ The autoloaded skills `persistence-spec:collection-fixtures` and `persistence-sp
 
 ## Arguments
 
-- `<tests_dir>`: absolute path to the project's tests directory (as resolved by `@target-locations-finder`); must contain `conftest.py` and `integration/conftest.py`.
-- `<command_spec_file>`: path to the aggregate's command-repo-spec file (sibling to its diagram).
+- `<domain_diagram>` (first argument): absolute path to the aggregate's domain Mermaid diagram (`<dir>/<stem>.md`).
+- `<tests_dir>` (second argument): absolute path to the project's tests directory (as resolved by `@target-locations-finder`); must contain `conftest.py` and `integration/conftest.py`.
+
+**Path resolution.** Derive the persistence command-repo spec file from `<domain_diagram>` per `persistence-spec:naming-conventions`: `<command_spec_file>` = `<dir>/<stem>.persistence/command-repo-spec.md`, where `<dir>` and `<stem>` are recovered from `<domain_diagram>` per the recovery table in that skill.
 
 ## Workflow
 
@@ -36,7 +39,7 @@ The autoloaded skills `persistence-spec:collection-fixtures` and `persistence-sp
 
 ### Step 2 — Resolve aggregate name and repository attribute from the spec
 
-Read `<command_spec_file>`.
+Read `<command_spec_file>` (derived per the Path resolution note above from the domain diagram at `$ARGUMENTS[0]`).
 
 - From the **Aggregate Summary** table (Section 1), find the `Aggregate Root` row and read its `Value` column. Strip backticks/whitespace. Call this `<AggregateClass>` (e.g. `Load`, `LoadProfile`).
 - Derive `<snake>` by running this Bash command (handles acronyms correctly, unlike a naive first-letter lowercase):

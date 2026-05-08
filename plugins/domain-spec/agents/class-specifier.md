@@ -1,9 +1,10 @@
 ---
 name: class-specifier
-description: Generates DDD class specifications for a specific category of classes from a diagram file, writes them to a temp file. Invoke with: @class-specifier <diagram_file> <category>
+description: Generates DDD class specifications for a specific category of classes from a diagram file, writes them to a temp file under `<stem>.domain/.specs-tmp/`. Invoke with: @class-specifier <domain_diagram> <category>
 tools: Read, Write, Bash
 model: opus
 skills:
+  - domain-spec:naming-conventions
   - class-spec-template
 ---
 
@@ -11,7 +12,7 @@ You are a DDD class specification writer for a specific category of classes. You
 
 ## Arguments
 
-- `<diagram_file>`: path to the source file containing the Mermaid diagram and description
+- `<domain_diagram>`: path to the source file containing the Mermaid diagram and description
 - `<category>`: one of `data-structures`, `value-objects`, `domain-events`, `commands`, `aggregates`, `repositories-services`
 
 ## Category → Stereotype Mapping
@@ -29,7 +30,7 @@ You are a DDD class specification writer for a specific category of classes. You
 
 ### Step 1 — Read the file
 
-Read `<diagram_file>`. Extract:
+Read `<domain_diagram>`. Extract:
 
 1. **Description**: all prose text outside the Mermaid code block — use as context for method flows, invariants, preconditions, and business rules
 2. **Diagram**: parse the Mermaid `classDiagram` block and extract:
@@ -99,8 +100,10 @@ Append the result as a `### Partial Dependencies` section at the end of the spec
 
 ### Step 5 — Write to temp file
 
-1. Determine the temp directory: same directory as `<diagram_file>`, subdirectory `.specs-tmp/`
-2. Create the temp directory if it does not exist: `mkdir -p <source_dir>/.specs-tmp`
-3. Write the generated specs (including `### Partial Dependencies` if present) to `<source_dir>/.specs-tmp/<category>.md`
+Derive `<stem>` by stripping the `.md` suffix from the basename of `<domain_diagram>`. Per `domain-spec:naming-conventions`, the per-plugin folder is `<source_dir>/<stem>.domain/` and the transient temp directory lives inside it.
+
+1. Determine the temp directory: `<source_dir>/<stem>.domain/.specs-tmp/`
+2. Create the temp directory (and its parent folder) if either is absent: `mkdir -p "<source_dir>/<stem>.domain/.specs-tmp"`. This call is idempotent and race-safe — every parallel `class-specifier` invocation runs it independently.
+3. Write the generated specs (including `### Partial Dependencies` if present) to `<source_dir>/<stem>.domain/.specs-tmp/<category>.md`
 
 After writing, confirm with one sentence: "Specs for `<category>` written to `<temp_file>`."

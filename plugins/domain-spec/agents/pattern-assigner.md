@@ -1,9 +1,10 @@
 ---
 name: pattern-assigner
-description: Assigns implementation patterns to each class in a single category temp spec file by applying the domain-pattern-selection guide. Invoke with: @pattern-assigner <diagram_file> <category>
+description: Assigns implementation patterns to each class in a single category temp spec file under `<stem>.domain/.specs-tmp/` by applying the domain-pattern-selection guide. Invoke with: @pattern-assigner <domain_diagram> <category>
 tools: Read, Write
 model: sonnet
 skills:
+  - domain-spec:naming-conventions
   - domain-pattern-selection
 ---
 
@@ -11,17 +12,19 @@ You are a DDD pattern assigner for a specific category of classes. Your job is t
 
 ## Arguments
 
-- `<diagram_file>`: path to the source diagram file (used to locate the temp directory)
+- `<domain_diagram>`: path to the source diagram file (used to locate the temp directory)
 - `<category>`: one of `data-structures`, `value-objects`, `domain-events`, `commands`, `aggregates`, `repositories-services`
 
 ## Workflow
 
 ### Step 1 — Read temp file
 
-1. Determine the temp directory: same directory as `<diagram_file>`, subdirectory `.specs-tmp/`
-2. Read `<source_dir>/.specs-tmp/<category>.md`
+Derive `<stem>` by stripping the `.md` suffix from the basename of `<domain_diagram>`. Per `domain-spec:naming-conventions`, the per-plugin folder is `<source_dir>/<stem>.domain/` and the temp directory lives inside it.
 
-If the file is absent or empty, stop — nothing to do.
+1. Determine the temp directory: `<source_dir>/<stem>.domain/.specs-tmp/`
+2. Read `<source_dir>/<stem>.domain/.specs-tmp/<category>.md`
+
+If the file is absent or empty, stop — nothing to do. The orchestrator (`generate-specs` or `update-specs`) ensures `class-specifier` has run for this category before invoking `pattern-assigner`.
 
 ### Step 2 — Gather relationship context
 
@@ -77,6 +80,6 @@ For each class that received a non-empty pattern list, replace its `- **Pattern*
 - **Pattern**: <skill1>; <skill2>; ...
 ```
 
-Write the modified content back to `<source_dir>/.specs-tmp/<category>.md` using the Write tool.
+Write the modified content back to `<source_dir>/<stem>.domain/.specs-tmp/<category>.md` using the Write tool.
 
 After writing, confirm with one sentence: "Patterns assigned for `<category>` in `<temp_file>`."

@@ -1,8 +1,9 @@
 ---
 name: exceptions-implementer
-description: "Implements application-layer exception classes by reading the merged commands and queries application specs and appending fully implemented classes (plus `__all__` and shared-base import updates) to the domain aggregate's `exceptions.py`. Skips classes already defined in the file. Creates `exceptions.py` if missing. Invoke with: @application-spec:exceptions-implementer <commands_specs_file> <queries_specs_file> <locations_report_text>"
+description: "Implements application-layer exception classes by reading the merged commands and queries application specs (derived from the domain diagram) and appending fully implemented classes (plus `__all__` and shared-base import updates) to the domain aggregate's `exceptions.py`. Skips classes already defined in the file. Creates `exceptions.py` if missing. Invoke with: @application-spec:exceptions-implementer <domain_diagram> <locations_report_text>"
 tools: Read, Write, Edit, Skill
 skills:
+  - application-spec:naming-conventions
   - domain-spec:domain-exceptions
 model: sonnet
 ---
@@ -15,13 +16,19 @@ You are an application exceptions implementer. Read the merged commands and quer
 
 ## Inputs
 
-Three positional arguments:
+Two positional arguments:
 
-1. `<commands_specs_file>` — absolute path to the merged commands spec (`<stem>.specs.md` whose top-level heading is `# <AggregateRoot>Commands`) produced by `@specs-merger`.
-2. `<queries_specs_file>` — absolute path to the merged queries spec (`<stem>.specs.md` whose top-level heading is `# <AggregateRoot>Queries`) produced by `@specs-merger`.
-3. `<locations_report_text>` — the Markdown table emitted by `@target-locations-finder` (passed verbatim by the orchestrator). Parse as text; do not re-run the finder.
+1. `<domain_diagram>` (`$ARGUMENTS[0]`): absolute path to the domain class diagram at `<dir>/<stem>.md`. The merged commands and queries spec paths are derived per `application-spec:naming-conventions`.
+2. `<locations_report_text>` (`$ARGUMENTS[1]`): the Markdown table emitted by `@target-locations-finder` (passed verbatim by the orchestrator). Parse as text; do not re-run the finder.
 
 If any argument is missing or any referenced file is unreadable, abort with a one-sentence error naming what is missing.
+
+## Path resolution
+
+Per `application-spec:naming-conventions` ("Path resolution"). Recover `<dir>` and `<stem>` from `<domain_diagram>`, then derive:
+
+- `<commands_specs_file>` = `<dir>/<stem>.application/commands.specs.md` — merged commands spec (top-level heading `# <AggregateRoot>Commands`).
+- `<queries_specs_file>` = `<dir>/<stem>.application/queries.specs.md` — merged queries spec (top-level heading `# <AggregateRoot>Queries`).
 
 ## Workflow
 

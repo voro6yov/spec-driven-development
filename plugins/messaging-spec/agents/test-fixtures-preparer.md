@@ -1,9 +1,10 @@
 ---
 name: test-fixtures-preparer
-description: "Ensures the root `<tests_dir>/conftest.py` defines the messaging handler fixtures and the `make_event_envelope` helper required by message-handler integration tests for one consumer. Reads the consumer spec sibling and a target-locations-finder report to resolve `<tests_dir>`, the project package name `<pkg>`, and the consumer's handler set (one fixture per unique (Event Name, Source Destination) tuple in Table 2, naming follows `@consumer-scaffolder`'s collision rule). Creates `<tests_dir>/conftest.py` from the `messaging-spec:messaging-handler-fixtures` skill template if absent, or append-only patches it to add any missing fixtures (and their imports) when present. Append-only, idempotent, signature-driven. Never modifies an existing fixture body. Invoke with: @test-fixtures-preparer <consumer_spec_file> <locations_report_text>"
+description: "Ensures the root `<tests_dir>/conftest.py` defines the messaging handler fixtures and the `make_event_envelope` helper required by message-handler integration tests for one consumer. Reads the consumer spec at `<dir>/<stem>.messaging/<consumer_name>.md` (derived from `<commands_diagram>` and `<consumer_name>` per `messaging-spec:naming-conventions`) and a target-locations-finder report to resolve `<tests_dir>`, the project package name `<pkg>`, and the consumer's handler set (one fixture per unique (Event Name, Source Destination) tuple in Table 2, naming follows `@consumer-scaffolder`'s collision rule). Creates `<tests_dir>/conftest.py` from the `messaging-spec:messaging-handler-fixtures` skill template if absent, or append-only patches it to add any missing fixtures (and their imports) when present. Append-only, idempotent, signature-driven. Never modifies an existing fixture body. Invoke with: @test-fixtures-preparer <commands_diagram> <consumer_name> <locations_report_text>"
 tools: Read, Write, Edit, Bash
 model: sonnet
 skills:
+  - messaging-spec:naming-conventions
   - messaging-spec:messaging-handler-fixtures
 ---
 
@@ -28,10 +29,18 @@ It **does**:
 
 ## Inputs
 
-1. `<consumer_spec_file>` — absolute or repo-relative path to the consumer spec file (`<dir>/<consumer_name_kebab>.messaging.md`). Must already contain Table 1 (Consumer Basics) and a non-empty Table 2 (Events to Consume) — populated by `@consumer-spec-initializer` and `@event-tables-writer` respectively.
-2. `<locations_report_text>` — Markdown table emitted by `messaging-spec:target-locations-finder`. Parse as text. Required rows:
+1. `<commands_diagram>` — path to the Mermaid commands class diagram (`<dir>/<stem>.commands.md`); used (with `<consumer_name>`) to derive the consumer spec file path.
+2. `<consumer_name>` — the **kebab-case** consumer name (e.g. `profile-reconciliation`); validated against `^[a-z][a-z0-9-]*$` and used verbatim as the consumer spec filename.
+3. `<locations_report_text>` — Markdown table emitted by `messaging-spec:target-locations-finder`. Parse as text. Required rows:
    - `Tests` row → `<tests_dir>` (absolute path, expected to exist).
    - At least one of `Domain Package`, `Application Package`, `Messaging Package`, `Containers`, `Entrypoint`, or `Constants` (any non-Tests row) → used to derive `<pkg>`. Locate the **rightmost** occurrence of the literal segment `/src/` in the row's absolute path; `<pkg>` is the substring between that `/src/` and the next `/`. If multiple eligible rows disagree on `<pkg>`, abort with a malformed-report error.
+
+## Path resolution
+
+Per `messaging-spec:naming-conventions`. Given `<commands_diagram>` at `<dir>/<stem>.commands.md` and the `<consumer_name>` argument:
+
+- Recover `<dir>` = directory of `<commands_diagram>`; `<stem>` = basename of `<commands_diagram>` with the trailing `.commands.md` stripped.
+- Consumer spec file (input): `<consumer_spec_file>` = `<dir>/<stem>.messaging/<consumer_name>.md`. Must already contain Table 1 (Consumer Basics) and a non-empty Table 2 (Events to Consume) — populated by `@consumer-spec-initializer` and `@event-tables-writer` respectively.
 
 If the `Tests` row is missing or malformed, abort with: `Error: locations report missing Tests row.`
 
@@ -45,10 +54,12 @@ The agent ensures the following fixtures exist in `<tests_dir>/conftest.py`. Eac
 
 | Fixture | Scope | Required module-level imports |
 | --- | --- | --- |
-| `make_event_envelope` | function | `import pytest`; `from datetime import UTC, datetime`; `from uuid import uuid4`; `from deps_pubsub.events.subscriber.domain_event_envelope import DomainEventEnvelope`; `from deps_pubsub.events.subscriber.event_metadata import EventMetadata` |
+| `make_event_envelope` | function | `import pytest`; `from uuid import uuid4`; `from deps_pubsub.events.subscriber.domain_event_envelope import DomainEventEnvelope`; `from deps_pubsub.messaging.common.message import Message` |
 | `<handler_name>` (one per Table 2 entry, see [§ Handler set](#handler-set)) | function | `import pytest` (the handler import itself is lazy, inside the fixture body, and contributes no module-level imports) |
 
 `make_command_message` from the skill is **not** emitted — Table 2 captures events only and the consumer-scaffolder's `handlers.py` shape currently has no command-handler stubs.
+
+The helper does not import `EventMetadata` or `datetime` — the `DomainEventEnvelope` constructor in `deps_pubsub.events.subscriber.domain_event_envelope` takes `(message, aggregate_type, aggregate_id, event_id, event)` directly; there is no `metadata` field on the envelope, and the `event_id` is generated via `uuid4()` and carried on the synthetic `Message` headers.
 
 ### Handler set
 
@@ -89,11 +100,11 @@ Verify `test -d <tests_dir>`. Abort on failure per the inputs section.
 
 ### Step 2 — Read and parse the consumer spec
 
+Validate the `<consumer_name>` argument against the regex `^[a-z][a-z0-9-]*$`. Abort with `Invalid consumer name '<value>' — expected kebab-case matching ^[a-z][a-z0-9-]*$.` otherwise. Bind `<consumer_name_kebab>` = `<consumer_name>`.
+
+Derive `<consumer_spec_file>` per `messaging-spec:naming-conventions`. Recover `<dir>` = directory of `<commands_diagram>` and `<stem>` = basename of `<commands_diagram>` with the trailing `.commands.md` stripped (abort with `<commands_diagram> filename must end with .commands.md.` if the basename does not match `^[a-z][a-z0-9-]*\.commands\.md$`). Compute `<consumer_spec_file>` = `<dir>/<stem>.messaging/<consumer_name_kebab>.md`.
+
 Read `<consumer_spec_file>`. Abort with `<consumer_spec_file> not found — run @consumer-spec-initializer first.` if it is not on disk.
-
-Extract the basename. It must end with the literal suffix `.messaging.md`; abort with `<consumer_spec_file> filename must end with .messaging.md.` otherwise.
-
-Strip the suffix to obtain `<consumer_name_kebab>`. Validate against the regex `^[a-z][a-z0-9-]*$`. Abort with `Invalid consumer name '<value>' derived from filename — expected kebab-case matching ^[a-z][a-z0-9-]*$.` otherwise.
 
 Derive `<consumer_name_snake>` = `<consumer_name_kebab>` with every `-` replaced by `_`.
 
@@ -122,26 +133,28 @@ Run `test -f <tests_dir>/conftest.py`.
 
 Render the file using the `messaging-spec:messaging-handler-fixtures` skill, **handler fixtures + `make_event_envelope` only** — that is, exactly the canonical helper plus one fixture per `<handler_names>` entry plus the imports they need. Do **not** emit `make_command_message`, fake-override, repository, or aggregate sections; those belong to other agents.
 
-Canonical render (substitute `<pkg>` and `<consumer_name_snake>` literally; substitute each `<handler_name>` from Step 2's ordered list):
+**Resolve `<aggregate_root_pascal>`** — the local aggregate-root name in PascalCase, used as the `make_event_envelope` helper's default `aggregate_type` value. Take Table 2's first row's `<CommandClass>` cell (already parsed in Step 2), strip the trailing `Commands` suffix, and emit the result verbatim (e.g. `ConversionReqsCommands` → `ConversionReqs`, `ProfileCommands` → `Profile`). If Table 2 has rows for multiple distinct `<CommandClass>` values, use the first row's value — the helper default is just a placeholder; tests that need a different `aggregate_type` pass it explicitly.
+
+Canonical render (substitute `<pkg>`, `<consumer_name_snake>`, and `<aggregate_root_pascal>` literally; substitute each `<handler_name>` from Step 2's ordered list):
 
 ```python
-from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
 from deps_pubsub.events.subscriber.domain_event_envelope import DomainEventEnvelope
-from deps_pubsub.events.subscriber.event_metadata import EventMetadata
+from deps_pubsub.messaging.common.message import Message
 
 
 @pytest.fixture
 def make_event_envelope():
-    def _make(event):
+    def _make(event, *, aggregate_type: str = "<aggregate_root_pascal>", aggregate_id: str | None = None):
+        event_id = str(uuid4())
         return DomainEventEnvelope(
+            message=Message(payload=b"", headers={"id": event_id}),
+            aggregate_type=aggregate_type,
+            aggregate_id=aggregate_id or str(uuid4()),
+            event_id=event_id,
             event=event,
-            metadata=EventMetadata(
-                event_id=str(uuid4()),
-                timestamp=datetime.now(UTC),
-            ),
         )
     return _make
 
@@ -162,8 +175,9 @@ def <handler_name_2>(containers):
     return handler
 ```
 
-- Imports in three groups separated by single blank lines: stdlib (`datetime`, `uuid`), then third-party (`pytest`, `deps_pubsub.*`), then local (none in this template). Two blank lines between the import block and the first fixture.
+- Imports in three groups separated by single blank lines: stdlib (`uuid`), then third-party (`pytest`, `deps_pubsub.*`), then local (none in this template). Two blank lines between the import block and the first fixture.
 - `make_event_envelope` is emitted **first**, before any handler fixture, regardless of `<handler_names>` ordering.
+- The helper's body uses keyword-only kwargs (`*,` separator) for `aggregate_type` and `aggregate_id` so the typical call site is just `make_event_envelope(event)` — the helper synthesizes a sensible `Message`, `event_id`, and (when omitted) `aggregate_id`.
 - Handler fixtures emitted in `<handler_names>` order (Table 2 source order).
 - Adjacent fixtures separated by exactly two blank lines (PEP 8 — top-level definitions follow).
 - Single trailing newline at end of file.
@@ -178,10 +192,9 @@ Write via `Write`. Record `created`.
 4. Otherwise, for the fixtures marked `added`:
    - **Imports.** For each module-level import required by the added fixtures (per the [§ Mandatory fixture set](#mandatory-fixture-set) table), check whether an equivalent import line already exists at module level. Equivalence rules:
      - `import pytest` matches an existing `import pytest` line exactly.
-     - `from datetime import UTC, datetime` matches if both `UTC` and `datetime` appear in the names list of an existing `from datetime import …` line (parenthesised multi-line forms count). If only one of the two names is present, insert the missing one as a separate `from datetime import <name>` line — the agent does not edit existing import lines in place.
      - `from uuid import uuid4` matches if `uuid4` appears in the names list of an existing `from uuid import …` line.
      - `from deps_pubsub.events.subscriber.domain_event_envelope import DomainEventEnvelope` matches if `DomainEventEnvelope` appears in the names list of an existing `from deps_pubsub.events.subscriber.domain_event_envelope import …` line.
-     - `from deps_pubsub.events.subscriber.event_metadata import EventMetadata` matches if `EventMetadata` appears in the names list of an existing `from deps_pubsub.events.subscriber.event_metadata import …` line.
+     - `from deps_pubsub.messaging.common.message import Message` matches if `Message` appears in the names list of an existing `from deps_pubsub.messaging.common.message import …` line.
 
      Note: handler fixtures contribute **no** module-level imports — their handler import is lazy, inside the fixture body. Only `import pytest` is required for handler-only additions.
 
@@ -190,7 +203,7 @@ Write via `Write`. Record `created`.
      1. If there is at least one top-level `import` or `from … import …` line in the file, insert the new line on its own line **immediately after the last** such line (no blank line inserted; preserve any blank line that already follows). This is the canonical anchor — stable across reruns.
      2. If the file has no imports at all, insert the new line as the very first line of the file, followed by exactly one blank line separating it from existing content.
 
-     When multiple imports must be inserted together, they are inserted contiguously after the anchor in a deterministic relative order: `datetime.UTC,datetime`, `uuid.uuid4`, `pytest`, `deps_pubsub…DomainEventEnvelope`, `deps_pubsub…EventMetadata`. Imports that are already matched (or not required by any `added` fixture) are skipped — only the still-missing subset is emitted, preserving the relative order of the survivors. (Example: handler-only additions emit just `import pytest` if it is missing; the four helper-related imports are not emitted because no added fixture requires them.) The agent does **not** re-sort or re-group existing imports; canonical PEP 8 grouping is only enforced in the from-scratch render (Step 4a).
+     When multiple imports must be inserted together, they are inserted contiguously after the anchor in a deterministic relative order: `uuid.uuid4`, `pytest`, `deps_pubsub…DomainEventEnvelope`, `deps_pubsub…Message`. Imports that are already matched (or not required by any `added` fixture) are skipped — only the still-missing subset is emitted, preserving the relative order of the survivors. (Example: handler-only additions emit just `import pytest` if it is missing; the three helper-related imports are not emitted because no added fixture requires them.) The agent does **not** re-sort or re-group existing imports; canonical PEP 8 grouping is only enforced in the from-scratch render (Step 4a).
 
    - **Fixture bodies.** Append each `added` fixture (rendered exactly as in Step 4a) at the end of the file, in the canonical order: `make_event_envelope` first (only if `added`), then handler fixtures in `<handler_names>` source order. Ensure exactly two blank lines between the previous file content and the first appended fixture, exactly two blank lines between successive appended fixtures, and a single trailing newline at end of file.
 5. Apply edits via `Edit`. The import insertion uses the last existing import line as `old_string` and replaces it with `<old_line>\n<new_imports>`. The fixture append uses the last non-empty line of the file as `old_string` and replaces it with `<old_line>\n\n\n<rendered_fixtures>`. Do **not** rewrite the whole file via `Write` — preserving unrelated content verbatim is a hard requirement.
@@ -223,7 +236,7 @@ End with: `Test fixtures ready for messaging handler tests on consumer <consumer
 
 - `<locations_report_text>` is missing the `Tests` row or has no parseable row to derive `<pkg>`.
 - `<tests_dir>` does not exist on disk.
-- `<consumer_spec_file>` is not on disk, has a filename not ending in `.messaging.md`, or has a kebab-case stem failing `^[a-z][a-z0-9-]*$`.
+- `<commands_diagram>` does not have a basename matching `^[a-z][a-z0-9-]*\.commands\.md$`, `<consumer_name>` fails the kebab-case regex `^[a-z][a-z0-9-]*$`, or the derived `<consumer_spec_file>` (`<dir>/<stem>.messaging/<consumer_name>.md`) is not on disk.
 - Consumer spec lacks `### Table 1: Consumer Basics` or `### Table 2: Events to Consume`.
 - Table 2 body is the empty-state placeholder `*No events consumed by this consumer.*`.
 - Table 2 contains a row whose `Type` cell is not `external` or `internal`.

@@ -1,8 +1,9 @@
 ---
 name: command-repository-implementer
-description: "Implements the scaffolded command-side repository module by replacing the `class <X>: pass` placeholder with a body driven by the abstract `Command<Aggregate>Repository` interface in the domain package and the `Simple` / `With Children` template variant in `persistence-spec:command-repository`. Reads the command-repo-spec for variant selection, multi-tenancy, column lists, and alternative-lookup hints, and emits a worklist with the implemented module path. Invoke with: @command-repository-implementer <command_spec_file> <locations_report_text>"
+description: "Implements the scaffolded command-side repository module by replacing the `class <X>: pass` placeholder with a body driven by the abstract `Command<Aggregate>Repository` interface in the domain package and the `Simple` / `With Children` template variant in `persistence-spec:command-repository`. Reads the command-repo-spec for variant selection, multi-tenancy, column lists, and alternative-lookup hints, and emits a worklist with the implemented module path. Invoke with: @command-repository-implementer <domain_diagram> <locations_report_text>"
 tools: Read, Write, Bash, Skill
 skills:
+  - persistence-spec:naming-conventions
   - persistence-spec:command-repository
 model: sonnet
 ---
@@ -11,10 +12,12 @@ You are a command-repository implementer. Your job is to fill the body of the re
 
 ## Inputs
 
-1. `<command_spec_file>` (first argument): absolute path to the `<stem>.command-repo-spec.md` file.
+1. `<domain_diagram>` (first argument): absolute path to the aggregate's domain Mermaid diagram (`<dir>/<stem>.md`).
 2. `<locations_report_text>` (second argument): the Markdown table emitted by `@target-locations-finder`. Parse it as text; do not re-run the finder.
 
-The autoloaded skill `persistence-spec:command-repository` is the authoritative implementation guide for the repository body. Load no other skills.
+**Path resolution.** Derive the persistence command-repo spec file from `<domain_diagram>` per `persistence-spec:naming-conventions`: `<command_spec_file>` = `<dir>/<stem>.persistence/command-repo-spec.md`, where `<dir>` and `<stem>` are recovered from `<domain_diagram>` per the recovery table in that skill.
+
+The autoloaded skill `persistence-spec:command-repository` is the authoritative implementation guide for the repository body.
 
 ## Workflow
 
@@ -30,7 +33,7 @@ Error: Repository directory '<repo_dir>' does not exist; run @repositories-scaff
 
 ### Step 2 — Read the spec
 
-Read `<command_spec_file>`.
+Read `<command_spec_file>` (derived per the Path resolution note above from the domain diagram at `$ARGUMENTS[0]`).
 
 **Placeholder detection rule (same as `@mappers-implementer`).** Before stripping any escape sequences, inspect the raw cell text. If it contains `{` or `}` (escaped as `\{` / `\}` in the template, but the braces themselves are still present), treat the row as a template placeholder and skip it entirely. Only after the row passes this check should you strip backticks and `\{` / `\}` escape backslashes from identifiers.
 

@@ -42,7 +42,7 @@ The dominant shape is `load → mutate → save → publish → return`. Use it 
 
 ### Requires Aggregate State
 
-A single line that names the lifecycle precondition the method needs the persisted aggregate to satisfy. Vocabulary mirrors the State Keys table in the domain test plan (`<stem>.test-plan.md`):
+A single line that names the lifecycle precondition the method needs the persisted aggregate to satisfy. Vocabulary mirrors the State Keys table in the domain test plan (`<stem>.domain/test-plan.md`):
 
 - `(none)` — factory methods that construct the aggregate from scratch.
 - `empty` — canonical methods that operate on a freshly-created aggregate with no children populated.

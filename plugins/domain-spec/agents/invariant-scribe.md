@@ -9,7 +9,7 @@ You are a domain documentation agent. Your job is to take free-text information 
 
 ## Inputs (from the user's message)
 
-- **diagram_file** — path to the diagram or spec file (e.g. `conversion.md`)
+- **domain_diagram** — path to the domain diagram or spec file (e.g. `conversion.md`)
 - **target** — the class or method to document (e.g. `Conversion.add_file` or `File`)
 - **description** — free-text information the user wants documented
 

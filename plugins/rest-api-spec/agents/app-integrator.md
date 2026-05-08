@@ -1,9 +1,10 @@
 ---
 name: app-integrator
-description: "Integrates per-aggregate REST API endpoints into the FastAPI application. From a `<domain_stem>.rest-api.md` spec and a target-locations report, regenerates per-surface aggregator `__init__.py` files and the top-level `endpoints/__init__.py` from a disk scan of `<api_pkg>/endpoints/`; patch-merges API constants into `<pkg>/constants.py`; creates `<pkg>/entrypoint.py` from the full `rest-api-spec:entrypoint` skill template (with auth/error_handlers blocks conditioned on disk presence) or, if it already exists, additively inserts missing `include_router` lines into `create_fastapi` only; and when the `internal` surface is present, additively patches `<pkg>/api/auth.py` to add an auth-skip guard for internal paths plus the supporting `INTERNAL_API_PREFIX` import. Per-aggregate, idempotent, multi-aggregate-safe. Does not write endpoint modules, serializers, `containers.py`, `api/__init__.py`, `error_handlers.py`, or any messaging module; never modifies any line outside `create_fastapi` in an existing entrypoint or outside `set_user_from_token` in `auth.py`. Messaging integration is owned by a separate workflow and is out of scope for this agent. Invoke with: @app-integrator <locations_report_text> <rest_api_spec_file>"
-tools: Read, Write, Edit, Bash
+description: "Integrates per-aggregate REST API endpoints into the FastAPI application. From a `<dir>/<stem>.rest-api/spec.md` resource spec (derived from the domain diagram per `rest-api-spec:naming-conventions`) and a target-locations report, regenerates per-surface aggregator `__init__.py` files and the top-level `endpoints/__init__.py` from a disk scan of `<api_pkg>/endpoints/`; patch-merges API constants into `<pkg>/constants.py`; creates `<pkg>/entrypoint.py` from the full `rest-api-spec:entrypoint` skill template (with auth/error_handlers blocks conditioned on disk presence) or, if it already exists, additively inserts missing `include_router` lines into `create_fastapi` only; and when the `internal` surface is present, additively patches `<pkg>/api/auth.py` to add an auth-skip guard for internal paths plus the supporting `INTERNAL_API_PREFIX` import. Per-aggregate, idempotent, multi-aggregate-safe. Does not write endpoint modules, serializers, `containers.py`, `api/__init__.py`, `error_handlers.py`, or any messaging module; never modifies any line outside `create_fastapi` in an existing entrypoint or outside `set_user_from_token` in `auth.py`. Messaging integration is owned by a separate workflow and is out of scope for this agent. Invoke with: @app-integrator <domain_diagram> <locations_report_text>"
+tools: Read, Write, Edit, Bash, Skill
 model: sonnet
 skills:
+  - rest-api-spec:naming-conventions
   - rest-api-spec:version-router
   - rest-api-spec:internal-router
   - rest-api-spec:entrypoint
@@ -31,8 +32,17 @@ It **does**:
 
 ## Inputs
 
-1. `<locations_report_text>` (first argument): Markdown table emitted by `@target-locations-finder`. Parse as text. The `API Package` row supplies `<api_pkg>`. The `Containers` row's path supplies `<pkg>` (the directory immediately under `src/` containing `containers.py`) and the parent directory `<pkg_dir>` where `constants.py` and `entrypoint.py` live (sibling of `containers.py`).
-2. `<rest_api_spec_file>` (second argument): absolute or repo-relative path to a `<domain_stem>.rest-api.md` produced by `rest-api-spec:generate-specs`. Used only to enumerate **this aggregate's** surfaces (Table 1 → Surfaces row); per-surface aggregator content is driven by disk scan, not by the spec.
+1. `<domain_diagram>` (first argument): path to the Mermaid domain class diagram (`<dir>/<stem>.md`). The rest-api spec sibling is derived from this path and used only to enumerate **this aggregate's** surfaces (Table 1 → Surfaces row); per-surface aggregator content is driven by disk scan, not by the spec.
+2. `<locations_report_text>` (second argument): Markdown table emitted by `@target-locations-finder`. Parse as text. The `API Package` row supplies `<api_pkg>`. The `Containers` row's path supplies `<pkg>` (the directory immediately under `src/` containing `containers.py`) and the parent directory `<pkg_dir>` where `constants.py` and `entrypoint.py` live (sibling of `containers.py`).
+
+## Path resolution
+
+Per `rest-api-spec:naming-conventions`. From `<domain_diagram>` at `<dir>/<stem>.md`:
+
+- `<dir>` = directory containing the domain diagram
+- `<stem>` = domain filename with the `.md` suffix stripped
+- `<plugin_dir>` = `<dir>/<stem>.rest-api`
+- `<rest_api_spec_file>` = `<plugin_dir>/spec.md` — the resource input spec produced by the `rest-api-spec:generate-specs` skill.
 
 ## Tool usage
 
@@ -312,7 +322,7 @@ End with: `Integrated <Resource> surfaces into FastAPI app.` where `<Resource>` 
 
 ## Worked example
 
-Spec excerpt (`load.rest-api.md`):
+Spec excerpt (`load.rest-api/spec.md`):
 
 ```markdown
 ### Table 1: Resource Basics

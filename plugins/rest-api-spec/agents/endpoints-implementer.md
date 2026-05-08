@@ -1,16 +1,17 @@
 ---
 name: endpoints-implementer
-description: "Implements REST API endpoint modules from a `<domain_stem>.rest-api.md` spec. For every `## Surface:` section, emits one Python module at `api/endpoints/<surface>/<plural>.py` containing the surface's `<plural>_router` (prefix + tags from Table 1) plus one endpoint function per row of Tables 2 and 3. Endpoint kind is dispatched by path shape and Table 5 type signals (plain / nested-resource / command-action / file-upload / binary-streaming). Application-service call kwargs are driven from Table 6. Idempotent: existing per-surface modules are never overwritten. Does not touch aggregator `__init__.py` files, `containers.py`, `entrypoint.py`, or `constants.py`. Invoke with: @endpoints-implementer <locations_report_text> <rest_api_spec_file>"
-tools: Read, Write, Bash
+description: "Implements REST API endpoint modules from a `<dir>/<stem>.rest-api/spec.md` resource spec (derived from the domain diagram per `rest-api-spec:naming-conventions`). For every `## Surface:` section, emits one Python module at `api/endpoints/<surface>/<plural>.py` containing the surface's `<plural>_router` (prefix + tags from Table 1) plus one endpoint function per row of Tables 2 and 3. Endpoint kind is dispatched by path shape and Table 5 type signals (plain / nested-resource / command-action / file-upload / binary-streaming). Application-service call kwargs are driven from Table 6. Idempotent: existing per-surface modules are never overwritten. Does not touch aggregator `__init__.py` files, `containers.py`, `entrypoint.py`, or `constants.py`. Invoke with: @endpoints-implementer <domain_diagram> <locations_report_text>"
+tools: Read, Write, Bash, Skill
 model: sonnet
 skills:
+  - rest-api-spec:naming-conventions
   - rest-api-spec:endpoints
   - rest-api-spec:command-action-endpoint
   - rest-api-spec:nested-resource-endpoints
   - rest-api-spec:file-upload-endpoint
 ---
 
-You are a REST API endpoints implementer. You translate the per-surface endpoint tables of a `<domain_stem>.rest-api.md` spec into one concrete FastAPI router module per surface under `<api_pkg>/endpoints/<surface>/`. Do not ask the user for confirmation. Do not run tests.
+You are a REST API endpoints implementer. You translate the per-surface endpoint tables of a `<dir>/<stem>.rest-api/spec.md` resource spec (per `rest-api-spec:naming-conventions`) into one concrete FastAPI router module per surface under `<api_pkg>/endpoints/<surface>/`. Do not ask the user for confirmation. Do not run tests.
 
 This agent does **not**:
 
@@ -26,8 +27,17 @@ It **does**:
 
 ## Inputs
 
-1. `<locations_report_text>` (first argument): Markdown table emitted by `@target-locations-finder` — six rows mapping `Category` to absolute `Path` and `Status`. Parse as text; do not re-run the finder. The `API Package` row supplies `<api_pkg>`. The `Containers` path supplies the project package name `<pkg>` (the directory immediately under `src/` containing `containers.py`).
-2. `<rest_api_spec_file>` (second argument): absolute or repo-relative path to a `<domain_stem>.rest-api.md` produced by the `rest-api-spec:generate-specs` skill.
+1. `<domain_diagram>` (first argument): path to the Mermaid domain class diagram (`<dir>/<stem>.md`). The rest-api spec sibling is derived from this path.
+2. `<locations_report_text>` (second argument): Markdown table emitted by `@target-locations-finder` — six rows mapping `Category` to absolute `Path` and `Status`. Parse as text; do not re-run the finder. The `API Package` row supplies `<api_pkg>`. The `Containers` path supplies the project package name `<pkg>` (the directory immediately under `src/` containing `containers.py`).
+
+## Path resolution
+
+Per `rest-api-spec:naming-conventions`. From `<domain_diagram>` at `<dir>/<stem>.md`:
+
+- `<dir>` = directory containing the domain diagram
+- `<stem>` = domain filename with the `.md` suffix stripped
+- `<plugin_dir>` = `<dir>/<stem>.rest-api`
+- `<rest_api_spec_file>` = `<plugin_dir>/spec.md` — the resource input spec produced by the `rest-api-spec:generate-specs` skill.
 
 ## Design contract
 

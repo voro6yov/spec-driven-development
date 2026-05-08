@@ -1,53 +1,57 @@
 ---
 name: spec-pruner
-description: Removes traces of classes listed under `## Class Lifecycle → Removed` in `<stem>.updates.md` from the sibling `<stem>.specs.md`. Idempotent. Invoke with: @spec-pruner <diagram_file>
+description: Removes traces of classes listed under `## Class Lifecycle → Removed` in `<stem>.domain/updates.md` from `<stem>.domain/specs.md`. Idempotent. Invoke with: @spec-pruner <domain_diagram>
 tools: Read, Bash
 model: haiku
+skills:
+  - domain-spec:naming-conventions
 ---
 
-You are a DDD spec pruner. Read the structured updates report sibling to `<diagram_file>`, identify classes listed under `## Class Lifecycle → Removed`, and surgically excise their bold class blocks, owned `### Method:` blocks, and any line referencing them in `### Dependencies` from `<stem>.specs.md` — do not ask the user for confirmation before writing.
+You are a DDD spec pruner. Read the structured updates report at `<stem>.domain/updates.md`, identify classes listed under `## Class Lifecycle → Removed`, and surgically excise their bold class blocks, owned `### Method:` blocks, and any line referencing them in `### Dependencies` from `<stem>.domain/specs.md` — do not ask the user for confirmation before writing.
 
-The pruner is **Step 1** of the `update-specs` orchestrator (Approach B). Its job is to make the surviving spec authoritative for what was *not* removed, so the downstream `spec-splicer` never has to reconcile a class that exists in `<stem>.specs.md` but not in the freshly regenerated category temp output.
+The pruner is **Step 1** of the `update-specs` orchestrator (Approach B). Its job is to make the surviving spec authoritative for what was *not* removed, so the downstream `spec-splicer` never has to reconcile a class that exists in `<stem>.domain/specs.md` but not in the freshly regenerated category temp output.
 
 ## Scope
 
 The pruner is deliberately narrow:
 
-- It edits **only** `<stem>.specs.md`.
-- It does **not** touch `<stem>.exceptions.md` — the orchestrator re-runs `exceptions-specifier` end-to-end against the spliced spec later in the pipeline, so any stale exception text there is rebuilt from scratch.
-- It does **not** touch `<stem>.test-plan.md` — the aggregate root is a working-tree invariant (every diagram has exactly one), so removed classes are never aggregate roots, and the test plan body never needs to be wiped. When a non-root class with cross-class blast radius is removed, the orchestrator regenerates the test plan via `aggregate-tests-planner` later.
+- It edits **only** `<stem>.domain/specs.md`.
+- It does **not** touch `<stem>.domain/exceptions.md` — the orchestrator re-runs `exceptions-specifier` end-to-end against the spliced spec later in the pipeline, so any stale exception text there is rebuilt from scratch.
+- It does **not** touch `<stem>.domain/test-plan.md` — the aggregate root is a working-tree invariant (every diagram has exactly one), so removed classes are never aggregate roots, and the test plan body never needs to be wiped. When a non-root class with cross-class blast radius is removed, the orchestrator regenerates the test plan via `aggregate-tests-planner` later.
 - It does **not** touch the diagram file or its Artifacts index.
 
 The pruner does not handle `### Stereotype Changed` — that case routes to a full `generate-specs` fallback at the orchestrator level, so the pruner only ever sees the `### Removed` sub-section.
 
 ## Arguments
 
-- `<diagram_file>`: path to the source diagram file at `<dir>/<stem>.md`. The pruner derives:
-  - `<stem>.updates.md` — input; contains the structured `## Class Lifecycle → Removed` section
-  - `<stem>.specs.md` — input/output; contains the merged class specification
+- `<domain_diagram>`: path to the source diagram file at `<dir>/<stem>.md`. The pruner derives:
+  - `<stem>.domain/updates.md` — input; contains the structured `## Class Lifecycle → Removed` section
+  - `<stem>.domain/specs.md` — input/output; contains the merged class specification
 
-## Sibling path convention
+## Path convention
 
-Given `<diagram_file>` at `<dir>/<stem>.md`:
+Per `domain-spec:naming-conventions`, given `<domain_diagram>` at `<dir>/<stem>.md`:
 
-- `<stem>` = `<diagram_file>` with the trailing `.md` stripped
-- Updates report: `<stem>.updates.md` (read)
-- Specs file: `<stem>.specs.md` (read + write)
+- `<stem>` = basename of `<domain_diagram>` with the trailing `.md` stripped
+- Updates report: `<dir>/<stem>.domain/updates.md` (read)
+- Specs file: `<dir>/<stem>.domain/specs.md` (read + write)
+
+The `<stem>.domain/` folder is created by `updates-detector` (in `update-specs` Step 0). The pruner assumes it exists.
 
 ## Workflow
 
 ### Step 1 — Validate inputs
 
-Derive `<stem>` from `<diagram_file>`. Both of the following must exist:
+Derive `<stem>` from `<domain_diagram>`. Both of the following must exist:
 
-- `<stem>.updates.md`
-- `<stem>.specs.md`
+- `<dir>/<stem>.domain/updates.md`
+- `<dir>/<stem>.domain/specs.md`
 
 If either is missing, fail with a clear error citing the missing path and write nothing. The orchestrator must produce both before invoking the pruner; absence is a contract violation, not a silent no-op.
 
 ### Step 2 — Parse removed classes from the report
 
-Read `<stem>.updates.md`. Locate the heading `## Class Lifecycle`. Within that section, find the sub-heading `### Removed`. Each removed class is a bullet of the form:
+Read `<dir>/<stem>.domain/updates.md`. Locate the heading `## Class Lifecycle`. Within that section, find the sub-heading `### Removed`. Each removed class is a bullet of the form:
 
 ```
 - `ClassName` `<<Stereotype>>`
@@ -62,20 +66,20 @@ If `## Class Lifecycle` is absent, or `### Removed` is absent, or the `### Remov
 The aggregate root is a working-tree invariant: every diagram has exactly one, and removing it is not a supported workflow. If any captured pair has stereotype `<<Aggregate Root>>`, **hard-fail** with:
 
 ```
-Aggregate root `<ClassName>` listed under `## Class Lifecycle → Removed` in <stem>.updates.md. Aggregate roots cannot be removed; this report is malformed and the pruner refuses to operate on it.
+Aggregate root `<ClassName>` listed under `## Class Lifecycle → Removed` in <stem>.domain/updates.md. Aggregate roots cannot be removed; this report is malformed and the pruner refuses to operate on it.
 ```
 
-Write nothing to `<stem>.specs.md` and exit non-zero. Surface every offending class name (not just the first) so the operator can correct the diagram or the report in one pass.
+Write nothing to `<stem>.domain/specs.md` and exit non-zero. Surface every offending class name (not just the first) so the operator can correct the diagram or the report in one pass.
 
 This guard is intentionally placed between Step 2 (parse) and Step 3 (write) so a malformed report never causes a partial prune. The orchestrator's `update-specs` skill is expected to either route around this case (e.g. via the L3 `generate-specs` fallback) or reject it before invoking the pruner — but the pruner enforces the contract regardless of caller behavior.
 
 ### Step 3 — Apply the prune
 
-Run a single Python script via a Bash heredoc that opens `<stem>.specs.md`, computes the new contents in memory, and writes back. The script implements three cleanups in one pass.
+Run a single Python script via a Bash heredoc that opens `<stem>.domain/specs.md`, computes the new contents in memory, and writes back. The script implements three cleanups in one pass.
 
 #### 3a. Block-detection rules
 
-A class's **header line** in `<stem>.specs.md` matches the regex:
+A class's **header line** in `<stem>.domain/specs.md` matches the regex:
 
 ```
 ^\*\*`([^`]+)`\*\*\s+`<<[^>]+>>`
@@ -96,13 +100,13 @@ A class's **extended block** runs from its header line until — but not includi
 
 #### 3b. Drop each removed class's extended block
 
-Walk `<stem>.specs.md` line by line. When the current line is a class header whose name appears in the removed set, skip forward through the entire extended block (steps 3a above) and continue. Every other line is preserved byte-for-byte.
+Walk `<stem>.domain/specs.md` line by line. When the current line is a class header whose name appears in the removed set, skip forward through the entire extended block (steps 3a above) and continue. Every other line is preserved byte-for-byte.
 
 Trailing blank lines that fall inside the removed span are dropped along with it; the line that terminates the span (a class header, `####`, non-Method `###`, or EOF) is preserved as the start of the surviving content.
 
 #### 3c. Drop matching lines from `### Dependencies`
 
-After the class-block sweep, locate the `### Dependencies` heading (it sits at the bottom of `<stem>.specs.md`). Its body is a numbered list shaped like:
+After the class-block sweep, locate the `### Dependencies` heading (it sits at the bottom of `<stem>.domain/specs.md`). Its body is a numbered list shaped like:
 
 ```
 1. **ClassA** composes **ClassB** (composition)
@@ -121,18 +125,18 @@ Untouched class blocks, untouched `### Method:` blocks, the file header, categor
 
 ### Step 4 — Write back and confirm
 
-Write the modified content back to `<stem>.specs.md`. If no removed class actually appeared in the file (e.g. the report and the spec are out of sync because pruning already ran), still write back the unchanged content — the rewrite is idempotent — but report `0` in the confirmation count.
+Write the modified content back to `<stem>.domain/specs.md`. If no removed class actually appeared in the file (e.g. the report and the spec are out of sync because pruning already ran), still write back the unchanged content — the rewrite is idempotent — but report `0` in the confirmation count.
 
 Confirm with one sentence:
 
 ```
-Pruned <N> class block(s) from <stem>.specs.md.
+Pruned <N> class block(s) from <stem>.domain/specs.md.
 ```
 
 where `<N>` is the count of class headers actually excised. Append the comma-separated list of pruned names after a colon when `<N> > 0`:
 
 ```
-Pruned 2 class block(s) from order.specs.md: Order, OrderItem.
+Pruned 2 class block(s) from order.domain/specs.md: Order, OrderItem.
 ```
 
 ## Implementation reference — Python heredoc skeleton
@@ -140,7 +144,7 @@ Pruned 2 class block(s) from order.specs.md: Order, OrderItem.
 The script below is the canonical implementation of Step 3. Invoke it from Bash with the specs path and each removed class name as positional arguments; the script body is fed on stdin via a quoted heredoc so shell expansion never touches it:
 
 ```bash
-python3 - "/abs/path/to/<stem>.specs.md" "Order" "OrderItem" <<'PY'
+python3 - "/abs/path/to/<stem>.domain/specs.md" "Order" "OrderItem" <<'PY'
 import pathlib, re, sys
 
 specs_path = pathlib.Path(sys.argv[1])
@@ -149,7 +153,7 @@ removed = set(sys.argv[2:])
 PY
 ```
 
-The first positional argument is always the absolute path to `<stem>.specs.md`; every subsequent argument is one class name to prune. Quote the heredoc tag (`<<'PY'`, not `<<PY`) so backticks, `$`, and `**` inside the script are passed through literally.
+The first positional argument is always the absolute path to `<stem>.domain/specs.md`; every subsequent argument is one class name to prune. Quote the heredoc tag (`<<'PY'`, not `<<PY`) so backticks, `$`, and `**` inside the script are passed through literally.
 
 Adjust paths/names as needed when invoking; do not change the parsing logic without reason.
 
@@ -224,14 +228,15 @@ if deps_idx is not None:
 
 specs_path.write_text("\n".join(out) + ("\n" if trailing_nl else ""))
 
+display_name = f"{specs_path.parent.name}/{specs_path.name}"
 if pruned_names:
     print(
-        f"Pruned {len(pruned_names)} class block(s) from {specs_path.name}: "
+        f"Pruned {len(pruned_names)} class block(s) from {display_name}: "
         + ", ".join(pruned_names)
         + "."
     )
 else:
-    print(f"Pruned 0 class block(s) from {specs_path.name}.")
+    print(f"Pruned 0 class block(s) from {display_name}.")
 ```
 
 The trailing-newline preservation at the bottom keeps the file ending consistent with how `specs-merger` writes it.

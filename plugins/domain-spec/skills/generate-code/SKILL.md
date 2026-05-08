@@ -1,11 +1,15 @@
 ---
 name: generate-code
-description: Implements a DDD domain package from its class spec. Resolves target locations from the current repo's `src/<pkg>/` layout, then runs the domain pipeline. Invoke with: /generate-code <diagram_file>
-argument-hint: <diagram_file>
+description: Implements a DDD domain package from its class spec. Resolves target locations from the current repo's `src/<pkg>/` layout, then runs the domain pipeline. Invoke with: /generate-code <domain_diagram>
+argument-hint: <domain_diagram>
 allowed-tools: Read, Bash, Agent
 ---
 
-You are a DDD implementation orchestrator. Implement the aggregate described in `$ARGUMENTS` (a Mermaid class diagram file). All target locations are resolved from the current repo's `src/<pkg>/` layout via the `domain-spec:target-locations-finder` agent — no other arguments are needed.
+You are a DDD implementation orchestrator. Implement the aggregate described in `$ARGUMENTS` (a Mermaid domain class diagram file). All target locations are resolved from the current repo's `src/<pkg>/` layout via the `domain-spec:target-locations-finder` agent — no other arguments are needed.
+
+## Spec-input layout
+
+This orchestrator chains agents (`scaffold-builder`, `aggregate-fixtures-writer`, `aggregate-tests-implementator`) that consume spec sibling artifacts produced by `/generate-specs`. Those artifacts live at `<dir>/<stem>.domain/specs.md`, `<dir>/<stem>.domain/exceptions.md`, and `<dir>/<stem>.domain/test-plan.md`. See `domain-spec:naming-conventions` for the canonical layout. This skill does not read those paths directly — every chained agent derives them from `$ARGUMENTS`.
 
 ## Workflow
 

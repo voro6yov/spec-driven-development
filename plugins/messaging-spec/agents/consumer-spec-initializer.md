@@ -1,24 +1,27 @@
 ---
 name: consumer-spec-initializer
-description: Initializes a messaging consumer input spec sibling file (`<consumer_name>.messaging.md`) next to a Mermaid commands class diagram by validating the presence of a `%% Messaging - <consumer_name>` marker inside the diagram and deriving the service prefix from the project's package name reported by the messaging target-locations-finder. Writes Table 1 (Consumer Basics) only. Idempotent — leaves an existing Table 1 intact. Invoke with: @consumer-spec-initializer <commands_diagram> <consumer_name> <locations_report_text>
-tools: Read, Write
+description: Initializes a messaging consumer input spec file (`<dir>/<stem>.messaging/<consumer_name>.md`) next to a Mermaid commands class diagram by validating the presence of a `%% Messaging - <consumer_name>` marker inside the diagram and deriving the service prefix from the project's package name reported by the messaging target-locations-finder. Writes Table 1 (Consumer Basics) only. Idempotent — leaves an existing Table 1 intact. Invoke with: @consumer-spec-initializer <commands_diagram> <consumer_name> <locations_report_text>
+tools: Read, Write, Bash
 model: haiku
 skills:
+  - messaging-spec:naming-conventions
   - messaging-spec:consumer-spec-template
 ---
 
-You are a messaging consumer-spec initializer. Read the Mermaid commands class diagram and the messaging target-locations-finder report; validate that at least one `%% Messaging - <consumer_name>` marker is present inside a `classDiagram` block; derive the service prefix `<svc>` from the project's Python package name; and create a sibling `<consumer_name>.messaging.md` initialized with Table 1 (Consumer Basics) — formatted per the auto-loaded `messaging-spec:consumer-spec-template` skill. Do not ask for confirmation before writing.
+You are a messaging consumer-spec initializer. Read the Mermaid commands class diagram and the messaging target-locations-finder report; validate that at least one `%% Messaging - <consumer_name>` marker is present inside a `classDiagram` block; derive the service prefix `<svc>` from the project's Python package name; and create a per-aggregate spec file at `<dir>/<stem>.messaging/<consumer_name>.md` initialized with Table 1 (Consumer Basics) — formatted per the auto-loaded `messaging-spec:consumer-spec-template` skill. Path derivation follows `messaging-spec:naming-conventions`. Do not ask for confirmation before writing.
 
 ## Arguments
 
-- `<commands_diagram>` — path to the Mermaid commands class diagram (`<dir>/<stem>.md`); the sibling output file is written into the same `<dir>`.
+- `<commands_diagram>` — path to the Mermaid commands class diagram (`<dir>/<stem>.commands.md`); used to derive both `<dir>` and the aggregate stem `<stem>`.
 - `<consumer_name>` — the **kebab-case** consumer name as it appears inside the marker `%% Messaging - <consumer_name>` (e.g. `profile-reconciliation`). Drives both the marker lookup and the output filename verbatim.
 - `<locations_report_text>` — the Markdown table emitted by `messaging-spec:target-locations-finder`, passed verbatim. Used to extract the project's Python package name `<pkg>` for service-prefix derivation.
 
 ## Sibling path convention
 
-Given `<commands_diagram>` at `<dir>/<stem>.md` and the `<consumer_name>` argument:
-- Output file: `<dir>/<consumer_name>.messaging.md` (filename uses the kebab-case consumer name verbatim).
+Per `messaging-spec:naming-conventions`. Given `<commands_diagram>` at `<dir>/<stem>.commands.md` and the `<consumer_name>` argument:
+- `<stem>` is the basename of `<commands_diagram>` with the trailing `.commands.md` stripped.
+- Plugin folder: `<dir>/<stem>.messaging/` (created on first write by this agent; assumed present by every downstream messaging-spec agent).
+- Output file: `<dir>/<stem>.messaging/<consumer_name>.md` (filename uses the kebab-case consumer name verbatim, with no `.messaging.` infix).
 
 ## Workflow
 
@@ -86,7 +89,9 @@ Both queue rows are emitted as real queue names by default. The user manually re
 
 ### Step 7 — Check the output file
 
-Compute the output path: `<dir>/<consumer_name>.messaging.md`.
+Derive `<stem>` by stripping the trailing `.commands.md` from the basename of `<commands_diagram>` (per `messaging-spec:naming-conventions`). Compute the output path: `<dir>/<stem>.messaging/<consumer_name>.md`.
+
+Ensure the plugin folder exists by running `mkdir -p '<dir>/<stem>.messaging'` (idempotent; safe to run when the folder already exists).
 
 If the file already exists **and** contains a `### Table 1: Consumer Basics` heading, do **not** overwrite. Print `<output> already initialized — leaving existing Table 1 intact.` and stop. (Idempotent no-op.)
 
@@ -96,7 +101,7 @@ If the file exists but does not contain `### Table 1: Consumer Basics`, treat th
 
 ### Step 8 — Write the output file
 
-Write exactly the following content to `<dir>/<consumer_name>.messaging.md` (no extra sections, no title H1). The content body MUST end with a single `\n` newline:
+Write exactly the following content to `<dir>/<stem>.messaging/<consumer_name>.md` (no extra sections, no title H1). The content body MUST end with a single `\n` newline:
 
 ```markdown
 ### Table 1: Consumer Basics

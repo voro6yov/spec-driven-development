@@ -1,8 +1,9 @@
 ---
 name: queries-implementer
-description: "Implements the `<Aggregate>Queries` application service end-to-end: fills the scaffolded `<aggregate>_queries.py` stub from the merged queries spec, registers the `<aggregate>_queries` provider in containers.py with every dep wired, and adds a function-scoped `<aggregate>_queries` fixture to tests/conftest.py. Single-aggregate, idempotent. Invoke with: @queries-implementer <queries_spec_file> <locations_report_text>"
+description: "Implements the `<Aggregate>Queries` application service end-to-end: fills the scaffolded `<aggregate>_queries.py` stub from the merged queries spec (derived from the domain diagram), registers the `<aggregate>_queries` provider in containers.py with every dep wired, and adds a function-scoped `<aggregate>_queries` fixture to tests/conftest.py. Single-aggregate, idempotent. Invoke with: @queries-implementer <domain_diagram> <locations_report_text>"
 tools: Read, Write, Edit, Bash, Skill
 skills:
+  - application-spec:naming-conventions
   - application-spec:queries-pattern
   - application-spec:dependency-injection-patterns
 model: opus
@@ -22,10 +23,16 @@ You are a queries implementer. Your job is to wire one aggregate's `<Aggregate>Q
 
 Two positional arguments:
 
-1. `<queries_spec_file>` — absolute path to the merged queries spec (`<stem>.specs.md` whose top-level heading is `# <AggregateRoot>Queries`) produced by `@specs-merger`.
-2. `<locations_report_text>` — the Markdown table emitted by `@target-locations-finder` (Domain Package, Application Package, Infrastructure Package, Containers, Tests). Parse as text; do not re-run the finder.
+1. `<domain_diagram>` (`$ARGUMENTS[0]`): absolute path to the domain class diagram at `<dir>/<stem>.md`. The merged queries spec path is derived per `application-spec:naming-conventions`.
+2. `<locations_report_text>` (`$ARGUMENTS[1]`): the Markdown table emitted by `@target-locations-finder` (Domain Package, Application Package, Infrastructure Package, Containers, Tests). Parse as text; do not re-run the finder.
 
 If any argument is missing or any referenced file is unreadable, abort with a one-sentence error naming what is missing.
+
+## Path resolution
+
+Per `application-spec:naming-conventions` ("Path resolution"). Recover `<dir>` and `<stem>` from `<domain_diagram>`, then derive:
+
+- `<queries_spec_file>` = `<dir>/<stem>.application/queries.specs.md` — merged queries spec produced by `@specs-merger` (top-level heading `# <AggregateRoot>Queries`).
 
 ## Workflow
 

@@ -1,35 +1,40 @@
 ---
 name: generate-code
-description: Implements the application layer for an aggregate from its merged commands spec, merged queries spec, and services report siblings. Resolves target locations once, scaffolds the application/infrastructure stubs, fans out per-service implementers, wires settings + exceptions, implements the commands + queries application services, and finally generates the integration tests for both. Invoke with: /application-spec:generate-code <commands_diagram> <queries_diagram> <domain_diagram>
-argument-hint: <commands_diagram> <queries_diagram> <domain_diagram>
-allowed-tools: Bash, Agent
+description: Implements the application layer for an aggregate from its merged commands spec, merged queries spec, and services report siblings. Resolves target locations once, scaffolds the application/infrastructure stubs, fans out per-service implementers, wires settings + exceptions, implements the commands + queries application services, and finally generates the integration tests for both. Invoke with: /application-spec:generate-code <domain_diagram>
+argument-hint: <domain_diagram>
+allowed-tools: Bash, Agent, Skill
 ---
 
-You are an application implementation orchestrator. Implement the application layer for the aggregate described by `$ARGUMENTS[0]` (commands diagram), `$ARGUMENTS[1]` (queries diagram), and `$ARGUMENTS[2]` (domain diagram). The skill consumes the merged sibling artifacts that `/application-spec:generate-specs` produces — it does not regenerate them.
+You are an application implementation orchestrator. Implement the application layer for the aggregate described by `$ARGUMENTS[0]` (the domain diagram). The skill consumes the merged sibling artifacts that `/application-spec:generate-specs` produces — it does not regenerate them. Sibling diagrams (`<commands_diagram>`, `<queries_diagram>`) and spec files are derived internally per `application-spec:naming-conventions`; downstream agents accept only `<domain_diagram>` plus non-derivable extras and derive the rest themselves.
 
 ## Sibling file convention
 
-For each diagram at `<dir>/<stem>.md`, agents derive `<stem>` by stripping the trailing `.md`. The three sibling artifacts consumed here are:
+Per `application-spec:naming-conventions`. From `$ARGUMENTS[0]` (the domain diagram) at `<dir>/<stem>.md`:
 
-| Diagram | Sibling artifact | Bound to |
-|---|---|---|
-| `$ARGUMENTS[0]` | `<commands_stem>.specs.md` | `<commands_spec_file>` |
-| `$ARGUMENTS[1]` | `<queries_stem>.specs.md` | `<queries_spec_file>` |
-| `$ARGUMENTS[2]` | `<domain_stem>.services.md` | `<services_report>` |
+- `<dir>` = directory containing the diagrams
+- `<stem>` = the canonical aggregate stem (domain filename with `.md` stripped)
+- `<plugin_dir>` = `<dir>/<stem>.application` — the per-plugin folder for application-spec
 
-If any of these artifacts is missing the downstream agents abort with their own one-sentence errors — this orchestrator does not pre-validate.
+| Sibling artifact | Path |
+|---|---|
+| Merged commands spec | `<plugin_dir>/commands.specs.md` |
+| Merged queries spec | `<plugin_dir>/queries.specs.md` |
+| Services report | `<plugin_dir>/services.md` |
+
+If any of these artifacts is missing the downstream agents abort with their own one-sentence errors — this orchestrator does not pre-validate. The orchestrator does not pass the spec-file paths to agents; each agent derives them internally from `$ARGUMENTS[0]`.
 
 ## Workflow
 
-### Step 1 — Compute sibling paths
+### Step 1 — Compute the services report path
 
-Derive the three sibling artifact paths by string substitution on the diagram arguments. For each diagram path, strip the trailing `.md` suffix and append the artifact suffix:
+Derive the services report path from `$ARGUMENTS[0]` (the domain diagram path) — it is needed locally for service enumeration in Step 4a:
 
-- `<commands_spec_file>` = `$ARGUMENTS[0]` with `.md` replaced by `.specs.md`
-- `<queries_spec_file>` = `$ARGUMENTS[1]` with `.md` replaced by `.specs.md`
-- `<services_report>` = `$ARGUMENTS[2]` with `.md` replaced by `.services.md`
+- Let `<dir>` = `dirname($ARGUMENTS[0])`
+- Let `<stem>` = `basename($ARGUMENTS[0])` with the trailing `.md` stripped
+- Let `<plugin_dir>` = `<dir>/<stem>.application`
+- Let `<services_report>` = `<plugin_dir>/services.md`
 
-If any diagram path does not end in `.md`, fall back to appending the suffix unchanged. Do not shell-expand — substitute these strings directly when constructing prompts in subsequent steps. These are passed verbatim to downstream agents.
+This local binding is only used by the Bash command in Step 4a; it is not passed to any agent.
 
 ### Step 2 — Find target locations
 
@@ -43,7 +48,7 @@ Parse one value from the report for use in Step 7:
 
 ### Step 3 — Scaffold application and infrastructure stubs
 
-Invoke `application-spec:application-files-scaffolder` with prompt `<commands_spec_file> <queries_spec_file> <locations_report_text>`. Wait for completion.
+Invoke `application-spec:application-files-scaffolder` with prompt `$ARGUMENTS[0] <locations_report_text>`. Wait for completion.
 
 This emits the per-aggregate application package (`<aggregate>_commands.py`, `<aggregate>_queries.py`, `<aggregate>_queries_settings.py`, one stub per external interface, aggregator `__init__.py`), one infrastructure service stub per `<attr>` collaborator, and the `<UPPER_AGGREGATE>_DESTINATION` constant in `constants.py`. Subsequent steps assume these stubs exist on disk.
 
@@ -66,10 +71,10 @@ If the command returns no lines (the report's body is exactly `_None_`, or the r
 In a single message, invoke one `application-spec:service-implementer` agent per identifier in `<services>`. Each invocation uses the prompt:
 
 ```
-$ARGUMENTS[0] $ARGUMENTS[1] <services_report> <locations_report_text> <service_identifier>
+$ARGUMENTS[0] <locations_report_text> <service_identifier>
 ```
 
-(That is: commands diagram, queries diagram, services report, locations report, and the per-agent `<service_identifier>`.)
+(That is: domain diagram, locations report, and the per-agent `<service_identifier>`. The services report path is derived inside the agent.)
 
 All invocations launch in parallel — do not sequence them. Wait for every invocation to complete before proceeding. Each agent operates on its own service end-to-end (application interface stubs, infrastructure stub, test fake, DI provider, and conftest fixtures) and does not touch the others' files.
 
@@ -78,7 +83,7 @@ All invocations launch in parallel — do not sequence them. Wait for every invo
 Emit both `Agent` calls in a single message — do not sequence them:
 
 - `application-spec:queries-settings-implementer` with prompt `<locations_report_text>`.
-- `application-spec:exceptions-implementer` with prompt `<commands_spec_file> <queries_spec_file> <locations_report_text>`.
+- `application-spec:exceptions-implementer` with prompt `$ARGUMENTS[0] <locations_report_text>`.
 
 Both invocations MUST appear as two tool calls in the same assistant turn. Issuing them across two turns is a violation of this step's contract.
 
@@ -90,8 +95,8 @@ These two agents touch disjoint files and are safe to run concurrently. They mus
 
 Emit both `Agent` calls in a single message — do not sequence them:
 
-- `application-spec:commands-implementer` with prompt `<commands_spec_file> <locations_report_text>`.
-- `application-spec:queries-implementer` with prompt `<queries_spec_file> <locations_report_text>`.
+- `application-spec:commands-implementer` with prompt `$ARGUMENTS[0] <locations_report_text>`.
+- `application-spec:queries-implementer` with prompt `$ARGUMENTS[0] <locations_report_text>`.
 
 Both invocations MUST appear as two tool calls in the same assistant turn. Issuing them across two turns is a violation of this step's contract.
 
@@ -105,8 +110,8 @@ Skip this step entirely if `<tests_dir>` was not bound in Step 2 (the `Tests` ro
 
 Emit both `Agent` calls in a single message — do not sequence them:
 
-- `application-spec:commands-tests-implementer` with prompt `<tests_dir> <commands_spec_file>`.
-- `application-spec:queries-tests-implementer` with prompt `<tests_dir> <queries_spec_file>`.
+- `application-spec:commands-tests-implementer` with prompt `$ARGUMENTS[0] <tests_dir>`.
+- `application-spec:queries-tests-implementer` with prompt `$ARGUMENTS[0] <tests_dir>`.
 
 Both invocations MUST appear as two tool calls in the same assistant turn. Issuing them across two turns is a violation of this step's contract.
 
@@ -124,4 +129,4 @@ Emit a phased Markdown summary grouping bullets by phase:
 - **Application Services** — one bullet each for `commands-implementer` and `queries-implementer` with their top-line outcomes.
 - **Tests** — one bullet each for `commands-tests-implementer` and `queries-tests-implementer` with their top-line outcomes (the `Commands tests ready at ...` / `Queries tests ready at ...` line plus any preceding per-method status). If Step 7 was skipped, emit the single bullet `- _None_ (Tests location not reported; skipped)`.
 
-End with: `Application code generation complete for $ARGUMENTS[0] and $ARGUMENTS[1].`
+End with: `Application code generation complete for $ARGUMENTS[0].`

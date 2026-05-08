@@ -1,7 +1,7 @@
 ---
 name: update-specs
-description: Surgically updates DDD class specs after a diagram change by detecting deltas, regenerating only affected categories, splicing them into the existing siblings, refreshing exceptions, and conditionally replanning tests. Invoke with: /update-specs <diagram_file>
-argument-hint: <diagram_file>
+description: Surgically updates DDD class specs after a diagram change by detecting deltas, regenerating only affected categories, splicing them into the existing siblings, refreshing exceptions, and conditionally replanning tests. Invoke with: /update-specs <domain_diagram>
+argument-hint: <domain_diagram>
 allowed-tools: Read, Bash, Agent
 ---
 
@@ -9,18 +9,18 @@ You are a DDD spec **update** orchestrator. Given a diagram whose working-tree d
 
 This skill is the surgical analog of `/generate-specs`. It implements **Approach B** from `notes/spec-updater-approach-b.md`: pre-prune what was removed, fan out per-category regen, splice into the live spec, then refresh exceptions and conditionally replan tests.
 
-## Sibling file convention
+## Output path convention
 
-Given `<diagram_file>` at `<dir>/<stem>.md`, the orchestrator reads and writes the same sibling files used by `/generate-specs`:
+Given `<domain_diagram>` at `<dir>/<stem>.md`, the orchestrator reads and writes the same per-plugin folder used by `/generate-specs`:
 
 | File | Touched by | Operation |
 |---|---|---|
-| `<stem>.updates.md` | `updates-detector` | Always (re)written at Step 0 |
-| `<stem>.specs.md` | `spec-pruner`, `spec-splicer` | Surgical edit |
-| `<stem>.exceptions.md` | `spec-splicer` (stub refresh), `exceptions-specifier` (enrichment) | Replaced |
-| `<stem>.test-plan.md` | `aggregate-tests-planner` | Conditionally replaced (blast-radius gate) |
+| `<dir>/<stem>.domain/updates.md` | `updates-detector` | Always (re)written at Step 0 |
+| `<dir>/<stem>.domain/specs.md` | `spec-pruner`, `spec-splicer` | Surgical edit |
+| `<dir>/<stem>.domain/exceptions.md` | `spec-splicer` (stub refresh), `exceptions-specifier` (enrichment) | Replaced |
+| `<dir>/<stem>.domain/test-plan.md` | `aggregate-tests-planner` | Conditionally replaced (blast-radius gate) |
 
-All agents derive `<stem>` by stripping the `.md` suffix from `<diagram_file>`. Per-category regen scratch lives at `<dir>/.specs-tmp/<category>.md`; the orchestrator owns its lifecycle and removes it on success.
+All agents derive `<stem>` by stripping the `.md` suffix from `<domain_diagram>`. Per-category regen scratch lives at `<dir>/<stem>.domain/.specs-tmp/<category>.md`; the orchestrator owns its lifecycle and removes it on success. See `domain-spec:naming-conventions` for the canonical layout.
 
 ## Category → Stereotype mapping
 
@@ -50,13 +50,13 @@ Canonical order for fan-out, dispatch, and reporting:
 
 Invoke `domain-spec:updates-detector` with prompt `$ARGUMENTS` and wait for the agent to finish before reading the report. This step is sequential (one agent call); Steps 3 and 4 are the only parallel fan-outs in the workflow.
 
-The detector compares the working tree against `git HEAD` and (re)writes `<dir>/<stem>.updates.md`. It is always invoked unconditionally — any prior `<stem>.updates.md` is clobbered. Manual edits to the report are not preserved.
+The detector compares the working tree against `git HEAD` and (re)writes `<dir>/<stem>.domain/updates.md`. It is always invoked unconditionally — any prior `<stem>.domain/updates.md` is clobbered. Manual edits to the report are not preserved.
 
 If the agent reports a failure, abort and emit a single `ERROR:` line repeating its message.
 
 ### Step 1 — Preflight
 
-Read `<dir>/<stem>.updates.md`. The report is the orchestrator's single source of truth for everything in this step. Do not re-derive any of its inputs from the diagram.
+Read `<dir>/<stem>.domain/updates.md`. The report is the orchestrator's single source of truth for everything in this step. Do not re-derive any of its inputs from the diagram.
 
 Use `Bash` (`grep`) and `Read` to extract and **persist for the rest of the workflow**:
 
@@ -74,7 +74,7 @@ If the Summary contains a `_warning: HEAD ...` line, hard-fail:
 
 ```
 ERROR: HEAD baseline is degraded (multiple or missing Mermaid blocks at HEAD). The surgical updater
-cannot operate against a degraded baseline. Run `/generate-specs <diagram_file>` to regenerate the
+cannot operate against a degraded baseline. Run `/generate-specs <domain_diagram>` to regenerate the
 specs from scratch, or fix the HEAD revision before retrying `/update-specs`.
 ```
 
@@ -85,9 +85,9 @@ Do not invoke any downstream agent.
 If `## Class Lifecycle → Stereotype Changed` has at least one bullet, hard-fail with the offending names enumerated:
 
 ```
-ERROR: Class(es) <names> have stereotype changes in <stem>.updates.md. Stereotype changes require
+ERROR: Class(es) <names> have stereotype changes in <stem>.domain/updates.md. Stereotype changes require
 the spec body to be re-rendered under the new category's template; the surgical updater cannot
-perform the cross-category move. Run `/generate-specs <diagram_file>` to regenerate the specs
+perform the cross-category move. Run `/generate-specs <domain_diagram>` to regenerate the specs
 from scratch.
 ```
 
@@ -97,7 +97,7 @@ If any bullet under `## Class Lifecycle → Removed` has stereotype `<<Aggregate
 
 ```
 ERROR: Aggregate root `<ClassName>` is listed under `## Class Lifecycle → Removed` in
-<stem>.updates.md. Aggregate roots cannot be removed; the diagram or the report is malformed.
+<stem>.domain/updates.md. Aggregate roots cannot be removed; the diagram or the report is malformed.
 ```
 
 This is a defensive check — `spec-pruner` enforces the same contract — but the orchestrator surfaces it earlier so the operator gets a single clean failure instead of a partial pipeline.
@@ -112,7 +112,7 @@ By the report-template's footer-computation contract, an empty `## Affected Cate
 
 Print one summary line:
 
-- If `orphan_prose` is true: `No structural updates required. Orphan prose changes detected — review <stem>.updates.md.`
+- If `orphan_prose` is true: `No structural updates required. Orphan prose changes detected — review <stem>.domain/updates.md.`
 - Otherwise: `No structural updates required.`
 
 ### Step 2 — Prune removed classes
@@ -132,19 +132,19 @@ Use the `affected_categories` list captured in Step 1.
 If `affected_categories` is empty at this point, the report is malformed: Step 1d would have early-exited on a clean empty footer, so reaching Step 3 with an empty footer means lifecycle, per-class, or orphan-relationship content is present without contributing a category — a contract violation by `updates-detector`. Hard-fail:
 
 ```
-ERROR: <stem>.updates.md is malformed — `## Affected Categories` is empty but
+ERROR: <stem>.domain/updates.md is malformed — `## Affected Categories` is empty but
 `## Class Lifecycle`, `## Per-Class Changes`, or `## Orphan Relationship Changes`
-contain entries. Re-run `@updates-detector <diagram_file>` to regenerate the report,
+contain entries. Re-run `@updates-detector <domain_diagram>` to regenerate the report,
 or inspect the file for hand-edits that broke the footer.
 ```
 
-Do not invoke any downstream agent. Without this guard, the splicer would early-exit on the empty footer and skip its exceptions-stub refresh, leaving stale entries in `<stem>.exceptions.md` after the pruner removed the underlying class block — a silent, hard-to-diagnose corruption.
+Do not invoke any downstream agent. Without this guard, the splicer would early-exit on the empty footer and skip its exceptions-stub refresh, leaving stale entries in `<stem>.domain/exceptions.md` after the pruner removed the underlying class block — a silent, hard-to-diagnose corruption.
 
 #### 3b. Spawn class-specifier per affected category
 
 For each `<cat>` in `affected_categories`, spawn `domain-spec:class-specifier` with prompt `$ARGUMENTS <cat>`.
 
-Send **all** agent invocations in a single message so they run in parallel. Wait for every one to complete before proceeding. Each agent (re)writes `<dir>/.specs-tmp/<cat>.md` with the fresh per-category content plus a `### Partial Dependencies` footer.
+Send **all** agent invocations in a single message so they run in parallel. Wait for every one to complete before proceeding. Each agent (re)writes `<dir>/<stem>.domain/.specs-tmp/<cat>.md` with the fresh per-category content plus a `### Partial Dependencies` footer.
 
 If any agent reports a failure, abort and emit a single `ERROR:` line. Do not invoke `pattern-assigner` or `spec-splicer` against partial temp files.
 
@@ -160,7 +160,7 @@ If any agent reports a failure, abort and emit a single `ERROR:` line.
 
 Invoke `domain-spec:spec-splicer` with prompt `$ARGUMENTS`. Wait for completion.
 
-The splicer surgically merges the temp blocks into `<stem>.specs.md` (insert / replace / skip per the report) and refreshes the `## Domain Exceptions` stub in `<stem>.exceptions.md`. It does not enrich the exceptions and does not clean up the temp directory.
+The splicer surgically merges the temp blocks into `<stem>.domain/specs.md` (insert / replace / skip per the report) and refreshes the `## Domain Exceptions` stub in `<stem>.domain/exceptions.md`. It does not enrich the exceptions and does not clean up the temp directory.
 
 If the splicer hard-fails (e.g. a missing temp file, a stereotype-change report it received in error), abort and emit a single `ERROR:` line.
 
@@ -170,7 +170,7 @@ Invoke `domain-spec:exceptions-specifier` with prompt `$ARGUMENTS`. Wait for com
 
 Always run this step after Step 5 — the splicer always rewrites the `## Domain Exceptions` stub (including emitting a `_(none)_` body when no `▪ Raises:` lines exist), so the enricher always has a fresh stub to consume.
 
-If it fails, abort and emit a single `ERROR:` line. Note that `<stem>.specs.md` and the exceptions stub are already on disk by this point — the failure leaves a clean partial state that re-running the orchestrator on top of unchanged inputs will idempotently complete.
+If it fails, abort and emit a single `ERROR:` line. Note that `<stem>.domain/specs.md` and the exceptions stub are already on disk by this point — the failure leaves a clean partial state that re-running the orchestrator on top of unchanged inputs will idempotently complete.
 
 ### Step 7 — Test-plan replan (conditional)
 
@@ -183,8 +183,8 @@ should_replan = bool(set(affected_categories) & blast_radius)
 
 These four categories are the aggregate root's blast radius — changes to any of them can shift state keys, mutation paths, emitted events, or return shapes that the test plan references. Pure `commands` or `repositories-services` changes are outside the blast radius and cannot affect aggregate unit tests.
 
-- If `should_replan` is **true**: invoke `domain-spec:aggregate-tests-planner` with prompt `$ARGUMENTS`. The planner overwrites `<stem>.test-plan.md` from scratch by reading the spliced `<stem>.specs.md`. If it fails, abort and emit a single `ERROR:` line.
-- If `should_replan` is **false**: skip the planner. `<stem>.test-plan.md` is left byte-identical.
+- If `should_replan` is **true**: invoke `domain-spec:aggregate-tests-planner` with prompt `$ARGUMENTS`. The planner overwrites `<stem>.domain/test-plan.md` from scratch by reading the spliced `<stem>.domain/specs.md`. If it fails, abort and emit a single `ERROR:` line.
+- If `should_replan` is **false**: skip the planner. `<stem>.domain/test-plan.md` is left byte-identical.
 
 There is no per-aggregate filter — the working-tree invariant is that every diagram has exactly one `<<Aggregate Root>>` (enforced by `spec-pruner`'s removal guard and `updates-detector`'s validation), so the planner always operates over a single aggregate when it runs.
 
@@ -193,24 +193,24 @@ There is no per-aggregate filter — the working-tree invariant is that every di
 Remove the per-category scratch directory:
 
 ```bash
-rm -rf <dir>/.specs-tmp
+rm -rf <dir>/<stem>.domain/.specs-tmp
 ```
 
-This mirrors what `specs-merger` does at the end of `/generate-specs`. Removal happens only on the success path (i.e. after Step 7 either ran successfully or was skipped) — when an earlier step aborted, leave the temp directory in place so the operator can inspect it.
+This mirrors what `specs-merger` does at the end of `/generate-specs`. The cleanup removes only the transient `.specs-tmp/` subdirectory; the rest of `<stem>.domain/` (the spliced spec, exceptions stub, and test plan) is preserved. Removal happens only on the success path (i.e. after Step 7 either ran successfully or was skipped) — when an earlier step aborted, leave the temp directory in place so the operator can inspect it.
 
 ### Step 9 — Report
 
 Print one summary line indicating which sibling files were updated and whether the test plan was replanned:
 
 ```
-Updated <stem>.specs.md and <stem>.exceptions.md (categories: <list>)<test_plan_clause><orphan_prose_clause>.
+Updated <stem>.domain/specs.md and <stem>.domain/exceptions.md (categories: <list>)<test_plan_clause><orphan_prose_clause>.
 ```
 
 Where:
 
 - `<list>` is `affected_categories` (captured in Step 1) joined by `, ` in canonical order. By construction `affected_categories` is non-empty on this code path — Step 1d exits before Step 9 on the empty footer, and Step 3a hard-fails before Step 9 on the malformed-empty-footer case.
-- `<test_plan_clause>` is `; replanned <stem>.test-plan.md` when Step 7 ran, otherwise empty.
-- `<orphan_prose_clause>` is `; orphan prose changes detected — review <stem>.updates.md` when `orphan_prose` (captured in Step 1) is true, otherwise empty.
+- `<test_plan_clause>` is `; replanned <stem>.domain/test-plan.md` when Step 7 ran, otherwise empty.
+- `<orphan_prose_clause>` is `; orphan prose changes detected — review <stem>.domain/updates.md` when `orphan_prose` (captured in Step 1) is true, otherwise empty.
 
 Do not emit additional commentary. Each invoked agent already prints its own per-step report.
 
@@ -223,15 +223,15 @@ Do not emit additional commentary. Each invoked agent already prints its own per
   - **Steps 3 / 4** overwrite per-category temp files in `.specs-tmp/`.
   - **Step 5** (`spec-splicer`) yields byte-identical output on byte-identical inputs.
   - **Step 6** (`exceptions-specifier`) is pure derivation from the spec.
-  - **Step 7** (`aggregate-tests-planner`) overwrites `<stem>.test-plan.md` from scratch.
+  - **Step 7** (`aggregate-tests-planner`) overwrites `<stem>.domain/test-plan.md` from scratch.
   - **Step 8** (cleanup) is destructive but only runs after a clean Step 7 / skipped-Step-7 success path.
-- The only failures `/update-specs` cannot retry through are degraded-baseline (1a) and stereotype-change (1b) conditions — both gates will fire again on re-run. The error messages explicitly direct the operator to `/generate-specs <diagram_file>` for those cases.
+- The only failures `/update-specs` cannot retry through are degraded-baseline (1a) and stereotype-change (1b) conditions — both gates will fire again on re-run. The error messages explicitly direct the operator to `/generate-specs <domain_diagram>` for those cases.
 
 ## What this skill deliberately does not do
 
-- It does not regenerate `<stem>.specs.md` end-to-end — that is `/generate-specs`.
+- It does not regenerate `<stem>.domain/specs.md` end-to-end — that is `/generate-specs`.
 - It does not touch the diagram file itself or its Artifacts index — those siblings are already linked from the original `/generate-specs` run.
-- It does not preserve manual edits inside a touched class block in `<stem>.specs.md`. Untouched class blocks survive byte-identical (the splicer's load-bearing invariant); touched blocks are wholesale-replaced.
+- It does not preserve manual edits inside a touched class block in `<stem>.domain/specs.md`. Untouched class blocks survive byte-identical (the splicer's load-bearing invariant); touched blocks are wholesale-replaced.
 - It does not handle stereotype changes or degraded baselines — those route to a `/generate-specs` re-run via the operator-instruction failures in Steps 1a / 1b.
 - It does not handle aggregate-root removals — those are a malformed-report condition (1c).
 - It does not auto-update the code or test bodies — the code-side updater (Approach C, see `notes/code-updater-approach-c.md`) is a separate concern.

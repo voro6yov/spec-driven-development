@@ -1,7 +1,7 @@
 ---
 name: generate-domain
-description: Orchestrates end-to-end domain generation for an aggregate diagram by running domain-spec:generate-specs and then domain-spec:generate-code. Invoke with: /domain-spec:generate-domain <diagram_file>
-argument-hint: <diagram_file>
+description: Orchestrates end-to-end domain generation for an aggregate diagram by running domain-spec:generate-specs and then domain-spec:generate-code. Invoke with: /domain-spec:generate-domain <domain_diagram>
+argument-hint: <domain_diagram>
 allowed-tools: Read, Skill
 ---
 
@@ -10,6 +10,8 @@ You are a domain end-to-end orchestrator. Generate the domain spec and then the 
 ## Inputs
 
 - `$ARGUMENTS` — the path to the aggregate's Mermaid class diagram (`<dir>/<stem>.md`).
+
+All artifacts produced by the spec phase land in `<dir>/<stem>.domain/` per `domain-spec:naming-conventions`; the code phase reads them from there.
 
 ## Workflow
 

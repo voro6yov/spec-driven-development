@@ -1,6 +1,6 @@
 ---
 name: updates-report-template
-description: Reference template for the updates report (`<stem>.updates.md`) emitted by `updates-detector`. Use when generating, parsing, or reviewing an updates report. Covers the rendered schema (class-grouped body), rendering rules, the `## Affected Categories` footer specification, the canonical stereotype→category mapping, and the Mermaid stereotype-inference rules.
+description: Reference template for the updates report (`<stem>.domain/updates.md`) emitted by `updates-detector`. Use when generating, parsing, or reviewing an updates report. Covers the rendered schema (class-grouped body), rendering rules, the `## Affected Categories` footer specification, the canonical stereotype→category mapping, and the Mermaid stereotype-inference rules.
 user-invocable: false
 ---
 
@@ -21,7 +21,7 @@ The report is **class-grouped**: a slim header captures cross-cutting lifecycle 
 ````markdown
 # Updates Report
 
-_Baseline: git HEAD. Working tree compared against `HEAD:<diagram_file>`._
+_Baseline: git HEAD. Working tree compared against `HEAD:<domain_diagram>`._
 
 ## Summary
 

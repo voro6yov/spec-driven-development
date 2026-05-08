@@ -1,8 +1,9 @@
 ---
 name: table-implementer
-description: "Implements scaffolded per-aggregate table modules by replacing each `<table>_table = ...` placeholder with a SQLAlchemy `Table(...)` definition. Reads the command-repo-spec for column lists and pattern variants, discovers stub modules under the Tables location reported by @target-locations-finder, and emits a worklist of implemented module paths. Invoke with: @table-implementer <command_spec_file> <locations_report_text>"
+description: "Implements scaffolded per-aggregate table modules by replacing each `<table>_table = ...` placeholder with a SQLAlchemy `Table(...)` definition. Reads the command-repo-spec for column lists and pattern variants, discovers stub modules under the Tables location reported by @target-locations-finder, and emits a worklist of implemented module paths. Invoke with: @table-implementer <domain_diagram> <locations_report_text>"
 tools: Read, Write, Bash, Skill
 skills:
+  - persistence-spec:naming-conventions
   - persistence-spec:table-definitions
 model: sonnet
 ---
@@ -11,10 +12,12 @@ You are a table-modules implementer. Your job is to fill the bodies of the table
 
 ## Inputs
 
-1. `<command_spec_file>` (first argument): absolute path to the `<stem>.command-repo-spec.md` file.
+1. `<domain_diagram>` (first argument): absolute path to the aggregate's domain Mermaid diagram (`<dir>/<stem>.md`).
 2. `<locations_report_text>` (second argument): the Markdown table emitted by `@target-locations-finder`. Parse it as text; do not re-run the finder.
 
-The autoloaded skill `persistence-spec:table-definitions` is the authoritative implementation guide for every table body. Load no other skills.
+**Path resolution.** Derive the persistence command-repo spec file from `<domain_diagram>` per `persistence-spec:naming-conventions`: `<command_spec_file>` = `<dir>/<stem>.persistence/command-repo-spec.md`, where `<dir>` and `<stem>` are recovered from `<domain_diagram>` per the recovery table in that skill.
+
+The autoloaded skill `persistence-spec:table-definitions` is the authoritative implementation guide for every table body.
 
 ## Workflow
 
@@ -30,7 +33,7 @@ Error: Tables directory '<tables_dir>' does not exist; run @table-scaffolder bef
 
 ### Step 2 — Read the spec
 
-Read `<command_spec_file>`.
+Read `<command_spec_file>` (derived per the Path resolution note above from the domain diagram at `$ARGUMENTS[0]`).
 
 **Placeholder detection rule (same as `@table-scaffolder`).** Before stripping any escape sequences, inspect the raw cell text. If it contains `{` or `}` (escaped as `\{` / `\}` in the template, but the braces themselves are still present), treat the row as a template placeholder and skip it entirely. Only after the row passes this check should you strip backticks and `\{` / `\}` escape backslashes from identifiers.
 

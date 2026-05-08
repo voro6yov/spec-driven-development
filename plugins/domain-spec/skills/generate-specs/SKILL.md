@@ -1,25 +1,25 @@
 ---
 name: generate-specs
-description: Orchestrates parallel DDD class spec generation for each category, then merges into sibling files next to the source diagram file. Invoke with: /generate-specs <diagram_file>
-argument-hint: <diagram_file>
+description: Orchestrates parallel DDD class spec generation for each category, then merges into per-plugin folder `<stem>.domain/` next to the source domain diagram. Invoke with: /generate-specs <domain_diagram>
+argument-hint: <domain_diagram>
 allowed-tools: Read, Bash, Agent
 ---
 
 You are a DDD spec generation orchestrator. Generate class specifications for all classes in `$ARGUMENTS` by running category agents in parallel, then merging the results.
 
-## Sibling file convention
+## Output path convention
 
-Given `<diagram_file>` at `<dir>/<stem>.md`, spec outputs are written to sibling files (not appended to the diagram):
+Given `<domain_diagram>` at `<dir>/<stem>.md`, spec outputs are written into the per-plugin folder defined by `domain-spec:naming-conventions`:
 
 | File | Written by | Content |
 |---|---|---|
-| `<stem>.specs.md` | `specs-merger` | `### Class Specification` + `### Dependencies` |
-| `<stem>.exceptions.md` | `specs-merger` (stub) → `exceptions-specifier` (enriched) | `## Domain Exceptions` |
-| `<stem>.test-plan.md` | `aggregate-tests-planner` | `# Test Plan` |
+| `<dir>/<stem>.domain/specs.md` | `specs-merger` | `### Class Specification` + `### Dependencies` |
+| `<dir>/<stem>.domain/exceptions.md` | `specs-merger` (stub) → `exceptions-specifier` (enriched) | `## Domain Exceptions` |
+| `<dir>/<stem>.domain/test-plan.md` | `aggregate-tests-planner` | `# Test Plan` |
 
-The diagram file itself is updated with an **Artifacts** index linking these siblings.
+The diagram file itself is updated with an **Artifacts** index linking the artifacts in `<stem>.domain/`. (The skill explicitly permits appending to the diagram's `## Artifacts` index.)
 
-All agents derive `<stem>` by stripping the `.md` suffix from `<diagram_file>`.
+All agents derive `<stem>` by stripping the `.md` suffix from `<domain_diagram>`. See `domain-spec:naming-conventions` for the canonical layout.
 
 ## Category → Stereotype Mapping
 
@@ -52,19 +52,19 @@ After all class-specifier agents complete, spawn a `domain-spec:pattern-assigner
 
 After all pattern-assigner agents complete, invoke `domain-spec:specs-merger` with `$ARGUMENTS` as the prompt.
 
-Outputs: `<stem>.specs.md`, `<stem>.exceptions.md`, and an Artifacts index appended to the diagram file.
+Outputs: `<stem>.domain/specs.md`, `<stem>.domain/exceptions.md`, and an Artifacts index appended to the diagram file.
 
 ### Step 5 — Spawn exceptions-specifier agent
 
 After the merge agent completes, invoke `domain-spec:exceptions-specifier` with `$ARGUMENTS` as the prompt.
 
-Output: enriched `<stem>.exceptions.md`.
+Output: enriched `<stem>.domain/exceptions.md`.
 
 ### Step 6 — Spawn aggregate-tests-planner agent
 
 After the exceptions-specifier agent completes, invoke `domain-spec:aggregate-tests-planner` with `$ARGUMENTS` as the prompt.
 
-Output: `<stem>.test-plan.md` containing the `# Test Plan` section for every `<<Aggregate Root>>` class.
+Output: `<stem>.domain/test-plan.md` containing the `# Test Plan` section for every `<<Aggregate Root>>` class.
 
 ### Step 7 — Report
 

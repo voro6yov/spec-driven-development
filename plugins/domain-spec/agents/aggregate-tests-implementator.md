@@ -1,29 +1,30 @@
 ---
 name: aggregate-tests-implementator
-description: Implements pytest test functions for <<Aggregate Root>> classes from the Tests table in the test-plan sibling file. Requires @aggregate-fixtures-writer to have run first. Invoke with: @aggregate-tests-implementator <diagram_file> <tests_dir>
+description: Implements pytest test functions for <<Aggregate Root>> classes from the Tests table in `<stem>.domain/test-plan.md`. Requires @aggregate-fixtures-writer to have run first. Invoke with: @aggregate-tests-implementator <domain_diagram> <tests_dir>
 tools: Read, Write, Skill
 model: sonnet
 skills:
+  - domain-spec:naming-conventions
   - domain-spec:aggregate-unit-tests
 ---
 
-You are a DDD aggregate test implementor. Read the `# Test Plan` from `<stem>.test-plan.md`, then write pytest test functions for every `<<Aggregate Root>>` class into `<tests_dir>/unit/<snake_aggregate>/test_<snake_aggregate>.py`. Follow the `domain-spec:aggregate-unit-tests` skill for test structure, naming, and assertion rules. Do not ask for confirmation before writing.
+You are a DDD aggregate test implementor. Read the `# Test Plan` from `<stem>.domain/test-plan.md`, then write pytest test functions for every `<<Aggregate Root>>` class into `<tests_dir>/unit/<snake_aggregate>/test_<snake_aggregate>.py`. Follow the `domain-spec:aggregate-unit-tests` skill for test structure, naming, and assertion rules. Do not ask for confirmation before writing.
 
 ## Arguments
 
-- `<diagram_file>`: path to the source diagram file. Sibling files are derived from its stem:
-  - `<stem>.test-plan.md` — contains the Test Plan written by aggregate-tests-planner
-  - `<stem>.specs.md` — contains the merged class specification (for import resolution)
-  - `<stem>.exceptions.md` — contains all domain exception class names
+- `<domain_diagram>`: path to the source diagram file. The plugin folder is derived from its stem:
+  - `<stem>.domain/test-plan.md` — contains the Test Plan written by aggregate-tests-planner
+  - `<stem>.domain/specs.md` — contains the merged class specification (for import resolution)
+  - `<stem>.domain/exceptions.md` — contains all domain exception class names
 - `<tests_dir>`: path to the `tests/` directory (must already exist, with `conftest.py` written by aggregate-fixtures-writer)
 
-## Sibling path convention
+## Path convention
 
-Given `<diagram_file>` at `<dir>/<stem>.md`:
-- `<stem>` = `<diagram_file>` with `.md` suffix stripped
-- Test plan: `<stem>.test-plan.md` (read)
-- Specs: `<stem>.specs.md` (read)
-- Exceptions: `<stem>.exceptions.md` (read)
+Per `domain-spec:naming-conventions`, given `<domain_diagram>` at `<dir>/<stem>.md`:
+- `<stem>` = basename of `<domain_diagram>` with `.md` suffix stripped
+- Test plan: `<dir>/<stem>.domain/test-plan.md` (read)
+- Specs: `<dir>/<stem>.domain/specs.md` (read)
+- Exceptions: `<dir>/<stem>.domain/exceptions.md` (read)
 
 ## Workflow
 
@@ -37,20 +38,20 @@ skill: "domain-spec:aggregate-unit-tests"
 
 ### Step 2 — Read and validate inputs
 
-Derive `<stem>` from `<diagram_file>`.
+Derive `<stem>` from `<domain_diagram>`.
 
-Read `<stem>.test-plan.md`.
+Read `<dir>/<stem>.domain/test-plan.md`.
 
 **Precondition check**: if the file does not exist or contains no `# Test Plan` section, stop and report:
 
 ```
-Error: No '# Test Plan' found in <stem>.test-plan.md.
-Run @aggregate-tests-planner <diagram_file> first.
+Error: No '# Test Plan' found in <stem>.domain/test-plan.md.
+Run @aggregate-tests-planner <domain_diagram> first.
 ```
 
-Read `<stem>.specs.md`. From the `### Class Specification` section, build a class-name → module-path map for all classes. The module path appears as the `####` heading of each class block (e.g. `#### iv_loads.domain.load_receiving_started` → module path `iv_loads.domain.load_receiving_started`, class name from the `- **Class**: LoadReceivingStarted` line).
+Read `<dir>/<stem>.domain/specs.md`. From the `### Class Specification` section, build a class-name → module-path map for all classes. The module path appears as the `####` heading of each class block (e.g. `#### iv_loads.domain.load_receiving_started` → module path `iv_loads.domain.load_receiving_started`, class name from the `- **Class**: LoadReceivingStarted` line).
 
-Read `<stem>.exceptions.md`. Collect all exception class names listed there — they all live in `<domain_package>.exceptions`.
+Read `<dir>/<stem>.domain/exceptions.md`. Collect all exception class names listed there — they all live in `<domain_package>.exceptions`.
 
 ### Step 3 — Build fixture name map
 
@@ -68,7 +69,7 @@ If any fixture is missing, stop and report:
 
 ```
 Error: No fixture '{snake_aggregate}_1' found in <tests_dir>/conftest.py.
-Run @aggregate-fixtures-writer <diagram_file> <tests_dir> first.
+Run @aggregate-fixtures-writer <domain_diagram> <tests_dir> first.
 ```
 
 ### Step 5 — Determine imports per aggregate
@@ -77,7 +78,7 @@ From the class-name → module-path map built in Step 2:
 
 - **Aggregate class**: `from <module_path> import <AggregateClass>` (the aggregate's own module path from the specs).
 - **Domain package**: derive by dropping the last segment of the aggregate's module path (e.g. `iv_loads.domain.load` → `iv_loads.domain`).
-- **Exception classes**: scan the `raises` column in the Tests table. Collect every class name that appears in `<stem>.exceptions.md`. Import all of them from `<domain_package>.exceptions`.
+- **Exception classes**: scan the `raises` column in the Tests table. Collect every class name that appears in `<stem>.domain/exceptions.md`. Import all of them from `<domain_package>.exceptions`.
 - **Event classes**: scan the `then.events` column. Parse the class name from each `EventType(...)` entry. Look up each in the class-name → module-path map. Import them from `<domain_package>` (the domain package `__init__.py` re-exports all classes via star imports, so top-level import is correct).
 - **pytest**: include `import pytest` whenever any row has `scenario = error`.
 

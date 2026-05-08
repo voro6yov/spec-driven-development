@@ -54,32 +54,29 @@ For the fixture definitions referenced throughout this skill, see `messaging-spe
 
 ```python
 def test_file_classification_succeeded_handler__creates_document(
+    make_event_envelope,
+    file_classification_succeeded_handler,  # injected handler
     unit_of_work,
     domain_event_publisher_mock,
-    file_classification_succeeded_handler,  # injected handler
 ):
-    # GIVEN - construct event directly in test
-    envelope = DomainEventEnvelope(
-        event=FileClassificationSucceeded(
+    # GIVEN - construct event via the make_event_envelope helper
+    envelope = make_event_envelope(
+        FileClassificationSucceeded(
             file_id="file-123",
             tenant_id="tenant-abc",
             document_type="invoice",
         ),
-        metadata=EventMetadata(
-            event_id="evt-1",
-            timestamp=datetime.now(UTC),
-        ),
     )
-    
+
     # WHEN
     file_classification_succeeded_handler(envelope)
-    
+
     # THEN - verify persistence
     repo = unit_of_work.documents
     document = repo.of_file_id(file_id="file-123", tenant_id="tenant-abc")
     assert document is not None
     assert document.document_type == "invoice"
-    
+
     # THEN - verify events published
     assert domain_event_publisher_mock.publish.call_count == 1
     event = domain_event_publisher_mock.publish.call_args[0][0]
@@ -90,30 +87,32 @@ def test_file_classification_succeeded_handler__creates_document(
 
 ```python
 def test_files_status_updated_handler__updates_profile(
+    make_event_envelope,
+    files_status_updated_handler,
+    profile_2,
+    add_profiles,
     unit_of_work,
     domain_event_publisher_mock,
-    profile_1,
-    add_profiles,
-    files_status_updated_handler,
 ):
-    # GIVEN - construct event with matching profile ID
-    envelope = DomainEventEnvelope(
-        event=FilesStatusUpdated(
-            profile_id=profile_1.id,
-            tenant_id=profile_1.tenant_id,
+    # GIVEN - construct event with matching profile ID off the populated _2 fixture
+    envelope = make_event_envelope(
+        FilesStatusUpdated(
+            profile_id=profile_2.id,
+            tenant_id=profile_2.tenant_id,
             files_status="classified",
         ),
-        metadata=EventMetadata(...),
     )
-    
+
     # WHEN
     files_status_updated_handler(envelope)
-    
+
     # THEN - verify state updated
     repo = unit_of_work.profiles
-    updated = repo.of_id(profile_1.id, profile_1.tenant_id)
+    updated = repo.of_id(profile_2.id, profile_2.tenant_id)
     assert updated.files_status == "classified"
 ```
+
+The envelope is always constructed via the `make_event_envelope` helper fixture from `messaging-spec:messaging-handler-fixtures` — never inline `DomainEventEnvelope(...)`. The helper synthesizes a real `Message` payload, an `event_id` (UUID), and sensible defaults for `aggregate_type` / `aggregate_id`; tests that need to pin a specific aggregate identity pass it explicitly via the keyword-only kwargs.
 
 ---
 

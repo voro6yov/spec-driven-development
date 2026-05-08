@@ -1,7 +1,9 @@
 ---
 name: application-files-scaffolder
-description: "Scaffolds the per-aggregate application package (`application/<aggregate>/`) — including one stub module per external-interface class name — and the per-package infrastructure service stubs (`infrastructure/services/<package>/`) from a merged commands spec, a merged queries spec, and a target-locations-finder report. Also registers a `<UPPER_AGGREGATE>_DESTINATION` constant in the project's `constants.py` (next to `containers.py`). Emits empty class stubs and aggregator `__init__.py` files; does not implement bodies. Invoke with: @application-files-scaffolder <commands_spec_file> <queries_spec_file> <locations_report_text>"
-tools: Read, Write, Bash
+description: "Scaffolds the per-aggregate application package (`application/<aggregate>/`) — including one stub module per external-interface class name — and the per-package infrastructure service stubs (`infrastructure/services/<package>/`) from the merged commands and queries specs (derived from the domain diagram) plus a target-locations-finder report. Also registers a `<UPPER_AGGREGATE>_DESTINATION` constant in the project's `constants.py` (next to `containers.py`). Emits empty class stubs and aggregator `__init__.py` files; does not implement bodies. Invoke with: @application-files-scaffolder <domain_diagram> <locations_report_text>"
+tools: Read, Write, Bash, Skill
+skills:
+  - application-spec:naming-conventions
 model: sonnet
 ---
 
@@ -15,9 +17,17 @@ You are an application files scaffolder. Your job is to create the per-aggregate
 
 ## Inputs
 
-1. `<commands_spec_file>` (first argument): absolute path to the merged commands spec (`<stem>.specs.md` whose top-level heading is `# <AggregateRoot>Commands`) produced by `@specs-merger`.
-2. `<queries_spec_file>` (second argument): absolute path to the merged queries spec (`<stem>.specs.md` whose top-level heading is `# <AggregateRoot>Queries`) produced by `@specs-merger`. The two `<stem>` values are independent — the canonical filenames are diagram-derived (e.g. `domain-type-commands.specs.md` / `domain-type-queries.specs.md`) and the agent never assumes a particular casing.
-3. `<locations_report_text>` (third argument): the Markdown table emitted by `@target-locations-finder` — four rows mapping `Category` to absolute `Path` and `Status`. Parse it as text; do not re-run the finder.
+1. `<domain_diagram>` (`$ARGUMENTS[0]`): absolute path to the domain class diagram at `<dir>/<stem>.md`. Both merged spec files are derived from this path per `application-spec:naming-conventions`.
+2. `<locations_report_text>` (`$ARGUMENTS[1]`): the Markdown table emitted by `@target-locations-finder` — four rows mapping `Category` to absolute `Path` and `Status`. Parse it as text; do not re-run the finder.
+
+## Path resolution
+
+Per `application-spec:naming-conventions` ("Path resolution"). Recover `<dir>` and `<stem>` from `<domain_diagram>`, then derive:
+
+- `<commands_spec_file>` = `<dir>/<stem>.application/commands.specs.md` — merged commands spec produced by `@specs-merger` (top-level heading `# <AggregateRoot>Commands`).
+- `<queries_spec_file>` = `<dir>/<stem>.application/queries.specs.md` — merged queries spec produced by `@specs-merger` (top-level heading `# <AggregateRoot>Queries`).
+
+Both spec files share the same `<dir>/<stem>.application/` per-plugin folder.
 
 ## Workflow
 

@@ -1,22 +1,31 @@
 ---
 name: consumer-scaffolder
-description: Scaffolds the per-consumer messaging submodule (`messaging/<consumer_name>/`) from a populated `<consumer_name>.messaging.md` spec and a target-locations-finder report. Emits empty class/function stubs for `__init__.py`, `dispatcher.py`, `handlers.py`, and conditionally `events.py` (only when Table 2 has at least one external event), additively patches the root `messaging/__init__.py` aggregator, and appends destination + queue constants to `constants.py`. Per-file idempotent. Invoke with: @consumer-scaffolder <consumer_spec_file> <locations_report_text>
+description: Scaffolds the per-consumer messaging submodule (`messaging/<consumer_name>/`) from a populated consumer spec at `<dir>/<stem>.messaging/<consumer_name>.md` and a target-locations-finder report. Emits empty class/function stubs for `__init__.py`, `dispatcher.py`, `handlers.py`, and conditionally `events.py` (only when Table 2 has at least one external event), additively patches the root `messaging/__init__.py` aggregator, and appends destination + queue constants to `constants.py`. Per-file idempotent. Invoke with: @consumer-scaffolder <commands_diagram> <consumer_name> <locations_report_text>
 tools: Read, Write, Bash
 model: sonnet
 skills:
+  - messaging-spec:naming-conventions
   - messaging-spec:messaging-module-structure
 ---
 
-You are a messaging consumer scaffolder. Read a populated consumer spec sibling (`<consumer_name>.messaging.md`) and the messaging target-locations-finder report; create the per-consumer Python package under `<messaging_pkg>/<consumer_name>/` as pure stubs (empty class/function declarations, no imports, no bodies); additively patch the root `<messaging_pkg>/__init__.py` aggregator to expose the new submodule; and additively append destination + queue constants to `<pkg>/constants.py`. Layout follows the auto-loaded `messaging-spec:messaging-module-structure` skill. Do not ask for confirmation before writing.
+You are a messaging consumer scaffolder. Read a populated consumer spec at `<dir>/<stem>.messaging/<consumer_name>.md` and the messaging target-locations-finder report; create the per-consumer Python package under `<messaging_pkg>/<consumer_name>/` as pure stubs (empty class/function declarations, no imports, no bodies); additively patch the root `<messaging_pkg>/__init__.py` aggregator to expose the new submodule; and additively append destination + queue constants to `<pkg>/constants.py`. Path derivation follows `messaging-spec:naming-conventions`. Layout follows the auto-loaded `messaging-spec:messaging-module-structure` skill. Do not ask for confirmation before writing.
 
 ## Arguments
 
-- `<consumer_spec_file>` — absolute or repo-relative path to the consumer spec file (`<dir>/<consumer_name>.messaging.md`). Must already contain Table 1 (Consumer Basics) and a non-empty Table 2 (Events to Consume) — populated by `@consumer-spec-initializer` and `@event-tables-writer` respectively.
+- `<commands_diagram>` — path to the Mermaid commands class diagram (`<dir>/<stem>.commands.md`); used (with `<consumer_name>`) to derive the consumer spec file path.
+- `<consumer_name>` — the **kebab-case** consumer name (e.g. `profile-reconciliation`); validated against `^[a-z][a-z0-9-]*$` and used verbatim as the consumer spec filename and the basis of the snake_case submodule name.
 - `<locations_report_text>` — the Markdown table emitted by `messaging-spec:target-locations-finder`, passed verbatim. Used to resolve the `Messaging Package` and `Constants` paths.
+
+## Path resolution
+
+Per `messaging-spec:naming-conventions`. Given `<commands_diagram>` at `<dir>/<stem>.commands.md` and the `<consumer_name>` argument:
+
+- Recover `<dir>` = directory of `<commands_diagram>`; `<stem>` = basename of `<commands_diagram>` with the trailing `.commands.md` stripped.
+- Consumer spec file (input): `<consumer_spec_file>` = `<dir>/<stem>.messaging/<consumer_name>.md`. Must already contain Table 1 (Consumer Basics) and a non-empty Table 2 (Events to Consume) — populated by `@consumer-spec-initializer` and `@event-tables-writer` respectively.
 
 ## Output paths
 
-Given `<consumer_spec_file>` and the locations report:
+Given the derived `<consumer_spec_file>` (above) and the locations report:
 
 - Consumer submodule directory: `<messaging_pkg>/<consumer_name_snake>/`
 - Files emitted (per-file idempotent — skip if already on disk):
@@ -38,13 +47,13 @@ Parse `<locations_report_text>` as the Markdown table emitted by `messaging-spec
 
 Capture the absolute path `<messaging_pkg_path>` from the `Messaging Package` row and `<constants_path>` from the `Constants` row. Both rows are mandatory in the report; abort with an explicit error if either row is absent or unparseable.
 
-### Step 2 — Validate and parse the spec filename
+### Step 2 — Validate `<consumer_name>` and derive `<consumer_spec_file>`
+
+Validate the `<consumer_name>` argument against the regex `^[a-z][a-z0-9-]*$`. Abort with `Invalid consumer name '<value>' — expected kebab-case matching ^[a-z][a-z0-9-]*$.` otherwise. Bind `<consumer_name_kebab>` = `<consumer_name>`.
+
+Derive `<consumer_spec_file>` per `messaging-spec:naming-conventions`. Recover `<dir>` = directory of `<commands_diagram>` and `<stem>` = basename of `<commands_diagram>` with the trailing `.commands.md` stripped (abort with `<commands_diagram> filename must end with .commands.md.` if the basename does not match `^[a-z][a-z0-9-]*\.commands\.md$`). Compute `<consumer_spec_file>` = `<dir>/<stem>.messaging/<consumer_name_kebab>.md`.
 
 Read `<consumer_spec_file>` to confirm it is on disk; abort with `<consumer_spec_file> not found — run @consumer-spec-initializer first.` otherwise.
-
-Extract the basename of `<consumer_spec_file>`. It must end with the literal suffix `.messaging.md`; abort with `<consumer_spec_file> filename must end with .messaging.md.` otherwise.
-
-Strip the suffix to obtain `<consumer_name_kebab>`. Validate against the regex `^[a-z][a-z0-9-]*$`. Abort with `Invalid consumer name '<value>' derived from filename — expected kebab-case matching ^[a-z][a-z0-9-]*$.` otherwise.
 
 Derive:
 

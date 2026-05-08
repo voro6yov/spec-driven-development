@@ -1,9 +1,10 @@
 ---
 name: application-exceptions-specifier
-description: Enriches the Application Exceptions sections in the commands and queries exceptions sibling files with full class specs for each exception raised by the application services. Invoke with: @application-exceptions-specifier <commands_diagram_file> <queries_diagram_file>
+description: Enriches the Application Exceptions sections in the commands and queries exceptions sibling files with full class specs for each exception raised by the application services. Invoke with: @application-exceptions-specifier <domain_diagram>
 tools: Read, Write
 model: sonnet
 skills:
+  - application-spec:naming-conventions
   - domain-spec:domain-exceptions
 ---
 
@@ -11,32 +12,35 @@ You are an application exceptions enricher. Your job is to read the exception st
 
 The agent processes both the commands and queries sides of an aggregate in one call. Each side's exceptions file is updated independently (in place); the two sides do not share state. Because the spec inference rules (Base, Code, Constructor, Message) are deterministic from the exception name and (when available) the raising method's identity parameters, an exception that appears on both sides naturally renders as a byte-identical spec block in both files without explicit cross-side merging.
 
-## Arguments
+## Inputs
 
-- `<commands_diagram_file>`: path to the commands class diagram (the one passed to `commands-methods-writer`). Suffix on the contained `<X>Commands` class is `Commands`.
-- `<queries_diagram_file>`: path to the queries class diagram (the one passed to `queries-methods-writer`). Suffix on the contained `<X>Queries` class is `Queries`.
+- `<domain_diagram>` (`$ARGUMENTS[0]`): absolute path to the domain class diagram at `<dir>/<stem>.md`. The agent does not parse the diagram — it is used only to derive the per-plugin folder for both sides.
 
-The agent does not parse the diagrams — they are used only to derive the sibling stems.
+## Path resolution
 
-## Sibling path convention
+Per `application-spec:naming-conventions` ("Path resolution"). Recover `<dir>` and `<stem>` from `<domain_diagram>`, then derive:
 
-Given a diagram file at `<dir>/<stem>.md`:
-- `<stem>` = diagram filename with `.md` stripped
-- Methods file: `<stem>.methods.md`
-- Exceptions file: `<stem>.exceptions.md`
+- `<plugin_dir>` = `<dir>/<stem>.application` — the per-plugin folder for application-spec
 
-The agent reads both `.methods.md` and `.exceptions.md` for each side.
+Per side:
+
+| Side | Methods fragment | Exceptions fragment |
+|---|---|---|
+| commands | `<plugin_dir>/commands.methods.md` | `<plugin_dir>/commands.exceptions.md` |
+| queries | `<plugin_dir>/queries.methods.md` | `<plugin_dir>/queries.exceptions.md` |
+
+The agent reads both `.methods.md` and `.exceptions.md` for each side and writes the enriched `.exceptions.md` back.
 
 ## Workflow
 
 ### Step 1 — Read sibling files for both sides
 
-Derive `<commands_stem>` and `<queries_stem>` from the two arguments. Read in parallel:
+Derive `<dir>`, `<stem>`, and `<plugin_dir>` per the path resolution above. Read in parallel from `<plugin_dir>`:
 
-- `<commands_stem>.methods.md`
-- `<commands_stem>.exceptions.md`
-- `<queries_stem>.methods.md`
-- `<queries_stem>.exceptions.md`
+- `commands.methods.md`
+- `commands.exceptions.md`
+- `queries.methods.md`
+- `queries.exceptions.md`
 
 A side's `.exceptions.md` is **missing** when the file does not exist or contains no `## Application Exceptions` heading — that side is skipped (its file is not touched). All other states (including a `_(none)_` body) are processed normally; the result of Step 7 will overwrite the body with either rendered specs or `_(none)_` based on what Step 2 finds.
 
@@ -189,17 +193,17 @@ When the same exception appears on both sides, both files render byte-identical 
 
 For each side whose `.exceptions.md` was processable in Step 1:
 
-1. Locate the `## Application Exceptions` heading in `<stem>.exceptions.md`. The block starts at that heading and ends at EOF or just before the next `## ` heading (whichever comes first).
+1. Locate the `## Application Exceptions` heading in the side's exceptions file (`<plugin_dir>/commands.exceptions.md` or `<plugin_dir>/queries.exceptions.md`). The block starts at that heading and ends at EOF or just before the next `## ` heading (whichever comes first).
 2. Render the side's exception list (from its Step 3 per-side map) in first-seen order.
 3. Replace all content after the `## Application Exceptions` line with the generated full class specs from Step 6, separated by blank lines.
 4. If the side's list is empty, write `_(none)_` as the block body instead of spec blocks.
-5. Write the updated content back to `<stem>.exceptions.md` using the Write tool.
+5. Write the updated content back to the same path using the Write tool.
 
 A side whose `.exceptions.md` was missing (no file or no heading) is not touched.
 
 ### Step 8 — Confirm
 
-Reply with one sentence: "Application Exceptions enriched in `<commands_stem>.exceptions.md` and `<queries_stem>.exceptions.md`." When only one side was processable, name only that file.
+Reply with one sentence: "Application Exceptions enriched in `<stem>.application/commands.exceptions.md` and `<stem>.application/queries.exceptions.md`." When only one side was processable, name only that file.
 
 ## Abort conditions (summary)
 

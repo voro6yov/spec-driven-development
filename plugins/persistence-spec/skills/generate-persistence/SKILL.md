@@ -1,7 +1,7 @@
 ---
 name: generate-persistence
-description: Orchestrates end-to-end persistence generation for an aggregate diagram by running persistence-spec:generate-specs and then persistence-spec:generate-code. Invoke with: /persistence-spec:generate-persistence <diagram_file>
-argument-hint: <diagram_file>
+description: Orchestrates end-to-end persistence generation for an aggregate diagram by running persistence-spec:generate-specs and then persistence-spec:generate-code. Invoke with: /persistence-spec:generate-persistence <domain_diagram>
+argument-hint: <domain_diagram>
 allowed-tools: Read, Skill
 ---
 
@@ -11,7 +11,7 @@ You are a persistence end-to-end orchestrator. Generate the persistence spec and
 
 - `$ARGUMENTS` — the path to the aggregate's Mermaid class diagram (`<dir>/<stem>.md`).
 
-The command-side spec sibling file is `<dir>/<stem>.command-repo-spec.md` per the persistence-spec sibling-file convention. Derive it by stripping the `.md` suffix from `$ARGUMENTS` and appending `.command-repo-spec.md`.
+Both invoked skills derive the command-side spec sibling at `<dir>/<stem>.persistence/command-repo-spec.md` internally per `persistence-spec:naming-conventions`. This umbrella only forwards the domain diagram path.
 
 ## Workflow
 
@@ -25,7 +25,7 @@ If the skill reports a failure, abort the workflow and emit an `ERROR:` line nam
 
 ### Step 2 — Generate the persistence code
 
-Invoke skill `persistence-spec:generate-code` with args `<dir>/<stem>.command-repo-spec.md` (the derived sibling path).
+Invoke skill `persistence-spec:generate-code` with args `$ARGUMENTS`.
 
 If the skill reports a failure, abort and emit an `ERROR:` line.
 

@@ -45,23 +45,31 @@ def start_label_processing_handler(containers):
 
 ## Helper Fixtures (Optional)
 
-If you frequently construct similar envelopes/messages, create helpers:
+If you frequently construct similar envelopes/messages, create helpers. The `make_event_envelope` factory produces a real `DomainEventEnvelope` with a synthetic `Message` payload, sensible defaults for `aggregate_type`/`aggregate_id`, and a generated `event_id`:
 
 ```python
 # root conftest.py
+from uuid import uuid4
+
+import pytest
+from deps_pubsub.events.subscriber.domain_event_envelope import DomainEventEnvelope
+from deps_pubsub.messaging.common.message import Message
+
 
 @pytest.fixture
 def make_event_envelope():
     """Factory for creating event envelopes."""
-    def _make(event):
+    def _make(event, *, aggregate_type: str = "<AggregateRoot>", aggregate_id: str | None = None):
+        event_id = str(uuid4())
         return DomainEventEnvelope(
+            message=Message(payload=b"", headers={"id": event_id}),
+            aggregate_type=aggregate_type,
+            aggregate_id=aggregate_id or str(uuid4()),
+            event_id=event_id,
             event=event,
-            metadata=EventMetadata(
-                event_id=str(uuid4()),
-                timestamp=datetime.now(UTC),
-            ),
         )
     return _make
+
 
 @pytest.fixture
 def make_command_message():
@@ -76,6 +84,10 @@ def make_command_message():
         )
     return _make
 ```
+
+The `<AggregateRoot>` placeholder is the local PascalCase aggregate-root name (e.g. `ConversionReqs`, `Profile`). The `aggregate_type` / `aggregate_id` kwargs are intentionally optional with sensible defaults so most tests can call `make_event_envelope(event)` and rely on the helper.
+
+The `DomainEventEnvelope` constructor takes positional / keyword `(message, aggregate_type, aggregate_id, event_id, event)` per `deps_pubsub.events.subscriber.domain_event_envelope`. There is no `metadata` field and no `EventMetadata` class — the `event_id` is carried directly on the envelope and on the underlying `Message` headers.
 
 ---
 

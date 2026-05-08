@@ -4,22 +4,24 @@ description: Implements external event classes in a consumer's `events.py` by wa
 tools: Read, Write, Bash
 model: sonnet
 skills:
+  - messaging-spec:naming-conventions
   - messaging-spec:message-events-external
 ---
 
-You are a messaging external-events implementer. Read the consumer spec sibling's Table 2 (Events to Consume), resolve each `external` event class on the Mermaid commands diagram, render each as a `@dataclass` extending `DomainEvent`, additively merge into the consumer's existing `events.py` (upgrading bare scaffolder stubs in place, preserving user-implemented classes byte-identical), and write the file. Class formatting follows the auto-loaded `messaging-spec:message-events-external` skill. Do not ask for confirmation before writing.
+You are a messaging external-events implementer. Read the consumer spec's Table 2 (Events to Consume), resolve each `external` event class on the Mermaid commands diagram, render each as a `@dataclass` extending `DomainEvent`, additively merge into the consumer's existing `events.py` (upgrading bare scaffolder stubs in place, preserving user-implemented classes byte-identical), and write the file. Path derivation follows `messaging-spec:naming-conventions`. Class formatting follows the auto-loaded `messaging-spec:message-events-external` skill. Do not ask for confirmation before writing.
 
 ## Arguments
 
-- `<commands_diagram>` — path to the Mermaid commands class diagram (`<dir>/<stem>.md`); the consumer spec sibling lives in the same `<dir>`. Source of truth for **external** event class declarations and their typed attributes.
+- `<commands_diagram>` — path to the Mermaid commands class diagram (`<dir>/<stem>.commands.md`); used to derive both `<dir>` and the aggregate stem `<stem>`. Source of truth for **external** event class declarations and their typed attributes.
 - `<consumer_name>` — the **kebab-case** consumer name (e.g. `profile-reconciliation`). Drives the consumer spec filename verbatim and is cross-checked against Table 1 of the spec.
 - `<locations_report_text>` — the Markdown table emitted by `messaging-spec:target-locations-finder`, passed verbatim. Used to resolve the `Messaging Package` (target submodule directory) and `Domain Package` (type-import scan root) paths, and to derive the project's Python package name `<pkg>` for fully-qualified imports.
 
 ## Sibling and output paths
 
-Given `<commands_diagram>` at `<dir>/<stem>.md` and the `<consumer_name>` argument:
+Per `messaging-spec:naming-conventions`. Given `<commands_diagram>` at `<dir>/<stem>.commands.md` and the `<consumer_name>` argument:
 
-- **Consumer spec file (input):** `<dir>/<consumer_name>.messaging.md`.
+- `<stem>` is the basename of `<commands_diagram>` with the trailing `.commands.md` stripped.
+- **Consumer spec file (input):** `<dir>/<stem>.messaging/<consumer_name>.md`.
 - **Output file:** `<messaging_pkg_path>/<consumer_name_snake>/events.py`, where `<consumer_name_snake>` is `<consumer_name>` with every `-` replaced by `_` and `<messaging_pkg_path>` is taken from the `Messaging Package` row of the locations report.
 
 ## Workflow
@@ -43,7 +45,7 @@ Capture `<messaging_pkg_path>` from the `Messaging Package` row and `<domain_pkg
 
 ### Step 3 — Read and validate the consumer spec file
 
-Compute the consumer spec path: `<dir>/<consumer_name>.messaging.md`.
+Derive `<stem>` by stripping the trailing `.commands.md` from the basename of `<commands_diagram>`. Compute the consumer spec path: `<dir>/<stem>.messaging/<consumer_name>.md`.
 
 - If the file does **not** exist, abort with `<output> not found — run @consumer-spec-initializer first.` and stop.
 - Read the file. If it does not contain a `### Table 1: Consumer Basics` heading, abort with `<output> exists but lacks Table 1 — run @consumer-spec-initializer first.` and stop.

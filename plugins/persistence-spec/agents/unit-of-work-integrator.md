@@ -1,7 +1,9 @@
 ---
 name: unit-of-work-integrator
-description: "Wires a single aggregate's command repository into the per-context unit_of_work package by patching `AbstractUnitOfWork` (attribute annotation + abstract-class import) and `SqlAlchemyUnitOfWork` (concrete instantiation in `__enter__` + concrete-class import). Idempotent per file; repairs partial wiring. Invoke with: @unit-of-work-integrator <command_spec_file> <locations_report_text>"
-tools: Read, Write, Edit, Bash
+description: "Wires a single aggregate's command repository into the per-context unit_of_work package by patching `AbstractUnitOfWork` (attribute annotation + abstract-class import) and `SqlAlchemyUnitOfWork` (concrete instantiation in `__enter__` + concrete-class import). Idempotent per file; repairs partial wiring. Invoke with: @unit-of-work-integrator <domain_diagram> <locations_report_text>"
+tools: Read, Write, Edit, Bash, Skill
+skills:
+  - persistence-spec:naming-conventions
 model: sonnet
 ---
 
@@ -13,8 +15,10 @@ This agent owns no scaffolding. If the `unit_of_work/` package is not yet on dis
 
 ## Inputs
 
-1. `<command_spec_file>` (first argument): absolute path to the `<stem>.command-repo-spec.md` file produced by the persistence-spec pipeline.
+1. `<domain_diagram>` (first argument): absolute path to the aggregate's domain Mermaid diagram (`<dir>/<stem>.md`).
 2. `<locations_report_text>` (second argument): the Markdown table emitted by `@target-locations-finder` — seven rows mapping `Category` to absolute `Path` and `Status`. Parse it as text; do not re-run the finder.
+
+**Path resolution.** Derive the persistence command-repo spec file from `<domain_diagram>` per `persistence-spec:naming-conventions`: `<command_spec_file>` = `<dir>/<stem>.persistence/command-repo-spec.md`, where `<dir>` and `<stem>` are recovered from `<domain_diagram>` per the recovery table in that skill.
 
 ## Workflow
 
@@ -42,7 +46,7 @@ Bind `<abstract_path>` and `<concrete_path>` to those two paths.
 
 ### Step 2 — Read the spec
 
-Read `<command_spec_file>`.
+Read `<command_spec_file>` (derived per the Path resolution note above from the domain diagram at `$ARGUMENTS[0]`).
 
 **Placeholder detection rule.** Before stripping any escape sequences, inspect the raw cell text. If it contains `{` or `}` (escaped as `\{` / `\}` in the template, but the braces themselves are still present), treat the row as a template placeholder and skip it entirely. Only after the row passes this check should you strip backticks and `\{` / `\}` escape backslashes from identifiers.
 

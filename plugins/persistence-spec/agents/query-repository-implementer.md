@@ -1,8 +1,9 @@
 ---
 name: query-repository-implementer
-description: "Implements the scaffolded query-side repository module by replacing the `class <X>: pass` placeholder with a body driven by the abstract `Query<Aggregate>Repository` interface in the domain package and the body templates in `persistence-spec:query-repository`. Each method's return TypedDict drives both the SQL projection (via the column-expression resolver against the on-disk table and command-side value-object mappers) and the explicit TypedDict construction in the return statement. Reads the command-repo-spec for multi-tenancy and Section 3 PK info, parses the query ABC, the TypedDict/Enum DTOs it references on disk, the on-disk table module, and the aggregate's command-side mappers. Emits a worklist with the implemented module path. Invoke with: @query-repository-implementer <command_spec_file> <locations_report_text>"
+description: "Implements the scaffolded query-side repository module by replacing the `class <X>: pass` placeholder with a body driven by the abstract `Query<Aggregate>Repository` interface in the domain package and the body templates in `persistence-spec:query-repository`. Each method's return TypedDict drives both the SQL projection (via the column-expression resolver against the on-disk table and command-side value-object mappers) and the explicit TypedDict construction in the return statement. Reads the command-repo-spec for multi-tenancy and Section 3 PK info, parses the query ABC, the TypedDict/Enum DTOs it references on disk, the on-disk table module, and the aggregate's command-side mappers. Emits a worklist with the implemented module path. Invoke with: @query-repository-implementer <domain_diagram> <locations_report_text>"
 tools: Read, Write, Bash, Skill
 skills:
+  - persistence-spec:naming-conventions
   - persistence-spec:query-repository
 model: sonnet
 ---
@@ -11,10 +12,12 @@ You are a query-repository implementer. Your job is to fill the body of the quer
 
 ## Inputs
 
-1. `<command_spec_file>` (first argument): absolute path to the `<stem>.command-repo-spec.md` file. Used for the aggregate name, multi-tenancy flag, domain package/import path, Section 3 PK identification, and the optional `### Scalar Keys` sub-section.
+1. `<domain_diagram>` (first argument): absolute path to the aggregate's domain Mermaid diagram (`<dir>/<stem>.md`).
 2. `<locations_report_text>` (second argument): the Markdown table emitted by `@target-locations-finder`. Parse it as text; do not re-run the finder.
 
-The autoloaded skill `persistence-spec:query-repository` is the authoritative implementation guide. Load no other skills.
+**Path resolution.** Derive the persistence command-repo spec file from `<domain_diagram>` per `persistence-spec:naming-conventions`: `<command_spec_file>` = `<dir>/<stem>.persistence/command-repo-spec.md`, where `<dir>` and `<stem>` are recovered from `<domain_diagram>` per the recovery table in that skill. The command spec is used for the aggregate name, multi-tenancy flag, domain package/import path, Section 3 PK identification, and the optional `### Scalar Keys` sub-section.
+
+The autoloaded skill `persistence-spec:query-repository` is the authoritative implementation guide.
 
 ## Workflow
 
@@ -28,7 +31,7 @@ Error: Repository directory '<repo_dir>' does not exist; run @repositories-scaff
 
 ### Step 2 — Read the command spec
 
-Read `<command_spec_file>`.
+Read `<command_spec_file>` (derived per the Path resolution note above from the domain diagram at `$ARGUMENTS[0]`).
 
 **Placeholder detection rule (same as `@command-repository-implementer`).** Before stripping any escape sequences, inspect the raw cell text. If it contains `{` or `}` (escaped as `\{` / `\}` in the template, but the braces themselves are still present), treat the row as a template placeholder and skip it entirely. Only after the row passes this check should you strip backticks and `\{` / `\}` escape backslashes from identifiers.
 

@@ -1,23 +1,23 @@
 ---
 name: generate-specs
-description: Orchestrates persistence spec generation (command repository spec) for an aggregate diagram by running scaffolder, pattern-selector, and schema-writer agents in sequence. Invoke with: /persistence-spec:generate-specs <diagram_file>
-argument-hint: <diagram_file>
-allowed-tools: Read, Agent
+description: Orchestrates persistence spec generation (command repository spec) for an aggregate diagram by running scaffolder, pattern-selector, and schema-writer agents in sequence. Invoke with: /persistence-spec:generate-specs <domain_diagram>
+argument-hint: <domain_diagram>
+allowed-tools: Read, Agent, Skill
 ---
 
 You are a persistence spec generation orchestrator. Generate the command-side repository spec for the aggregate(s) in `$ARGUMENTS` by running agents strictly sequentially.
 
-## Sibling file convention
+## Sibling-folder convention
 
-Given `<diagram_file>` at `<dir>/<stem>.md`, spec outputs are written to sibling files (not appended to the diagram):
+Per `persistence-spec:naming-conventions`, given `<domain_diagram>` at `<dir>/<stem>.md`, the persistence-spec plugin owns the per-aggregate folder `<dir>/<stem>.persistence/` and writes its single artifact inside it:
 
 | File | Written/enriched by | Content |
 |---|---|---|
-| `<stem>.command-repo-spec.md` | `command-repo-spec-scaffolder` (scaffold) → `command-repo-spec-pattern-selector` (Sections 1–2) → `command-repo-spec-schema-writer` (Section 3) | Command repository spec |
+| `<dir>/<stem>.persistence/command-repo-spec.md` | `command-repo-spec-scaffolder` (scaffold + folder creation) → `command-repo-spec-pattern-selector` (Sections 1–2) → `command-repo-spec-schema-writer` (Section 3) | Command repository spec |
 
-The scaffolder agent updates the diagram's `## Artifacts` section itself. This orchestrator does not modify the diagram file.
+The scaffolder agent creates the per-plugin folder on first run and updates the diagram's `## Artifacts` section itself. This orchestrator does not modify the diagram file.
 
-All agents derive `<stem>` by stripping the `.md` suffix from `<diagram_file>`.
+All agents derive `<stem>` by stripping the `.md` suffix from `<domain_diagram>` and locate the spec in `<dir>/<stem>.persistence/command-repo-spec.md`.
 
 ## Workflow
 

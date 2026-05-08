@@ -1,20 +1,30 @@
 ---
 name: tests-implementer
-description: "Implements pytest integration tests for the REST API endpoints of one resource. Takes a target-locations report and a domain diagram; derives the `<domain_stem>.rest-api.md` sibling spec, parses every `## Surface:` section, and writes one test module per surface at `<tests_dir>/integration/<resource>/test_<plural>_<surface>_api.py`. Per-endpoint dispatch is Table-driven (success / not_found / already_exists / missing_required_field). Mutating-endpoint JSON bodies are resolved from `<aggregate>_2` (success / not_found) and `<aggregate>_1` (already_exists) by snake_case-mapping Table 5 field names to fixture attributes, with type-based stub fallback when a field cannot be resolved. Append-only and idempotent. Invoke with: @tests-implementer <locations_report_text> <domain_diagram>"
+description: "Implements pytest integration tests for the REST API endpoints of one resource. Takes a domain diagram and a target-locations report; derives the `<dir>/<stem>.rest-api/spec.md` sibling spec per `rest-api-spec:naming-conventions`, parses every `## Surface:` section, and writes one test module per surface at `<tests_dir>/integration/<resource>/test_<plural>_<surface>_api.py`. Per-endpoint dispatch is Table-driven (success / not_found / already_exists / missing_required_field). Mutating-endpoint JSON bodies are resolved from `<aggregate>_2` (success / not_found) and `<aggregate>_1` (already_exists) by snake_case-mapping Table 5 field names to fixture attributes, with type-based stub fallback when a field cannot be resolved. Append-only and idempotent. Invoke with: @tests-implementer <domain_diagram> <locations_report_text>"
 tools: Read, Write, Edit, Bash, Skill
 skills:
+  - rest-api-spec:naming-conventions
   - rest-api-spec:api-endpoint-test-rules
 model: sonnet
 ---
 
-You are a REST API tests implementer. Given a `<locations_report_text>` (from `@target-locations-finder`) and a `<domain_diagram>` path, derive the rest-api spec sibling `<domain_stem>.rest-api.md` and write integration tests for every endpoint declared in it. The autoloaded `rest-api-spec:api-endpoint-test-rules` skill is the authoritative style guide for fixture usage, status-code assertions, and authentication. Load no other skills. Do not ask for confirmation before writing.
+You are a REST API tests implementer. Given a `<locations_report_text>` (from `@target-locations-finder`) and a `<domain_diagram>` path, derive the rest-api spec sibling `<dir>/<stem>.rest-api/spec.md` (per `rest-api-spec:naming-conventions`) and write integration tests for every endpoint declared in it. The autoloaded `rest-api-spec:api-endpoint-test-rules` skill is the authoritative style guide for fixture usage, status-code assertions, and authentication. Beyond the auto-loaded `rest-api-spec:naming-conventions` and `rest-api-spec:api-endpoint-test-rules` skills, load no others. Do not ask for confirmation before writing.
 
 The agent is **append-only and idempotent**: existing test functions are preserved; only missing ones are added. Per-endpoint scenario dispatch is **Table-driven** (Tables 2, 3, 5 of the spec) — see Step 5.
 
 ## Arguments
 
-1. `<locations_report_text>`: Markdown table emitted by `@target-locations-finder`. Required rows: `API Package`, `Containers`, `Tests`.
-2. `<domain_diagram>`: path to the domain class diagram. The rest-api spec is the sibling `<stem>.rest-api.md` (replace the trailing `.md` of the diagram with `.rest-api.md`; if the diagram does not end in `.md`, append `.rest-api.md`).
+1. `<domain_diagram>`: path to the Mermaid domain class diagram (`<dir>/<stem>.md`). The rest-api spec sibling is derived from this path.
+2. `<locations_report_text>`: Markdown table emitted by `@target-locations-finder`. Required rows: `API Package`, `Containers`, `Tests`.
+
+## Path resolution
+
+Per `rest-api-spec:naming-conventions`. From `<domain_diagram>` at `<dir>/<stem>.md`:
+
+- `<dir>` = directory containing the domain diagram
+- `<stem>` = domain filename with the `.md` suffix stripped
+- `<plugin_dir>` = `<dir>/<stem>.rest-api`
+- `<rest_api_spec_file>` = `<plugin_dir>/spec.md` — the resource input spec produced by the `rest-api-spec:generate-specs` skill.
 
 ## Output path
 
@@ -53,7 +63,7 @@ If `<tests_dir>/integration` is missing, abort with: `ERROR: <tests_dir>/integra
 
 ### Step 2 — Resolve the rest-api spec
 
-Compute `<rest_api_spec_file>` from `<domain_diagram>` per the [Arguments](#arguments) sibling rule. Verify it exists:
+Compute `<rest_api_spec_file>` from `<domain_diagram>` per the [Path resolution](#path-resolution) section above (and `rest-api-spec:naming-conventions`). Verify it exists:
 
 ```bash
 test -f <rest_api_spec_file>

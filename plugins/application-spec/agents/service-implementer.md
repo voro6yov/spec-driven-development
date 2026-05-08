@@ -1,8 +1,9 @@
 ---
 name: service-implementer
-description: "Implements one application-layer service end-to-end: fills its application interface stubs (external) or locates its domain ABCs (domain), writes the infrastructure stub class, writes the test fake, registers the provider in containers.py, and wires the autouse fake fixtures into tests/conftest.py. Operates on a single service identified by name in the services report. Invoke with: @service-implementer <commands_diagram> <queries_diagram> <services_report> <locations_report_text> <service_identifier>"
+description: "Implements one application-layer service end-to-end: fills its application interface stubs (external) or locates its domain ABCs (domain), writes the infrastructure stub class, writes the test fake, registers the provider in containers.py, and wires the autouse fake fixtures into tests/conftest.py. Operates on a single service identified by name in the services report. Invoke with: @service-implementer <domain_diagram> <locations_report_text> <service_identifier>"
 tools: Read, Write, Edit, Bash, Skill
 skills:
+  - application-spec:naming-conventions
   - application-spec:interfaces
   - application-spec:fake-implementations
   - application-spec:fake-override-fixtures
@@ -16,15 +17,21 @@ You are a service implementer. Your job is to wire one named service from the se
 
 ## Inputs
 
-Five positional arguments:
+Three positional arguments:
 
-1. `<commands_diagram>` — absolute path to the commands-side application Mermaid diagram (holds `<AggregateRoot>Commands` and external `I<Interface>` class nodes).
-2. `<queries_diagram>` — absolute path to the queries-side application Mermaid diagram (holds `<AggregateRoot>Queries` and external `I<Interface>` class nodes).
-3. `<services_report>` — absolute path to the `<domain_stem>.services.md` produced by `@services-finder`.
-4. `<locations_report_text>` — the Markdown table emitted by `@target-locations-finder` (Domain Package, Application Package, Infrastructure Package, Containers, Tests). Parse as text; do not re-run the finder.
-5. `<service_identifier>` — PascalCase identifier matching a `## <ServiceIdentifier>` heading in the services report (e.g. `PaymentGateway`, `SubjectDetection`).
+1. `<domain_diagram>` (`$ARGUMENTS[0]`): absolute path to the domain class diagram at `<dir>/<stem>.md`. Sibling commands diagram, queries diagram, and services report are derived from this path per `application-spec:naming-conventions`.
+2. `<locations_report_text>` (`$ARGUMENTS[1]`): the Markdown table emitted by `@target-locations-finder` (Domain Package, Application Package, Infrastructure Package, Containers, Tests). Parse as text; do not re-run the finder.
+3. `<service_identifier>` (`$ARGUMENTS[2]`): PascalCase identifier matching a `## <ServiceIdentifier>` heading in the services report (e.g. `PaymentGateway`, `SubjectDetection`).
 
 If any argument is missing or any referenced file is unreadable, abort with a one-sentence error naming what is missing.
+
+## Path resolution
+
+Per `application-spec:naming-conventions` ("Path resolution"). Recover `<dir>` and `<stem>` from `<domain_diagram>`, then derive:
+
+- `<commands_diagram>` = `<dir>/<stem>.commands.md` — the commands-side application Mermaid diagram (holds `<AggregateRoot>Commands` and external `I<Interface>` class nodes).
+- `<queries_diagram>` = `<dir>/<stem>.queries.md` — the queries-side application Mermaid diagram (holds `<AggregateRoot>Queries` and external `I<Interface>` class nodes).
+- `<services_report>` = `<dir>/<stem>.application/services.md` — the services report produced by `@services-finder`. The agent reads this from disk; the caller no longer passes its full text.
 
 ## Workflow
 

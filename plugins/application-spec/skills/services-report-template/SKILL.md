@@ -1,6 +1,6 @@
 ---
 name: services-report-template
-description: Services Report Template for the `<domain_stem>.services.md` sibling file produced by `services-finder`. Auto-invoke when authoring or validating the services report for an application package.
+description: Services Report Template for the `<stem>.application/services.md` sibling file produced by `services-finder`. Auto-invoke when authoring or validating the services report for an application package.
 user-invocable: false
 disable-model-invocation: false
 ---
@@ -12,8 +12,9 @@ layer must wire up beyond repositories and message publishers. It is the
 single source of truth consumed by downstream stub implementers, fake
 implementers, DI container wirers, and conftest fixture writers.
 
-The report is written to `<domain_stem>.services.md` — a sibling of the
-**domain diagram**, not the application diagrams.
+Per `application-spec:naming-conventions`, the report is written to
+`<stem>.application/services.md` — inside the per-plugin folder next to
+the **domain diagram**, not as a flat sibling.
 
 A *service* is a single concrete class that will (eventually) implement
 one or more interfaces. Services are grouped **by collaborator attribute

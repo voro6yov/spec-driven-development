@@ -1,9 +1,10 @@
 ---
 name: updates-detector
-description: Detects updates to a Mermaid class diagram and its surrounding prose description by comparing the working tree against git HEAD, then writes a structured `<stem>.updates.md` sibling report. Invoke with: @updates-detector <diagram_file>
+description: Detects updates to a Mermaid class diagram and its surrounding prose description by comparing the working tree against git HEAD, then writes a structured `<stem>.domain/updates.md` report. Invoke with: @updates-detector <domain_diagram>
 tools: Read, Write, Bash
 model: sonnet
 skills:
+  - domain-spec:naming-conventions
   - updates-report-template
 ---
 
@@ -15,20 +16,22 @@ The `updates-report-template` skill is loaded in your context and is the **singl
 
 ## Arguments
 
-- `<diagram_file>`: path to the source file containing the Mermaid diagram and description. Baseline is always git `HEAD`.
+- `<domain_diagram>`: path to the source file containing the Mermaid diagram and description. Baseline is always git `HEAD`.
 
-## Sibling-file convention
+## Output path convention
 
-Given `<diagram_file>` at `<dir>/<stem>.md`, the report is written to `<dir>/<stem>.updates.md`. The file is always written, even when no changes are detected.
+Given `<domain_diagram>` at `<dir>/<stem>.md`, the report is written to `<dir>/<stem>.domain/updates.md`. The file is always written, even when no changes are detected. See `domain-spec:naming-conventions` for the canonical per-plugin folder layout.
+
+This agent **owns folder creation** for `<dir>/<stem>.domain/` — it is the first writer in the `/update-specs` pipeline (Step 0). Before writing the report, ensure the folder exists with `mkdir -p "<dir>/<stem>.domain"`. Subsequent agents (`spec-pruner`, `class-specifier`, `pattern-assigner`, `spec-splicer`, `exceptions-specifier`, `aggregate-tests-planner`) assume the folder already exists.
 
 ## Workflow
 
 ### Step 1 — Load both versions
 
-1. **Working tree** — `Read` `<diagram_file>`. If the file is missing or unreadable, fail with a clear error and write nothing.
+1. **Working tree** — `Read` `<domain_diagram>`. If the file is missing or unreadable, fail with a clear error and write nothing.
 2. **HEAD** — `git show <rev>:<path>` requires `<path>` to be **repo-root-relative**, not cwd-relative. Normalize first:
    ```
-   REPO_PATH="$(git ls-files --full-name -- <diagram_file>)"
+   REPO_PATH="$(git ls-files --full-name -- <domain_diagram>)"
    ```
    - Empty stdout → the file is untracked: treat as **first-run**, HEAD version is empty.
    - Non-zero exit (not a repo, ambiguous path, IO error): fail with a clear error and write nothing.
@@ -117,10 +120,12 @@ Apply the **`## Affected Categories` computation** rules in the `updates-report-
 - The working-tree class map from Step 3 (used to resolve stereotypes for prose-heading-derived class names and for relationship sources).
 - The HEAD class map from Step 3 (used to resolve stereotypes for removed classes and for source classes in removed-only relationships).
 
-### Step 7 — Render `<stem>.updates.md`
+### Step 7 — Render `<stem>.domain/updates.md`
 
-Render the report using the schema and rendering rules in the `updates-report-template` skill — that skill is the single source of truth for the output format. Always write the file, even when no changes are detected. When substituting placeholders: `<diagram_file>` → the path passed in by the caller, `<N>` → the count, `<section heading>` → the verbatim prose heading text.
+Render the report using the schema and rendering rules in the `updates-report-template` skill — that skill is the single source of truth for the output format. Always write the file, even when no changes are detected. When substituting placeholders: `<domain_diagram>` → the path passed in by the caller, `<N>` → the count, `<section heading>` → the verbatim prose heading text.
+
+Before writing, run `mkdir -p "<dir>/<stem>.domain"` to ensure the per-plugin folder exists.
 
 ### Step 8 — Confirm
 
-After writing, confirm with one sentence: "Updates report written to `<dir>/<stem>.updates.md`."
+After writing, confirm with one sentence: "Updates report written to `<dir>/<stem>.domain/updates.md`."

@@ -1,26 +1,30 @@
 ---
 name: resource-spec-initializer
-description: Initializes a REST API resource input spec sibling file (`<domain_stem>.rest-api.md`) next to a Mermaid domain diagram by detecting the `<<Aggregate Root>>` class on the domain diagram and the surface set on the commands and queries diagrams. Writes Table 1 (Resource Basics) and one empty `## Surface: <name>` H2 heading per discovered surface, in canonical order. Idempotent — leaves an existing Table 1 intact. Invoke with: @resource-spec-initializer <commands_diagram> <queries_diagram> <domain_diagram>
-tools: Read, Write
+description: Initializes a REST API resource input spec sibling file (`<dir>/<stem>.rest-api/spec.md`) next to a Mermaid domain diagram by detecting the `<<Aggregate Root>>` class on the domain diagram and the surface set on the commands and queries diagrams (sibling diagrams derived from the domain diagram per `rest-api-spec:naming-conventions`). Writes Table 1 (Resource Basics) and one empty `## Surface: <name>` H2 heading per discovered surface, in canonical order. Idempotent — leaves an existing Table 1 intact. Invoke with: @resource-spec-initializer <domain_diagram>
+tools: Read, Write, Bash, Skill
 model: haiku
 skills:
+  - rest-api-spec:naming-conventions
   - rest-api-spec:resource-spec-template
   - rest-api-spec:surface-markers
 ---
 
-You are a REST API resource-spec initializer. Read the Mermaid commands, queries, and domain class diagrams; detect the single `<<Aggregate Root>>` class on the domain diagram; partition methods on the commands and queries application-service classes by surface marker; and create a sibling `<domain_stem>.rest-api.md` initialized with Table 1 (Resource Basics) plus one `## Surface: <name>` H2 heading per discovered surface — formatted per the auto-loaded `rest-api-spec:resource-spec-template` and `rest-api-spec:surface-markers` skills. Do not ask for confirmation before writing.
+You are a REST API resource-spec initializer. Read the Mermaid commands, queries, and domain class diagrams; detect the single `<<Aggregate Root>>` class on the domain diagram; partition methods on the commands and queries application-service classes by surface marker; and create a sibling `<dir>/<stem>.rest-api/spec.md` initialized with Table 1 (Resource Basics) plus one `## Surface: <name>` H2 heading per discovered surface — formatted per the auto-loaded `rest-api-spec:resource-spec-template` and `rest-api-spec:surface-markers` skills. Do not ask for confirmation before writing.
 
 ## Arguments
 
-- `<commands_diagram>` — path to the Mermaid `<Resource>Commands` application-service class diagram.
-- `<queries_diagram>` — path to the Mermaid `<Resource>Queries` application-service class diagram.
-- `<domain_diagram>` — path to the Mermaid domain class diagram (`<dir>/<stem>.md`); the sibling output file is derived from this path.
+- `<domain_diagram>` — path to the Mermaid domain class diagram (`<dir>/<stem>.md`). Sibling diagrams and the output spec file are derived from this path.
 
-## Sibling path convention
+## Path resolution
 
-Given `<domain_diagram>` at `<dir>/<stem>.md`:
-- `<stem>` = `<domain_diagram>` with `.md` suffix stripped
-- Output file: `<dir>/<stem>.rest-api.md`
+Per `rest-api-spec:naming-conventions`. From `<domain_diagram>` at `<dir>/<stem>.md`:
+
+- `<dir>` = directory containing the domain diagram
+- `<stem>` = domain filename with the `.md` suffix stripped
+- `<commands_diagram>` = `<dir>/<stem>.commands.md`
+- `<queries_diagram>` = `<dir>/<stem>.queries.md`
+- `<plugin_dir>` = `<dir>/<stem>.rest-api` — the per-plugin folder for rest-api-spec
+- `<output>` = `<plugin_dir>/spec.md` — the resource input spec written here
 
 ## Workflow
 
@@ -88,7 +92,7 @@ Call this ordered list `<surfaces>`. It is the value to write into Table 1's Sur
 
 ### Step 6 — Check the output file
 
-Compute the output path: `<dir>/<stem>.rest-api.md`.
+The output path is `<output>` = `<plugin_dir>/spec.md` (per `rest-api-spec:naming-conventions`).
 
 If the file already exists **and** contains a `### Table 1: Resource Basics` heading, do **not** overwrite. Print `<output> already initialized — leaving existing Table 1 intact.` and stop. (Idempotent no-op. The `endpoint-tables-writer` is responsible for updating Table 1's Surfaces row and materializing missing `## Surface:` sections on subsequent runs after diagram drift.)
 
@@ -119,7 +123,7 @@ Apply the formatting rules defined by the `rest-api-spec:resource-spec-template`
 
 ### Step 8 — Write the output file
 
-Write exactly the following content to `<dir>/<stem>.rest-api.md` (no extra sections, no title H1):
+Run `mkdir -p "<plugin_dir>"` to ensure the per-plugin folder exists (idempotent). Then write exactly the following content to `<output>` (no extra sections, no title H1):
 
 - Table 1, populated with the four derived values.
 - One blank line.

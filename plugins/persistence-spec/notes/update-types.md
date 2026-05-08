@@ -180,7 +180,7 @@ These belong in operator-facing warnings, not in the spec content itself:
                     │       ↳ hard-fail on root removal / stereotype change
                     │       ↳ early-exit if affected_categories ⊆ {domain-events, commands}
                     │
-<stem>.command-repo-spec.md ─┤
+<stem>.persistence/command-repo-spec.md ─┤
                     │
                     ├─► [1] shape-change detector
                     │       ↳ scan report for tenant flip / children flip / polymorphism flip
@@ -195,11 +195,11 @@ These belong in operator-facing warnings, not in the spec content itself:
                     │       (writers operate against the existing scaffold)
                     │
                     ├─► [4] splice
-                    │       replace each regenerated section in <stem>.command-repo-spec.md
+                    │       replace each regenerated section in <stem>.persistence/command-repo-spec.md
                     │       by H2-heading bounds; preserve all other content byte-identical
                     │
                     └─► [5] report
-                            "Updated <stem>.command-repo-spec.md (sections: §1, §2)"
+                            "Updated <stem>.persistence/command-repo-spec.md (sections: §1, §2)"
 ```
 
 Steps 0–2 are pure parsing and live in the orchestrator skill body. Step 3 is the only step that fans out to existing agents (and only ever to two of them, so parallelism is not necessary). Step 4 is a heading-bounded `Edit` per regenerated section.
@@ -208,7 +208,7 @@ Steps 0–2 are pure parsing and live in the orchestrator skill body. Step 3 is 
 
 ## Open questions
 
-- **What is the actual filename of the persistence spec sibling?** Need to confirm whether `command-repo-spec-scaffolder` writes `<stem>.command-repo-spec.md`, `<stem>.persistence-spec.md`, or something else. The pipeline sketch assumes `<stem>.command-repo-spec.md`.
+- **What is the actual filename of the persistence spec sibling?** Resolved: per `persistence-spec:naming-conventions`, `command-repo-spec-scaffolder` writes `<stem>.persistence/command-repo-spec.md` (the per-plugin folder layout). The pipeline sketch above uses that path.
 - **Should the updater touch the query-context spec too?** Today there is no query-context spec file; query repos are inferred from the command-repo-spec. If a query-spec file is ever introduced, this skill grows a second target.
 - **Should shape-change detection live in `domain-spec:updates-detector` or in the persistence updater?** Today the report does not flag tenant-flip / children-flip explicitly — the persistence updater would have to derive them from member and relationship deltas. A small enrichment of the report (e.g. a `## Persistence-Relevant Shape Changes` section) might be worth it if a REST-API updater later needs the same signals.
 - **Hand-edit preservation in §3 Indexes.** Indexes today are partly derived (one per finder) and partly hand-authored (operator-tuned indexes for known query patterns). A whole-section regen of §3 will lose hand-tuned index rows. This is the strongest argument for graduating to Approach C on §3 specifically.
