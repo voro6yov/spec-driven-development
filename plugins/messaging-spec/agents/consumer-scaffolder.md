@@ -98,7 +98,7 @@ Render the four stub modules per the rules below. Stubs are **minimal** — no `
 from . import dispatcher
 from .dispatcher import *
 
-__all__ = list(dispatcher.__all__)
+__all__ = dispatcher.__all__
 ```
 
 This adapts the `messaging-spec:messaging-module-structure` skill — the explicit `from . import dispatcher` is required so that `dispatcher.__all__` resolves at module-load time. The skill's verbatim form (`from .dispatcher import *` alone) leaves `dispatcher` unbound and would `NameError` on import; this scaffolder emits the working form.
@@ -180,7 +180,7 @@ Write fresh content:
 from . import <consumer_name_snake>
 from .<consumer_name_snake> import *
 
-__all__ = list(<consumer_name_snake>.__all__)
+__all__ = <consumer_name_snake>.__all__
 ```
 
 (Substitute `<consumer_name_snake>` literally. Same rationale as Step 5a — the `from . import <consumer_name_snake>` line is required for `<consumer_name_snake>.__all__` to resolve at import time.)
@@ -194,9 +194,9 @@ Read the file. Apply three additive patches, in order:
 2. **Star-import line.** Search for a line matching `^from \.<consumer_name_snake> import \*\s*$`. If absent, insert `from .<consumer_name_snake> import *` immediately after the **last** existing line that matches `^from \.[A-Za-z_][A-Za-z0-9_]* import \*\s*$`. If no such existing star-import line is found, insert it immediately after the module-import line for the same consumer (placed in substep 1).
 
 3. **`__all__` extension.** Search for a line matching `^__all__\s*=\s*.*$`.
-   - If **absent**, append a fresh `__all__ = list(<consumer_name_snake>.__all__)` line at the end of the file (separated from the prior content by a single blank line).
-   - If **present** and the RHS matches the canonical form `list(<X>.__all__)(\s*\+\s*list\(\w+\.__all__\))*` — i.e. one or more `list(<name>.__all__)` terms joined by `+` — additively append ` + list(<consumer_name_snake>.__all__)` to the RHS, but only if `list(<consumer_name_snake>.__all__)` is not already a term.
-   - If **present** but the RHS does not match the canonical form (a list literal, the bare-attribute form `<X>.__all__ + <Y>.__all__`, a star import, or any user-customized expression), leave the `__all__` line untouched and record a one-line warning in the Step 9 report (`messaging/__init__.py __all__ form unrecognized — left untouched`). The import-line patches from substeps 1 and 2 still apply.
+   - If **absent**, append a fresh `__all__ = <consumer_name_snake>.__all__` line at the end of the file (separated from the prior content by a single blank line).
+   - If **present** and the RHS matches the canonical form `\w+\.__all__(\s*\+\s*\w+\.__all__)*` — i.e. one or more bare `<name>.__all__` terms joined by `+` — additively append ` + <consumer_name_snake>.__all__` to the RHS, but only if `<consumer_name_snake>.__all__` is not already a term.
+   - If **present** but the RHS does not match the canonical form (a list literal, a `list(...)`-wrapped expression, a star import, or any user-customized expression), leave the `__all__` line untouched and record a one-line warning in the Step 9 report (`messaging/__init__.py __all__ form unrecognized — left untouched`). The import-line patches from substeps 1 and 2 still apply.
 
 Ensure the file ends with exactly one trailing `\n`.
 
