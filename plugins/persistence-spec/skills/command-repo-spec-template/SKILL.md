@@ -43,11 +43,12 @@ disable-model-invocation: false
 
 ### Migrations
 
-| Changeset | Pattern | Template |
-| --- | --- | --- |
-| Create `\{table_name\}` | {Create Table / Create Table (Composite PK)} | `persistence-spec:migration` |
-| Create `\{child_table_name\}` | Add Foreign Key | `persistence-spec:migration` |
-| Indexes | {Add Index / Add JSONB Index} | `persistence-spec:migration` |
+| ID | Changeset | Pattern | Template |
+| --- | --- | --- | --- |
+| `\{NNNN\}` | Create `\{table_name\}` | {Create Table / Create Table (Composite PK)} | `persistence-spec:migration` |
+| `\{NNNN\}` | Create `\{child_table_name\}` | Create Table | `persistence-spec:migration` |
+| `\{NNNN\}` | Add Foreign Keys for `\{table_name\}` | Add Foreign Key | `persistence-spec:migration` |
+| `\{NNNN\}` | Indexes for `\{table_name\}` | {Add Index / Add JSONB Index} | `persistence-spec:migration` |
 
 ### Mappers
 

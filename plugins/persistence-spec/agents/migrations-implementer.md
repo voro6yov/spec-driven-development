@@ -47,8 +47,9 @@ Strip backticks and bind `<Aggregate>` to the PascalCase value. Derive `<aggrega
 
 #### 2b. Section 2 — Migrations subsection
 
-In Section 2 (`## 2. Pattern Selection`) under `### Migrations`, walk every data row. For each row that survives the placeholder detection rule:
+In Section 2 (`## 2. Pattern Selection`) under `### Migrations`, walk every data row of the table whose header is `| ID | Changeset | Pattern | Template |`. For each row that survives the placeholder detection rule:
 
+- Read the `ID` cell but **do not use** it. The ID column on the spec is reserved for the future `@command-repo-spec-migrations-appender`; this agent ignores the value. Liquibase `changeSet.id` derivation in Step 4 stays filename-stem-based for backward compatibility.
 - Take the `Changeset` cell text and **slugify** it (same rule as `@migrations-scaffolder`):
   1. Strip Markdown backticks and `\{` / `\}` escape backslashes.
   2. Lowercase.

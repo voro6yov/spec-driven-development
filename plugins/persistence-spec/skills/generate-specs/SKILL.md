@@ -1,6 +1,6 @@
 ---
 name: generate-specs
-description: Orchestrates persistence spec generation (command repository spec) for an aggregate diagram by running scaffolder, pattern-selector, and schema-writer agents in sequence. Invoke with: /persistence-spec:generate-specs <domain_diagram>
+description: Orchestrates persistence spec generation (command repository spec) for an aggregate diagram by running scaffolder, pattern-selector, migrations-writer, and schema-writer agents in sequence. Invoke with: /persistence-spec:generate-specs <domain_diagram>
 argument-hint: <domain_diagram>
 allowed-tools: Read, Agent, Skill
 ---
@@ -13,7 +13,7 @@ Per `persistence-spec:naming-conventions`, given `<domain_diagram>` at `<dir>/<s
 
 | File | Written/enriched by | Content |
 |---|---|---|
-| `<dir>/<stem>.persistence/command-repo-spec.md` | `command-repo-spec-scaffolder` (scaffold + folder creation) → `command-repo-spec-pattern-selector` (Sections 1–2) → `command-repo-spec-schema-writer` (Section 3) | Command repository spec |
+| `<dir>/<stem>.persistence/command-repo-spec.md` | `command-repo-spec-scaffolder` (scaffold + folder creation) → `command-repo-spec-pattern-selector` (Sections 1–2 except Migrations) → `command-repo-spec-migrations-writer` (§2 Migrations) → `command-repo-spec-schema-writer` (Section 3) | Command repository spec |
 
 The scaffolder agent creates the per-plugin folder on first run and updates the diagram's `## Artifacts` section itself. This orchestrator does not modify the diagram file.
 
@@ -31,10 +31,14 @@ Invoke `persistence-spec:command-repo-spec-scaffolder`.
 
 Invoke `persistence-spec:command-repo-spec-pattern-selector`.
 
-### Step 3 — Command repo spec schema writer
+### Step 3 — Command repo spec migrations writer
+
+Invoke `persistence-spec:command-repo-spec-migrations-writer`.
+
+### Step 4 — Command repo spec schema writer
 
 Invoke `persistence-spec:command-repo-spec-schema-writer`.
 
-### Step 4 — Report
+### Step 5 — Report
 
 Confirm with one sentence: "Persistence spec generation complete for `$ARGUMENTS`."

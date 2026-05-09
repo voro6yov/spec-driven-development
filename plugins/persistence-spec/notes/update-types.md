@@ -1,26 +1,40 @@
 # Persistence Spec Update Types
 
-Analysis of how every kind of domain-diagram delta — as emitted by `domain-spec:updates-detector` into `<stem>.updates.md` — ripples into the **command-repo-spec** sibling (`command-repo-spec-template` Sections 1 / 2 / 3).
+Analysis of how every kind of domain-diagram delta — as emitted by `domain-spec:updates-detector` into `<dir>/<stem>.domain/updates.md` — ripples into the **command repository spec** sibling at `<dir>/<stem>.persistence/command-repo-spec.md`.
 
-The goal is to enumerate every distinct kind of change a persistence-spec updater would have to handle, so it can dispatch the right action per change rather than re-running `/persistence-spec:generate-specs` from scratch and clobbering hand-edits in pattern selection or schema notes.
+The goal is to enumerate every distinct kind of change a persistence-spec updater would have to handle, so it can dispatch the right action per change rather than re-running `/persistence-spec:generate-specs` from scratch and overwriting append-only history in §2.Migrations.
 
-This is the persistence-side analog of `plugins/domain-spec/notes/update-types.md`. It assumes the domain `<stem>.updates.md` is already produced; the persistence updater consumes it directly rather than re-diffing the diagram.
+This is the persistence-side analog of `plugins/domain-spec/notes/update-types.md` (and `plugins/domain-spec/notes/spec-updater-approach-b.md`). It assumes the domain `updates.md` is already produced; the persistence updater **consumes that report directly** and never re-diffs the diagram.
+
+The chosen updater design — **snapshot regen for snapshot sections + delta-driven append for §2.Migrations** — is documented in [`spec-updater-approaches.md`](spec-updater-approaches.md). This file catalogs the input deltas; the design doc defines the output behaviour.
+
+---
+
+## Snapshot vs append-only log
+
+The command-repo-spec mixes two fundamentally different kinds of section, and the updater treats them differently:
+
+- **Snapshot sections** describe the *current state* of the persistence layer. Every cell is a function of the current diagram; they are fully regeneratable. Update behaviour: **wholesale regen** (read the diagram, replace the section).
+- **The append-only log section** (§2.Migrations only) describes the *cumulative history* of changesets — each row corresponds to a real `db/migrations/<id>_<slug>.yaml` file. Once a row is committed, regenerating it from the current diagram produces a stale or incorrect schema state for any environment that already ran the prior version. Update behaviour: **delta-driven append** (existing rows immutable; new rows derived from `updates.md` and stacked on top).
+
+This split is load-bearing. A naive full-regen is correct for snapshot sections and wrong for §2.Migrations.
 
 ---
 
 ## Persistence spec sections and their sensitivity
 
-The command-repo-spec has three sections, each with a different sensitivity to domain-side changes:
+The command-repo-spec has three filled sections plus the scaffold-owned `Implementation` block. Section ownership now splits across four writer agents to support the snapshot/log dichotomy:
 
-| Section | Owner agent | Sensitive to |
-|---|---|---|
-| **§1 Aggregate Analysis** — root name, has-children, multi-tenant flag, JSONB VOs, polymorphism flag | `command-repo-spec-pattern-selector` | Aggregate *shape* (which classes exist and how they relate) |
-| **§2 Pattern Selection** — Tables, Migrations, Mappers, Repository, Alternative Lookups, Context Integration | `command-repo-spec-pattern-selector` | Aggregate shape **plus** repository finder set |
-| **§3 Schema Specification** — ER diagram, column lists, indexes | `command-repo-spec-schema-writer` | Field-level changes on root, entities, and flat-column VOs |
+| Section | Kind | Owner agent | Sensitive to |
+|---|---|---|---|
+| **§1 Aggregate Analysis** — Purpose, Aggregate Summary (root, has-children, multi-tenant, JSONB VOs, polymorphism), Implementation | snapshot | `command-repo-spec-pattern-selector` (rows 1–5) + `command-repo-spec-scaffolder` (Implementation block) | Aggregate *shape* — which classes exist, how they relate, the bounded context name, the Python package path |
+| **§2 Pattern Selection** (Tables, Mappers, Repository + Alt Lookups, Context Integration) | snapshot | `command-repo-spec-pattern-selector` | Aggregate shape **plus** the `<<Repository>>` finder set |
+| **§2.Migrations** | append-only log | `command-repo-spec-migrations-writer` (first run) + `command-repo-spec-migrations-appender` (updates) | Per-domain-change deltas as captured by `updates.md` |
+| **§3 Schema Specification** — ER diagram, per-table column lists, Indexes | snapshot | `command-repo-spec-schema-writer` | Field-level changes on root, child entities, and flat-column value objects; also the Alternative Lookups list from §2 |
 
-Section ownership is already split across two writer agents, which makes section-scoped regeneration mechanically cheap — re-run the writer that owns the affected section.
+Note that §2.Migrations is **carved out of `command-repo-spec-pattern-selector`'s ownership** — the snapshot/log split requires it. See `spec-updater-approaches.md` § "Agent reorganization" for the contract changes.
 
-The downstream persistence artifacts (`tables/`, `migrations/`, `mappers/`, `command_<aggregate>_repository.py`, repo tests) are owned by `/persistence-spec:generate-code`. They are *out of scope* for the spec updater — the spec is the source of truth and code regeneration is its own concern (analogous to `notes/code-updater-approach-c.md` on the domain side).
+The downstream persistence artifacts (`tables/`, `migrations/`, `mappers/`, `command_<aggregate>_repository.py`, repo tests) are owned by `/persistence-spec:generate-code`. They are **out of scope** for the spec updater — the spec is the source of truth and code regeneration is its own concern (analogous to `notes/code-updater-approach-c.md` on the domain side). One contract requirement crosses the boundary: `migrations-implementer` must be **append-only** — it never overwrites an existing `db/migrations/<id>_<slug>.yaml`. This mirrors the §2.Migrations row-immutability rule on the spec side.
 
 ---
 
@@ -28,10 +42,12 @@ The downstream persistence artifacts (`tables/`, `migrations/`, `mappers/`, `com
 
 Load-bearing facts about how persistence relates to the domain diagram:
 
-- **The domain diagram is the single source of truth.** The persistence spec is a derived artifact; there is no second diagram to diff. The trigger for a persistence update is therefore `<stem>.updates.md`, not a separate persistence diff.
+- **The domain diagram is the single source of truth.** The persistence spec is a derived artifact; there is no second diagram to diff. The trigger for a persistence update is therefore `<stem>.domain/updates.md`, not a separate persistence diff.
 - **Exactly one `<<Aggregate Root>>` per diagram.** The same invariant the domain updater leans on. Removal of the root is malformed; stereotype change of the root requires a full regen.
-- **Domain `<<Event>>` and `<<Command>>` classes do not persist.** They are emitted / dispatched. A pure event-or-command change in the domain footer means the persistence spec is byte-stable — the updater can early-exit.
+- **Domain `<<Event>>` and `<<Command>>` classes do not persist.** They are emitted / dispatched. A pure event-or-command change in the domain footer means the command-repo-spec is byte-stable — the persistence updater can early-exit.
 - **Repository ABCs are domain-owned.** The `<<Repository>>` interface lives in the domain diagram; the persistence spec selects an implementation pattern and lists alternative lookups that mirror its abstract finders. Finder churn on the ABC is a category that *does* affect the persistence spec.
+- **`<<Service>>` classes do not contribute to the command-repo-spec.** Services are not persisted. A `repositories-services` footer entry is only persistence-relevant when the change touches the `<<Repository>>` member of that category, never the `<<Service>>` member.
+- **Context name comes from the diagram's Mermaid `title:` directive**, not from any class. A pure prose/title change therefore touches §1's Implementation/Context-name labelling and §2's UoW class names without showing up in any `affected_categories` entry — see *Out-of-band signals* below.
 
 ---
 
@@ -41,121 +57,167 @@ Per the canonical category order from `domain-spec:updates-report-template`:
 
 ### 1. `data-structures` (`<<TypedDict>>`)
 
-Mostly a query-side concern. Command-side persistence impact is narrow but real:
+Predominantly a query-side concern. Command-side persistence impact is narrow but non-zero:
 
-- **TypedDict used as a repository finder return type** — column projection in §3, possibly an index on the projected columns.
-- **TypedDict consumed by a flat-constructor / factory** that maps repository rows to aggregates — affects mapper hydration order in §2.
-- Any other TypedDict change is byte-neutral for command-side persistence.
+- **TypedDict consumed by an aggregate factory / flat constructor** that maps repository rows to aggregates → mapper hydration order may shift in §2.Mappers; no §3 column impact unless the constructor keys correspond 1:1 to columns.
+- **TypedDict referenced from a `<<Repository>>` finder return type** (e.g. paginated read DTO) → command-side spec is unaffected because the command repository persists the aggregate, not the DTO. Defer to a future `query-repo-spec` updater.
+- Any other TypedDict change is **byte-neutral for the command-repo-spec** — the persistence updater can skip the regen step entirely when `data-structures` is the only affected category.
 
 ### 2. `value-objects` (`<<Value Object>>`)
 
-The single highest-impact category for command-side persistence. Shape and field changes all land here:
+Highest-impact category for the command-repo-spec. Shape and field changes all land here:
 
-- **VO added on the root** → new `<VO>Mapper` row in §2.Mappers (variant: Simple / Complex / Collection / Polymorphic), new flat columns *or* a JSONB column in §3, new "Add column" or "Add JSONB column" migration changeset in §2.
-- **VO removed** → drop mapper row, drop columns, drop migration. Destructive on populated tables — see *Out-of-scope* below.
-- **VO field added / removed / typed** → flat-column add/drop/alter (with migration) or JSONB shape note (no migration). Nullability flips when a field becomes optional.
-- **VO becomes polymorphic** (subtype branches appear) → §1 polymorphism flag flips, mapper variant flips to *Polymorphic Value Object Mapper*, schema gains a discriminator column.
-- **Collection VO added on the root** → may promote what was a flat column into a child table with FK. §2 repo pattern flips Simple → With Children. §3 gains a child table block.
+- **VO added on the root or on a child entity** → §2.Mappers gains a `<VO>Mapper` row (variant: Simple / Complex / Collection — picked by VO shape) on regen; §3 gains new flat columns *or* a single JSONB column on the owner's table on regen; §2.Migrations gains one `Add Column` row appended per affected column.
+- **VO removed** → §2.Mappers loses the row on regen; §3 loses the columns on regen; §2.Migrations gains one `⚠ Drop Column` row appended per affected column. The migration history is preserved — the original `Create Table` / `Add Column` rows that introduced the columns remain in §2.Migrations as historical record.
+- **VO field added / removed / typed / re-nullabilitied** → flat-column add/drop/alter on regen when the VO maps to flat columns (corresponding `Add Column` / `⚠ Drop Column` / `⚠ Alter Column Type` row appended to §2.Migrations); JSONB shape change is application-level (no migration row) when the VO maps to a single JSONB column. Nullability flips flow into the constraints column.
+- **VO becomes polymorphic** (subtype branches appear under it) → §1 polymorphism flag flips, §2 gains a `Polymorphic Mapper` row, §3 replaces a single JSONB projection with the discriminator pair `<attr>_kind: String NULL` and `<attr>_data: JSONB NULL`. §2.Migrations gains three rows: ⚠ Drop Column `<table>.<attr>`, Add Column `<table>.<attr>_kind`, Add Column `<table>.<attr>_data`.
+- **Collection-of-VO multiplicity flip on the root** → may promote what was a single JSONB column into a collection-VO mapper variant, or (rarely) into a child table with FK if the diagram restereotypes the inner item to `<<Entity>>`.
 
 ### 3. `domain-events` (`<<Event>>`)
 
-**No command-side persistence impact today.** Skip the category at dispatch time.
+**No command-side persistence impact today.** Skip this category at dispatch time.
 
-(If an event-store pattern is ever added, this row changes.)
+(If an event-store pattern is ever added — e.g. an outbox table, event-sourced aggregate, or event-replay snapshot — this row gains entries.)
 
 ### 4. `commands` (`<<Command>>`)
 
-**No persistence impact.** Domain `Command` dataclasses are message-bus payloads. Skip.
+**No persistence impact.** Domain `<<Command>>` dataclasses are message-bus payloads, not persisted state. Skip.
 
 ### 5. `aggregates` (`<<Aggregate Root>>`, `<<Entity>>`)
 
 The largest blast radius — touches every section:
 
-- **Root attribute add / remove / type** → §3 column row, §2 migration row, mapper row update.
-- **Root gains / loses `tenant_id`** → §1 multi-tenant flag flips, §2 Table pattern flips Simple ↔ Composite PK, Migration flips, Repository pattern flips, every Alternative Lookup gains/loses a tenant arg.
-- **Entity added (new child)** → §1 has-children flag flips on, §2 gains `<Child>Table` (with FK) / `Add Foreign Key` migration / `<Child>EntityMapper` rows, repository flips Simple → With Children, §3 gains a child table block + an FK index.
-- **Entity removed** → mirror of "added"; the most destructive case, since it implies dropping a child table on a populated database. Strong candidate for hard-fail.
-- **Multiplicity flip on a relationship** (`"1"` → `"0..*"` or vice versa) → restructures column-vs-child-table and shifts mapper variant.
-- **Status / Statuses field change on the root** → status column add/alter, possibly a partial index for active rows.
-- **Aggregate root removal** → hard-fail (mirror of `update-specs` 1c).
-- **Aggregate root stereotype change** → hard-fail (mirror of `update-specs` 1b).
+- **Root attribute add / remove / type change** → §3 column row regenerated; mapper row updates on regen if the attribute is a value-object reference; §2.Migrations gains one appended `Add Column` / `⚠ Drop Column` / `⚠ Alter Column Type` row per change.
+- **Root gains / loses `tenant_id`** → §1 multi-tenant flag flips, §2 Table pattern flips Simple ↔ Composite PK on regen, every Alternative Lookup gains/loses a tenant arg on regen, every child Table-with-FK shifts between `(parent_id, id)` and `(parent_id, id, tenant_id)` PKs on regen, every index in §3 gains/loses a `tenant_id` column on regen. §2.Migrations gains the appended cascade — Add Column `<table>.tenant_id` (initially nullable) followed by Add Not Null Constraint for the *gain* case, or ⚠ Drop Column `<table>.tenant_id` per affected table for the *loss* case. The original `Create Table` rows in §2.Migrations are preserved as historical record.
+- **Entity added (new child)** → §1 has-children flag flips on, §2 gains `<Child>Table` (Table with FK) / `<Child>EntityMapper` rows on regen, repository pattern flips Simple → With Children, mapper variant flips Full / Minimal → Aggregate Mapper with Children, §3 gains a child table block + an FK index. §2.Migrations gains two appended rows: Create `<child_table>` + Add Foreign Key `<child_table>.<parent_id>`.
+- **Entity removed** → mirror of "added"; §1/§2/§3 regen drops the child references; §2.Migrations gains an appended ⚠ Drop Table `<child_table>` row. Destructive on populated databases — the appender flags but emits; downstream `migrations-implementer` policy decides whether to honour it without operator confirmation.
+- **Entity attribute add / remove / type change** → restricted to the child table's columns in §3 (regen) and the matching `<Child>EntityMapper` row in §2 (regen); does not touch the parent table's section. §2.Migrations gains an appended `Add Column` / `⚠ Drop Column` / `⚠ Alter Column Type` row scoped to the child table.
+- **Method added/removed/changed on root or entity** → **byte-neutral for the command-repo-spec.** Methods describe behaviour, not state. Skip.
+- **Multiplicity flip on a composition relationship** (e.g. `"1"` → `"0..*"` or vice versa) — restructures column-vs-child-table and shifts mapper variant. Equivalent in spec impact to entity added/removed when it crosses the "single inline VO ↔ collection child entity" boundary.
+- **Status field change on the root or a child entity** (presence flip of a `status: <<Value Object>>` field) → §3 owner's table gains/loses `status: String NOT NULL` + `status_error: String NULL` columns on regen; §2 mapper variant may flip Minimal → Full to enable the status block. §2.Migrations gains two appended rows (`Add Column status` + `Add Column status_error`) on the *gain* case; two `⚠ Drop Column` rows on the *loss* case.
+- **Timestamp pair change** (presence flip of the `created_at` / `updated_at` pair) → §3 owner's table gains/loses both `DateTime(timezone=True)` columns on regen; §2 mapper variant may flip Minimal → Full to enable the timestamp block. §2.Migrations gains two appended `Add Column` (or `⚠ Drop Column`) rows.
+- **Aggregate root removed** → hard-fail (mirror of `update-specs` 1c).
+- **Aggregate root stereotype demoted to `<<Entity>>` or anything else** → hard-fail (the spec's anchor class no longer exists; route to `/persistence-spec:generate-specs`).
 
 ### 6. `repositories-services` (`<<Repository>>`, `<<Service>>`)
 
-Narrow, targeted impact:
+Repository finder churn lands here. Service churn does not — the persistence updater filters this category by stereotype:
 
-- **Finder added / removed / signature changed** on the abstract command repository → §2 *Alternative Lookups* bullet list updates; §3 Indexes table gains/drops a row; downstream repo tests (out of spec scope) need a regen.
-- **Service interface change** → no command-side persistence impact (services are not persisted). Query-context wiring may need a re-run if it is a *query* interface — but that is a query-spec concern, not command-repo-spec.
-
----
-
-## Cross-cutting shape-change detector
-
-Independent of category, certain shape deltas should force a §1 + §2 regeneration even when only one domain category is in the footer. These are the *pattern-flipping* changes:
-
-| Shape signal | Detection (from `<stem>.updates.md`) | Effect |
-|---|---|---|
-| Multi-tenancy gained | `+tenant_id: <Type>` attribute on the root | Re-run §1 + §2 (Table → Composite PK, Repository pattern flip, Alt Lookups gain tenant arg) |
-| Multi-tenancy lost | `-tenant_id` attribute on the root | Re-run §1 + §2 (mirror); flag as destructive |
-| Children gained | New `<<Entity>>` listed under `## Class Lifecycle → Added`, **or** new `*--` relationship from the root | Re-run §1 + §2; §3 gains a child table block |
-| Children lost | `<<Entity>>` removed, **or** `*--` relationship removed | Mirror; flag as destructive |
-| Polymorphism gained | New subtype branches in the diagram (additional classes inheriting from a VO/Entity) | Mapper variant flips Polymorphic; §1 polymorphism flag flips |
-| JSONB VO added/removed | Non-trivial `<<Value Object>>` add/remove on the root | §1 JSONB cell, §2 mapper row, §3 column |
-
-These could be a single "shape-change detector" pass that runs over the report and emits a `shape_changed: bool` plus a small `triggers: set[str]` used to gate which sections regenerate. The detector is small enough to live inside the orchestrator skill rather than its own agent.
+- **`<<Repository>>` finder added** → if the finder name is `*_of_id`, **no spec impact** (the by-id finder is part of every repository pattern's base contract). If the finder is a non-`*_of_id` lookup (e.g. `*_with_*`, `*_by_*`, `find_*`), §2.Repository → Alternative Lookups gains a bullet on regen, §3.Indexes gains a row on regen, and §2.Migrations gains an appended `Add Index` (scalar field) or `Add JSONB Index` (JSONB field) row.
+- **`<<Repository>>` finder removed** → §2 Alt-Lookup bullet and §3.Indexes row drop on regen; §2.Migrations gains an appended `Drop Index` row. The original `Add Index` row that introduced the index remains in §2.Migrations as historical record.
+- **`<<Repository>>` finder signature changed** (parameter renamed, retyped, or its multiplicity flipped) → §3.Indexes row's column list updates on regen; the Alt-Lookup bullet text is rewritten on regen. §2.Migrations gains two appended rows: Drop Index `idx_<table>_<old_column>` + Add Index `idx_<table>_<new_column>`.
+- **`<<Repository>>` interface itself added or removed** — should not happen on an established aggregate, but if it does, treat as malformed-report (mirror of root-removal hard-fail), since a domain aggregate without a repository is not persistable.
+- **`<<Service>>` added / removed / changed** → **byte-neutral for the command-repo-spec.** Skip the category entry when its only contributor is a `<<Service>>` change.
 
 ---
 
-## Three approaches for the persistence updater skill
+## Out-of-band signals (not in `affected_categories`)
 
-Roughly increasing in surgical precision, decreasing in implementation cost. Same A/B/C framing used in `plugins/domain-spec/notes/spec-updater-approach-b.md`:
+Three persistence-relevant signals are not directly emitted as a `affected_categories` entry. The updater must derive them from member/relationship deltas in `## Per-Class Changes` and from the Mermaid frontmatter:
 
-### Approach A — Whole-spec regen, gated
+- **Multi-tenancy flip** — derive from "`tenant_id` attribute added to the aggregate root" or "`tenant_id` attribute removed from the aggregate root" entries inside the root's Members table. Triggers a shape-change cascade through snapshot sections §1 / §2 / §3 even when no other category-mate is affected, **plus** appended `Add Column tenant_id …` / `⚠ Drop Column tenant_id` rows in §2.Migrations per affected table.
+- **Children flip** — derive from any `<<Entity>>` class lifecycle entry (added or removed under `## Class Lifecycle`) **or** from a composition multiplicity flip on the root that crosses the "0..1 → 0..*" boundary. The `aggregates` category fires anyway in those cases, so this signal is informational rather than dispatch-determining; it determines *what kind* of regen §1 / §2 / §3 need (and which appended rows the migrations appender emits).
+- **Bounded-context rename** — derive from a change in the diagram's Mermaid `title:` directive. This shows up in the `## Orphan Prose Changes → Preamble` block (the title is part of the preamble), **not** in `affected_categories`. It triggers snapshot regen of §1 (Purpose / Implementation labelling) and §2 (UoW class names) only; **no §2.Migrations row is appended** because a context rename does not change the database schema.
 
-If `affected_categories ∩ {data-structures, value-objects, aggregates, repositories-services}` is non-empty, re-run `command-repo-spec-pattern-selector` and `command-repo-spec-schema-writer` against the existing scaffolded spec.
+---
 
-- **Pro:** trivial to implement; reuses existing agents verbatim.
-- **Con:** clobbers any manual edits inside §2 (e.g. hand-tuned alternative lookups) or §3 (e.g. hand-authored index entries).
-- **Pro:** zero new agents; the whole skill is ~30 lines of dispatch.
+## Update types
 
-### Approach B — Section-scoped regen (recommended first cut)
+Mirroring the domain-spec catalog (L / M / R / P / C codes), here is the persistence-spec response to each:
 
-Map each affected category to a subset of {§1, §2, §3} and re-run only the writer agent that owns that section. Splice section-by-section back into the existing spec file.
+### L. Lifecycle updates (whole-class)
 
-| Trigger | Sections to regenerate |
-|---|---|
-| `value-objects` (VO add/remove/typed) | §1, §2, §3 |
-| `aggregates` (root attr / entity / multiplicity) | §1, §2, §3 |
-| `repositories-services` (finder churn only) | §2 (Alt Lookups), §3 (Indexes) — **skip §1** |
-| `data-structures` (finder return-type only) | §3 (column projections) — **skip §1, §2** |
-| Shape-change detector signals | §1 + §2 always |
+- **L1. Class added** — dispatch by stereotype:
+  - `<<Aggregate Root>>` → impossible on an existing spec; treat as malformed.
+  - `<<Entity>>` → snapshot regen of §1 has-children flag, §2 (`<Child>Table` / `<Child>EntityMapper` / repository pattern flip / mapper variant) and §3 (child table block + FK index); §2.Migrations gains appended Create `<child_table>` + Add Foreign Key rows.
+  - `<<Value Object>>` → snapshot regen of §1 JSONB VO list, §2 Mapper row, §3 columns / JSONB column on the owner's table; §2.Migrations gains appended `Add Column` rows (one per VO field for flat-mapped VOs; one JSONB column for JSONB-mapped VOs).
+  - `<<TypedDict>>` → byte-neutral unless the new TypedDict is a finder return type (rare; even then, query-side concern).
+  - `<<Event>>` / `<<Command>>` / `<<Service>>` → byte-neutral.
+  - `<<Repository>>` → impossible on an existing spec; treat as malformed.
+- **L2. Class removed** — symmetric to L1: the snapshot sections regen *without* the removed class's rows; §2.Migrations gains appended destructive rows (`⚠ Drop Table` for entities, `⚠ Drop Column` per affected column for VOs). The historical `Create Table` / `Add Column` rows that introduced the entity / VO remain in §2.Migrations as audit trail.
+- **L3. Stereotype changed** — hard-fail (route to `/persistence-spec:generate-specs`). The cross-category move requires the spec body to be re-rendered under the new pattern catalog.
 
-- **Pro:** preserves manual edits in untouched sections.
-- **Pro:** mechanically cheap — three sections × two existing writer agents already exist; the splice is a heading-bounded `Edit` call per section.
-- **Con:** still wholesale-replaces a section when any of its rows change; doesn't preserve hand-edits within a regenerated section.
+### M. Member updates (in-class, signature-affecting)
 
-### Approach C — Splicer-style surgical edits
+- **M1. Attribute added/removed on root or entity** — §3 column row regen; §2 mapper row regen if the attribute is a VO reference; §2.Migrations gains an appended `Add Column` (added) or `⚠ Drop Column` (removed) row. Potentially flips multi-tenancy, children, status, or timestamp signals (see *Out-of-band signals*).
+- **M2. Attribute type changed** — §3 column type change on regen; §2 mapper row may need variant change if the type flips between scalar and value object on regen; §2.Migrations gains an appended `⚠ Alter Column Type` row.
+- **M3. Attribute visibility changed** — **byte-neutral for the command-repo-spec.** Visibility is a domain-layer encapsulation concern; the persistence layer reads private state via the mapper unconditionally.
+- **M4. Method added/removed on root/entity/service** — **byte-neutral.** Methods are behaviour, not state. (Method changes on `<<Repository>>` are a separate axis — covered under M5 as finder churn.)
+- **M5. `<<Repository>>` method signature changed** (finder churn) — see `repositories-services` mapping above. §2 Alt-Lookups bullet regen, §3 Indexes regen, §2.Migrations gains an appended `Add Index` / `Drop Index` row (or both, for signature changes that rename the indexed column).
 
-Mirror the domain `update-specs` model exactly: add a `command-repo-spec-pruner` that strips rows for removed classes (mapper row for a removed VO, column row for a removed attribute, migration changeset for a dropped column, alt lookup for a removed finder) and a `command-repo-spec-splicer` that adds/replaces rows for added/changed ones.
+### R. Relationship updates (cross-class topology)
 
-- **Pro:** highest fidelity; preserves hand-edits at row granularity.
-- **Con:** requires duplicating the row-shape knowledge already encoded in the pattern-selector and schema-writer agents.
-- **Con:** shape-flip cases (multi-tenancy gained, children gained) still demand whole-section regen, so the splicer handles only the easy cases anyway.
+- **R1. Composition added/removed** (`*--`) — ownership topology change:
+  - Root → `<<Entity>>` composition added → entity-added path (children flip).
+  - Root → `<<Entity>>` composition removed → entity-removed path.
+  - Root or entity → `<<Value Object>>` composition added/removed → VO-added/-removed path.
+- **R2. Dependency added/removed** (`-->`) — for `: emits ...` labels this adds/removes a `<<Event>>` (no persistence impact). For service-injection dependencies this is also no-op. The only persistence-relevant `-->` change is when the dependency endpoint is a `<<Repository>>` interface (rare on an established aggregate; treat as informational).
+- **R3. Realization added/removed** (`--()`) — command-handler surface; no persistence impact.
+- **R4. Inheritance added/removed** (`<|--`) — the only persistence-relevant case is a hierarchy that introduces a discriminator on a `<<Value Object>>` or `<<Entity>>` → §1 polymorphism flag flips, §2 gains `Polymorphic Mapper` on regen, §3 swaps single JSONB for `<attr>_kind` / `<attr>_data` pair on regen. §2.Migrations gains three appended rows: ⚠ Drop Column `<table>.<attr>`, Add Column `<table>.<attr>_kind`, Add Column `<table>.<attr>_data`.
+- **R5. Multiplicity changed** — see "Multiplicity flip" under `aggregates` mapping; the boundary that matters is "single inline → collection".
+- **R6. Label changed** (e.g. `: emits OrderPlaced` → `: emits OrderConfirmed`) — event-name rename; no persistence impact.
+- **R7. Orphan relationship change** — the unresolved source class is typically an inferred `<<Event>>` or `<<Command>>`; no persistence impact. If the orphan resolves to a `<<Repository>>` interface (very rare), treat as malformed.
 
-**Recommendation:** start with **B**. The three sections × two writer agents make section-scoped regeneration the cheapest precision-preserving option. Graduate to C for §3 column rows only if manual edits there start mattering in practice.
+### P. Prose updates (semantic, not structural)
+
+- **P1. Class-keyed prose changed** — narrative is not consumed by the command-repo-spec. **Byte-neutral.**
+- **P2. Method-keyed prose changed** — same as P1. **Byte-neutral.**
+- **P3. Orphan prose changed — `Preamble`** — refresh the §1 Purpose sentence (one-liner) **only if** the bounded-context name changed; otherwise byte-neutral. Detect by comparing the `title:` directive in the diff body.
+- **P4. Orphan prose changed — free-form** (`Notes`, `Glossary`, etc.) — **byte-neutral.** These do not influence the spec.
+
+### C. Composite / derived signals
+
+- **C1. Pure prose change, zero structural** — typically byte-neutral for the persistence spec; the rare exception is a P3 bounded-context rename, which triggers a §1/§2-only snapshot regen (no migration row — context renames don't change the database schema).
+- **C2. Pure structural, zero prose** — standard regen-plus-append path; the writer agents do not consume prose, so they produce identical snapshot output regardless of prose changes; the appender emits exactly the rows the structural deltas dictate.
+- **C3. `Affected Categories` empty** — early-exit (no-op) for the persistence updater. Even orphan prose changes (P3 bounded-context rename) are typically harmless to defer until the next real domain change.
+- **C4. `Affected Categories` spans multiple** — fan out to the corresponding sections; §1 + §2.{Tables, Mappers, Repository, Context Integration} always regenerate together (same writer agent), §3 re-runs whenever attribute-level changes are present, and §2.Migrations gains one or more appended rows for each structural delta in the report.
+- **C5. First-run / degraded baseline** (HEAD warning) — hard-fail (route to `/persistence-spec:generate-specs`).
+
+---
+
+## Section-affected matrix
+
+Quick lookup for "given an update type, what happens in each section":
+
+| Update kind | §1 Aggregate Analysis | §2 Pattern Selection (excl. Migrations) | §2 Migrations | §3 Schema Specification |
+|---|---|---|---|---|
+| Aggregate root lifecycle (added / removed / stereotype change) | hard-fail |
+| `<<Repository>>` interface lifecycle change | hard-fail |
+| Entity added/removed | regen | regen | append (Create Table + FK / Drop Table) | regen |
+| Entity attribute add/remove/type | regen | regen | append (Add Column / Drop Column / Alter Column) | regen child table block |
+| Root attribute add/remove/type (non-tenant) | regen | regen | append (Add Column / Drop Column / Alter Column) | regen parent table block |
+| Multi-tenancy flip (`tenant_id` add/remove on root) | regen | regen | append (Add Column tenant_id … / Drop Column tenant_id) | regen |
+| Status field flip on root or entity | regen | regen (mapper variant Minimal ↔ Full) | append (Add status + status_error / Drop both) | regen owner's table |
+| Timestamp pair flip | regen | regen (mapper variant Minimal ↔ Full) | append (Add created_at + updated_at / Drop both) | regen owner's table |
+| VO added/removed/changed (non-polymorphic) | regen (JSONB VO list) | regen (Mapper row) | append (Add Column / Drop Column per affected column) | regen owner's table |
+| VO becomes polymorphic | regen (polymorphism flag) | regen (Polymorphic Mapper row) | append (Drop original column + Add `<attr>_kind` + Add `<attr>_data`) | regen owner's table |
+| `<<Repository>>` finder added/removed/changed (non-`*_of_id`) | — | regen (Alt-Lookups list) | append (Add Index / Drop Index) | regen Indexes |
+| `<<Repository>>` finder added/removed/changed (`*_of_id`) | — | — | — | — |
+| Bounded-context rename (Mermaid title) | regen Purpose | regen UoW class names | — | — |
+| `<<Event>>` / `<<Command>>` / `<<Service>>` lifecycle or member change | — | — | — | — |
+| TypedDict / domain-event prose / class prose | — | — | — | — |
+
+Legend:
+- **regen** — the snapshot writer agent re-runs and replaces the section content from the current diagram. Existing content is discarded.
+- **append** — `command-repo-spec-migrations-appender` adds new rows to the bottom of §2.Migrations with fresh sequential IDs. Existing rows are byte-stable.
+- **— (byte-stable)** — section is not touched.
+- **hard-fail** — the updater bails out with a clear operator instruction (see *Hard-fail conditions* below).
+
+§1 and §2 (excluding Migrations) are owned by `command-repo-spec-pattern-selector`, so they always regenerate together when either is dirty. §2.Migrations is owned by the dedicated migrations agents (writer for first-run, appender for updates) and operates independently. §3 has its own writer (`command-repo-spec-schema-writer`) and can be regenerated independently of §1/§2.
+
+The "append" column captures the new rows the appender emits per delta type. See `spec-updater-approaches.md` § "Delta-to-changeset dispatch" for the full row-emission rules and the destructive-change `⚠ ` flagging convention.
 
 ---
 
 ## Hard-fail conditions
 
-Mirror the domain `update-specs` failure semantics:
+Mirror the domain `update-specs` failure semantics. Each prints exactly one `ERROR:` line and exits, with text directing the operator to `/persistence-spec:generate-specs <domain_diagram>`:
 
-- **Aggregate root removal** in `## Class Lifecycle → Removed` — hard-fail. Cannot prune the root from a persistence spec without invalidating the whole spec.
-- **Aggregate root stereotype change** in `## Class Lifecycle → Stereotype Changed` — hard-fail. Whole pattern catalog re-applies; route to `/persistence-spec:generate-specs`.
-- **Degraded baseline** (`_warning: HEAD ...` line in the report Summary) — hard-fail. Same reason as domain.
+- **Aggregate root removal** in `## Class Lifecycle → Removed` — cannot prune the root from a persistence spec without invalidating the whole spec.
+- **Aggregate root stereotype change** in `## Class Lifecycle → Stereotype Changed` (old or new bucket = `<<Aggregate Root>>`) — whole pattern catalog re-applies.
+- **`<<Repository>>` interface lifecycle change** (added or removed) — a domain aggregate without a repository is not persistable; reject as malformed.
+- **Degraded baseline** (`_warning: HEAD ...` line in the report Summary) — same reason as domain.
 - **Multi-tenancy flip + children flip in the same diff** — *optional* hard-fail. The shape change is large enough that regeneration from scratch is safer than splicing two pattern flips simultaneously. Worth a flag, not necessarily a default.
-
-Each failure should print exactly one `ERROR:` line and exit, with text directing the operator to `/persistence-spec:generate-specs <diagram_file>`.
 
 ---
 
@@ -163,52 +225,21 @@ Each failure should print exactly one `ERROR:` line and exit, with text directin
 
 These belong in operator-facing warnings, not in the spec content itself:
 
-- **Migration safety.** A "drop column" migration on a populated table is destructive; the updater should *propose* the changeset row but warn that the operator must hand-author the data-preserving migration. Same for column type changes and attribute renames (which today look like add+remove in the report).
-- **Index churn.** Removing a finder removes a row from §3 Indexes, but the underlying index is real in the database; the migration list should grow a `Drop Index` changeset, not just shrink the §3 table.
-- **Tenant column removal.** Going Composite PK → Simple Table is data-destructive even if every tenant has the same value. Flag it; do not silently flip the pattern.
-- **Query-side ripple.** Today the command-repo-spec is the only persistence spec. If TypedDict / DTO shapes change and a query repository projects them, that is a separate concern — worth a future `/update-query-specs` rather than overloading this skill.
-- **Code regen.** This skill stops at the spec. Downstream tables, migrations, mappers, and repos are owned by `/persistence-spec:generate-code` (or its eventual surgical updater).
+- **Migration safety on populated databases.** Drop-column, drop-index, alter-column-type, and drop-table changesets are destructive. The appender emits these rows with a `⚠ ` prefix in the Changeset column; downstream `migrations-implementer` policy decides whether to skip flagged rows, emit them with operator-confirmation guards, or block code generation until the operator resolves the flag. See `spec-updater-approaches.md` § "Destructive change handling".
+- **Tenant column removal.** Multi-tenancy removal drops `tenant_id` from every table and rewrites every PK / FK constraint. The appender emits the cascade of `⚠ Drop Column` rows; the operator must author the data-preserving migration manually if any tenant data must be reconciled before the column drops.
+- **Attribute renames.** Renames are reported by `updates-detector` as `remove + add`, so the appender emits `⚠ Drop Column` + `Add Column`. This is correct but data-destructive; an operator who actually wants a rename must replace those two rows with a single `Rename Column` changeset before the implementer runs.
+- **Concurrent updaters.** Two operators on parallel branches can both allocate the same next migration ID. This is a Git merge conflict, not a bug — standard merge tooling resolves it. Worth documenting in operator instructions.
+- **Query-side ripple.** Today the command-repo-spec is the only persistence spec. If TypedDict / DTO shapes change and a query repository projects them, that is a separate concern — worth a future `/persistence-spec:update-query-specs` rather than overloading this skill.
+- **Code regen.** This skill stops at the spec. Downstream tables, migrations, mappers, and repos are owned by `/persistence-spec:generate-code`. The downstream `migrations-implementer` MUST be append-only — never overwrite an existing `db/migrations/<id>_<slug>.yaml` file. Verify this contract; if today's implementer overwrites, the spec-side immutability fix doesn't help the actual migrations.
 
 ---
 
-## Pipeline sketch (Approach B)
+## Dispatch tiers for a persistence-spec updater
 
-```
-<stem>.updates.md ──┐
-                    ├─► [0] preflight (parse footer, lifecycle, summary)
-                    │       ↳ hard-fail on degraded baseline
-                    │       ↳ hard-fail on root removal / stereotype change
-                    │       ↳ early-exit if affected_categories ⊆ {domain-events, commands}
-                    │
-<stem>.persistence/command-repo-spec.md ─┤
-                    │
-                    ├─► [1] shape-change detector
-                    │       ↳ scan report for tenant flip / children flip / polymorphism flip
-                    │       ↳ produce {triggers, shape_changed}
-                    │
-                    ├─► [2] dispatch matrix
-                    │       categories + triggers → set of sections {§1, §2, §3}
-                    │
-                    ├─► [3] section-scoped regen
-                    │       §1 + §2 → re-run command-repo-spec-pattern-selector
-                    │       §3      → re-run command-repo-spec-schema-writer
-                    │       (writers operate against the existing scaffold)
-                    │
-                    ├─► [4] splice
-                    │       replace each regenerated section in <stem>.persistence/command-repo-spec.md
-                    │       by H2-heading bounds; preserve all other content byte-identical
-                    │
-                    └─► [5] report
-                            "Updated <stem>.persistence/command-repo-spec.md (sections: §1, §2)"
-```
+Three natural tiers fall out of the type list, mirroring the domain-spec dispatch tiers:
 
-Steps 0–2 are pure parsing and live in the orchestrator skill body. Step 3 is the only step that fans out to existing agents (and only ever to two of them, so parallelism is not necessary). Step 4 is a heading-bounded `Edit` per regenerated section.
+1. **Hard-fail** — root lifecycle changes, root stereotype changes, repository-interface lifecycle changes, degraded baseline. Operator runs `/persistence-spec:generate-specs`.
+2. **Snapshot regen + log append** — every other update type. Re-run `command-repo-spec-pattern-selector` for §1 + §2.{Tables, Mappers, Repository, Context Integration} dirt and/or `command-repo-spec-schema-writer` for §3 dirt against the existing scaffolded spec; **then** invoke `command-repo-spec-migrations-appender` to add delta-driven rows to §2.Migrations. Existing §2.Migrations rows are byte-stable.
+3. **No-op** — empty `affected_categories`, or `affected_categories ⊆ {domain-events, commands}`, or `repositories-services` whose only contributor is a `<<Service>>` change, or pure prose changes that don't touch the bounded-context title.
 
----
-
-## Open questions
-
-- **What is the actual filename of the persistence spec sibling?** Resolved: per `persistence-spec:naming-conventions`, `command-repo-spec-scaffolder` writes `<stem>.persistence/command-repo-spec.md` (the per-plugin folder layout). The pipeline sketch above uses that path.
-- **Should the updater touch the query-context spec too?** Today there is no query-context spec file; query repos are inferred from the command-repo-spec. If a query-spec file is ever introduced, this skill grows a second target.
-- **Should shape-change detection live in `domain-spec:updates-detector` or in the persistence updater?** Today the report does not flag tenant-flip / children-flip explicitly — the persistence updater would have to derive them from member and relationship deltas. A small enrichment of the report (e.g. a `## Persistence-Relevant Shape Changes` section) might be worth it if a REST-API updater later needs the same signals.
-- **Hand-edit preservation in §3 Indexes.** Indexes today are partly derived (one per finder) and partly hand-authored (operator-tuned indexes for known query patterns). A whole-section regen of §3 will lose hand-tuned index rows. This is the strongest argument for graduating to Approach C on §3 specifically.
+The lighter "no-op" tier is the persistence equivalent of the `domain-spec` "C3 empty footer" early-exit. The middle "snapshot regen + log append" tier is the standard path for any structural domain change — and is the load-bearing reason §2.Migrations is owned by a separate appender agent rather than swept up in the snapshot writer's regen.

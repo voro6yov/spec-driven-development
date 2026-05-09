@@ -47,53 +47,48 @@ Read `<command_spec_file>` (derived per the Path resolution note above from the 
 
 **Placeholder detection rule.** Before stripping any escape sequences, inspect the raw cell text. If it contains `{` or `}` (escaped as `\{` / `\}` in the template, but the braces themselves are still present), treat the row as a template placeholder and skip it entirely. Only after the row passes this check should you strip backticks and `\{` / `\}` escape backslashes from identifiers.
 
-In Section 2 (`## 2. Pattern Selection`) find the `### Migrations` subsection and locate its data rows (the table with columns `Changeset | Pattern | Template`). Apply the placeholder detection rule to each row.
+In Section 2 (`## 2. Pattern Selection`) find the `### Migrations` subsection and locate its data rows (the table with columns `ID | Changeset | Pattern | Template`). Apply the placeholder detection rule to each row.
 
-For surviving rows, take the `Changeset` cell text and **slugify** it:
+For surviving rows, capture two values:
 
-1. Strip Markdown backticks and `\{` / `\}` escape backslashes.
-2. Lowercase.
-3. Replace every run of non-alphanumeric characters with a single `-`.
-4. Trim leading and trailing `-`.
+- **`<spec_id>`** from the `ID` cell — strip Markdown backticks and `\{` / `\}` escape backslashes; preserve the zero-padding as written by `@command-repo-spec-migrations-writer`. This is the row's filename numeric prefix in Step 5.
+- **`<slug>`** from the `Changeset` cell. Slugify it:
+
+  1. Strip Markdown backticks and `\{` / `\}` escape backslashes.
+  2. Lowercase.
+  3. Replace every run of non-alphanumeric characters with a single `-`.
+  4. Trim leading and trailing `-`.
 
 Examples:
 - `` Create `order_table` `` → `create-order-table`
 - `` Create `order_item_table` `` → `create-order-item-table`
-- `Add Foreign Key` → `add-foreign-key`
-- `Indexes` → `indexes`
+- `` Add Foreign Keys for `order` `` → `add-foreign-keys-for-order`
+- `` Indexes for `order` `` → `indexes-for-order`
 
-Collect the resulting slugs into `<changeset_slugs>` preserving the row order from the spec. If two rows produce the same slug, keep only the first occurrence and silently drop the rest.
+Collect the resulting tuples into `<changesets>` = ordered list of `(<spec_id>, <slug>)` pairs, preserving the row order from the spec. If two rows produce the same slug, keep only the first occurrence and silently drop the rest.
 
-Note: slug uniqueness across aggregates is the spec author's responsibility — generic slugs like `indexes` or `add-foreign-key` will collide between aggregates. The Step 5 collision check will skip the second aggregate's row, which is the intended safety net but produces an unhelpful filename for the first. Spec authors should prefer table-qualified changeset names (e.g. `Add order indexes`).
+Note: slug uniqueness across aggregates is enforced upstream by `@command-repo-spec-migrations-writer`'s qualification rule — every Changeset that aggregates content across an aggregate (Add Foreign Keys, Indexes) carries the parent table name, so two aggregates cannot collide on the same on-disk slug. The Step 5 collision check still applies as the runtime safety net.
 
-If `<changeset_slugs>` is empty after filtering, emit an empty bullet list (Step 7) and stop.
+If `<changesets>` is empty after filtering, emit an empty bullet list (Step 7) and stop.
 
-### Step 4 — Determine the next numeric prefix
+### Step 4 — Resolve the numeric prefix from the spec ID
 
-Numbering is **globally monotonic across all aggregates** — do not scope it per aggregate.
+The numeric prefix for each new migration file comes directly from the row's `<spec_id>` captured in Step 3. Numbering is **per-aggregate**, allocated upstream by `@command-repo-spec-migrations-writer`. Do not walk `<migrations_dir>` to compute a prefix — the spec is the source of truth.
 
-List `*.yaml` files directly under `<migrations_dir>` (excluding `master.yaml`) using:
+For each row, the prefix `<p>` is `<spec_id>` verbatim, zero-padded as written (typically four digits, e.g. `0001`, `0002`, …).
 
-```
-ls -1 <migrations_dir>
-```
-
-For each remaining filename, attempt to parse a leading numeric prefix matching the regex `^(\d+)-`. Track:
-
-- `<max_prefix>` — the highest integer parsed (default `0` if no matches).
-
-The next allocated prefix starts at `<max_prefix> + 1` and increments by `1` for each new file created in this run. Zero-pad each prefix to at least 2 digits (matching the project convention); allow it to grow naturally past 2 digits when the count requires it.
+Cross-aggregate filename uniqueness is guaranteed by the slug qualification applied by the writer, not by ID uniqueness — `0001-create-orders.yaml` and `0001-create-users.yaml` cannot collide because their slugs differ; the FK and Indexes rows are likewise qualified with the parent table name.
 
 ### Step 5 — Skip slug collisions, scaffold remaining stubs
 
-**Glob collision rule for stub files.** Before every `Write` of a migration YAML, glob `<migrations_dir>/*-<slug>.yaml` (any numeric prefix). Only `Write` when the glob returns no matches. The `Write` tool overwrites unconditionally, so the glob check is the *only* idempotence guard for stubs. An exact-path `test -f` is insufficient because the numeric prefix is allocated dynamically per run.
+**Glob collision rule for stub files.** Before every `Write` of a migration YAML, glob `<migrations_dir>/*-<slug>.yaml` (any numeric prefix). Only `Write` when the glob returns no matches. The `Write` tool overwrites unconditionally, so the glob check is the *only* idempotence guard for stubs. An exact-path `test -f` is insufficient because previously-scaffolded aggregates may have existing files with a different prefix scheme (e.g. legacy two-digit prefixes from before per-aggregate spec IDs were introduced); the slug-glob preserves them by skipping the new write.
 
 **Partial-failure limitation.** Because a slug collision skips both the file write *and* the master include entry, this agent cannot recover from a prior partial-failure state where a stub file was written but `master.yaml` was not updated. In that rare case the operator must manually add the missing include entry to `master.yaml`.
 
-For each slug `s` in `<changeset_slugs>`:
+For each (`<p>`, `<s>`) tuple in `<changesets>`:
 
-- **Collision check.** If the glob `<migrations_dir>/*-<s>.yaml` matches anything, skip `s` entirely: do not create a file, do not append a master include entry, and do not emit a bullet for it in Step 7.
-- **Create stub file.** Otherwise allocate the next prefix `p` (zero-padded), let `<filename>` = `<p>-<s>.yaml`, and use `Write` to create `<migrations_dir>/<filename>` with this exact body:
+- **Collision check.** If the glob `<migrations_dir>/*-<s>.yaml` matches anything, skip the tuple entirely: do not create a file, do not append a master include entry, and do not emit a bullet for it in Step 7.
+- **Create stub file.** Otherwise let `<filename>` = `<p>-<s>.yaml`, and use `Write` to create `<migrations_dir>/<filename>` with this exact body:
 
   ```yaml
   databaseChangeLog: []
@@ -101,7 +96,7 @@ For each slug `s` in `<changeset_slugs>`:
 
   This is a minimal valid Liquibase changelog so that registering the file in `master.yaml` (Step 6) does not break the migrator before the implementer fills in changeSets.
 
-  Increment the next-prefix counter. Record `<migrations_dir>/<filename>` in `<created_files>` for use in Steps 6 and 7.
+  Record `<migrations_dir>/<filename>` in `<created_files>` for use in Steps 6 and 7.
 
 ### Step 6 — Rewrite `master.yaml` with appended entries
 
