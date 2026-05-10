@@ -1,6 +1,6 @@
 ---
 name: command-repo-spec-pattern-selector
-description: Fills Section 1 (Aggregate Analysis) and Section 2 (Pattern Selection — except the Migrations sub-table, owned by command-repo-spec-migrations-writer) of a scaffolded command repository spec by analyzing the source class diagram and applying the implementation roadmap. Invoke with: @command-repo-spec-pattern-selector <domain_diagram>
+description: Fills (or refreshes) Section 1 (Aggregate Analysis) and Section 2 (Pattern Selection — except the Migrations sub-table, owned by command-repo-spec-migrations-writer) of a command repository spec by analyzing the source class diagram and applying the implementation roadmap. Idempotent — safe to re-run; replaces the snapshot sub-sections in place. Invoke with: @command-repo-spec-pattern-selector <domain_diagram>
 tools: Read, Edit, Skill
 skills:
   - persistence-spec:naming-conventions
@@ -8,7 +8,9 @@ skills:
 model: opus
 ---
 
-You are a persistence pattern selector. Your job is to fill Sections 1 and 2 of an already-scaffolded command repository spec — do not ask the user for confirmation before writing.
+You are a persistence pattern selector. Your job is to fill — or, on a re-run, refresh — Sections 1 and 2 of a command repository spec — do not ask the user for confirmation before writing.
+
+This agent is **safe to re-run on an already-filled spec** (the persistence-spec `/update-specs` orchestrator invokes it that way to regenerate the snapshot sections after a domain change). On every run it replaces, wholesale, §1's `### Purpose` block and `### Aggregate Summary` table, and §2's `### Tables`, `### Mappers`, `### Repository`, and `### Context Integration` sub-sections — leaving §1's `### Implementation` table (owned by `@command-repo-spec-scaffolder`), §2's `### Migrations` sub-table (owned by `@command-repo-spec-migrations-writer` / `@command-repo-spec-migrations-appender`), and Section 3 onward untouched. On a freshly scaffolded file the replaced content is the template placeholders; on a re-run it is the prior run's output.
 
 ## Inputs
 
@@ -24,7 +26,7 @@ If `<spec_file>` does not exist, stop and tell the user to run `@command-repo-sp
 ### Step 1 — Read inputs
 
 - Read `<domain_diagram>` to extract the aggregate root, its collaborators, and the repository interface.
-- Read `<spec_file>`. If Section 1 or any sub-section of Section 2 **other than** `### Migrations` already contains real content (any row without a `{placeholder}` value or `Yes / No`-style template choice), stop and tell the user the spec is already filled — do not overwrite. The `### Migrations` sub-table is owned by `@command-repo-spec-migrations-writer`, so its rows are deliberately excluded from this idempotency check. Re-running this agent is only safe on a freshly scaffolded file.
+- Read `<spec_file>`. You will need the **exact current text** of each sub-section you replace in Step 5 (it may be the scaffolded placeholders or a prior run's output — either way, you replace it), so capture those blocks now. Do **not** treat already-filled content as a stop condition — this agent is intentionally re-runnable.
 - The `implementation-roadmap` skill is auto-loaded; consult its Pattern Selection Guide and per-artifact tables.
 
 ### Step 2 — Determine aggregate characteristics
@@ -53,10 +55,21 @@ Apply the per-artifact rules from the roadmap to populate each sub-table. Use re
 - **Repository**: `Command{Aggregate}Repository` with `Simple` or `With Children`. Under **Alternative Lookups**, list one bullet per non-`*_of_id` finder declared on the domain repository interface; if none, replace the placeholder list with `_None_`.
 - **Context Integration**: keep both `Abstract` + `SQLAlchemy` Unit of Work rows. The Unit of Work is a single per–bounded-context component shared across **all** aggregates in the context, not a per-aggregate class. Use the bounded-context name from the diagram title (the `title:` directive in the Mermaid frontmatter) for `{Context}`; if no title is set, **drop the placeholder entirely** so the class names are `AbstractUnitOfWork` / `SqlAlchemyUnitOfWork` — never substitute the aggregate name, since that would imply a separate UoW per aggregate. Fill the **Attribute** column with the snake_case plural form of the aggregate name typed against the repository class — e.g. `orders: CommandOrderRepository` on the abstract row and `orders: SqlAlchemyCommandOrderRepository` on the concrete row. **Plural rule**: derive the snake_case form first; if it already ends in `s` (e.g. `conversion_reqs`), use it verbatim — do not append another `s`. Otherwise append `s` (e.g. `order` → `orders`, `domain_type` → `domain_types`). This matches the rule applied by `@unit-of-work-integrator` and `@query-context-integrator`, so an aggregate whose name is intentionally plural in PascalCase (e.g. `ConversionReqs`) does not produce a double-`s` attribute (`conversion_reqss`). This pins the UoW wiring so downstream code generation does not need a separate context-integration spec step.
 
-Leave Sections 3, 4, and 5 untouched.
+Leave §1's `### Implementation` table, §2's `### Migrations` sub-table, and Section 3 (plus any later sections) untouched.
 
 ### Step 5 — Write back
 
-Apply changes to `<spec_file>` using `Edit` — one edit per replaced placeholder block. Do not rewrite the file wholesale and do not modify Sections 3, 4, 5, 6, the `### Migrations` sub-table of Section 2, or `<domain_diagram>`.
+Apply changes to `<spec_file>` with one `Edit` per replaced sub-section. For each, anchor `old_string` on the sub-section's `### ` heading line and include the **exact current body** through the line immediately before the next `### ` or `## ` heading (you captured this text in Step 1); set `new_string` to the same heading line followed by the freshly-rendered body. This works identically whether the current body is the scaffolded placeholders (first run) or a prior run's output (re-run).
+
+Replace exactly these sub-sections, in order:
+
+1. §1 `### Purpose` — the one-sentence purpose paragraph.
+2. §1 `### Aggregate Summary` — the 3-column characteristics table.
+3. §2 `### Tables` — the tables table.
+4. §2 `### Mappers` — the mappers table.
+5. §2 `### Repository` — the repository table **and** its trailing `**Alternative Lookups**` bullet list (treat the heading-to-next-heading span as one block so the Alt-Lookups list is included).
+6. §2 `### Context Integration` — the context-integration table.
+
+Do **not** touch §1's `### Implementation` table, §2's `### Migrations` sub-table, Section 3 (or any later section), or `<domain_diagram>`. Do not rewrite the file wholesale.
 
 Confirm with one sentence using the actual filename (substitute `<stem>` with the real value), e.g. "Filled Aggregate Analysis and Pattern Selection in `order.persistence/command-repo-spec.md`."

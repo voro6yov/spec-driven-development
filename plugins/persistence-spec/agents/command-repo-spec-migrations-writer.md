@@ -5,6 +5,7 @@ tools: Read, Edit, Skill
 skills:
   - persistence-spec:naming-conventions
   - persistence-spec:implementation-roadmap
+  - persistence-spec:migration-vocabulary
 model: opus
 ---
 

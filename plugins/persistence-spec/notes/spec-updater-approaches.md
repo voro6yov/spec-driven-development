@@ -2,7 +2,7 @@
 
 This note documents the design of `/persistence-spec:update-specs`, the surgical update skill for `<dir>/<stem>.persistence/command-repo-spec.md`. It is the persistence-side counterpart to `/update-specs` for `domain-spec`.
 
-The chosen approach is **Snapshot regen + append-only migrations log**, chained from domain `/update-specs` as an opt-in final step.
+The chosen approach is **Snapshot regen + append-only migrations log**. It is designed to chain from domain `/update-specs` as an opt-in final step, but currently ships as an independently-invocable skill — the chained-step hook into domain `/update-specs` is a separate, later change.
 
 For the catalog of update types and their per-section impact, see the sibling [`update-types.md`](update-types.md).
 For the design of the per-update report this skill emits as its terminal output, see the sibling [`updates-report.md`](updates-report.md).
@@ -92,11 +92,11 @@ To support the snapshot/log split cleanly, `command-repo-spec-pattern-selector`'
 | Agent | Status | Owns |
 |---|---|---|
 | `command-repo-spec-scaffolder` | unchanged | seed file + §1.Implementation pre-fill |
-| `command-repo-spec-pattern-selector` | **modified** — drops §2.Migrations | §1 + §2.{Tables, Mappers, Repository, Context Integration} |
-| `command-repo-spec-schema-writer` | unchanged | §3 |
+| `command-repo-spec-pattern-selector` | **modified** — drops §2.Migrations; idempotent (re-runnable on a populated spec) | §1.{Purpose, Aggregate Summary} + §2.{Tables, Mappers, Repository, Context Integration} |
+| `command-repo-spec-schema-writer` | **modified** — idempotent (re-runnable on a populated spec) | §3 |
 | `command-repo-spec-migrations-writer` | **new** | §2.Migrations on first run (snapshot baseline) |
-| `command-repo-spec-migrations-appender` | **new** | §2.Migrations on update (delta append); also **returns** the structured appended-row list to the orchestrator (consumed by `command-repo-spec-updates-writer` at Step 5) |
-| `command-repo-spec-updates-writer` | **new** | `<stem>.persistence/updates.md` — composes the per-update report at Step 5 (see [`updates-report.md`](updates-report.md)) |
+| `command-repo-spec-migrations-appender` | **new** | §2.Migrations on update (delta append behind an updates-hash sentinel) |
+| `command-repo-spec-updates-writer` | **new** | `<stem>.persistence/updates.md` — composes the per-update report by diffing the spec's working tree against `git HEAD` (see [`updates-report.md`](updates-report.md)) |
 
 The two new agents share most of their logic — delta-to-changeset dispatch and row formatting — but operate against different inputs:
 
@@ -105,13 +105,14 @@ The two new agents share most of their logic — delta-to-changeset dispatch and
 
 They could share an underlying skill that holds the dispatch table.
 
-### Pattern-selector contract change
+### Pattern-selector & schema-writer contract changes
 
-`command-repo-spec-pattern-selector` currently fills the entire `## 2. Pattern Selection` section, including the `### Migrations` sub-table. The contract change:
+`command-repo-spec-pattern-selector` and `command-repo-spec-schema-writer` originally fired only on a freshly-scaffolded spec and hard-stopped (idempotency guard) once their sections were filled. Two contract changes support the update flow:
 
-- The agent leaves the `### Migrations` heading intact.
-- It writes a placeholder body under that heading: a single comment row `| _ | Owned by command-repo-spec-migrations-writer | _ | _ |` that the downstream migrations agent overwrites.
-- The agent's idempotency guard ignores the `### Migrations` body for the purpose of "already filled" detection — it only looks at the other §2 sub-tables.
+- **Pattern-selector no longer owns `### Migrations`.** It leaves that heading and its rows alone — the scaffolder's template placeholders stay there until `command-repo-spec-migrations-writer` fills them on first run, and `command-repo-spec-migrations-appender` takes over on updates. Pattern-selector owns §1's `### Purpose` + `### Aggregate Summary` and §2's `### Tables` / `### Mappers` / `### Repository` / `### Context Integration`.
+- **Both writers are now idempotent** — safe to re-run on a populated spec. Instead of anchoring their `Edit`s on `{placeholder}` tokens, they replace their owned sub-section bodies *wholesale*: anchored on the `### ` (or `## 3.`) headings, with `old_string` set to whatever the section currently holds — placeholders on first run, prior output on a re-run. Pattern-selector still preserves §1's `### Implementation` table; schema-writer rewrites the whole `## 3.` body including any child-table blocks a prior run appended.
+
+The practical consequence: the update workflow's "snapshot regen" is just "re-invoke the two writers" — there is **no section-reset step**.
 
 ### First-run pipeline
 
@@ -192,65 +193,61 @@ Examples:
 ```
 /persistence-spec:update-specs <domain_diagram>
 │
-├─ Step 0  Read inputs
-│           ├─ <stem>.domain/updates.md           (must already exist)
-│           └─ <stem>.persistence/command-repo-spec.md  (must already exist)
-│           If either is missing → hard-fail with operator instructions.
-│           Pre-update spec content is preserved (in memory or temp file)
-│           for consumption by command-repo-spec-updates-writer at Step 5.
+├─ Step 0  Verify inputs exist (orchestrator-owned)
+│           ├─ <stem>.domain/updates.md             → 0a hard-fail if missing
+│           └─ <stem>.persistence/command-repo-spec.md → 0b hard-fail if missing
 │
-├─ Step 1  Preflight (orchestrator-owned, pure parse)
+├─ Step 1  Preflight (orchestrator-owned, pure parse of updates.md)
 │           Apply gates in order:
-│             1a. degraded baseline (HEAD warning) → hard-fail
-│             1b. root removed / root stereotype change → hard-fail
-│             1c. <<Repository>> interface lifecycle change → hard-fail
-│             1d. nothing persistence-relevant → no-op exit
+│             1a. degraded baseline (HEAD warning)         → hard-fail
+│             1b. any stereotype change                    → hard-fail
+│             1c. aggregate-root removal                   → hard-fail
+│             1d. <<Repository>> interface lifecycle change → hard-fail
+│             1e. nothing persistence-relevant             → no-op exit (still runs Step 4)
 │
-├─ Step 2  Section reset (snapshot sections only)
-│           Replace §1, §2.{Tables, Mappers, Repository, Context Integration},
-│           and §3 bodies with template placeholders.
-│           §2.Migrations is left untouched — it is not a snapshot section.
-│
-├─ Step 3  Snapshot regen (sequential)
+├─ Step 2  Regenerate snapshot sections (sequential agent invocations)
 │           Invoke command-repo-spec-pattern-selector
-│             → fills §1 + §2.{Tables, Mappers, Repository, Context Integration}
+│             → replaces §1.{Purpose, Aggregate Summary} + §2.{Tables, Mappers, Repository, Context Integration}
+│               (leaves §1.Implementation and §2.Migrations alone)
 │           Invoke command-repo-spec-schema-writer
-│             → fills §3
+│             → replaces the whole §3 body (ER diagram + tables + Indexes)
+│           Both writers overwrite their sections in place — no reset step is needed.
 │
-├─ Step 4  Append delta migrations
+├─ Step 3  Append delta migrations
 │           Invoke command-repo-spec-migrations-appender
 │             ├─ reads existing §2.Migrations rows; computes max(ID)
-│             ├─ reads <stem>.domain/updates.md
-│             ├─ applies delta-to-changeset dispatch table
-│             ├─ appends new rows with IDs starting at max(ID) + 1
-│             └─ returns structured appended-row list to the orchestrator
+│             ├─ reads <stem>.domain/updates.md; hashes it for the sentinel
+│             ├─ short-circuits if the updates-hash sentinel is already present
+│             ├─ applies the delta-to-changeset dispatch table; de-dups by Changeset text
+│             └─ appends surviving rows (IDs from max(ID)+1) behind `<!-- appended-from updates-hash:<hash> -->`
 │
-├─ Step 5  Emit updates.md
+├─ Step 4  Emit updates.md
 │           Invoke command-repo-spec-updates-writer
-│             ├─ reads pre-update spec snapshot (captured at Step 0)
-│             ├─ reads post-update spec from disk
-│             ├─ reads appended-row list returned by Step 4
-│             └─ writes <stem>.persistence/updates.md
+│             ├─ recovers the pre-update spec via `git show HEAD:<spec_file>`
+│             ├─ reads the post-update spec from disk
+│             ├─ derives the appended-row set by §2.Migrations row-ID set-difference
+│             └─ writes <stem>.persistence/updates.md (always — `_no changes_` on a no-op)
 │           See `updates-report.md` for the report schema and agent contract.
 │
-└─ Step 6  Report
+└─ Step 5  Report
            "Updated <stem>.persistence/command-repo-spec.md
-            (snapshot sections regenerated; appended N migration rows:
-             <id1>, <id2>, ...; emitted <stem>.persistence/updates.md)<orphan_prose_clause>."
+            (snapshot sections regenerated; appended N migration rows: <id1>, <id2>, ...
+             | no new migration rows) and emitted <stem>.persistence/updates.md."
 ```
 
-Steps 0–2 are pure orchestrator-owned text manipulation. Steps 3, 4, and 5 are agent invocations. Steps run sequentially (no parallel benefit at this volume).
+Steps 0–1 are pure orchestrator-owned parse/checks. Steps 2–4 are agent invocations. Everything runs sequentially (no parallel benefit at this volume), and the orchestrator keeps **no runtime state between agents** — the updates-writer recovers the pre-update spec from `git HEAD` and the appended-row set from the §2.Migrations row IDs, so there is nothing to capture or hand along.
 
-### No-op exits (Step 1d)
+### No-op exits (Step 1e)
 
 The updater early-exits with success when:
 
-- `affected_categories` in `updates.md` is empty (no domain change of any kind).
+- `affected_categories` in `updates.md` is empty (`_None._`). By the report-template's footer contract that implies empty `## Class Lifecycle`, no `## Per-Class Changes`, and no `## Orphan Relationship Changes`, so the only thing the report can carry on this path is orphan prose — byte-neutral for the command-repo-spec at this granularity.
 - `affected_categories ⊆ {domain-events, commands}` — events and commands don't persist.
-- `affected_categories = {repositories-services}` and the only changed members are `<<Service>>` (filter by stereotype; `<<Service>>` does not contribute to persistence).
-- All changes are pure prose (P1, P2, P4) and the bounded-context Mermaid title is byte-stable.
+- `affected_categories = {repositories-services}` and there is no `<<Repository>>`-stereotyped class anywhere in `## Class Lifecycle` or `## Per-Class Changes` (the only contributor is a `<<Service>>` change, which does not touch the command-repo-spec).
 
-In all no-op cases, the updater still invokes `command-repo-spec-updates-writer` at Step 5 to emit a `_no changes_` report — this keeps the consumer's contract simple (an `updates.md` exists after every successful run). Then prints one line and exits 0.
+In all no-op cases, the updater still invokes `command-repo-spec-updates-writer` at Step 4 to emit a `_no changes_` report — this keeps the consumer's contract simple (an `updates.md` exists after every successful run). Then it prints one line and exits 0.
+
+(A bounded-context `title:` rename surfaces only in `## Orphan Prose Changes → Preamble`, never in `affected_categories`, so a *title-only* change lands in the first no-op case above. Its effect on the §2 UoW class names is folded in the next time a structural change triggers the Step-2 snapshot regen; the operator can run `/persistence-spec:generate-specs` to apply it immediately. When a title change accompanies any structural category, the workflow does not no-op — the snapshot regen picks up the new context name as a side effect. The orchestrator does not separately detect title changes; it only reports "orphan prose changes detected" on the no-op path.)
 
 ---
 
@@ -360,10 +357,11 @@ Each prints exactly one `ERROR:` line and exits non-zero. The error directs the 
 | **0a. Missing `<stem>.domain/updates.md`** | file not on disk | The updater is not the first-run pipeline; the report must already exist |
 | **0b. Missing `<stem>.persistence/command-repo-spec.md`** | file not on disk | The updater is not the first-run pipeline; the spec must already exist |
 | **1a. Degraded baseline** | `_warning: HEAD ...` line in updates.md Summary | Cannot operate against a degraded baseline |
-| **1b. Aggregate root lifecycle change** | root in `## Class Lifecycle → Removed`, or root listed under `Stereotype Changed` (old or new bucket) | The spec's anchor class is invalid; full regen needed |
-| **1c. `<<Repository>>` interface lifecycle change** | repository class added or removed under `## Class Lifecycle` | A domain aggregate without a repository is not persistable; malformed-report condition |
+| **1b. Stereotype change (any class)** | non-empty `## Class Lifecycle → Stereotype Changed` | A stereotype change moves the class to a different pattern catalog (e.g. value object → child entity); the spec body *and* the migration baseline must be re-rendered |
+| **1c. Aggregate-root removal** | bullet with stereotype `<<Aggregate Root>>` under `## Class Lifecycle → Removed` | The spec's anchor class is gone; the spec is invalid |
+| **1d. `<<Repository>>` interface lifecycle change** | a `<<Repository>>`-stereotyped class added or removed under `## Class Lifecycle` | A domain aggregate without its repository is not persistable; a new repository needs a fresh pattern selection |
 
-The error messages explicitly direct the operator to `/persistence-spec:generate-specs <domain_diagram>` — not to fix the report or retry. `/generate-specs` rebuilds from scratch and re-establishes the snapshot baseline; on next update the appender resumes from the new max ID.
+Gates are evaluated in order; the first that fires terminates the preflight. (1b subsumes "aggregate-root stereotype change" — the root is just one of the classes it covers.) The error messages explicitly direct the operator to `/persistence-spec:generate-specs <domain_diagram>` — not to fix the report or retry. `/generate-specs` rebuilds from scratch and re-establishes the snapshot baseline; on next update the appender resumes from the new max ID.
 
 ---
 
@@ -371,9 +369,9 @@ The error messages explicitly direct the operator to `/persistence-spec:generate
 
 Re-running `/persistence-spec:update-specs` against unchanged inputs must produce byte-identical output (no new migration rows, no spurious diff in snapshot sections beyond LLM nondeterminism).
 
-- **Steps 0–2** are deterministic file operations.
-- **Step 3** invokes LLM agents; they may produce minor prose drift (e.g. the `Purpose` sentence). This is `git diff` noise, not an idempotency failure.
-- **Step 4** is the load-bearing case. The appender must detect that the deltas implied by `updates.md` have already been applied to §2.Migrations. The detection mechanism:
+- **Steps 0–1** are deterministic checks and parsing.
+- **Step 2** invokes LLM agents (`pattern-selector`, `schema-writer`); they regenerate their sections wholesale from the current diagram on every run, so the output is stable modulo minor prose drift (e.g. the `Purpose` sentence). This is `git diff` noise, not an idempotency failure.
+- **Step 3** is the load-bearing case. The appender must detect that the deltas implied by `updates.md` have already been applied to §2.Migrations. The detection mechanism:
   - Each appender run records a sentinel comment at the start of the appended block: `<!-- appended-from updates-hash:<hash> -->` where `<hash>` is a content hash of `updates.md`.
   - On re-run, the appender computes the same hash. If the sentinel for that hash already exists in §2.Migrations, the appender exits without emitting rows.
 
@@ -384,6 +382,8 @@ If the operator regenerates `<stem>.domain/updates.md` (e.g. by re-running `/upd
 ---
 
 ## Chaining contract: domain `/update-specs` → persistence `/update-specs`
+
+**Status: not yet wired.** `/persistence-spec:update-specs` currently ships as an independently-invocable skill. The opt-in Step 9 hook described below is the intended integration; adding it (and the analogous `application-spec` / `rest-api-spec` / `messaging-spec` hooks) is a separate, later change. The persistence updater is already standalone-invocable, which is the form it ships in today.
 
 `/persistence-spec:update-specs` is designed to slot into `/update-specs` (domain) as a chained final step.
 
@@ -420,10 +420,10 @@ The exit status of `/update-specs` reflects the chained failure (non-zero) so CI
 
 The orchestrator does not roll back partial writes. **Re-running `/persistence-spec:update-specs` after fixing the trigger is the supported recovery path.** Each step is idempotent on stable inputs (per the Idempotency section above).
 
-The only failure modes that cannot be retried through are the hard-fail conditions (0a, 0b, 1a, 1b, 1c). Each error message explicitly directs the operator to the correct fix:
+The only failure modes that cannot be retried through are the hard-fail conditions (0a, 0b, 1a, 1b, 1c, 1d). Each error message explicitly directs the operator to the correct fix:
 
-- 0a/0b: run the missing prerequisite (`/update-specs` or `/persistence-spec:generate-specs`).
-- 1a/1b/1c: run `/persistence-spec:generate-specs <domain_diagram>` for a fresh baseline.
+- 0a/0b: run the missing prerequisite (`/update-specs` for the domain report, or `/persistence-spec:generate-specs` for the spec).
+- 1a–1d: run `/persistence-spec:generate-specs <domain_diagram>` for a fresh baseline.
 
 ---
 

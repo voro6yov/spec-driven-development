@@ -82,60 +82,44 @@ The split between schema-as-skill and design-as-notes is the same one the domain
 
 ### Agent: `command-repo-spec-updates-writer`
 
-A small, deterministic agent invoked at the tail of `/persistence-spec:update-specs`. Composes `<stem>.persistence/updates.md` from structured inputs the orchestrator already has — does **not** re-diff the spec or re-apply dispatch logic.
+A small, deterministic agent invoked at the tail of `/persistence-spec:update-specs` — also standalone-invocable. Composes `<stem>.persistence/updates.md` by diffing the working-tree spec against `git HEAD`; reads the sibling domain `updates.md` only as an enrichment source for `Source delta` lookups. Does not consult any orchestrator-supplied runtime state.
 
-Naming asymmetry vs the domain side is intentional: domain runs `updates-detector` (because the diagram is human-edited and deltas must be inferred via git diff); persistence runs `updates-writer` (because the spec updater knows the deltas first-hand and the agent's job is to render, not detect).
+Naming asymmetry vs the domain side is intentional but the workflow shape mirrors `domain-spec:updates-detector` exactly: both agents take a single positional arg, recover their pre-update baseline via `git show HEAD:<file>`, and write a sibling report. The persistence side is simpler — the schema is fully mechanical, so there is no LLM-creative step (no prose summarization).
 
-**Inputs**:
+**Arguments**:
 
-1. **Pre-update spec content** — captured by the orchestrator at Step 0 before any rewrites land. Passed as a temp file path.
-2. **Post-update spec** — already on disk after Steps 3–4 complete. Passed as the canonical spec path.
-3. **Appended migration rows** — structured list returned by `command-repo-spec-migrations-appender`, one entry per appended row: `(id, changeset_text, pattern, source_delta, destructive_flag, target_yaml)`. (See *Contract change* below.)
-4. **Domain `updates.md` path** — for the Summary's source-hash and warnings line.
+- `<domain_diagram>` — first and only positional arg. Used solely to recover `<dir>` and `<stem>` per `persistence-spec:naming-conventions`. The diagram itself is not parsed.
+
+**Reads (filesystem)**:
+
+1. **Working-tree spec** — `<dir>/<stem>.persistence/command-repo-spec.md` (must exist; otherwise hard-fail with "run `/persistence-spec:generate-specs` first").
+2. **HEAD spec** — recovered via `git ls-files --full-name` + `git show HEAD:<repo_path>`. First-run handling: missing-at-HEAD → empty baseline; the entire post-update spec is reported as Added.
+3. **Domain updates report** — `<dir>/<stem>.domain/updates.md` (sibling). Missing is non-fatal; `Source delta` falls back to `(unknown source)` and the Summary line renders `_none_`.
+
+**Reads (auto-loaded skills)**: `persistence-spec:naming-conventions`, `persistence-spec:updates-report-template`, `persistence-spec:migration-vocabulary`.
 
 **Output**: `<dir>/<stem>.persistence/updates.md`, written from scratch (replaces any prior file).
 
-**Reads (auto-loaded skills)**: `persistence-spec:updates-report-template`.
+**Determinism**: structured-input-driven, not LLM-creative. Re-running with byte-identical inputs (working tree + HEAD blob + domain `updates.md`) produces a byte-identical report. The Affected Artifacts table is mechanically derived (Tables Changes → `tables/<x>.py` + aggregator; Mappers Changes → `mappers/<x>_mapper.py` + aggregator; Migrations Changes → `db/migrations/<id>_<slug>.yaml` + `master.yaml`; Context Integration Changes → per-context `unit_of_work/*.py` + `query_context/*.py`).
 
-**Determinism**: structured-input-driven, not LLM-creative. Re-running with byte-identical inputs produces a byte-identical report. The Affected Artifacts table is mechanically derived (Tables Changes → `tables/<x>.py` + aggregator; Mappers Changes → `mappers/<x>_mapper.py` + aggregator; Migrations Changes → `db/migrations/<id>_<slug>.yaml` + `master.yaml`; Context Integration Changes → per-context `unit_of_work/*.py` + `query_context/*.py`).
-
-**Standalone invocability**: not supported in v1. The agent's inputs are tied to the orchestrator's runtime state (specifically the pre-update spec snapshot and the appender's structured row list). Supporting a standalone "git diff fallback" would double the agent's surface for a use case that contradicts the "spec is generated, not curated" contract. Revisit only if a clear standalone use case appears.
+**Standalone invocability**: supported. The writer reads everything it needs from disk (working tree + git HEAD + sibling files), so it does not require an orchestrator wrapper. This is useful for testing, operator-driven recovery (e.g. when a prior `update-specs` run hard-failed), and CI verification. The orchestrator (`/persistence-spec:update-specs`) is one of several callers.
 
 ### Workflow integration
 
 Slots into `/persistence-spec:update-specs` as a new Step 5 between the migrations append (Step 4) and the operator-facing one-liner (renumbered Step 6):
 
 ```
-Step 0  Read inputs                  ← orchestrator captures pre-update spec snapshot
 Step 1  Preflight (gates)
 Step 2  Section reset
 Step 3  Snapshot regen               (pattern-selector + schema-writer)
-Step 4  Append migrations            (migrations-appender → returns appended-row list)
+Step 4  Append migrations            (migrations-appender)
 Step 5  Emit updates.md              (command-repo-spec-updates-writer)
 Step 6  Report (operator one-liner)
 ```
 
-The writer runs on every successful spec update, including no-op early-exit cases at Step 1d — those produce a report with every section `_no changes_` and an empty Affected Artifacts table. This keeps the consumer's contract simple: `updates.md` always exists after a successful run. The writer does **not** run when the workflow hard-fails at Step 1a/1b/1c — there is no transition to describe.
+The orchestrator does not need to capture pre-update spec content or the appender's row list — the writer recovers both directly: pre-update content via `git show HEAD:<spec_file>`; appended rows via §2.Migrations row-ID set-difference between HEAD and working tree. This keeps the orchestrator stateless and lets the writer also run standalone (without an orchestrator wrapper) for testing or operator-driven recovery.
 
-### Contract change: `command-repo-spec-migrations-appender` return value
-
-Today's appender contract is "append rows to §2.Migrations." For the writer to emit structured Migrations Changes entries without re-applying the dispatch table, the appender must additionally **return** the structured row list it appended:
-
-```python
-[
-  { "id": "0007",
-    "changeset": "Add Column users.email",
-    "pattern": "Add Column",
-    "source_delta": "aggregates: User attribute email added",
-    "destructive": False,
-    "target_yaml": "db/migrations/0007_add_column_users_email.yaml" },
-  ...
-]
-```
-
-The orchestrator captures this list at Step 4 and passes it to the writer at Step 5. Without this contract, the writer would have to re-apply the dispatch table from `spec-updater-approaches.md` § "Delta-to-changeset dispatch" against the domain `updates.md` — duplicating logic and risking divergence.
-
-This contract change is also recorded in `spec-updater-approaches.md` § "Agent reorganization".
+The writer runs on every successful spec update, including no-op early-exit cases at the orchestrator's preflight gate — those produce a report with every section `_no changes_` and an empty Affected Artifacts table. This keeps the consumer's contract simple: `updates.md` always exists after a successful run. The writer does **not** run when the workflow hard-fails before Step 5 — there is no transition to describe.
 
 ---
 
