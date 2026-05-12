@@ -91,6 +91,7 @@ A plugin must never write outside its own folder. The only exceptions are:
 | `queries.specs.md` | `specs-merger` (queries side) | Merged queries spec (final) |
 | `queries.exceptions.md` | `queries-methods-writer` (stub) → `application-exceptions-specifier` | Application exceptions raised by queries |
 | `services.md` | `services-finder` | Reconciled list of services the application layer must implement |
+| `updates.md` | `application-updates-writer` | Structured diff report (input to future `/application-spec:update-code`) |
 | `commands.deps.md` | `commands-deps-writer` | Transient — deleted by `specs-merger` |
 | `commands.methods.md` | `commands-methods-writer` | Transient — deleted by `specs-merger` |
 | `queries.deps.md` | `queries-deps-writer` | Transient — deleted by `specs-merger` |
@@ -140,6 +141,7 @@ specs/
     queries.specs.md
     queries.exceptions.md
     services.md
+    updates.md
 
   order.persistence/
     command-repo-spec.md
@@ -187,6 +189,7 @@ Once `<dir>` and `<stem>` are recovered, every other artifact path is built from
 | Application queries spec | `<dir>/<stem>.application/queries.specs.md` |
 | Application queries exceptions | `<dir>/<stem>.application/queries.exceptions.md` |
 | Application services report | `<dir>/<stem>.application/services.md` |
+| Application updates report | `<dir>/<stem>.application/updates.md` |
 | Persistence command-repo spec | `<dir>/<stem>.persistence/command-repo-spec.md` |
 | REST API resource spec | `<dir>/<stem>.rest-api/spec.md` |
 | Messaging consumer spec | `<dir>/<stem>.messaging/<consumer_name>.md` |
