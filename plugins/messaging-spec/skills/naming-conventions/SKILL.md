@@ -115,8 +115,9 @@ The per-side fragments (`commands.deps.md`, `commands.methods.md`, `queries.deps
 | File | Producer | Purpose |
 |---|---|---|
 | `<consumer-name>.md` | `consumer-spec-initializer` → `event-tables-writer` → `event-fields-writer` | Per-consumer messaging spec |
+| `updates.md` | `messaging-updates-writer` | Structured per-consumer diff report (input to `update-code`) — one per aggregate, covers all consumers |
 
-`<consumer-name>` is a kebab-case identifier matching `^[a-z][a-z0-9-]*$`, supplied by the user (e.g. `inventory-sync`, `shipping-events`). One file per consumer; multiple consumers may share `<stem>.messaging/`.
+`<consumer-name>` is a kebab-case identifier matching `^[a-z][a-z0-9-]*$`, supplied by the user (e.g. `inventory-sync`, `shipping-events`). One file per consumer; multiple consumers may share `<stem>.messaging/`. `updates.md` is the only non-per-consumer file in the folder.
 
 ## Worked example
 
@@ -190,6 +191,7 @@ Once `<dir>` and `<stem>` are recovered, every other artifact path is built from
 | Persistence command-repo spec | `<dir>/<stem>.persistence/command-repo-spec.md` |
 | REST API resource spec | `<dir>/<stem>.rest-api/spec.md` |
 | Messaging consumer spec | `<dir>/<stem>.messaging/<consumer_name>.md` |
+| Messaging updates report | `<dir>/<stem>.messaging/updates.md` |
 
 The messaging consumer spec is the only path that requires an additional discriminator (`<consumer_name>`); every other artifact is fully determined by `<stem>` plus the plugin's identity.
 
