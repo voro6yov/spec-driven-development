@@ -15,7 +15,7 @@ The chosen approach is **a thin, domain-chained dispatcher** — *not* a surgica
 
 Keep every `<stem>.messaging/<consumer_name>.md` aligned with the domain diagram after a domain change, **without requiring manual operator edits to the consumer specs**, and with proper guardrails when the change is too structural to absorb. The updater:
 
-- Runs as an opt-in chained step at the tail of `/update-specs` (domain), gated by file presence (`<stem>.messaging/` contains at least one `<consumer>.md`).
+- Runs as **Step 13** (the last of the four downstream chain steps) at the tail of `/update-specs` (domain), invoked unconditionally on the domain updater's success path — but it is internally a no-op when `<stem>.messaging/` is empty or absent, so a missing messaging layer never aborts the cascade (unlike the persistence/application/rest-api chain steps, whose missing-artifact hard-fail does).
 - May be invoked standalone for cases where the domain spec is up-to-date but a consumer spec drifted.
 - Consumes the same `<stem>.domain/updates.md` report the domain and persistence updaters consume.
 - Never re-diffs the domain diagram, never invokes `domain-spec:updates-detector` directly.
@@ -242,7 +242,7 @@ A subscribed internal `<<Domain Event>>` removed/renamed is handled as a *per-co
 
 1. **`messaging-spec:update-specs` skill** — Steps 0–5 wiring: recover paths, parse `<stem>.domain/updates.md`, discover consumers + `internal` subscriptions, run the hard-fail / abort-and-reconcile gates, compute `affected`, fan out `event-tables-writer` (optional) + `event-fields-writer` per affected consumer in parallel, emit the report. **No new agents.** The only contract touch on existing agents is confirming `event-tables-writer` and `event-fields-writer` are safely re-runnable on an already-populated consumer spec (they are — both replace their table in place).
 2. *(Optional)* **`<stem>.messaging/updates.md` report** + a `messaging-spec:updates-report-template` skill + a `naming-conventions` entry — only if a structured report is wanted for symmetry with persistence.
-3. **Wire as Step N of domain `/update-specs`** — opt-in by file presence (`<stem>.messaging/` non-empty), after the persistence tail step. No contract change to the domain updater beyond appending the conditional invocation.
+3. **Wire as Step 13 of domain `/update-specs`** — invoked unconditionally after the persistence (Step 10) / application (Step 11) / rest-api (Step 12) chain steps; the skill's own Step 0c "no consumer specs" path keeps it a graceful no-op when there is no messaging layer. *(Done — domain-spec ≥ 0.29.0. The as-built cascade contract lives in `persistence-spec/notes/spec-updater-approaches.md`.)*
 4. *(Future, separate change)* **`messaging-spec:updates-detector`** for the commands-diagram axis — see *Out of scope*.
 
 ---

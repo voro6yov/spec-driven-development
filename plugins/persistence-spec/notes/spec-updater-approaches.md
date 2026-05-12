@@ -2,7 +2,7 @@
 
 This note documents the design of `/persistence-spec:update-specs`, the surgical update skill for `<dir>/<stem>.persistence/command-repo-spec.md`. It is the persistence-side counterpart to `/update-specs` for `domain-spec`.
 
-The chosen approach is **Snapshot regen + append-only migrations log**. It is designed to chain from domain `/update-specs` as an opt-in final step, but currently ships as an independently-invocable skill — the chained-step hook into domain `/update-specs` is a separate, later change.
+The chosen approach is **Snapshot regen + append-only migrations log**. It is independently invocable, **and** is wired as **Step 10** of domain `/update-specs` — the first of four downstream chain steps (persistence → application → rest-api → messaging) that fire on the domain updater's success path. See "Chaining contract" below for the as-built shape (which differs in two ways from the opt-in design originally sketched here: the chain is unconditional, not file-presence-gated, and a missing `command-repo-spec.md` is a hard-fail that aborts the rest of the cascade rather than a silent skip).
 
 For the catalog of update types and their per-section impact, see the sibling [`update-types.md`](update-types.md).
 For the design of the per-update report this skill emits as its terminal output, see the sibling [`updates-report.md`](updates-report.md).
@@ -14,7 +14,7 @@ For the upstream domain updater design that this skill chains onto, see [`plugin
 
 Keep `<stem>.persistence/command-repo-spec.md` aligned with the domain diagram after a domain change, **without requiring any manual operator edits to the persistence spec**. The updater:
 
-- Runs as a chained step at the tail of `/update-specs` (domain), opt-in by file presence.
+- Runs as a chained step (Step 10) at the tail of `/update-specs` (domain), unconditionally on the domain updater's success path.
 - May be invoked standalone for cases where the domain spec is up-to-date but the persistence spec drifted.
 - Consumes the same `<stem>.domain/updates.md` report the domain updater consumes.
 - Never re-diffs the diagram, never invokes `domain-spec:updates-detector` directly.
@@ -383,36 +383,39 @@ If the operator regenerates `<stem>.domain/updates.md` (e.g. by re-running `/upd
 
 ## Chaining contract: domain `/update-specs` → persistence `/update-specs`
 
-**Status: not yet wired.** `/persistence-spec:update-specs` currently ships as an independently-invocable skill. The opt-in Step 9 hook described below is the intended integration; adding it (and the analogous `application-spec` / `rest-api-spec` / `messaging-spec` hooks) is a separate, later change. The persistence updater is already standalone-invocable, which is the form it ships in today.
-
-`/persistence-spec:update-specs` is designed to slot into `/update-specs` (domain) as a chained final step.
+**Status: wired (domain-spec ≥ 0.29.0).** `/persistence-spec:update-specs` is also independently invocable, but the primary entry point is the cascade at the tail of domain `/update-specs`.
 
 ```
 /update-specs <domain_diagram>
 │
-├─ Steps 0–8  (existing: detect, preflight, prune, regen, splice, exceptions, replan, cleanup)
+├─ Steps 0–9   (existing: detect, preflight, prune, regen, splice, exceptions, replan, cleanup, report)
+│              — a no-op early-exit (Step 1d) or any hard-fail/abort returns BEFORE the cascade
 │
-└─ Step 9     If <stem>.persistence/command-repo-spec.md exists,
-              invoke /persistence-spec:update-specs <domain_diagram>
-              (otherwise skip — persistence not initialized for this aggregate)
+├─ Step 10     invoke /persistence-spec:update-specs <domain_diagram>   ← this skill
+├─ Step 11     invoke /application-spec:update-specs <domain_diagram>
+├─ Step 12     invoke /rest-api-spec:update-specs <domain_diagram>
+└─ Step 13     invoke /messaging-spec:update-specs <domain_diagram>
 ```
 
-The chained step is **opt-in by file presence**: if the operator has run `/persistence-spec:generate-specs` for this aggregate at any time in the past, the persistence spec exists and the update chain fires. Otherwise the chain skips silently — purely-domain-modeled aggregates without a persistence layer don't pay any cost.
+As-built specifics — note two deliberate divergences from the opt-in design originally sketched in this note:
+
+- **The chain is unconditional, not file-presence-gated.** Steps 10–13 fire on every successful domain run (i.e. whenever Step 9 was reached — not on the Step 1d no-op early-exit, not after a hard-fail). There is no opt-out flag.
+- **A missing spec artifact is a hard-fail, not a silent skip.** If `<stem>.persistence/command-repo-spec.md` does not exist, this skill's Step 0b hard-fails, and the domain orchestrator **aborts the rest of the cascade** (Steps 11–13 do not run). The operator's contract is to run `/update-specs` only once the full spec set (and code) has been generated for the aggregate; for a purely-domain-modeled aggregate, generate the downstream layers first or invoke the domain agents directly. (`messaging-spec` is the exception — its Step 0c "no consumer specs" path is a graceful no-op, never a hard-fail, so a missing messaging layer never aborts anything.)
+- Ordering is fixed: persistence → application → rest-api → messaging.
+- Each downstream updater reads the same `<stem>.domain/updates.md` rather than maintaining its own diff.
 
 The persistence updater is also independently invocable for situations where the domain spec is up-to-date but the persistence spec drifted (e.g. operator manually edited the diagram and ran `/persistence-spec:generate-specs` once, then re-edited).
-
-The same chaining shape is intended to extend to `application-spec`, `rest-api-spec`, and `messaging-spec` updaters as Steps 10, 11, 12 — each opt-in by file presence, each independently invocable. Each downstream updater reads the same `<stem>.domain/updates.md` rather than maintaining its own diff.
 
 ### Chained-step error handling
 
 If the persistence updater hard-fails inside the chained invocation:
 
-- Domain `/update-specs` reports its own steps as successful.
-- The chained-step error surfaces with a clear "persistence updater failed" prefix, including the operator instruction (`run /persistence-spec:generate-specs`).
+- Domain `/update-specs` reports its own Steps 0–9 as successful (Step 9 already printed its summary).
+- The chained-step error surfaces as the skill's own `ERROR:` line; the domain orchestrator aborts Steps 11–13 and surfaces nothing more.
 - The domain artifacts are not rolled back — they are correct.
-- The persistence spec remains in whatever state it was in before the chained invocation (the chained skill aborts before any write).
+- The persistence spec remains in whatever state it was in before the chained invocation (the chained skill aborts before any write on a preflight hard-fail; a mid-pipeline failure leaves a clean partial state that re-running idempotently completes).
 
-The exit status of `/update-specs` reflects the chained failure (non-zero) so CI can detect it, but the surface message distinguishes "domain succeeded; persistence chain failed."
+The domain-side update is **not** retroactively failed by a downstream chain error — the domain spec/exceptions/test-plan are valid; the operator fixes the downstream trigger and re-runs `/update-specs` (Steps 0–9 re-run byte-stable; the chain resumes from the top).
 
 ---
 
