@@ -89,7 +89,8 @@ Table(
 | Domain Type | SQLAlchemy Type | Notes |
 | --- | --- | --- |
 | String ID | `String` | Primary keys, foreign keys |
-| Enum/Status | `String` | Store enum value as string |
+| Enum/Status | `String` | Store enum value as string (the `status` literal of a framework `Status` VO) |
+| Status error payload (`status_error`) | `String` or `JSONB` | Type follows the declared type of the `Status` VO's `error` field: `String` when `error` is a plain string (`str` / `str \| None`); `JSONB` when `error` carries a structured payload (a `<<Value Object>>` or `<<TypedDict>>`, e.g. `{code, message}`) — the mapper writes `aggregate.status.error` into this column unconverted, so a `dict` payload requires `JSONB` or psycopg2 raises `can't adapt type 'dict'`. Always nullable. |
 | Timestamp | `DateTime(timezone=True)` | `created_at`, `updated_at` (always timezone-aware to round-trip tz-aware UTC values without losing tzinfo) |
 | Value Object | `JSONB` | Nested structures, nullable |
 | Collection | `JSONB` | Arrays stored as JSON |

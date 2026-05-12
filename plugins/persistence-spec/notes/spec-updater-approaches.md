@@ -303,7 +303,7 @@ In all no-op cases, the updater still invokes `command-repo-spec-updates-writer`
 |---|---|
 | Multi-tenancy added (`tenant_id` member added on root) | Add Column `<table>.tenant_id` (`String`, initially nullable) + Add Not Null Constraint `<table>.tenant_id` (after backfill — operator-confirmed) + index updates as needed for child tables |
 | Multi-tenancy removed (`tenant_id` member removed) | ⚠ Drop Column `<table>.tenant_id` (and per child table) |
-| Status field added on root or entity (presence flip of `status: <<Value Object>>`) | Add Column `<table>.status` (`String NOT NULL`) + Add Column `<table>.status_error` (`String NULL`) |
+| Status field added on root or entity (presence flip of `status: <<Value Object>>`) | Add Column `<table>.status` (`String NOT NULL`) + Add Column `<table>.status_error` (nullable; type follows the `Status` VO's `error` field — `String` for a plain-string `error`, `JSONB` for a structured `error` payload) |
 | Status field removed | mirror: two ⚠ Drop Column rows |
 | Timestamp pair added (`created_at` + `updated_at`) | two Add Column rows typed `DateTime(timezone=True)` |
 | Timestamp pair removed | mirror: two ⚠ Drop Column rows |

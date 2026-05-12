@@ -226,6 +226,8 @@ The generated module must contain only:
 
 No docstrings, no comments, no extra helper functions, no logging. Do not add fields or methods beyond what the chosen template defines.
 
+**Attribute access.** Read every domain attribute with plain `obj.attr`. Do **not** wrap reads in `getattr(obj, "attr", None)` or guard them with `hasattr(obj, "attr")` — every domain attribute is a `Guard` descriptor whose `__get__` returns `None` for an unset optional attribute instead of raising `AttributeError` (see **Reading optional attributes** in `persistence-spec:mappers`), so the defensive forms are dead weight. Optional value-object attributes are passed straight to the nested mapper (it short-circuits on `None` per the Optionality Contract); optional collections are tested directly (`if obj.items:`). This applies even when extending a template (e.g. fitting a richer `Child Entity Mapper` to a multi-attribute entity) — match the plain-access style of the `Full Aggregate Mapper` and `Simple Value Object Mapper` templates.
+
 ### Step 7 — Report
 
 Emit a bare bullet list of every absolute path in `<worklist>`, preserving its order — one bullet per line, nothing else on the line. Include all stubs regardless of whether this run wrote them or skipped them; downstream agents use the list as their worklist.

@@ -55,7 +55,7 @@ For value objects stored in JSONB columns. Generic over the VO's attribute list 
 
 For value objects containing multiple optional nested value objects.
 
-- Uses `getattr(obj, "attr", None)` pattern for optional fields.
+- Reads each attribute with plain `vo.attr` access (see **Reading optional attributes** below — never `getattr(vo, "attr", None)`).
 - Delegates to nested field mapper for each optional field.
 - Handles `None` checks on deserialization with `data.get("field")`.
 
@@ -65,7 +65,21 @@ For value objects containing a collection of nested value objects.
 
 - Handles both scalar fields and collection fields.
 - Iterates over collection for serialization/deserialization.
-- Uses `hasattr()` check for optional collections.
+- Reads the collection with plain `vo.collection` access (see **Reading optional attributes** below — never `hasattr(vo, "collection")`); an unset optional collection reads back as `None`, so guard with `if vo.collection:`.
+
+## Reading optional attributes
+
+Every domain attribute is a class-level `Guard` descriptor, and `Guard.__get__` swallows the missing-backing-attribute case:
+
+```python
+def __get__(self, domain_obj, objtype=None):
+    try:
+        return getattr(domain_obj, self.name.private)
+    except AttributeError:
+        return None
+```
+
+So an *optional* attribute that the domain class assigns conditionally (`if x is not None: self.x = x`, per `domain-spec:optional-values`) reads back as `None` via plain `obj.x` — it never raises `AttributeError`. Therefore **mappers always read attributes with plain `obj.attr`** — `getattr(obj, "attr", None)` and `hasattr(obj, "attr")` are redundant (the descriptor never raises) and must not be emitted. For optional value-object attributes, pass the (possibly `None`) value straight to the nested mapper, which short-circuits on `None` per the **Optionality Contract**; for optional collections, test the value directly (`if obj.items:`).
 
 ## Entity Mappers
 
@@ -396,11 +410,11 @@ class {{ mapper_class }}:
     def to_json({{ value_object_name_lower }}: {{ value_object_name }}) -> dict[str, Any]:
         return {
             "{{ type_field }}": {{ value_object_name_lower }}.{{ type_field }},
-            "{{ field_1 }}": {{ field_mapper_class }}.to_json(getattr({{ value_object_name_lower }}, "{{ field_1 }}", None)),
-            "{{ field_2 }}": {{ field_mapper_class }}.to_json(getattr({{ value_object_name_lower }}, "{{ field_2 }}", None)),
-            "{{ field_3 }}": {{ field_mapper_class }}.to_json(getattr({{ value_object_name_lower }}, "{{ field_3 }}", None)),
-            "{{ field_4 }}": {{ field_mapper_class }}.to_json(getattr({{ value_object_name_lower }}, "{{ field_4 }}", None)),
-            "{{ field_5 }}": {{ field_mapper_class }}.to_json(getattr({{ value_object_name_lower }}, "{{ field_5 }}", None)),
+            "{{ field_1 }}": {{ field_mapper_class }}.to_json({{ value_object_name_lower }}.{{ field_1 }}),
+            "{{ field_2 }}": {{ field_mapper_class }}.to_json({{ value_object_name_lower }}.{{ field_2 }}),
+            "{{ field_3 }}": {{ field_mapper_class }}.to_json({{ value_object_name_lower }}.{{ field_3 }}),
+            "{{ field_4 }}": {{ field_mapper_class }}.to_json({{ value_object_name_lower }}.{{ field_4 }}),
+            "{{ field_5 }}": {{ field_mapper_class }}.to_json({{ value_object_name_lower }}.{{ field_5 }}),
         }
 
     @staticmethod
@@ -430,18 +444,18 @@ class {{ mapper_class }}:
     @staticmethod
     def to_json({{ value_object_name_lower }}: {{ value_object_name }}) -> dict[str, Any]:
         {{ collection_field }}_data = []
-        if hasattr({{ value_object_name_lower }}, "{{ collection_field }}") and {{ value_object_name_lower }}.{{ collection_field }}:
+        if {{ value_object_name_lower }}.{{ collection_field }}:
             for item in {{ value_object_name_lower }}.{{ collection_field }}:
                 {{ collection_field }}_data.append({
-                    "{{ item_field_1 }}": {{ field_mapper_class }}.to_json(getattr(item, "{{ item_field_1 }}", None)),
-                    "{{ item_field_2 }}": {{ field_mapper_class }}.to_json(getattr(item, "{{ item_field_2 }}", None)),
-                    "{{ item_field_3 }}": {{ field_mapper_class }}.to_json(getattr(item, "{{ item_field_3 }}", None)),
+                    "{{ item_field_1 }}": {{ field_mapper_class }}.to_json(item.{{ item_field_1 }}),
+                    "{{ item_field_2 }}": {{ field_mapper_class }}.to_json(item.{{ item_field_2 }}),
+                    "{{ item_field_3 }}": {{ field_mapper_class }}.to_json(item.{{ item_field_3 }}),
                 })
 
         return {
             "{{ type_field }}": {{ value_object_name_lower }}.{{ type_field }},
-            "{{ scalar_field_1 }}": {{ field_mapper_class }}.to_json(getattr({{ value_object_name_lower }}, "{{ scalar_field_1 }}", None)),
-            "{{ scalar_field_2 }}": {{ field_mapper_class }}.to_json(getattr({{ value_object_name_lower }}, "{{ scalar_field_2 }}", None)),
+            "{{ scalar_field_1 }}": {{ field_mapper_class }}.to_json({{ value_object_name_lower }}.{{ scalar_field_1 }}),
+            "{{ scalar_field_2 }}": {{ field_mapper_class }}.to_json({{ value_object_name_lower }}.{{ scalar_field_2 }}),
             "{{ collection_field }}": {{ collection_field }}_data,
         }
 
@@ -561,7 +575,7 @@ class {{ mapper_class }}:
 | `{{ id_column }}` | Primary key column name | `id`, `order_id` |
 | `{{ tenant_id_column }}` | Tenant ID column name | `tenant_id` |
 | `{{ status_column }}` | Status column name | `status` |
-| `{{ status_error_column }}` | Status error column name | `status_error` |
+| `{{ status_error_column }}` | Status error column name. `to_dict` writes `aggregate.status.error` into it unconverted, so the column's SQL type (chosen by `@command-repo-spec-schema-writer` — `String` for a plain-string `error`, `JSONB` for a structured `error` payload like `{code, message}`) must match the runtime type of `Status.error`. | `status_error` |
 | `{{ nested_field }}` | Nested polymorphic field name | `info`, `metadata` |
 | `{{ nested_kind_column }}` | Nested kind column name | `info_kind` |
 | `{{ nested_data_column }}` | Nested data column name | `info_data` |
