@@ -23,7 +23,9 @@ You are a persistence migrations appender. Your job is to add **delta-driven** r
 
 Path derivation follows `persistence-spec:naming-conventions` exactly. Do not reconstruct paths by string substitution.
 
-This agent **trusts the orchestrator's preflight**: it does not re-check for degraded baseline, aggregate-root lifecycle changes, or `<<Repository>>` interface lifecycle changes. The orchestrator hard-fails before invocation in those cases.
+This agent **trusts the orchestrator's preflight**: it does not re-check for degraded baseline or aggregate-root lifecycle changes (it *does* keep a narrow stereotype-change safety net for the root / `<<Repository>>` classes — see § 6.0). The orchestrator hard-fails before invocation in those cases.
+
+It is also safe to invoke standalone (outside `/persistence-spec:update-specs`): given an `updates.md` whose deltas are all byte-neutral for the command-repo-spec, it walks every § 6 sub-section, dispatches nothing, and lands in Step 7's silent zero-rows exit — no write, no sentinel. The orchestrator's preflight is still the supported path for catching the hard-fail conditions early.
 
 The autoloaded skills cover:
 
@@ -56,7 +58,7 @@ Walk every line between the header divider and the next `### ` heading (or `---`
 
 - **Sentinel comment line** — matches `<!-- appended-from updates-hash:<hash> -->` (where `<hash>` is `[0-9a-f]{12}`). Capture every observed `<hash>` into a set `<existing_hashes>`.
 - **Data row** — starts with `|`, has 4 pipe-delimited cells. For each row:
-  - `<id_cell>` — the first cell, stripped. Must match `^\d{4}$`. Otherwise fail: `Error: §2.Migrations row '<row>' has malformed ID cell '<id_cell>'; expected 4-digit zero-padded integer. Run /persistence-spec:generate-specs <domain_diagram> to rebuild.`
+  - `<id_cell>` — the first cell, stripped of surrounding whitespace **and** one optional pair of wrapping single backticks (`command-repo-spec-template` and `@command-repo-spec-migrations-writer` render the ID cell as `` `0001` ``, and this agent writes its own appended rows the same way — see Step 8). The unwrapped value must match `^\d{4}$`. Otherwise fail: `Error: §2.Migrations row '<row>' has malformed ID cell '<id_cell>'; expected a 4-digit zero-padded integer (optionally backtick-wrapped). Run /persistence-spec:generate-specs <domain_diagram> to rebuild.`
   - `<changeset_cell>` — the second cell, stripped (preserve content including `⚠ ` markers and backticks).
   - Other cells: ignore for parsing purposes (will be regenerated as part of new rows).
 
@@ -102,9 +104,12 @@ Read `<domain_diagram>` (the working-tree version, not HEAD). Build a small in-m
 - `<child_classes>` = all `<<Entity>>` classes composed by the root.
 - `<child_table_of[<entity>]>` = the canonical child-table name, derived per the child-table-naming rule documented verbatim in `command-repo-spec-pattern-selector.md`'s child-table bullet (and summarised in `persistence-spec:implementation-roadmap`): start with `<entity_snake>` (snake_case of the entity class); if it already ends in `s` use it verbatim, otherwise append `s`; finally prefix with `<root_table>_`. Example: aggregate root `ConversionReqs` (`<root_table>` = `conversion_reqs`) with child entity `DomainType` produces `conversion_reqs_domain_types`. The same rule is applied identically by `@command-repo-spec-pattern-selector`, `@command-repo-spec-schema-writer`, and `@command-repo-spec-migrations-writer`, so child-table identifiers stay byte-stable across agents.
 - `<vo_owners>` = mapping of `<<Value Object>>` class name → list of `(<owner_class>, <field_name>)` tuples observed in the diagram, where `<field_name>` is the role label on the composition edge (`*--` or any "1" / "0..1" composition) that names the attribute on the owner. Per `command-repo-spec-schema-writer.md` § Step 2, every such VO maps to a **single `JSONB` column** on the owner's table, named `<field_name>`. There is no flat-column VO mapping in this project; the appender does not need a per-VO flavour lookup.
+- `<vo_classes>` = the set of every class name carrying the `<<Value Object>>` stereotype in the diagram (a superset of `<vo_owners>`'s keys — it also includes VOs not composed by the root or an entity). Consumed by § 6.0 / § 6.5's Status detection.
 - `<column_type_for[<class>.<field>]>` lookup mapping each non-VO scalar field on the root or any entity to a `persistence-spec:table-definitions` Column Type (`String`, `Integer`, `DateTime`, `JSONB`). VO-typed fields always resolve to `JSONB`. Fail loud per § Hard-fail conditions on any unmappable scalar type token.
 
 (Polymorphism — a VO that is the parent of one or more `<|--` inheritance edges — is detected from `updates.md`, not from the diagram model: see § 6.3 *Polymorphism flip*.)
+
+**HEAD diagram, for removed value objects only.** If `## Class Lifecycle → Removed` (from the Step 4 model) lists at least one `<<Value Object>>`, the working-tree diagram no longer carries that VO class or its composition edges, so `<vo_owners>` cannot resolve its owner table. In that case also read the **HEAD** revision of `<domain_diagram>` — recover the repo-relative path with `git ls-files --full-name -- "<domain_diagram>"`, then `git show "HEAD:<rel_path>"` — and build `<vo_owners_head>` with the same shape as `<vo_owners>` but from the HEAD diagram. § 6.3's *removed VO* path resolves owners from `<vo_owners_head>`. If the HEAD read fails (untracked diagram, ambiguous path, IO error), hard-fail per § Hard-fail conditions. A removed `<<Entity>>` does **not** require the HEAD diagram — its child-table name is derived directly from the `→ Removed` bullet's class name (see § 6.2); `<root_table>` is stable because aggregate-root removal hard-fails upstream.
 
 ### Step 6 — Apply the dispatch table
 
@@ -112,9 +117,11 @@ Walk the `updates.md` model and emit `(table, changeset, pattern, destructive)` 
 
 The shared skill `persistence-spec:migration-vocabulary` defines the controlled Pattern list and the per-target Changeset shape. Refer to it for the exact text format of every row produced below.
 
-#### 6.0 Pre-scan cross-cutting shape flips
+#### 6.0 Pre-scan: stereotype-change safety net, then cross-cutting shape flips
 
-Before walking per-class member bullets in § 6.1 / 6.2, scan `<per_class>` for the cross-cutting signals owned by § 6.5: `tenant_id` add/remove on the root, `status: <<Value Object>>` add/remove on root or any entity, the paired `created_at` + `updated_at` add/remove on root or any entity.
+**Stereotype-change safety net.** First scan `## Class Lifecycle → Stereotype Changed` (from the Step 4 model). If it lists `<root_class>`, or carries `<<Repository>>` as either the old or new stereotype on any bullet, hard-fail per the safety-net row in § Hard-fail conditions — the orchestrator's preflight should have caught this, and a stereotype change on the anchor class or its repository requires a full re-render, not a delta append. (Stereotype-changed `<<Entity>>` classes are handled in § 6.2, not here.)
+
+Then, before walking per-class member bullets in § 6.1 / 6.2, scan `<per_class>` for the cross-cutting signals owned by § 6.5: `tenant_id` add/remove on the root, `status` add/remove on root or any entity (see the Status-flip edge case below), the paired `created_at` + `updated_at` add/remove on root or any entity.
 
 Build a set `<consumed_attrs>` of `(<owner_class>, <attribute_name>)` tuples — one entry per attribute bullet that § 6.5 will own. § 6.1 and § 6.2 then skip any bullet whose `(class, name)` matches a `<consumed_attrs>` entry, so the same attribute never produces both a per-attribute § 6.1 / 6.2 row *and* a cross-cutting § 6.5 cascade.
 
@@ -122,7 +129,7 @@ Edge cases:
 
 - **`tenant_id` flip.** A `tenant_id` add or remove cascades across the parent and every child table, but only the root's `(<root_class>, tenant_id)` bullet is consumed; child entities never declare `tenant_id` themselves under this convention.
 - **Timestamp pair.** Both `created_at` *and* `updated_at` bullets must be present in the **same** class block (same `<owner_class>`) for the pair to qualify. A lone `created_at` or `updated_at` add/remove falls through to the per-attribute § 6.1 / 6.2 path and emits one row.
-- **Status flip.** Detect by type token: only `status: <<Value Object>>` (with the literal `<<Value Object>>` stereotype after the colon) qualifies as the framework `Status` VO. Any other type for a `status` attribute bypasses the cross-cutting path.
+- **Status flip.** A `status` attribute add/remove on the root or an entity qualifies as the framework `Status` VO cascade when its declared type token is **either** the literal `<<Value Object>>` stereotype **or** a class name in `<vo_classes>` (the diagram stereotypes it `<<Value Object>>`). Any other type for a `status` attribute (a plain enum, `str`, or a non-VO class) bypasses the cross-cutting path — it falls through to the per-attribute § 6.1 / 6.2 path, which emits a single bare `Add Column` / `⚠ Drop Column` row for it with **no** paired `status_error` column. (Projects whose diagrams spell the framework field `+status: <<Value Object>>` hit the first branch; those that spell it `+status: Status` with `Status` carrying `<<Value Object>>` hit the `<vo_classes>` branch — both produce the two-column cascade in § 6.5.)
 
 #### 6.1 Aggregate root attribute deltas
 
@@ -132,11 +139,15 @@ For every `**Members:**` bullet inside the `### \`<root_class>\` \`<<Aggregate R
 |---|---|
 | `Attribute added: \`+<field>: <Type>\`` | `` Add Column `<root_table>.<field>` `` → `Add Column` |
 | `Attribute removed: \`-<field>: <Type>\`` | `` ⚠ Drop Column `<root_table>.<field>` `` → `Drop Column` |
-| `Attribute changed: \`<field>\`: type \`<Old>\` → \`<New>\`` (type changed) | `` ⚠ Alter Column Type `<root_table>.<field>` → <NewSqlType> `` → `Alter Column Type` |
+| `Attribute changed: \`<field>\`: type \`<Old>\` → \`<New>\`` — **optionality-only flip** (`<Old>` and `<New>` differ *only* by an `Optional[...]` / `\| None` wrapper around the same inner type, so `<column_type_for[...]>` is unchanged), wrapper **removed** (now required) | `` Add Not Null Constraint `<root_table>.<field>` `` → `Add Not Null Constraint` |
+| `Attribute changed: \`<field>\`: type \`<Old>\` → \`<New>\`` — **optionality-only flip**, wrapper **added** (now optional) | `` Drop Not Null Constraint `<root_table>.<field>` `` → `Drop Not Null Constraint` |
+| `Attribute changed: \`<field>\`: type \`<Old>\` → \`<New>\`` — any other type change (the underlying Column Type actually changes) | `` ⚠ Alter Column Type `<root_table>.<field>` → <NewSqlType> `` → `Alter Column Type` |
 | `Attribute changed: ... visibility \`+\` → \`-\`` (visibility-only) | **no row** (byte-neutral) |
 | `Method added/removed/changed` | **no row** (byte-neutral) |
 
 `<NewSqlType>` is the `persistence-spec:table-definitions` Column Type derived from the new domain type via `<column_type_for[...]>`.
+
+A single `Attribute changed:` bullet may carry **both** a `type ... → ...` clause and a trailing `visibility ... → ...` clause (per `domain-spec:updates-report-template`'s member schema). When it does, dispatch on the type clause only (one of the three type rows above) and ignore the visibility clause. A bullet with **only** a `visibility ... → ...` clause emits no row.
 
 #### 6.2 Entity (child) lifecycle deltas
 
@@ -148,11 +159,11 @@ For every `<<Entity>>` listed under `## Class Lifecycle → Added`:
 
 For every `<<Entity>>` listed under `## Class Lifecycle → Removed`:
 
-- Emit `` ⚠ Drop Table `<child_table>` `` → `Drop Table`.
+- Emit `` ⚠ Drop Table `<child_table>` `` → `Drop Table`, where `<child_table>` is derived directly from the `→ Removed` bullet's class name: `<root_table>_` + the pluralized snake_case of that name (same child-table-naming rule as Step 5; the working-tree `<child_table_of[...]>` map does **not** contain removed entities, so derive it ad-hoc here).
 
-For every `**Members:**` bullet inside the `### \`<entity_class>\` \`<<Entity>>\`` per-class block, **skipping any bullet whose `(<entity_class>, <attribute_name>)` is in `<consumed_attrs>`** (status / timestamp pair flips on a child entity cascade through § 6.5), apply the same attribute-add / attribute-remove / attribute-change rules as § 6.1, but scoped to `<child_table_of[<entity_class>]>`.
+For every `**Members:**` bullet inside the `### \`<entity_class>\` \`<<Entity>>\`` per-class block, **skipping any bullet whose `(<entity_class>, <attribute_name>)` is in `<consumed_attrs>`** (status / timestamp pair flips on a child entity cascade through § 6.5), apply the same attribute-add / attribute-remove / attribute-change rules as § 6.1 — including the optionality-only-flip → `Add Not Null Constraint` / `Drop Not Null Constraint` refinement and the combined `type` + `visibility` clause rule — but scoped to `<child_table_of[<entity_class>]>`.
 
-Stereotype-changed entities (`Stereotype Changed: <entity>: <<Entity>> → <<...>>`) → fail loud (orchestrator should have caught this; see § Hard-fail conditions).
+Stereotype-changed entities (`Stereotype Changed: <entity>: <<Entity>> → <<...>>` under `## Class Lifecycle → Stereotype Changed`) → fail loud (orchestrator should have caught this; see § Hard-fail conditions). The root-class and `<<Repository>>`-class cases of the same check live in § 6.0's stereotype-change safety net.
 
 #### 6.3 Value-object deltas
 
@@ -167,7 +178,7 @@ For every `<<Value Object>>` listed under `## Class Lifecycle → Added`:
 
 For every `<<Value Object>>` listed under `## Class Lifecycle → Removed`:
 
-- Symmetric to *Added*. For each `(<owner_class>, <field_name>)` in `<vo_owners[<vo>]>` (resolved against the HEAD diagram if the working tree has dropped the edge), skip the `status` case (§ 6.5 *Status removed* owns it) and otherwise emit `` ⚠ Drop Column `<owner_table>.<field_name>` `` → `Drop Column`.
+- Symmetric to *Added*. The working tree no longer carries the removed VO class or its composition edges, so resolve `(<owner_class>, <field_name>)` pairs from `<vo_owners_head[<vo>]>` (built from the HEAD diagram per Step 5's *HEAD diagram, for removed value objects only* clause). For each pair: if `<owner_class>` is itself listed under `## Class Lifecycle → Removed` (its whole table is being dropped), skip — the `⚠ Drop Table` row in § 6.2 already covers it. Otherwise skip the `status` case (§ 6.5 *Status removed* owns it) and emit `` ⚠ Drop Column `<owner_table>.<field_name>` `` → `Drop Column` (`<owner_table>` = the root table when `<owner_class>` = `<root_class>`, else `<child_table_of[<owner_class>]>`).
 
 VO **field-level** changes inside a `### \`<vo_class>\` \`<<Value Object>>\`` per-class block (field added / removed / type changed) are **byte-neutral** for the command-repo-spec — the field lives inside the JSONB blob, so the underlying database column is unchanged. Emit no row.
 
@@ -201,7 +212,13 @@ For each indexable finder, extract the **lookup column** as follows:
 3. If `<signature>` cannot be parsed, or if every parameter is `tenant_id`, hard-fail per § Hard-fail conditions.
 4. Determine **scalar vs JSONB**: the column maps to JSONB iff `<column_type_for[<root_class>.<column>]>` is `JSONB`. Otherwise scalar.
 
-For `Method changed` bullets, run extraction (1)–(4) on **both** the old and new signatures. If the resulting lookup column differs (parameter renamed, or retyped across the scalar↔JSONB boundary), emit a Drop Index row for the **old** column followed by an Add Index / Add JSONB Index row for the **new** column. If both signatures resolve to the same lookup column, emit no row — the index target is byte-stable.
+For `Method changed` bullets, **classify each side independently** by the name-pattern rule above before extracting anything: a side whose method name matches `*_of_id` is non-indexable (it contributes no lookup column, and you do **not** run extraction (1)–(4) on it — so it can never trigger the unparseable-signature hard-fail); any other finder name is indexable, and you run extraction (1)–(4) on that side to obtain its lookup column and scalar-vs-JSONB flavour. Drops always use Pattern `Drop Index` regardless of flavour — only the index name differs (`idx_<root_table>_<column>` for a scalar column, `idx_<root_table>_<column>_gin` for a JSONB column); adds use `Add Index` for a scalar column and `Add JSONB Index` for a JSONB column. Then:
+
+- both sides non-indexable (`*_of_id` → `*_of_id`) → **no row**.
+- old indexable, new non-indexable (a finder renamed *into* an `*_of_id` finder) → emit only a `Drop Index` row for the **old** column.
+- old non-indexable, new indexable (a finder renamed *out of* `*_of_id`) → emit only an `Add Index` / `Add JSONB Index` row for the **new** column.
+- both sides indexable, lookup columns differ (parameter renamed, or retyped across the scalar↔JSONB boundary) → emit a `Drop Index` row for the **old** column followed by an `Add Index` / `Add JSONB Index` row for the **new** column (two rows, sequential IDs).
+- both sides indexable, same lookup column → **no row** — the index target is byte-stable.
 
 Emit per delta:
 
@@ -211,9 +228,11 @@ Emit per delta:
 | Method added (JSONB lookup) | `` Add JSONB Index `idx_<root_table>_<column>_gin` `` → `Add JSONB Index` |
 | Method removed (scalar) | `` Drop Index `idx_<root_table>_<column>` `` → `Drop Index` |
 | Method removed (JSONB) | `` Drop Index `idx_<root_table>_<column>_gin` `` → `Drop Index` |
-| Method changed (parameter renamed/retyped → different column) | Emit Drop Index for the **old** column followed by Add Index / Add JSONB Index for the **new** column (two rows, sequential IDs). |
-| Method changed (signature change with same lookup column) | **no row** — the index target is byte-stable. |
-| `*_of_id` added/removed/changed | **no row** |
+| Method changed, both sides indexable, different lookup column | `Drop Index` for the **old** column, then `Add Index` / `Add JSONB Index` for the **new** column (two rows, sequential IDs) — index names and patterns per the flavour rule above |
+| Method changed, both sides indexable, same lookup column | **no row** — the index target is byte-stable |
+| Method changed, renamed *into* an `*_of_id` finder (old indexable, new not) | `Drop Index` for the **old** column only |
+| Method changed, renamed *out of* an `*_of_id` finder (old not, new indexable) | `Add Index` / `Add JSONB Index` for the **new** column only |
+| `*_of_id` added/removed, or `*_of_id` → `*_of_id` changed | **no row** |
 
 Index names follow the convention `idx_<table>_<column>` for scalar and `idx_<table>_<column>_gin` for JSONB — matching `@command-repo-spec-schema-writer`'s output.
 
@@ -232,7 +251,7 @@ The two rows allocate sequential IDs but are emitted as a pair so a downstream o
 
 - `` ⚠ Drop Column `<table>.tenant_id` `` → `Drop Column`
 
-**Status field added** — root (`### \`<root_class>\` \`<<Aggregate Root>>\``) or any entity (`### \`<entity_class>\` \`<<Entity>>\``) per-class block contains `**Members:** Attribute added: \`+status: <<Value Object>>\``. Emit, in this order, on the owner's table:
+**Status field added** — root (`### \`<root_class>\` \`<<Aggregate Root>>\``) or any entity (`### \`<entity_class>\` \`<<Entity>>\``) per-class block contains `**Members:** Attribute added: \`+status: <Type>\`` where `<Type>` is the literal `<<Value Object>>` token or a class name in `<vo_classes>` (per § 6.0's *Status flip* edge case). Emit, in this order, on the owner's table:
 
 1. `` Add Column `<owner_table>.status` `` → `Add Column`
 2. `` Add Column `<owner_table>.status_error` `` → `Add Column`
@@ -285,7 +304,7 @@ Do **not** modify the spec. Do **not** emit a sentinel. Re-runs of the same `upd
 
 ### Step 8 — Allocate IDs and write back
 
-Allocate IDs to the surviving candidates. The first new row is `<max_id> + 1`, zero-padded to 4 digits; subsequent rows increment by 1. Format each ID as `^\d{4}$` (writer convention).
+Allocate IDs to the surviving candidates. The first new row is `<max_id> + 1`, zero-padded to 4 digits; subsequent rows increment by 1. Each `<id_i>` value is the zero-padded 4-digit string (`^\d{4}$`); the row template below wraps it in single backticks (`` `<id_i>` ``) so appended rows render identically to the writer's rows.
 
 Construct the new tail block:
 
@@ -300,7 +319,7 @@ Construct the new tail block:
 Where:
 
 - `<sentinel-line>` = `<!-- appended-from updates-hash:<short_hash> -->`
-- `<new-row-i>` = `| <id_i> | <changeset_i> | <pattern_i> | \`persistence-spec:migration\` |`
+- `<new-row-i>` = `` | \`<id_i>\` | <changeset_i> | <pattern_i> | \`persistence-spec:migration\` | `` — the ID cell is single-backtick-wrapped to match `@command-repo-spec-migrations-writer`'s row format and `command-repo-spec-template`. `<changeset_i>` keeps its own backtick-wrapped identifiers and any leading `⚠ ` marker; `<pattern_i>` is bare.
 
 The Pattern column carries the bare pattern name from the `persistence-spec:migration-vocabulary` controlled list. The `⚠ ` marker, when present, lives only inside the Changeset cell (never the Pattern cell).
 
@@ -315,15 +334,15 @@ Effect:
 - The new sentinel sits immediately *before* the new rows and immediately *after* the previous tail of the table.
 - No section of `<spec_file>` outside `### Migrations` is touched, and `<domain_diagram>` is never modified.
 
-Worked example. Suppose the existing table is:
+Worked example. Suppose the existing table is (the divider, padding, and backtick-wrapped IDs are exactly what `@command-repo-spec-migrations-writer` emits):
 
 ```
 ### Migrations
 
-| ID    | Changeset                                  | Pattern               | Template                       |
-|-------|--------------------------------------------|-----------------------|--------------------------------|
-| 0001  | Create `users`                             | Create Table          | `persistence-spec:migration`   |
-| 0002  | Indexes for `users`                        | Add Index             | `persistence-spec:migration`   |
+| ID | Changeset | Pattern | Template |
+| --- | --- | --- | --- |
+| `0001` | Create `users` | Create Table | `persistence-spec:migration` |
+| `0002` | Indexes for `users` | Add Index | `persistence-spec:migration` |
 
 ### Mappers
 ```
@@ -333,13 +352,13 @@ After appending two rows derived from `updates-hash:abc123def456`:
 ```
 ### Migrations
 
-| ID    | Changeset                                  | Pattern               | Template                       |
-|-------|--------------------------------------------|-----------------------|--------------------------------|
-| 0001  | Create `users`                             | Create Table          | `persistence-spec:migration`   |
-| 0002  | Indexes for `users`                        | Add Index             | `persistence-spec:migration`   |
+| ID | Changeset | Pattern | Template |
+| --- | --- | --- | --- |
+| `0001` | Create `users` | Create Table | `persistence-spec:migration` |
+| `0002` | Indexes for `users` | Add Index | `persistence-spec:migration` |
 <!-- appended-from updates-hash:abc123def456 -->
-| 0003  | Add Column `users.email`                   | Add Column            | `persistence-spec:migration`   |
-| 0004  | ⚠ Drop Column `users.legacy_field`         | Drop Column           | `persistence-spec:migration`   |
+| `0003` | Add Column `users.email` | Add Column | `persistence-spec:migration` |
+| `0004` | ⚠ Drop Column `users.legacy_field` | Drop Column | `persistence-spec:migration` |
 
 ### Mappers
 ```
@@ -347,9 +366,9 @@ After appending two rows derived from `updates-hash:abc123def456`:
 A second run with a different `updates.md` (`updates-hash:7890fedcba01`) interleaves a new sentinel before its own appended block:
 
 ```
-| 0004  | ⚠ Drop Column `users.legacy_field`         | Drop Column           | `persistence-spec:migration`   |
+| `0004` | ⚠ Drop Column `users.legacy_field` | Drop Column | `persistence-spec:migration` |
 <!-- appended-from updates-hash:7890fedcba01 -->
-| 0005  | Add Index `idx_users_email`                | Add Index             | `persistence-spec:migration`   |
+| `0005` | Add Index `idx_users_email` | Add Index | `persistence-spec:migration` |
 ```
 
 ### Step 9 — Report
@@ -373,13 +392,14 @@ Each prints exactly one `Error: ...` line and exits non-zero. The agent does **n
 | `<spec_file>` missing | `Error: <spec_file> not found. The appender is not the first-run pipeline; run /persistence-spec:generate-specs <domain_diagram> to create the spec.` | Run `/persistence-spec:generate-specs`. |
 | `<updates_file>` missing | `Error: <updates_file> not found. Run /update-specs <domain_diagram> first to generate the domain updates report.` | Run `/update-specs`. |
 | §2.Migrations header malformed | `Error: §2.Migrations table header in <spec_file> is malformed; expected '\| ID \| Changeset \| Pattern \| Template \|'. Run /persistence-spec:generate-specs <domain_diagram> to rebuild.` | Run `/persistence-spec:generate-specs`. |
-| §2.Migrations row has malformed ID | `Error: §2.Migrations row '<row>' has malformed ID cell '<id_cell>'; expected 4-digit zero-padded integer. Run /persistence-spec:generate-specs <domain_diagram> to rebuild.` | Run `/persistence-spec:generate-specs`. |
+| §2.Migrations row has malformed ID | `Error: §2.Migrations row '<row>' has malformed ID cell '<id_cell>'; expected a 4-digit zero-padded integer (optionally backtick-wrapped). Run /persistence-spec:generate-specs <domain_diagram> to rebuild.` | Run `/persistence-spec:generate-specs`. |
 | §2.Migrations contains template placeholders | `Error: §2.Migrations contains template placeholder rows; run @command-repo-spec-migrations-writer <domain_diagram> first to fill the baseline.` | Run `@command-repo-spec-migrations-writer`. |
 | Unmappable Column Type | `Error: cannot map domain type '<token>' on '<class>.<field>' to a persistence-spec:table-definitions Column Type. Run /persistence-spec:generate-specs <domain_diagram> to rebuild.` | Run `/persistence-spec:generate-specs`. |
 | Repository finder signature unparseable | `Error: cannot extract lookup parameter from <<Repository>> finder '<method_name>' signature '<signature>' touched by updates.md; the appender expects '<name>: <Type>' parameter syntax with at least one non-tenant_id parameter. Run /persistence-spec:generate-specs <domain_diagram> to rebuild.` | Run `/persistence-spec:generate-specs`. |
-| Stereotype-changed Aggregate Root or `<<Repository>>` interface lifecycle change | `Error: aggregate-root or <<Repository>> interface lifecycle change detected in updates.md; this should have been caught by the orchestrator preflight. Run /persistence-spec:generate-specs <domain_diagram>.` | Run `/persistence-spec:generate-specs`. (The orchestrator should not have invoked the appender in this state; the check is a safety net.) |
+| HEAD diagram unreadable (a `<<Value Object>>` is listed under `→ Removed`, so owner resolution needs the HEAD diagram — see Step 5) | `Error: cannot read the HEAD revision of <domain_diagram> to resolve owner tables for value object(s) removed in updates.md. Run /persistence-spec:generate-specs <domain_diagram> to rebuild.` | Run `/persistence-spec:generate-specs`. |
+| Root class or `<<Repository>>` class appears under `## Class Lifecycle → Stereotype Changed` (§ 6.0 safety net) | `Error: a stereotype change on the aggregate root or a <<Repository>> class is present in updates.md; this should have been caught by the orchestrator preflight. Run /persistence-spec:generate-specs <domain_diagram>.` | Run `/persistence-spec:generate-specs`. (The orchestrator should not have invoked the appender in this state; the check is a safety net.) |
 
-The agent does **not** check for degraded baseline (`_warning: HEAD ...`), aggregate-root removal, or `<<Repository>>` interface lifecycle changes at the report level — those are the orchestrator's responsibility. The "safety net" row above only fires when the agent encounters an explicit stereotype change for the root or repo class while walking `<per_class>`.
+The agent does **not** check for degraded baseline (`_warning: HEAD ...`), aggregate-root removal, or `<<Repository>>` interface lifecycle changes at the report level — those are the orchestrator's responsibility. The "safety net" row above fires from § 6.0's stereotype-change pre-scan: if `## Class Lifecycle → Stereotype Changed` names `<root_class>` or carries `<<Repository>>` as either the old or new stereotype on any bullet, the agent aborts even though the orchestrator should have hard-failed first.
 
 ---
 
@@ -397,7 +417,7 @@ The agent does **not** check for degraded baseline (`_warning: HEAD ...`), aggre
 - It does not modify any section of `<spec_file>` other than §2.Migrations.
 - It does not touch `<domain_diagram>`, `<updates_file>`, or any sibling artifact in the `<stem>.application/`, `<stem>.rest-api/`, or `<stem>.messaging/` folders.
 - It does not regenerate snapshot sections (§1, §2.Tables/Mappers/Repository/Context Integration, §3) — those are owned by `@command-repo-spec-pattern-selector` and `@command-repo-spec-schema-writer`.
-- It does not write or modify any YAML file under `db/migrations/` — those are owned by `@migrations-implementer`.
+- It does not write or modify any YAML file under `db/migrations/` — those are owned by `@migrations-implementer`. **Caveat:** `@migrations-implementer` today recognises only the writer's five additive patterns (`Create Table`, `Create Table (Composite PK)`, `Add Foreign Key`, `Add Index`, `Add JSONB Index`) and enforces an at-most-one-row contract on the two aggregating patterns — so the column-evolution and destructive rows this agent appends, and any second `Add Foreign Key` / index row, are not yet consumable by code generation. Teaching `@migrations-implementer` the appender's full vocabulary (and relaxing that contract, and re-running `@migrations-scaffolder` in the update path) is tracked in `persistence-spec:migration-vocabulary` § Pattern controlled list and `notes/spec-updater-approaches.md` § Open questions.
 - It does not handle aggregate-root or `<<Repository>>` interface lifecycle changes — those route to `/persistence-spec:generate-specs` via the orchestrator's preflight.
 - It does not preserve hand-edits inside §2.Migrations rows it appends — but it never overwrites pre-existing rows either; the immutability contract is load-bearing.
 - It does not infer migrations from `<<Event>>`, `<<Command>>`, `<<Service>>`, `<<TypedDict>>`, method, or prose changes — see § 6.6.

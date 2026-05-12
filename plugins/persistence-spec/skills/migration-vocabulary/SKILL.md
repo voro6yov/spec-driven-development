@@ -24,7 +24,7 @@ Every row in the `### Migrations` sub-table has exactly four columns:
 | ID    | Changeset                                  | Pattern               | Template                       |
 ```
 
-- **ID** — zero-padded 4-digit sequence (`0001` … `9999`), allocated monotonically per aggregate. Once written, immutable.
+- **ID** — zero-padded 4-digit sequence (`0001` … `9999`), allocated monotonically per aggregate. Once written, immutable. Rendered single-backtick-wrapped in the cell (`` `0001` ``), matching `command-repo-spec-template` and `@command-repo-spec-migrations-writer` — a consumer parsing the cell must strip the wrapping backticks before reading the integer.
 - **Changeset** — human-readable summary; downstream `migrations-implementer` slugifies this cell into the YAML filename. Backtick-wrapped identifiers are stripped during slugification (see § Slug derivation below).
 - **Pattern** — controlled vocabulary value (see § Pattern controlled list below). Drives template variant selection.
 - **Template** — always rendered as `` `persistence-spec:migration` ``.
@@ -59,15 +59,15 @@ Destructive patterns — `Drop Column`, `Drop Table`, `Alter Column Type`, and t
 Correct:
 
 ```
-| 0007 | ⚠ Drop Column `users.legacy_field` | Drop Column        | `persistence-spec:migration` |
-| 0008 | ⚠ Drop Table `users_archive`       | Drop Table         | `persistence-spec:migration` |
-| 0009 | ⚠ Alter Column Type `users.age` → Integer | Alter Column Type | `persistence-spec:migration` |
+| `0007` | ⚠ Drop Column `users.legacy_field` | Drop Column        | `persistence-spec:migration` |
+| `0008` | ⚠ Drop Table `users_archive`       | Drop Table         | `persistence-spec:migration` |
+| `0009` | ⚠ Alter Column Type `users.age` → Integer | Alter Column Type | `persistence-spec:migration` |
 ```
 
 Incorrect (do **not** put the marker in the Pattern column):
 
 ```
-| 0007 | Drop Column `users.legacy_field`   | ⚠ Drop Column      | ...                          |
+| `0007` | Drop Column `users.legacy_field`   | ⚠ Drop Column      | ...                          |
 ```
 
 The marker is purely advisory: it surfaces destructiveness to human reviewers and to downstream `migrations-implementer` policy gates. It is stripped by the slugifier (§ Slug derivation), so it does not pollute the YAML filename.
