@@ -2,7 +2,7 @@
 name: diagram-reviewer
 description: Reviews a single Mermaid class diagram (domain, commands, or queries — detected by filename) for architectural soundness. Read-only; emits a severity-grouped report (Critical / Major / Minor). Invoke with: @diagram-reviewer <diagram_file>
 tools: Read
-model: sonnet
+model: opus
 skills:
   - domain-spec:diagram-conventions
 ---
