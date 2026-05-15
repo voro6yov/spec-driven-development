@@ -3,7 +3,7 @@
 ```python
 from datetime import datetime
 
-from ..shared import Event, Guard, ImmutableCheck, ValueObject
+from ..shared import Event, Guard, ImmutableCheck, ValueObject, utc_now
 from .events import {{ state_event }}
 
 class {{ value_object_name }}(metaclass=ValueObject):
@@ -34,7 +34,7 @@ class {{ value_object_name }}(metaclass=ValueObject):
         self.events: list[Event] = []
 
     def start(self, aggregate: "{{ aggregate_name }}") -> None:
-        self.started_at = datetime.now()
+        self.started_at = utc_now()
         self.status = "inProgress"
         aggregate.events.append(
             {{ state_event }}(
@@ -45,7 +45,7 @@ class {{ value_object_name }}(metaclass=ValueObject):
         )
 
     def finish(self, aggregate: "{{ aggregate_name }}") -> None:
-        self.finished_at = datetime.now()
+        self.finished_at = utc_now()
         self.status = "finished"
         aggregate.events.append(
             {{ state_event }}(

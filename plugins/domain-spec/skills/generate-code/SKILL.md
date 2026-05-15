@@ -34,7 +34,7 @@ Invoke `domain-spec:package-preparer` with prompt `<domain_dir> <package_path>`.
 
 ### Step 3 — Prepare test package
 
-Invoke `domain-spec:test-package-preparer` with prompt `<source_root>`. Wait for completion.
+Invoke `domain-spec:test-package-preparer` with prompt `<tests_dir>`. Wait for completion. The agent is given the absolute `Tests` path from the locations report directly — do not pass `<source_root>` and let the agent re-derive (per Path hygiene rule 4 of `domain-spec:naming-conventions`).
 
 ### Step 4 — Scaffold package
 
@@ -46,13 +46,22 @@ Read `<aggregate_pkg_dir>/exceptions.py`. If the file contains at least one `cla
 
 ### Step 6 — Implement other modules in parallel
 
-Use Bash to list all `.py` files in `<aggregate_pkg_dir>` excluding `__init__.py` and `exceptions.py`:
+Use Bash to list all `.py` files in `<aggregate_pkg_dir>` excluding `__init__.py` and `exceptions.py`, producing absolute paths:
 
 ```bash
-ls "<aggregate_pkg_dir>"/*.py | grep -v '__init__\.py' | grep -v 'exceptions\.py'
+ls -1 "<aggregate_pkg_dir>"/*.py | grep -v '__init__\.py' | grep -v 'exceptions\.py'
 ```
 
-For each file path returned, invoke `domain-spec:code-implementer` with prompt `<file_path>`. Launch all invocations in parallel (do not wait for one before starting the next). Wait for all to complete.
+Because the glob is anchored at `<aggregate_pkg_dir>` (which is itself absolute per Step 1), every returned line is already an absolute path inside the aggregate package directory.
+
+**Sanity check (Path hygiene rule 5 of `domain-spec:naming-conventions`)** — before fanning out, verify every returned line:
+
+- begins with `<aggregate_pkg_dir>/` (the file lives inside the expected ancestor), and
+- ends in `.py`.
+
+If any line fails either check, abort with `ERROR: unexpected file path '<line>' outside <aggregate_pkg_dir>` and stop before invoking the implementer — never relay a suspect path to a parallel writer.
+
+For each validated absolute file path, invoke `domain-spec:code-implementer` with prompt `<file_path>`. Launch all invocations in parallel (do not wait for one before starting the next). Wait for all to complete.
 
 ### Step 7 — Generate fixtures
 

@@ -28,6 +28,7 @@ disable-model-invocation: false
 - Update timestamps or derived metadata whenever state changes.
 - Append events immediately after successful state transitions, either directly or via collaborators.
 - Implement `clear_events()` / `clear_commands()` as single-statement methods (`self.events.clear()` / `self.commands.clear()`) with no other side effects — they are infrastructure hooks for test fixtures, not domain operations.
+- **Always use `utc_now()` (from `..shared`) for `created_at`, `updated_at`, and every other `datetime` guard.** Naïve `datetime.now()` produces tz-unaware timestamps that fail round-trip equality against `DateTime(timezone=True)` columns once the aggregate is persisted; the persistence layer rehydrates such columns as tz-aware UTC, and `Entity.equals()` then sees them as unequal. `utc_now()` returns `datetime.now(UTC)` and keeps the domain symmetric with persistence.
 
 ## Testing guidance
 

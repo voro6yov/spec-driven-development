@@ -1,16 +1,15 @@
 # Delegation and Event Propagation Template
 
 ```python
-from datetime import datetime
 from typing import Callable
 
-from ..shared import Event
+from ..shared import Event, utc_now
 from .events import {{ event_name }}
 
 def delegate_event(aggregate: "{{ aggregate_name }}", build_event: Callable[[], Event]) -> None:
     event = build_event()
     aggregate.events.append(event)
-    aggregate.updated_at = datetime.now()
+    aggregate.updated_at = utc_now()
 
 class {{ collaborator_name }}:
     def __init__(self) -> None:
@@ -39,15 +38,14 @@ class {{ collaborator_name }}:
 ## Example
 
 ```python
-from datetime import datetime
 from typing import Callable
-from ..shared import Event
+from ..shared import Event, utc_now
 from .events import OrderItemAdded
 
 def delegate_event(aggregate: "Order", build_event: Callable[[], Event]) -> None:
     event = build_event()
     aggregate.events.append(event)
-    aggregate.updated_at = datetime.now()
+    aggregate.updated_at = utc_now()
 
 class OrderItemsProcessor:
     def __init__(self) -> None:

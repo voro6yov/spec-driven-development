@@ -133,8 +133,26 @@ For every scenario from Step 3, produce one row with these columns:
 | **given** | `state_key` from the State Keys table (or `(none)` for factory tests) |
 | **when** | Python expression for the action (e.g. `load.start_receiving()` or `Load.new(...)`) |
 | **then.state** | Short assertion refs on public properties, comma-separated (e.g. `status == 'receiving'`); `—` if none |
-| **then.events** | Event refs in the form `EventType(payload_field, payload_field)` — the listed payload fields are those asserted, comma-separated; `—` if none |
+| **then.events** | Event refs in the form `EventType(field1:source1, field2:source2)` — the listed payload fields are those asserted; each field is tagged with the comparand source (see "Payload source tagging" below); `—` if none |
 | **raises** | Exception class name (e.g. `LoadAlreadyReceivingError`); `—` if none |
+
+**Payload source tagging** (drives downstream test assertion strategy):
+
+Every `<field>:<source>` pair in `then.events` carries one of three source tags:
+
+| source | Meaning | Implementer behavior |
+|---|---|---|
+| `state` | Field is a primitive or value-object reference that the post-action aggregate exposes on the same attribute name. The aggregate carries it verbatim. | Emit `assert event.<field> == <fixture>.<field>`. |
+| `input` | Field is supplied by the call-site (the `when` expression's arguments), not by the aggregate. Typical when the event field is a TypedDict, `list[TypedDict]`, or otherwise structurally distinct from any aggregate attribute (e.g. event payload is `list[LookupData]` while the aggregate exposes a `Lookups` collection of entities). | Emit a pre-action capture under `expected_<field> = <value-from-when>` and assert against it. |
+| `computed` | Field is derived inside the action and cannot be compared against either the aggregate or the input (e.g. a generated id, a timestamp, a hash). | Skip the assertion; the implementer emits a `# TODO` placeholder. |
+
+**Decide the source per field** by looking up the event class spec (every `<<Domain Event>>` is in `specs.md`):
+
+- If the event field's type is a primitive (`str`, `int`, `bool`, `datetime`, `UUID`, an enum, a value-object class) **and** an attribute with the same name exists on the aggregate root → `state`.
+- If the event field's type is a TypedDict, `list[<TypedDict>]`, `dict`, or `list[<dict-like>]`, and that input arrives via the `when` expression's call args → `input`.
+- Otherwise → `computed`.
+
+When `source = input` and the corresponding input expression is not trivially extractable from the `when` cell (e.g. a complex literal), still tag the field as `input` — the implementer will emit a TODO comment for the human to fill in.
 
 **Cross-reference check** — every `state_key` referenced in the `given` column must exist in the State Keys table.
 

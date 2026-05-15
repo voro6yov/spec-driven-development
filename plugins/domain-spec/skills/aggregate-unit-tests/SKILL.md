@@ -264,6 +264,31 @@ def test_load_start_receiving__emits_event(load_1):
     assert event.warehouse_id == load_1.warehouse_id
 ```
 
+### Pitfall: TypedDict-typed payload vs. entity-typed aggregate attribute
+
+A payload field whose type is a TypedDict (or `list[<TypedDict>]`) is **structurally different** from the materialized entity the aggregate exposes. The two compare unequal even when they represent the same data, and the test fails silently in a way that's easy to misread as a domain bug.
+
+```python
+# WRONG — event.lookups is list[LookupData] (TypedDict), mapping_type.lookups is Lookups (collection of Lookup entities)
+def test_mapping_type_add_lookups__emits_event(mapping_type_1):
+    mapping_type_1.add_lookups(lookups=[{"code": "A", "label": "Alpha"}])
+    event = next(e for e in mapping_type_1.events if isinstance(e, MappingTypeLookupsAdded))
+    assert event.lookups == mapping_type_1.lookups  # ❌ never equal — different types
+```
+
+```python
+# CORRECT — capture the input BEFORE the action runs and assert against it
+def test_mapping_type_add_lookups__emits_event(mapping_type_1):
+    expected_lookups = [{"code": "A", "label": "Alpha"}]
+
+    mapping_type_1.add_lookups(lookups=expected_lookups)
+
+    event = next(e for e in mapping_type_1.events if isinstance(e, MappingTypeLookupsAdded))
+    assert event.lookups == expected_lookups
+```
+
+**Rule.** When the event field's type is a TypedDict, `list[<TypedDict>]`, `dict`, or `list[<dict-like>]`, never compare it against an aggregate attribute. The planner marks such fields with `source = input` in the `then.events` cell; the implementer captures them above the `when` line and asserts against that capture.
+
 ### Multiple Events
 
 ```python

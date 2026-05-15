@@ -63,3 +63,16 @@ Define how domain model types map to guard declarations and constructor paramete
    ```python
    Guard[ExtractionInfo](dict, ImmutableCheck())  # correct
    ```
+6. **`datetime` guards are always tz-aware UTC.** Construct timestamps with `utc_now()` (re-exported from `..shared`, defined in `shared/clock.py` as `datetime.now(UTC)`). Never use naïve `datetime.now()`:
+   ```python
+   # CORRECT
+   from ..shared import utc_now
+   created_at = utc_now()
+
+   # WRONG — produces a naïve datetime; round-tripping through a
+   # DateTime(timezone=True) column rehydrates it as tz-aware UTC,
+   # and Entity.equals() then sees the two as unequal.
+   from datetime import datetime
+   created_at = datetime.now()
+   ```
+   This rule is symmetric with the persistence-spec, which always declares timestamp columns as `DateTime(timezone=True)`.

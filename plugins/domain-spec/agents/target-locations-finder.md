@@ -29,13 +29,26 @@ Filter out `tests`, hidden entries, and `__pycache__`. If zero or more than one 
 
 ### Step 2 — Resolve aggregate package name from the diagram file
 
-Derive `<aggregate_pkg>` from `<domain_diagram>` by stripping the directory and the `.md` suffix:
+Derive the kebab-case stem from `<domain_diagram>` by stripping the directory and the `.md` suffix:
 
 ```
 basename <domain_diagram> .md
 ```
 
-The result is the aggregate package name (e.g. `order`, `domain_type`). It is used as the last segment of the aggregate package path under `<repo_path>/src/<pkg>/domain/`.
+Then convert the stem to its Python package name `<aggregate_pkg>` by replacing every `-` with `_`. The diagram stem is kebab-case (canonical for spec paths — see `domain-spec:naming-conventions`); the Python package name is the same value in snake_case.
+
+Worked examples:
+
+| Diagram stem | `<aggregate_pkg>` |
+|---|---|
+| `order` | `order` |
+| `domain_type` | `domain_type` |
+| `cache-type` | `cache_type` |
+| `purchase-order` | `purchase_order` |
+
+Validate `<aggregate_pkg>` against `^[a-z][a-z0-9_]*$`. If it does not match, abort with a one-sentence error naming the offending value — do not proceed to Step 3.
+
+`<aggregate_pkg>` is used as the last segment of the aggregate package path under `<repo_path>/src/<pkg>/domain/`.
 
 ### Step 3 — Resolve the four fixed paths
 

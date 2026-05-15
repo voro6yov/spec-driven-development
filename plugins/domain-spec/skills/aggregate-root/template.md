@@ -3,7 +3,7 @@
 ```python
 from datetime import datetime
 
-from ..shared import Command, Entity, Event, Guard, ImmutableCheck
+from ..shared import Command, Entity, Event, Guard, ImmutableCheck, utc_now
 from .value_objects import {{ info_value_object }}
 from .collection_value_objects import {{ collection_value_object }}
 from .dtos import {{ data_dto }}
@@ -46,8 +46,8 @@ class {{ aggregate_name }}(metaclass=Entity):
             tenant_id=tenant_id,
             info={{ info_value_object }}.from_data(data),
             items={{ collection_value_object }}.from_data(data.get("items")),
-            created_at=datetime.now(),
-            updated_at=datetime.now(),
+            created_at=utc_now(),
+            updated_at=utc_now(),
             events=[
                 {{ created_event }}(
                     aggregate_id=data["id"],
@@ -74,7 +74,7 @@ class {{ aggregate_name }}(metaclass=Entity):
 
     def add_item(self, item_number: str, description: str, quantity: int) -> None:
         self.items.add_item(item_number, description, quantity, self)
-        self.updated_at = datetime.now()
+        self.updated_at = utc_now()
 
     def add_collection_changes(self, changes: list[dict]) -> None:
         self.events.append(

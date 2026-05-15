@@ -120,12 +120,44 @@ Use the columns from the Tests table row:
 - **GIVEN comment**: use the `description` from the State Keys row matching the `given` state_key. For factory rows with `given = (none)`, write `a new {AggregateName}`.
 - **WHEN expression**: the `when` column verbatim (e.g. `load.start_receiving()`).
 - **THEN — state assertions**: parse `then.state` (split on `,`). For each assertion fragment (e.g. `status == 'receiving'`), emit `assert {fixture}.{fragment}`. Skip the state block if `then.state` is `—`.
-- **THEN — event assertions**: parse `then.events`. Each entry has the form `EventType(field1, field2)`. Emit:
+- **THEN — event assertions**: parse `then.events`. Each entry has the form `EventType(field1:source1, field2:source2)` where `source ∈ {state, input, computed}` (see "Payload source tagging" in the `aggregate-tests-planner` contract).
+
+  Backwards compatibility: if a field appears without a `:source` suffix (legacy plan), default to `source = state`.
+
+  Emit the event lookup once:
+
   ```python
   event = next(e for e in {fixture}.events if isinstance(e, EventType))
-  assert event.field1 == {fixture}.field1
-  assert event.field2 == {fixture}.field2
   ```
+
+  Then, **for each field**, dispatch on the source tag:
+
+  | source | Emitted lines |
+  |---|---|
+  | `state` | `assert event.<field> == {fixture}.<field>` |
+  | `input` | Two lines: capture the input above the `when` call (see below) and `assert event.<field> == expected_<field>` |
+  | `computed` | `# TODO: assert event.<field> (computed/derived field — fill in expected value)` |
+
+  **Input-source capture** — for every `input` field, the implementer rewrites the test body so the value is captured **before** the action runs. Pull the literal/expression that occupies the matching parameter slot of the `when` call:
+
+  ```python
+  # original `when`: fixture.add_lookups(lookups=<value>)
+  expected_lookups = <value>
+
+  # WHEN
+  fixture.add_lookups(lookups=expected_lookups)
+
+  # THEN
+  event = next(e for e in fixture.events if isinstance(e, EventType))
+  assert event.lookups == expected_lookups
+  ```
+
+  If the input value is not trivially extractable from the `when` cell, emit a TODO comment in its place rather than guessing:
+
+  ```python
+  expected_lookups = ...  # TODO: capture input list[LookupData] from the call site
+  ```
+
   For `event` scenario rows, this block is the primary assertion. For `success` rows that also have non-`—` `then.events`, append the event block after the state assertions. Skip if `—`.
 - **raises**: for `error` scenario rows, wrap the `when` expression in `pytest.raises(ExceptionClass)`:
   ```python

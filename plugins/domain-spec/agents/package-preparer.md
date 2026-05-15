@@ -59,6 +59,14 @@ Output one sentence:
 
 `<package_path>` may contain multiple segments (e.g. `profile/subject`). Each segment must become a Python package with its own `__init__.py`.
 
+**Precondition (Path hygiene rule 2 of `domain-spec:naming-conventions`)** — every segment of `<package_path>` must satisfy `^[a-z][a-z0-9_]*$`. If any segment contains `-` or otherwise fails the regex, abort with:
+
+```
+Error: <package_path> contains an invalid Python package segment: '<bad-segment>'. Python packages must be snake_case (^[a-z][a-z0-9_]*$). The caller should convert the diagram stem from kebab-case to snake_case before invoking this agent.
+```
+
+Do not attempt any directory creation when this check fails.
+
 Walk the path cumulatively from `<domain_dir>`, creating each segment if absent:
 
 ```bash

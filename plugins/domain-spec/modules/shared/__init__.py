@@ -1,3 +1,4 @@
+from .clock import *
 from .command import *
 from .entity import *
 from .entity_id import *
@@ -11,7 +12,8 @@ from .result_set_info import *
 from .value_object import *
 
 __all__ = (
-    command.__all__
+    clock.__all__
+    + command.__all__
     + entity.__all__
     + entity_id.__all__
     + event.__all__

@@ -23,6 +23,18 @@ This skill is the single source of truth for those rules. Agents and skills acro
 
 The **aggregate stem** is a kebab-case identifier matching the domain aggregate root (e.g. `order`, `purchase-order`, `product-catalog`). It must satisfy `^[a-z][a-z0-9-]*$`.
 
+### Python package name derivation
+
+`<stem>` is kebab-case for **spec paths and filenames only**. The Python package name that appears on disk inside `src/<pkg>/domain/` is the same value in **snake_case** — obtained by replacing every `-` with `_`. Every agent that materializes a Python directory (notably `target-locations-finder`, `package-preparer`, `scaffold-builder`, `code-implementer`) must perform this conversion before touching the filesystem.
+
+| Diagram stem | Spec folder | Python package directory |
+|---|---|---|
+| `order` | `<dir>/order.domain/` | `src/<pkg>/domain/order/` |
+| `cache-type` | `<dir>/cache-type.domain/` | `src/<pkg>/domain/cache_type/` |
+| `purchase-order` | `<dir>/purchase-order.domain/` | `src/<pkg>/domain/purchase_order/` |
+
+Validate the derived Python package name against `^[a-z][a-z0-9_]*$`. Agents must abort if validation fails; they must never emit a path segment containing `-` under `src/`.
+
 Given a domain diagram path `<dir>/<stem>.md`:
 
 - `<dir>` is the **specs directory** — the directory holding every diagram and sibling folder for the aggregate.
@@ -198,6 +210,18 @@ The messaging consumer spec is the only path that requires an additional discrim
 - **User-facing orchestrator skills** accept exactly `<domain_diagram>` plus non-derivable extras (`<consumer_name>`, `<service_identifier>`, `<tests_dir>`, free-text notes). They never require the caller to pre-resolve commands/queries diagrams or sibling spec files — derivation happens inside the orchestrator using the tables above.
 - **Per-plugin agents** accept exactly the diagram they primarily read — `<domain_diagram>` for `domain-spec`, `application-spec`, `persistence-spec`, and `rest-api-spec`; `<commands_diagram>` for `messaging-spec` — plus non-derivable extras. Sibling spec files inside the agent's own plugin folder are derived internally.
 - **Reconstruction by string substitution is forbidden** (e.g. `path.replace('.md', '.specs.md')`). Always recover `<stem>` and `<dir>` per the recovery table first, then build new paths from the artifact table.
+
+## Path hygiene (shared rules for file-writing agents)
+
+These rules apply to every agent that materializes files or directories under the project tree. They are the contract that prevents stray paths, shadow directories, and kebab-case Python imports.
+
+1. **Reject relative paths.** Every `<path>` argument an agent writes to must be absolute. Abort with an explicit error rather than resolving against the current working directory.
+2. **Reject hyphens in Python paths.** Any path segment that is (or descends into) a Python package — anything under `src/` or used as `<package_path>`, `<output_dir>`, `<aggregate_pkg_dir>`, `<module_path>` — must satisfy `^[a-z][a-z0-9_]*(/[a-z][a-z0-9_]*)*$` for its leaf segments. Treat a hyphen in any of those segments as a caller bug.
+3. **Implementers never create new modules.** An agent whose contract is "read-modify-write a scaffolded file" must verify the file already exists at the supplied path before reading and again before writing. A missing file is a hard failure, not a signal to create one.
+4. **Prefer locations-report paths over re-derivation.** When an orchestrator has a locations report (e.g. from `domain-spec:target-locations-finder`), it must pass each chained agent the exact path from the report rather than passing an ancestor and letting the agent re-derive. The report is the single source of truth for where things go.
+5. **Contain side effects to an expected ancestor.** When an orchestrator fans out parallel writers across a known set of paths, each writer should sanity-check that its target is contained within the orchestrator-supplied root (e.g. every `<module_path>` must begin with `<aggregate_pkg_dir>`).
+
+Agents that need to apply these rules cite this section by name (e.g. "Per `domain-spec:naming-conventions`, Path hygiene rule 3, abort if the file does not exist") instead of restating them.
 
 ## What NOT to do
 
