@@ -104,6 +104,122 @@ tags: list[str] = Field(default_factory=list)
 ids: list[str] | None = Field(default=None)
 ```
 
+## `to_domain()` method for nested TypedDict targets
+
+When a nested request sub-serializer mirrors the shape of a domain `<<Domain TypedDict>>` / `<<Query DTO>>` that the application service consumes, the sub-serializer exposes a `to_domain(self) -> <TypedDictName>` method. This is the canonical request→domain conversion site; the endpoint layer calls it (or list-comprehends over it for `list[T]` parameters) instead of using Pydantic's generic `model_dump()` — `to_domain()` is typed, robust to Pydantic config changes (e.g. `by_alias=True` flipping global key casing), and a single colocated place to evolve the conversion if the TypedDict diverges from the serializer's shape.
+
+The pattern is symmetric with the response-side `from_domain` classmethod: `from_domain(cls, dto)` constructs the serializer from a domain object; `to_domain(self)` constructs the domain object (TypedDict) from the serializer.
+
+### Scope
+
+- Emit `to_domain()` **only** on nested sub-serializers whose target application-service parameter type is `<<Domain TypedDict>>` / `<<Query DTO>>` (directly, as `list[T]`, or as `T | None` / `list[T] | None`).
+- **Do not** emit `to_domain()` on the top-level `<Operation>Request` — the endpoint accesses primitive fields directly via `request.<field>` and only invokes `to_domain()` on the nested sub-serializer instances passed for TypedDict-shaped fields.
+- **Do not** emit `to_domain()` on sub-serializers whose target type is a `<<Value Object>>` or `<<Aggregate Root>>` — those have their own construction patterns at the application or domain layer.
+
+### Body shape
+
+```python
+class LookupArgumentDataSerializer(ConfiguredRequestSerializer):
+    code: str
+    name: str
+    arguments: list[ArgumentDataSerializer]
+    response: list[ResponseDataSerializer]
+    note: str | None = None
+
+    def to_domain(self) -> LookupArgumentData:
+        return {
+            "code": self.code,
+            "name": self.name,
+            "arguments": [item.to_domain() for item in self.arguments],
+            "response": [item.to_domain() for item in self.response],
+            "note": self.note,
+        }
+```
+
+Per-field rendering rules:
+
+| Field type | Body expression |
+| --- | --- |
+| Primitive (`str`, `int`, `bool`, …) | `self.<field>` |
+| `<SubSerializer>` (scalar nested TypedDict) | `self.<field>.to_domain()` |
+| `list[<SubSerializer>]` | `[item.to_domain() for item in self.<field>]` |
+| `<SubSerializer> \| None` | `self.<field>.to_domain() if self.<field> else None` |
+| `list[<SubSerializer>] \| None` | `[i.to_domain() for i in self.<field>] if self.<field> else None` |
+| Anything else | `self.<field>` (and emit `# TODO: verify conversion for <field>`) |
+
+The return annotation names the target TypedDict — imported from `<pkg>.domain.<aggregate>` (or `<pkg>.domain.shared` when shared).
+
+### Worked example
+
+```python
+from my_service.domain.cache_type import ArgumentData, LookupArgumentData, ResponseData
+
+from ...configured_base_serializer import ConfiguredRequestSerializer, ConfiguredResponseSerializer
+
+__all__ = [
+    "ArgumentDataSerializer",
+    "ResponseDataSerializer",
+    "LookupArgumentDataSerializer",
+    "CreateRequest",
+    "CreateResponse",
+]
+
+
+class ArgumentDataSerializer(ConfiguredRequestSerializer):
+    name: str
+    type: str
+
+    def to_domain(self) -> ArgumentData:
+        return {
+            "name": self.name,
+            "type": self.type,
+        }
+
+
+class ResponseDataSerializer(ConfiguredRequestSerializer):
+    name: str
+    type: str
+
+    def to_domain(self) -> ResponseData:
+        return {
+            "name": self.name,
+            "type": self.type,
+        }
+
+
+class LookupArgumentDataSerializer(ConfiguredRequestSerializer):
+    code: str
+    name: str
+    arguments: list[ArgumentDataSerializer]
+    response: list[ResponseDataSerializer]
+
+    def to_domain(self) -> LookupArgumentData:
+        return {
+            "code": self.code,
+            "name": self.name,
+            "arguments": [item.to_domain() for item in self.arguments],
+            "response": [item.to_domain() for item in self.response],
+        }
+
+
+class CreateRequest(ConfiguredRequestSerializer):
+    code: str
+    name: str
+    lookups: list[LookupArgumentDataSerializer]
+```
+
+The endpoint then delegates:
+
+```python
+def create(request: CreateRequest, ...):
+    cache_type_commands.create(
+        code=request.code,
+        name=request.name,
+        lookups=[item.to_domain() for item in request.lookups],
+        tenant_id=tenant_id,
+    )
+```
+
 ## Base Class Configuration
 
 The `ConfiguredRequestSerializer` includes:

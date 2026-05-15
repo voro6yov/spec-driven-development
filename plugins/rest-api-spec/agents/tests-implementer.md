@@ -1,6 +1,6 @@
 ---
 name: tests-implementer
-description: "Implements pytest integration tests for the REST API endpoints of one resource. Takes a domain diagram and a target-locations report; derives the `<dir>/<stem>.rest-api/spec.md` sibling spec per `rest-api-spec:naming-conventions`, parses every `## Surface:` section, and writes one test module per surface at `<tests_dir>/integration/<resource>/test_<plural>_<surface>_api.py`. Per-endpoint dispatch is Table-driven (success / not_found / already_exists / missing_required_field). Mutating-endpoint JSON bodies are resolved from `<aggregate>_2` (success / not_found) and `<aggregate>_1` (already_exists) by snake_case-mapping Table 5 field names to fixture attributes, with type-based stub fallback when a field cannot be resolved. Append-only and idempotent. Invoke with: @tests-implementer <domain_diagram> <locations_report_text>"
+description: "Implements pytest integration tests for the REST API endpoints of one resource. Takes a domain diagram and a target-locations report; derives the `<dir>/<stem>.rest-api/spec.md` sibling spec per `rest-api-spec:naming-conventions`, parses every `## Surface:` section, and writes one test module per surface at `<tests_dir>/integration/<resource>/test_<plural>_<surface>_api.py`. Per-endpoint dispatch is Table-driven (success / not_found / already_exists / missing_required_field). Mutating-endpoint JSON bodies are resolved from `<aggregate>_2` (success / not_found) and `<aggregate>_1` (already_exists) by snake_case-mapping Table 5 field names to fixture attributes; nested TypedDict fields are recursively synthesized into minimum-valid dict / list-of-dict literals (not empty `[]`). Cardinality-aware fixture selection swaps to `<aggregate>_2` for nested-DELETE success scenarios when only it satisfies the targeted child-collection's ≥2 cardinality. Update-details body fields fall back to literal `Renamed *` stubs when the two aggregate fixtures share the same source value. Append-only and idempotent. Invoke with: @tests-implementer <domain_diagram> <locations_report_text>"
 tools: Read, Write, Edit, Bash, Skill
 skills:
   - rest-api-spec:naming-conventions
@@ -290,13 +290,43 @@ For each Table 5 field row `(name, type, required?)` selected for the body (sele
    | `int` | `0` |
    | `bool` | `False` |
    | `float` / `Decimal` | `0` |
-   | `list` / `list[*]` / `tuple[*]` | `[]` |
+   | `list` / `list[<primitive>]` / `tuple[<primitive>]` | `[]` |
+   | `list[<PascalCase>]` | `[<recursive_synth(PascalCase)>]` — exactly one element, via [§ Recursive TypedDict body synthesis](#recursive-typeddict-body-synthesis) below. **Never `[]`** when the element is a domain TypedDict — empty lists violate `<<Aggregate Root>>` preconditions like `LookupsNotProvided`. |
+   | `<PascalCase>` (scalar nested type) | `<recursive_synth(PascalCase)>` — via [§ Recursive TypedDict body synthesis](#recursive-typeddict-body-synthesis) below. |
    | `dict` / `dict[*]` | `{}` |
    | `datetime` / `date` | `"2024-01-01T00:00:00Z"` (datetime) or `"2024-01-01"` (date) |
    | `bytes` | `b""` |
    | anything else | `None` plus `# TODO: provide a value for <name>` trailing comment on that line |
 
-   When a stub is used, append a `# TODO: <name> stubbed (<reason>)` trailing comment on that line where `<reason>` is `not on <src_fix>` or `unsupported type <Type>`.
+   When a stub is used, append a `# TODO: <name> stubbed (<reason>)` trailing comment on that line where `<reason>` is `not on <src_fix>` or `unsupported type <Type>`. For recursively synthesized TypedDict / list-of-TypedDict literals, append `# TODO: <name> contents are minimum-valid stubs; adjust if a domain rule rejects them` on the same line.
+
+#### Recursive TypedDict body synthesis
+
+When a Table 5 row's Type column is a PascalCase token (scalar) or `list[<PascalCase>]` / `list[<PascalCase>] | None`, the agent emits a structured dict literal (or list-of-dict literal) instead of `[]` / `None`. The literal is synthesized by walking the type's `**Nested:**` sub-table inside the same endpoint group:
+
+1. **Locate the nested sub-block.** In the same surface's Table 5, find `**Nested:** \`<PascalCase>\`` followed by a field table.
+2. **For each nested field, recurse:**
+   - PascalCase token → another `**Nested:**` lookup → recursive synth, indented one level deeper.
+   - `list[<PascalCase>]` → wrap the recursive synth in `[ ... ]` (single-element list).
+   - Primitive → use the type-stub table (`str` → `"test"`, `int` → `0`, …).
+3. **Emit a dict literal** keyed by the nested field's Name column verbatim (camelCase preserved — it must match the request serializer's HTTP surface, which is camelCased by the base alias generator).
+4. **Wrapping:** for `list[<PascalCase>]`, emit `[<synth_dict>]` (one element); for scalar `<PascalCase>`, emit `<synth_dict>` directly.
+5. **Missing nested sub-block.** If `<PascalCase>` has no `**Nested:**` sub-table inside the same endpoint group, fall back to `None` with the existing `# TODO: provide a value for <name>` comment.
+
+Example — for a `lookups: list[LookupArgumentData]` field where `**Nested:** \`LookupArgumentData\`` has `{ code: str, name: str, arguments: list[ArgumentData], response: list[ResponseData] }` and `ArgumentData` / `ResponseData` each have `{ name: str, type: str }`, the agent emits:
+
+```python
+"lookups": [
+    {
+        "code": "test",
+        "name": "test",
+        "arguments": [{"name": "test", "type": "test"}],
+        "response": [{"name": "test", "type": "test"}],
+    },  # TODO: lookups contents are minimum-valid stubs; adjust if a domain rule rejects them
+],
+```
+
+This produces a minimum-valid structure that satisfies common "non-empty list" / "child fields required" domain rules out of the box, instead of a bare `[]` that fails on `LookupsNotProvided`-style invariants.
 
 **Body field selection.** Drives which Table 5 rows enter the dict:
 
@@ -316,6 +346,39 @@ For each Table 5 field row `(name, type, required?)` selected for the body (sele
 | `__already_exists` (factory POST) | `<aggregate>_1` (collision intent) |
 
 **Function args injection.** When body resolution emits at least one fixture-attribute reference, add the source fixture(s) to the test function's argument list (alphabetical after `client, request_headers`). When all body fields use stubs, no extra fixture is added.
+
+#### Nested-collection cardinality (path-target fixture selection)
+
+For HTTP=DELETE endpoints whose path is **nested-resource shape** (≥2 `{…}` placeholders, e.g. `/{id}/lookups/{lookupId}`) — and similarly for PATCH / PUT endpoints that mutate one child while the aggregate retains a "≥1 child must remain" invariant — the path-target aggregate fixture must have ≥2 items in the targeted child collection, otherwise the domain rule (`LookupCannotBeDeleted`, `LineItemCannotBeRemoved`, …) rejects the success scenario.
+
+Resolution rule, applied **only for `__success`** of nested-resource DELETE / PATCH / PUT endpoints whose path matches `/{id}/<collection>/{<x>Id}<rest>`:
+
+1. Identify the collection name from the path's static segment between `{id}` and the next placeholder (e.g., `lookups` in `/{id}/lookups/{lookupId}`). Snake-case it: `<collection>`.
+2. Read both `<aggregate>_1` and `<aggregate>_2` fixture definitions from `<tests_dir>/conftest.py`. Count their `<collection>` cardinality:
+   - Look for the initial constructor literal (e.g., `lookups=[Lookup(...)]` → 1; `lookups=[Lookup(...), Lookup(...)]` → 2).
+   - Add explicit `<fixture>.add_<singular>(...)` mutation calls in the fixture body (e.g., `cache_type_2.add_lookup(...)` → +1).
+3. **Swap rule:**
+   - If `<aggregate>_2` has cardinality ≥2 AND `<aggregate>_1` has cardinality <2 → swap `<fix>` to `<aggregate>_2` for this endpoint's `__success` test. URL path, function args, and the `add_<plural_agg>` fixture parameter all reflect the swap.
+   - If both fixtures have cardinality ≥2 → default rule applies (use `<aggregate>_1`).
+   - If neither does → emit a Step 9 warning: `WARNING: <surface>/<operation>: neither <aggregate>_1 nor <aggregate>_2 has ≥2 <collection> — __success will likely return 409.`
+4. The `__not_found` scenario is **unchanged** (it uses a literal `non-existent-id` for the parent `{id}`, so cardinality is moot).
+
+#### Update-details literal-rename override
+
+For endpoints classified as **update-details shape** — HTTP ∈ {PATCH, PUT} with single-`{id}` path AND Operation column matches one of `^update_`, `^rename`, `^change_` — apply the following override to each Table 5 row of type `str` / `str | None` whose snake_cased name resolves to a fixture attribute via the standard lookup:
+
+1. Read both `<aggregate>_1` and `<aggregate>_2` constructor calls from `<tests_dir>/conftest.py`. For the resolved attribute path (e.g., `details.name`), recover the literal value each fixture passes:
+   - Top-level Guard attributes → match the constructor kwarg `name=` literal.
+   - VO-of-aggregate attributes → walk the constructor up: if the aggregate fixture passes `details=Details(name="...", description="...")`, the literal for `details.name` is that nested kwarg's RHS.
+2. **Equality check:** if both fixtures bind the **same** string literal (byte-equal after stripping quotes), do **not** use `<body_fix>.<attr>` — emit a literal stub instead:
+   - For a field whose name contains `name` → `f"Renamed {<Resource>}"` (e.g., `"Renamed CacheType"`).
+   - For a field whose name contains `description` → `f"Renamed {<Resource>} description"`.
+   - For any other str field → `f"renamed-<field>"`.
+   - Append `# TODO: <field> is a synthetic rename stub because <aggregate>_1.<attr> == <aggregate>_2.<attr> — replace with a meaningful test value if needed`.
+3. **Otherwise** (different literals or non-string field) — current behavior applies (`<body_fix>.<attr>`).
+4. Emit one Step 9 warning per overridden field: `WARNING: <surface>/<operation>: <field> uses synthetic rename stub because <aggregate>_1.<attr> == <aggregate>_2.<attr> in conftest.`
+
+This rule applies only to mutating `__success` and `__not_found` scenarios of update-details endpoints. Factory POST `/` and DELETE endpoints are unaffected.
 
 **Aggregate attribute discovery.** Once per run, parse the aggregate module on disk to enumerate its true public attribute set. The aggregate's flat constructor arguments do **not** 1:1-map to public attributes when the aggregate uses `domain-spec:flat-constructor-arguments` — flat primitives are folded into value objects (e.g. `name` + `description` → `details: Details`), so kwargs are misleading. The Guard declarations on the class body are authoritative.
 
@@ -677,6 +740,9 @@ If the spec also declared a Table 4 query-param sub-block (e.g. `find_loads` wit
 - Never modify `<tests_dir>/conftest.py` or `<tests_dir>/integration/conftest.py`.
 - Endpoint scenario dispatch is signature- and Table-driven; do not infer scenarios from operation names alone.
 - Resolve mutating-endpoint bodies from existing aggregate fixtures per the **Body resolution** rules (Step 7). Do not author new fixtures, do not import the aggregate to introspect its attributes, and do not emit `json={}` placeholders for body-bearing happy-path / 4xx scenarios — that placeholder is reserved for `__missing_required_field`.
+- For nested-resource DELETE / PATCH / PUT `__success` scenarios, prefer the path-target fixture with ≥2 items in the targeted child collection (per § Nested-collection cardinality) — even if that means swapping the default `<aggregate>_1` to `<aggregate>_2`.
+- For update-details `__success` and `__not_found` body fields, fall back to a synthetic `Renamed <Resource>` literal when both aggregate fixtures share the same source literal (per § Update-details literal-rename override). Never emit a no-op rename.
+- For Table 5 body fields whose Type is a domain TypedDict (PascalCase scalar or `list[PascalCase]`), emit a minimum-valid dict / list-of-dict literal by recursively walking the `**Nested:**` sub-tables (per § Recursive TypedDict body synthesis). Never emit `[]` for `list[<TypedDict>]` — that violates "non-empty list" domain rules.
 - Skip 401-unauthorized, 403-forbidden, response-structure (camelCase), and query-param filter scenarios — out of scope for this agent.
 
 ## Failure modes summary
@@ -703,3 +769,6 @@ If the spec also declared a Table 4 query-param sub-block (e.g. `find_loads` wit
 | `<aggregate>_2` fixture missing | Emit a Step 9 warning and fall back to `<aggregate>_1` for mutating `__success` bodies; factory `__success` tests will return 409 instead of 201 — surfaces the gap without blocking generation. |
 | `<aggregate_module>` not found on disk | Skip aggregate-attribute discovery (Step 7), stub every body field with type-based literals, and emit a Step 9 warning. |
 | Body field cannot be resolved on `<src_fix>` | Substitute a type-based stub literal (Step 7 table) and append a `# TODO: <field> stubbed (...)` trailing comment; do not abort. |
+| Body field type is `list[<PascalCase>]` or scalar `<PascalCase>` (domain TypedDict) | Recursively synthesize a minimum-valid dict / list-of-dict literal per § Recursive TypedDict body synthesis; append `# TODO: <field> contents are minimum-valid stubs; adjust if a domain rule rejects them`. Do not abort. |
+| Nested-resource DELETE / PATCH / PUT `__success` would target a fixture with <2 items in the path child collection | Swap `<fix>` to `<aggregate>_2` when its cardinality is ≥2; otherwise emit a Step 9 warning and keep `<aggregate>_1`. |
+| Update-details body field resolves to identical literals on `<aggregate>_1` and `<aggregate>_2` | Replace `<body_fix>.<attr>` with a synthetic `Renamed *` literal; emit a Step 9 warning. Do not abort. |

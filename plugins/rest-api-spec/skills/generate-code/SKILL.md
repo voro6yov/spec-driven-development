@@ -38,7 +38,7 @@ If the scaffolder aborts, propagate the failure and stop — do not proceed to S
 
 Invoke `rest-api-spec:query-serializers-implementer` with prompt `$ARGUMENTS[0] <locations_report_text>`. Wait for completion.
 
-This emits one Python module per query endpoint under `api/serializers/<surface>/<operation>.py`, generates the shared `result_set.py` and `paginated_result_metadata.py` if any endpoint is paginated, and (re)writes the per-surface `__init__.py` plus the root `serializers/__init__.py` as star-aggregators.
+This emits one Python module per query endpoint under `api/serializers/<surface>/<aggregate>/<operation>.py`, generates the shared `result_set.py` and `paginated_result_metadata.py` if any endpoint is paginated, and (re)writes the per-aggregate `__init__.py` as a star-aggregator.
 
 If the implementer aborts, propagate the failure and stop — do not proceed to Step 4.
 
@@ -46,9 +46,9 @@ If the implementer aborts, propagate the failure and stop — do not proceed to 
 
 Invoke `rest-api-spec:command-serializers-implementer` with prompt `$ARGUMENTS[0] <locations_report_text>`. Wait for completion.
 
-This emits one Python module per command endpoint under `api/serializers/<surface>/<operation>.py` and (re)writes the per-surface `__init__.py` plus the root `serializers/__init__.py`.
+This emits one Python module per command endpoint under `api/serializers/<surface>/<aggregate>/<operation>.py` (with `to_domain()` on nested sub-serializers whose target type is a domain TypedDict) and (re)writes the per-aggregate `__init__.py`.
 
-**Do not run Steps 3 and 4 in parallel.** Both agents (re)write the same per-surface and root aggregator `__init__.py` files based on a disk scan; running them concurrently risks a write race where one agent's aggregator clobbers the other's freshly-written modules. Sequencing query → command guarantees the final aggregators reflect both sets.
+**Do not run Steps 3 and 4 in parallel.** Both agents (re)write the same per-aggregate `__init__.py` based on a disk scan; running them concurrently risks a write race where one agent's aggregator clobbers the other's freshly-written modules. Sequencing query → command guarantees the final aggregator reflects both sets.
 
 If the implementer aborts, propagate the failure and stop — do not proceed to Step 5.
 
@@ -56,7 +56,7 @@ If the implementer aborts, propagate the failure and stop — do not proceed to 
 
 Invoke `rest-api-spec:endpoints-implementer` with prompt `$ARGUMENTS[0] <locations_report_text>`. Wait for completion.
 
-This emits one router module per surface at `api/endpoints/<surface>/<plural>.py` containing the surface's `<plural>_router` plus one endpoint function per Table 2 / Table 3 row. The endpoints reference the serializer classes emitted in Steps 3–4 via the per-surface aggregator imports.
+This emits one router module per surface at `api/endpoints/<surface>/<plural>.py` containing the surface's `<plural>_router` plus one endpoint function per Table 2 / Table 3 row. The endpoints reference the serializer classes emitted in Steps 3–4 via the per-aggregate aggregator imports (`...serializers.<surface>.<aggregate>`).
 
 If the implementer aborts, propagate the failure and stop — do not proceed to Step 6.
 

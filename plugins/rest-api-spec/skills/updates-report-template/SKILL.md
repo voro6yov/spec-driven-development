@@ -144,12 +144,11 @@ The report is **per-artifact and surface-scoped**: a flat header (`## Summary`) 
 
 | Path | Action | Driving section |
 |---|---|---|
-| `api/serializers/<surface>/<operation>.py` | modify | Response Fields Changes (Surface: <surface>) |
-| `api/serializers/<surface>/<operation>.py` | modify | Request Fields Changes (Surface: <surface>) |
-| `api/serializers/<surface>/<operation>.py` | add | Endpoint Inventory Changes (Surface: <surface>) |
-| `api/serializers/<surface>/<operation>.py` | remove | Endpoint Inventory Changes (Surface: <surface>) |
-| `api/serializers/<surface>/__init__.py` | modify | Endpoint Inventory Changes (Surface: <surface>) |
-| `api/serializers/__init__.py` | modify | Endpoint Inventory Changes (Surface: <surface>) |
+| `api/serializers/<surface>/<aggregate>/<operation>.py` | modify | Response Fields Changes (Surface: <surface>) |
+| `api/serializers/<surface>/<aggregate>/<operation>.py` | modify | Request Fields Changes (Surface: <surface>) |
+| `api/serializers/<surface>/<aggregate>/<operation>.py` | add | Endpoint Inventory Changes (Surface: <surface>) |
+| `api/serializers/<surface>/<aggregate>/<operation>.py` | remove | Endpoint Inventory Changes (Surface: <surface>) |
+| `api/serializers/<surface>/<aggregate>/__init__.py` | modify | Endpoint Inventory Changes (Surface: <surface>) |
 | `api/endpoints/<surface>/<plural>.py` | modify | Parameter Mapping Changes (Surface: <surface>) |
 | `api/endpoints/<surface>/__init__.py` | modify | Endpoint Inventory Changes (Surface: <surface>) |
 | `api/endpoints/__init__.py` | modify | Endpoint Inventory Changes (Surface: <surface>) |
@@ -302,10 +301,12 @@ Tracks Table 6 deltas, per surface, per endpoint — the parameter→source rows
 
 The footer is a flat dispatch table. The code updater walks it top-to-bottom and resolves each path against the `target-locations-finder` report it runs first. Compute as follows:
 
+Resolve `<A>` = snake-case singular of the resource's `**Resource name**` (Table 1) for use in the per-aggregate sub-path.
+
 1. **From Response Fields Changes** — for each changed surface `<S>`, for each `#### Added` / `#### Removed` / `#### Modified` endpoint with operation `<OP>`:
-   - `#### Modified` → `api/serializers/<S>/<OP>.py | modify | Response Fields Changes (Surface: <S>)`.
-   - `#### Added` → `api/serializers/<S>/<OP>.py | add | Endpoint Inventory Changes (Surface: <S>)` (the serializer module is new). *(Commands/queries axis only.)*
-   - `#### Removed` → `api/serializers/<S>/<OP>.py | remove | Endpoint Inventory Changes (Surface: <S>)`. *(Commands/queries axis only.)*
+   - `#### Modified` → `api/serializers/<S>/<A>/<OP>.py | modify | Response Fields Changes (Surface: <S>)`.
+   - `#### Added` → `api/serializers/<S>/<A>/<OP>.py | add | Endpoint Inventory Changes (Surface: <S>)` (the serializer module is new). *(Commands/queries axis only.)*
+   - `#### Removed` → `api/serializers/<S>/<A>/<OP>.py | remove | Endpoint Inventory Changes (Surface: <S>)`. *(Commands/queries axis only.)*
 
 2. **From Request Fields Changes** — same as (1) with `Request Fields Changes` as the driving section for the `modify` rows.
 
@@ -314,14 +315,13 @@ The footer is a flat dispatch table. The code updater walks it top-to-bottom and
 
 4. **From Endpoint Inventory Changes** — for each surface `<S>` with any `#### Added` or `#### Removed` endpoint (commands/queries axis only):
    - `api/endpoints/<S>/<plural>.py | modify | Endpoint Inventory Changes (Surface: <S>)` (the endpoint function set changed) — dedupe with the Parameter Mapping row above into one `modify` row with the driving label `Parameter Mapping / Endpoint Inventory Changes (Surface: <S>)`.
-   - `api/serializers/<S>/__init__.py | modify | Endpoint Inventory Changes (Surface: <S>)`.
-   - `api/serializers/__init__.py | modify | Endpoint Inventory Changes (Surface: <S>)`.
+   - `api/serializers/<S>/<A>/__init__.py | modify | Endpoint Inventory Changes (Surface: <S>)`.
    - `api/endpoints/<S>/__init__.py | modify | Endpoint Inventory Changes (Surface: <S>)`.
    - `api/endpoints/__init__.py | modify | Endpoint Inventory Changes (Surface: <S>)`.
    - `<pkg>/constants.py | modify | Endpoint Inventory Changes` and `<pkg>/entrypoint.py | modify | Endpoint Inventory Changes`.
 
 5. **From Resource Basics Changes** — when the Surfaces row changed (a surface was added — commands/queries axis only):
-   - For each newly added surface `<S>`: `api/serializers/<S>/__init__.py | add`, `api/endpoints/<S>/__init__.py | add`, plus the root `api/serializers/__init__.py | modify`, `api/endpoints/__init__.py | modify`, `<pkg>/constants.py | modify`, `<pkg>/entrypoint.py | modify` — all driven by `Resource Basics Changes`.
+   - For each newly added surface `<S>`: `api/serializers/<S>/__init__.py | add` (zero-byte), `api/serializers/<S>/<A>/__init__.py | add` (per-aggregate aggregator), `api/endpoints/<S>/__init__.py | add`, plus `api/endpoints/__init__.py | modify`, `<pkg>/constants.py | modify`, `<pkg>/entrypoint.py | modify` — all driven by `Resource Basics Changes`.
    - When the added surface is `internal`: also `<api_pkg>/auth.py | modify | Resource Basics Changes (internal surface added)`.
 
 6. **Test artifacts (always last)** — for each surface `<S>` that has at least one change in **any** of Endpoint Inventory / Response Fields / Request Fields / Parameter Mapping:

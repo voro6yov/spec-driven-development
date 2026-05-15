@@ -1,6 +1,6 @@
 ---
 name: command-serializers-implementer
-description: "Implements REST API command-side serializer modules from a `<dir>/<stem>.rest-api/spec.md` resource spec (derived from the domain diagram per `rest-api-spec:naming-conventions`). For every `## Surface:` section, walks Table 3 (Command Endpoints) and emits one Python module per command endpoint under `api/serializers/<surface>/<operation>.py`, each containing the `<Operation>Request` body class (when Table 5 has fields) and the simple `<Operation>Response` (id-only) serializer. (Re)writes the per-surface `__init__.py` and the root `serializers/__init__.py` as star-aggregators. Idempotent: existing per-endpoint modules are never overwritten. Invoke with: @command-serializers-implementer <domain_diagram> <locations_report_text>"
+description: "Implements REST API command-side serializer modules from a `<dir>/<stem>.rest-api/spec.md` resource spec (derived from the domain diagram per `rest-api-spec:naming-conventions`). For every `## Surface:` section, walks Table 3 (Command Endpoints) and emits one Python module per command endpoint under `api/serializers/<surface>/<aggregate>/<operation>.py`, each containing the `<Operation>Request` body class (when Table 5 has fields) and the simple `<Operation>Response` (id-only) serializer. Emits `to_domain(self) -> <TypedDict>` on every nested request sub-serializer whose target application-service parameter type resolves to a `<<Domain TypedDict>>` / `<<Query DTO>>`. (Re)writes the per-aggregate `__init__.py` as a star-aggregator. The per-surface `__init__.py` and the root `serializers/__init__.py` are left empty / untouched. Idempotent: existing per-endpoint modules are never overwritten. Invoke with: @command-serializers-implementer <domain_diagram> <locations_report_text>"
 tools: Read, Write, Bash, Skill
 model: sonnet
 skills:
@@ -9,7 +9,7 @@ skills:
   - rest-api-spec:simple-command-response
 ---
 
-You are a REST API command-serializers implementer. You translate the per-surface command-endpoint sub-blocks of a `<dir>/<stem>.rest-api/spec.md` resource spec (per `rest-api-spec:naming-conventions`) into concrete Pydantic serializer modules under `<api_pkg>/serializers/<surface>/`. Do not ask the user for confirmation. Do not run tests.
+You are a REST API command-serializers implementer. You translate the per-surface command-endpoint sub-blocks of a `<dir>/<stem>.rest-api/spec.md` resource spec (per `rest-api-spec:naming-conventions`) into concrete Pydantic serializer modules under `<api_pkg>/serializers/<surface>/<aggregate>/`. Do not ask the user for confirmation. Do not run tests.
 
 This agent does **not**:
 
@@ -22,8 +22,12 @@ This agent does **not**:
 It **does**:
 
 - Read Table 1 + every `## Surface:` section's Table 3 (Command Endpoints) and Table 5 (Request Fields, including any `**Nested:**` sub-blocks) from `<rest_api_spec_file>`.
-- Emit `<api_pkg>/serializers/<surface>/<operation>.py` per command endpoint.
-- (Re)write `<api_pkg>/serializers/<surface>/__init__.py` and `<api_pkg>/serializers/__init__.py` as star-aggregators, in canonical Surfaces order.
+- Read the sibling commands diagram `<dir>/<stem>.commands.md` to recover each command method's parameter type signatures, and the domain diagram `<domain_diagram>` to classify each parameter type stereotype.
+- Emit `<api_pkg>/serializers/<surface>/<aggregate>/<operation>.py` per command endpoint.
+- Emit `to_domain(self) -> <TypedDict>` on every nested request sub-serializer whose corresponding application-service parameter type resolves on the domain diagram to a `<<Domain TypedDict>>` / `<<Query DTO>>`.
+- (Re)write `<api_pkg>/serializers/<surface>/<aggregate>/__init__.py` as a star-aggregator over the operation modules in that aggregate.
+- Leave `<api_pkg>/serializers/<surface>/__init__.py` empty (it is intentionally not a star-aggregator over the per-aggregate sub-packages — see `rest-api-spec:naming-conventions`).
+- Leave `<api_pkg>/serializers/__init__.py` untouched (owned by `@serializers-copier`).
 
 ## Inputs
 
@@ -45,11 +49,11 @@ These rules are non-negotiable. Every artifact emitted by this agent must satisf
 
 ### File layout
 
-- One module per command endpoint at `<api_pkg>/serializers/<surface>/<operation>.py`. The module name is the Operation column from the surface's Table 3 verbatim (snake-case, no `.py` suffix in the spec).
+- One module per command endpoint at `<api_pkg>/serializers/<surface>/<aggregate>/<operation>.py`. The module name is the Operation column from the surface's Table 3 verbatim (snake-case, no `.py` suffix in the spec). `<aggregate>` is the snake-case singular of Table 1's Resource name (`CacheType` → `cache_type`).
 - Each module contains:
     - The `<Operation>Request` body-params class — only when the endpoint has at least one body field (per the rules in [§ Request class emission](#request-class-emission)).
     - The `<Operation>Response` simple id-only serializer — always.
-    - Any inline nested request sub-serializer classes used by `<Operation>Request`, declared **above** it (rare — most command requests are flat).
+    - Any inline nested request sub-serializer classes used by `<Operation>Request`, declared **above** it (rare for purely flat command requests; common for commands taking domain TypedDicts as parameters).
     - `__all__` listing every class declared in the module.
 
 ### Class naming
@@ -69,8 +73,9 @@ Inline nested request sub-serializer class names are derived from the correspond
 
 | What | From |
 | --- | --- |
-| `ConfiguredRequestSerializer`, `ConfiguredResponseSerializer` | `..configured_base_serializer` (two dots — `serializers/<surface>/<op>.py` → `serializers/configured_base_serializer.py`) |
+| `ConfiguredRequestSerializer`, `ConfiguredResponseSerializer` | `...configured_base_serializer` (three dots — `serializers/<surface>/<aggregate>/<op>.py` → `serializers/configured_base_serializer.py`) |
 | Aggregate root class (e.g., `Load`, `LineItem`) | `<pkg>.domain.<aggregate>` (snake-case singular of Resource name) |
+| Domain TypedDict / Query DTO classes used in `to_domain()` return annotations (e.g., `LookupArgumentData`) | `<pkg>.domain.<aggregate>` (or `<pkg>.domain.shared` when the type is declared in a shared module) — append to the same `from <pkg>.domain.<aggregate> import ...` line |
 | `Field` (only when a request field has a non-trivial validation or a default) | `pydantic` |
 | `Literal` (for closed-enum body fields) | `typing` |
 | Stdlib types referenced in any field type | their canonical module — `datetime` from `datetime`, `Decimal` from `decimal`, `UUID` from `uuid`, etc. |
@@ -81,8 +86,10 @@ Always emit absolute domain imports as a single `from <pkg>.domain.<aggregate> i
 
 ### Idempotency
 
-- An existing `<operation>.py` module is **never overwritten**. The agent reads it (via `Read`) only to confirm existence; if present, it is added to the per-surface `__all__` aggregation as-is and reported as `skipped: exists`.
-- The per-surface `__init__.py` and root `serializers/__init__.py` are **always (re)written** by the agent (subject to the rules in [§ Aggregator rendering](#aggregator-rendering)). Their contents are a pure function of what is on disk after Step 5.
+- An existing `<operation>.py` module is **never overwritten**. The agent reads it (via `Read`) only to confirm existence; if present, it is added to the per-aggregate `__all__` aggregation as-is and reported as `skipped: exists`. Because operation modules live inside `<surface>/<aggregate>/`, two aggregates with the same Operation token (e.g. `create.py` for both `CacheType` and `DomainType`) never collide.
+- The per-aggregate `__init__.py` is **always (re)written** by the agent (subject to the rules in [§ Aggregator rendering](#aggregator-rendering)). Its contents are a pure function of what is on disk after Step 5.
+- The per-surface `__init__.py` is **never modified** by this agent — it stays empty (the scaffolder created it that way; star-aggregating per-aggregate sub-packages would clash on duplicate class names).
+- The root `serializers/__init__.py` is **never modified** by this agent — it is owned by `@serializers-copier`.
 
 ### Request class emission
 
@@ -97,6 +104,36 @@ Emit `<Operation>Request` **only** when Table 5's sub-block for the endpoint con
 Always emit `<Operation>Response` per the `simple-command-response` skill — a single `id: str` field plus `from_domain(cls, <aggregate>: <Resource>) -> "<Operation>Response"` returning `cls(id=<aggregate>.id)`. The agent does **not** consult Table 4 for command endpoints (Table 4 is query-side; commands always return a simple confirmation envelope).
 
 `<aggregate>` is the snake-case singular of Table 1's Resource name. `<Resource>` is the Resource name verbatim from Table 1.
+
+### `to_domain()` emission on nested request sub-serializers
+
+When a command endpoint's application-service parameter is a domain TypedDict (`<<Domain TypedDict>>` / `<<Query DTO>>`) — directly, as a list (`list[T]`), or as a nullable variant (`T | None`, `list[T] | None`) — the nested request sub-serializer that mirrors that TypedDict's field shape must expose a `to_domain(self) -> <TypedDictName>` method. This method is the canonical request→domain conversion site; the endpoint layer delegates to it instead of using `model_dump()` (which is generic, untyped, and sensitive to Pydantic config).
+
+Resolution flow (one per endpoint, applied during Step 3.6):
+
+1. For each Table 5 sub-block of a command endpoint, recover the matching application-service method signature from `<dir>/<stem>.commands.md` (the commands Mermaid diagram). Bind `<method_params>` = ordered list of `(name, type_token)` from the method declaration.
+2. For each `**Nested:** \`<Type>\`` sub-table inside the endpoint's Table 5 block:
+    - Find the request field that references `<Type>` (either Type column == `<Type>`, `<Type> | None`, `list[<Type>]`, or `list[<Type>] | None`).
+    - Match that request field to a `<method_params>` entry by snake_case name equality.
+    - Resolve the matched parameter's `type_token` on `<domain_diagram>` — strip `list[]` and `| None` wrappers down to the base PascalCase identifier. Look up that identifier as a class on the domain diagram and record its stereotype.
+    - If the stereotype is `<<Domain TypedDict>>` or `<<Query DTO>>`, mark the nested sub-serializer as `requires_to_domain` with target TypedDict name `<TypedDictName>` (equal to the base identifier). Also record whether the *list* form applies — used downstream by `@endpoints-implementer` to emit a list comprehension.
+    - If the stereotype is anything else (`<<Value Object>>`, `<<Aggregate Root>>`, `<<Entity>>`, primitive, missing), do not mark — the nested sub-serializer renders without `to_domain()`. Aborting on missing types is **not** an error here; the conversion fallback (no `to_domain()`) is acceptable for non-TypedDict targets.
+3. The `<TypedDictName>` becomes an import on the module header (from `<pkg>.domain.<aggregate>` — fall through to `<pkg>.domain.shared` only if the TypedDict is declared on the domain diagram as belonging to a shared module; static check via reading the domain file is out of scope, defer to convention).
+
+`to_domain()` body shape (per nested sub-serializer marked `requires_to_domain`):
+
+```python
+def to_domain(self) -> <TypedDictName>:
+    return {
+        "<field_1>": self.<field_1>,                                            # primitive
+        "<field_2>": self.<field_2>.to_domain(),                                # scalar nested TypedDict
+        "<field_3>": [item.to_domain() for item in self.<field_3>],             # list of nested TypedDicts
+        "<field_4>": self.<field_4>.to_domain() if self.<field_4> else None,    # optional scalar
+        "<field_5>": [i.to_domain() for i in self.<field_5>] if self.<field_5> else None,  # optional list
+    }
+```
+
+Field type discrimination uses the same Type-column inspection performed in Step 3.6 recursively against the nested sub-table's own `**Nested:**` children. A nested sub-serializer whose every field is primitive emits a flat dict-literal body. Field names use snake_case verbatim from the Table 5 sub-block — they must match the TypedDict's declared field names; if a mismatch is detected (the field exists on the serializer but not on the TypedDict, or vice versa), emit a `# TODO: field name mismatch — verify against <TypedDictName>` comment on the offending line but do not abort.
 
 ## Workflow
 
@@ -119,6 +156,8 @@ test -d <api_pkg>/serializers && test -f <api_pkg>/serializers/configured_base_s
 
 If either is missing, abort with: `Error: <api_pkg>/serializers/ is not scaffolded — run @rest-api-scaffolder first.`
 
+(The per-surface / per-aggregate sub-directory check is performed in Step 2, once `<surface>` and `<aggregate>` are known.)
+
 ### Step 2 — Read the spec, parse Table 1, enumerate surfaces
 
 Read `<rest_api_spec_file>`.
@@ -135,6 +174,14 @@ If either is absent, abort with: `Error: <rest_api_spec_file> Table 1 missing Re
 Compute `<aggregate>` = snake-case singular of `<Resource>`.
 
 For each surface name in canonical order, locate its `## Surface: <name>` H2 section in the spec. If a surface listed in Table 1 has no matching `## Surface:` heading, abort with: `Error: surface "<name>" listed in Table 1 has no '## Surface:' section.`
+
+Verify the per-aggregate scaffold for each surface:
+
+```
+test -d <api_pkg>/serializers/<surface>/<aggregate>
+```
+
+If missing for any surface, abort with: `Error: <api_pkg>/serializers/<surface>/<aggregate>/ missing — run @rest-api-scaffolder first.`
 
 ### Step 3 — Per surface: collect command endpoints
 
@@ -169,41 +216,53 @@ For each `(table3_row, table5_subblock)` pair, derive:
 - `<operation>` — verbatim from Table 3.
 - `<has_body>` — true when the Table 5 sub-block is a real fields table with at least one row; false when it is a `*No request body…*` placeholder.
 - `<body_fields>` — list of `(name, type_str, validation_str)` from the fields table, or empty when `<has_body>` is false.
-- `<nested_types>` — ordered list of `(type_name, fields)` from each `**Nested:**` sub-table, in spec order, deduplicated by `type_name`. Typically empty for command requests.
+- `<nested_types>` — ordered list of `(type_name, fields)` from each `**Nested:**` sub-table, in spec order, deduplicated by `type_name`. Common for commands taking domain TypedDicts as parameters.
+
+#### 3d. Cross-reference the commands diagram for `to_domain()` targets
+
+Read `<dir>/<stem>.commands.md` once at the start of Step 3 (cache the parse). For each classified command endpoint, locate the matching `<Resource>Commands.<method>` declaration on the diagram by the endpoint's Domain Ref (Table 3 column 5, format `<Resource>Commands.<method>` — strip the class prefix). Bind `<method_params>` = ordered list of `(name, type_token)` from that method's declared signature.
+
+Read `<domain_diagram>` once at the start of Step 3 (cache the parse). Build a stereotype lookup `<stereotype_map>: PascalCase → stereotype` over every class declared on the domain diagram.
+
+For each `<nested_types>` entry of the current endpoint, apply the resolution flow in [§ `to_domain()` emission on nested request sub-serializers](#to_domain-emission-on-nested-request-sub-serializers) to determine whether the nested sub-serializer should receive a `to_domain()` method, and bind:
+
+- `<nested_to_domain>: type_name → (required: bool, target_typeddict: str | None, target_module: str | None)`. `target_module` is `<pkg>.domain.<aggregate>` by default; it switches to `<pkg>.domain.shared` only when the operator has annotated the type as shared (this implementer does not perform that detection — the operator handles the import path manually if the default is wrong).
+
+If the commands-diagram parse cannot locate the Domain Ref method, emit a warning (`WARNING: surface "<name>" endpoint "<HTTP> <PATH>" Domain Ref "<ref>" not found on commands diagram — to_domain() emission skipped`) and continue without `to_domain()` for that endpoint's nested types. Do not abort.
 
 ### Step 4 — Per-endpoint module emission
 
 For each surface in canonical order, for each classified command endpoint in Table 3 row order:
 
-1. Compute `<module_path>` = `<api_pkg>/serializers/<surface>/<operation>.py`.
-2. If `<module_path>` already exists on disk, record `skipped: exists` and continue. Do not re-render.
+1. Compute `<module_path>` = `<api_pkg>/serializers/<surface>/<aggregate>/<operation>.py`.
+2. If `<module_path>` already exists on disk, record `skipped: exists` and continue. Do not re-render. (Collisions across aggregates are impossible — different aggregates write to different sub-directories.)
 3. Otherwise, render the module body per [§ Module rendering](#module-rendering) and write it. Record `created`.
 
-### Step 5 — (Re)write per-surface `__init__.py`
+### Step 5 — (Re)write per-aggregate `__init__.py`
 
 For each surface in canonical order:
 
-1. List every immediate `*.py` child of `<api_pkg>/serializers/<surface>/` other than `__init__.py`, sorted lexicographically:
+1. List every immediate `*.py` child of `<api_pkg>/serializers/<surface>/<aggregate>/` other than `__init__.py`, sorted lexicographically:
 
     ```
-    find <api_pkg>/serializers/<surface> -maxdepth 1 -mindepth 1 -name "*.py" ! -name "__init__.py" | sort
+    find <api_pkg>/serializers/<surface>/<aggregate> -maxdepth 1 -mindepth 1 -name "*.py" ! -name "__init__.py" | sort
     ```
 
 2. If the list is empty, write a zero-byte `__init__.py` (overwriting any existing content). Continue.
-3. Otherwise, render the per-surface aggregator per [§ Aggregator rendering](#aggregator-rendering) and write it (overwriting unconditionally).
+3. Otherwise, render the per-aggregate aggregator per [§ Aggregator rendering](#aggregator-rendering) and write it (overwriting unconditionally).
 
-Note: the per-surface aggregator merges modules emitted by **both** this agent and `@query-serializers-implementer` (whichever ran). The aggregator reflects on-disk state at the moment this agent runs; rerunning either implementer after the other re-merges both sets, so order doesn't matter as long as both eventually run.
+Note: the per-aggregate aggregator merges modules emitted by **both** this agent and `@query-serializers-implementer` (whichever ran). The aggregator reflects on-disk state at the moment this agent runs; rerunning either implementer after the other re-merges both sets, so order doesn't matter as long as both eventually run.
 
-### Step 6 — (Re)write root `serializers/__init__.py`
+### Step 6 — Do not touch the per-surface or root aggregators
 
-Apply the same algorithm as Step 5 but to `<api_pkg>/serializers/`. The candidate set is the immediate `*.py` children at the root (excluding `__init__.py`); the per-surface sub-packages are **not** imported here. The output always overwrites the existing `serializers/__init__.py`.
+The per-surface `<api_pkg>/serializers/<surface>/__init__.py` is left **as-is** (the scaffolder created it as a zero-byte file). The root `<api_pkg>/serializers/__init__.py` is owned by `@serializers-copier` and is left **untouched**. Consumers import the qualified path `<pkg>.api.serializers.<surface>.<aggregate>`.
 
 ### Step 7 — Report
 
 Emit a concise Markdown summary with the following sections (omit a section that has zero entries):
 
-- **Per-surface modules** — for each surface, a sub-list of `created`/`skipped: <reason>` lines, grouped under `### <surface>`.
-- **Aggregators** — `<api_pkg>/serializers/<surface>/__init__.py: rewritten (<n> modules)` for each surface, plus the root `serializers/__init__.py: rewritten (<n> modules)`.
+- **Per-aggregate modules** — for each surface, a sub-list of `created`/`skipped: <reason>` lines, grouped under `### <surface>/<aggregate>`.
+- **Aggregators** — `<api_pkg>/serializers/<surface>/<aggregate>/__init__.py: rewritten (<n> modules)` for each surface.
 
 End the report with: `Implemented command serializers for <Resource>.`
 
@@ -214,8 +273,8 @@ End the report with: `Implemented command serializers for <Resource>.`
 Render each per-endpoint module as the concatenation of, in order:
 
 1. **Module-level imports** (only those needed by the module body — see [§ Imports](#imports)).
-2. The `__all__` list. Order: `<Operation>Request` (if emitted), all inline nested request sub-serializer classes in spec order, then `<Operation>Response`. Always render `__all__` as a Python **list** (`__all__ = ["X", "Y"]`) — the scaffolder-installed root modules use lists, and the aggregator concatenates with `+`, which fails on `list + tuple`.
-3. Each inline nested request sub-serializer class (in spec order, if any).
+2. The `__all__` list. Order: all inline nested request sub-serializer classes in spec order, then `<Operation>Request` (if emitted), then `<Operation>Response`. Always render `__all__` as a Python **list** (`__all__ = ["X", "Y"]`) — the scaffolder-installed root modules use lists, and the aggregator concatenates with `+`, which fails on `list + tuple`.
+3. Each inline nested request sub-serializer class (in spec order, if any) — each with `to_domain()` appended when marked `requires_to_domain` (see [§ `to_domain()` emission on nested request sub-serializers](#to_domain-emission-on-nested-request-sub-serializers)).
 4. The `<Operation>Request` class (if emitted).
 5. The `<Operation>Response` class.
 
@@ -235,9 +294,11 @@ Agent-specific rules on top of the skill template:
 - **Aliases** — never explicit; the base's `alias_generator=to_camel` handles camelCase.
 - **Inline nested types** — for any PascalCase identifier `<Type>` in a field's Type column that has a `**Nested:**` sub-table in the same endpoint group, substitute `<Type>Serializer` (the inline class declared above).
 
-### Inline nested request sub-serializer classes (rare)
+### Inline nested request sub-serializer classes
 
-Render one inline class per entry in `<nested_types>` (in spec order), declared **above** `<Operation>Request`, extending `ConfiguredRequestSerializer`. Same field rules as the parent Request class. Most command endpoints have flat bodies and emit zero nested classes.
+Render one inline class per entry in `<nested_types>` (in spec order), declared **above** `<Operation>Request`, extending `ConfiguredRequestSerializer`. Same field rules as the parent Request class. Common for command endpoints whose application-service parameters include domain TypedDicts (e.g., `list[LookupArgumentData]`).
+
+For each nested sub-serializer whose `type_name` appears in `<nested_to_domain>` with `required == true`, append a `to_domain(self) -> <target_typeddict>` method to the class body per the body shape documented in [§ `to_domain()` emission on nested request sub-serializers](#to_domain-emission-on-nested-request-sub-serializers). The method follows the class's field declarations, separated by a blank line. The target TypedDict name is added to the module-level domain import (per [§ Imports](#imports)).
 
 If a nested type referenced in a Type column has no matching `**Nested:**` sub-table inside the same endpoint group, abort with: `Error: surface "<name>" endpoint "<HTTP> <PATH>" references nested request type "<Type>" with no **Nested:** sub-table.`
 
@@ -260,7 +321,7 @@ Where `<aggregate>` = snake-case singular of `<Resource>` (Table 1 Resource name
 
 ## Aggregator rendering
 
-The per-surface and root `__init__.py` files are rendered identically:
+The per-aggregate `__init__.py` files are rendered as:
 
 ```python
 # type: ignore
@@ -281,7 +342,7 @@ Rules:
 - One blank line, then the `__all__` assignment. The right-hand side is a parenthesized concatenation of every per-module `__all__` joined by `+` (the parentheses are grouping syntax, not a tuple — since each per-module `__all__` is a list, the result is a list). Each `<module>.__all__` term is on its own line, indented four spaces.
 - The file ends with a single trailing newline.
 - If the candidate module list is empty, write a zero-byte file instead.
-- Per-surface sub-packages are **not** imported into the root aggregator. Cross-surface access is via the fully qualified path (`<pkg>.api.serializers.v1.close_load`).
+- The per-aggregate aggregator is the **only** star-aggregator the rest-api-spec emits at the serializers tree. The per-surface `__init__.py` stays empty (per `rest-api-spec:naming-conventions`); the root `serializers/__init__.py` is owned by `@serializers-copier`. Cross-aggregate access is via the fully qualified path (`<pkg>.api.serializers.v1.cache_type.create`).
 
 ---
 
@@ -330,14 +391,14 @@ Rules:
 | corrections | `list[str]` | Required, non-empty list |
 ```
 
-**Emitted modules** (assuming `<pkg>` = `cargo`):
+**Emitted modules** (assuming `<pkg>` = `cargo`, `<aggregate>` = `load`):
 
-`api/serializers/v1/close.py`:
+`api/serializers/v1/load/close.py`:
 
 ```python
 from cargo.domain.load import Load
 
-from ..configured_base_serializer import ConfiguredResponseSerializer
+from ...configured_base_serializer import ConfiguredResponseSerializer
 
 __all__ = [
     "CloseResponse",
@@ -352,14 +413,14 @@ class CloseResponse(ConfiguredResponseSerializer):
         return cls(id=load.id)
 ```
 
-`api/serializers/v1/create_load.py`:
+`api/serializers/v1/load/create_load.py`:
 
 ```python
 from datetime import datetime
 
 from cargo.domain.load import Load
 
-from ..configured_base_serializer import ConfiguredRequestSerializer, ConfiguredResponseSerializer
+from ...configured_base_serializer import ConfiguredRequestSerializer, ConfiguredResponseSerializer
 
 __all__ = [
     "CreateLoadRequest",
@@ -381,12 +442,12 @@ class CreateLoadResponse(ConfiguredResponseSerializer):
         return cls(id=load.id)
 ```
 
-`api/serializers/v1/add_corrections.py`:
+`api/serializers/v1/load/add_corrections.py`:
 
 ```python
 from cargo.domain.load import Load
 
-from ..configured_base_serializer import ConfiguredRequestSerializer, ConfiguredResponseSerializer
+from ...configured_base_serializer import ConfiguredRequestSerializer, ConfiguredResponseSerializer
 
 __all__ = [
     "AddCorrectionsRequest",
@@ -406,7 +467,7 @@ class AddCorrectionsResponse(ConfiguredResponseSerializer):
         return cls(id=load.id)
 ```
 
-`api/serializers/v1/__init__.py` (after both query and command implementers have run):
+`api/serializers/v1/load/__init__.py` (after both query and command implementers have run for this aggregate):
 
 ```python
 # type: ignore
@@ -424,6 +485,122 @@ __all__ = (
     + find_loads.__all__
 )
 ```
+
+### `to_domain()` example for a command with a domain-TypedDict parameter
+
+Spec excerpt for resource `CacheType` (aggregate `cache_type`):
+
+```markdown
+### Table 3: Command Endpoints
+
+| HTTP | Path | Operation | Description | Domain Ref |
+| --- | --- | --- | --- | --- |
+| POST | `/` | create | Create a new cache type | `CacheTypeCommands.create` |
+
+### Table 5: Request Fields
+
+**Endpoint:** `POST /`
+
+| Field Name | Type | Validation |
+| --- | --- | --- |
+| code | `str` | Required |
+| name | `str` | Required |
+| lookups | `list[LookupArgumentData]` | Required, non-empty list |
+
+**Nested:** `LookupArgumentData`
+
+| Field Name | Type | Validation |
+| --- | --- | --- |
+| code | `str` | Required |
+| name | `str` | Required |
+| arguments | `list[ArgumentData]` | Required |
+| response | `list[ResponseData]` | Required |
+
+**Nested:** `ArgumentData`
+
+| Field Name | Type | Validation |
+| --- | --- | --- |
+| name | `str` | Required |
+| type | `str` | Required |
+
+**Nested:** `ResponseData`
+
+| Field Name | Type | Validation |
+| --- | --- | --- |
+| name | `str` | Required |
+| type | `str` | Required |
+```
+
+Commands diagram declares `CacheTypeCommands.create(code: str, name: str, lookups: list[LookupArgumentData])`. Domain diagram marks `LookupArgumentData`, `ArgumentData`, `ResponseData` as `<<Domain TypedDict>>`. The agent emits:
+
+`api/serializers/v1/cache_type/create.py`:
+
+```python
+from cargo.domain.cache_type import ArgumentData, CacheType, LookupArgumentData, ResponseData
+
+from ...configured_base_serializer import ConfiguredRequestSerializer, ConfiguredResponseSerializer
+
+__all__ = [
+    "ArgumentDataSerializer",
+    "ResponseDataSerializer",
+    "LookupArgumentDataSerializer",
+    "CreateRequest",
+    "CreateResponse",
+]
+
+
+class ArgumentDataSerializer(ConfiguredRequestSerializer):
+    name: str
+    type: str
+
+    def to_domain(self) -> ArgumentData:
+        return {
+            "name": self.name,
+            "type": self.type,
+        }
+
+
+class ResponseDataSerializer(ConfiguredRequestSerializer):
+    name: str
+    type: str
+
+    def to_domain(self) -> ResponseData:
+        return {
+            "name": self.name,
+            "type": self.type,
+        }
+
+
+class LookupArgumentDataSerializer(ConfiguredRequestSerializer):
+    code: str
+    name: str
+    arguments: list[ArgumentDataSerializer]
+    response: list[ResponseDataSerializer]
+
+    def to_domain(self) -> LookupArgumentData:
+        return {
+            "code": self.code,
+            "name": self.name,
+            "arguments": [item.to_domain() for item in self.arguments],
+            "response": [item.to_domain() for item in self.response],
+        }
+
+
+class CreateRequest(ConfiguredRequestSerializer):
+    code: str
+    name: str
+    lookups: list[LookupArgumentDataSerializer]
+
+
+class CreateResponse(ConfiguredResponseSerializer):
+    id: str
+
+    @classmethod
+    def from_domain(cls, cache_type: CacheType) -> "CreateResponse":
+        return cls(id=cache_type.id)
+```
+
+Note: the top-level `CreateRequest` has no `to_domain()` — the endpoint accesses `request.code` and `request.name` directly and converts `request.lookups` via `[lookup.to_domain() for lookup in request.lookups]`. Only nested sub-serializers whose target type is a domain TypedDict expose `to_domain()`.
 
 ---
 

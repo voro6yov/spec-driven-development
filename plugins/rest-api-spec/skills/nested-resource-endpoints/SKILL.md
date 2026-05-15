@@ -167,6 +167,38 @@ def get_line_item(
     )
 ```
 
+## Domain TypedDict Parameters on Nested Actions
+
+If a nested-resource action (e.g. `POST /{load_id}/lookups`, `PATCH /{cache_type_id}/lookups/{lookupId}`) accepts a domain `<<Domain TypedDict>>` body field, the endpoint applies the standard request→domain conversion via `to_domain()`:
+
+```python
+@cache_types_router.patch(
+    "/{id}/lookups/{lookupId}",
+    status_code=status.HTTP_200_OK,
+    openapi_extra={"visibility": Visibility.PUBLIC},
+    response_model=UpdateLookupResponse,
+)
+@inject
+def update_lookup(
+    id: str,
+    request: UpdateLookupRequest,
+    lookup_id: str = Path(..., alias="lookupId"),
+    tenant_id: str = Depends(get_tenant_id),
+    cache_type_commands: CacheTypeCommands = Depends(Provide[Containers.cache_type_commands]),
+):
+    return UpdateLookupResponse.from_domain(
+        cache_type_commands.update_lookup(
+            id,
+            tenant_id=tenant_id,
+            lookup_id=lookup_id,
+            arguments=[item.to_domain() for item in request.arguments],
+            response=[item.to_domain() for item in request.response],
+        ),
+    )
+```
+
+See the `endpoints` skill's "Create with Domain TypedDict Parameter" section for the full dispatch table; see `request-serializers` § `to_domain()` for the corresponding serializer-side emission.
+
 ## URL Design Patterns
 
 ### Action on Nested Resource

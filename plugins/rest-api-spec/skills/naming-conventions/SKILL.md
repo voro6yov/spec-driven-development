@@ -199,6 +199,39 @@ The messaging consumer spec is the only path that requires an additional discrim
 - **Per-plugin agents** accept exactly the diagram they primarily read — `<domain_diagram>` for `domain-spec`, `application-spec`, `persistence-spec`, and `rest-api-spec`; `<commands_diagram>` for `messaging-spec` — plus non-derivable extras. Sibling spec files inside the agent's own plugin folder are derived internally.
 - **Reconstruction by string substitution is forbidden** (e.g. `path.replace('.md', '.specs.md')`). Always recover `<stem>` and `<dir>` per the recovery table first, then build new paths from the artifact table.
 
+## Generated REST API Python package layout
+
+The rest-api-spec code generators emit files into a `<api_pkg>/` directory whose canonical sub-layout is:
+
+```
+<api_pkg>/
+  endpoints/
+    __init__.py
+    <surface>/                     # one sub-package per surface (e.g. v1, internal)
+      __init__.py
+      <plural>.py                  # one router module per aggregate per surface
+  serializers/
+    __init__.py
+    configured_base_serializer.py  # shared
+    error.py                       # shared
+    json_utils.py                  # shared
+    paginated_result_metadata.py   # shared (created on first paginated endpoint)
+    result_set.py                  # shared (created on first paginated endpoint)
+    <surface>/                     # one sub-package per surface
+      __init__.py                  # empty — no flat star-aggregator (see below)
+      <aggregate>/                 # one sub-package per aggregate within the surface
+        __init__.py                # star-aggregator over the operation modules in this aggregate
+        <operation>.py             # one module per endpoint operation
+```
+
+Key rule: **`serializers/<surface>/<aggregate>/`** — serializer operation modules are scoped by aggregate inside each surface, mirroring the per-aggregate layout of `<pkg>.domain.<aggregate>` and `<pkg>.application.<aggregate>`. The per-surface `__init__.py` is intentionally **not** a star-aggregator over the aggregate sub-packages — two aggregates may legitimately expose serializer classes with the same name (e.g. both expose `CreateRequest`), and a flat star-import would collide. Consumers import the qualified path:
+
+```python
+from <pkg>.api.serializers.<surface>.<aggregate> import CreateRequest, CreateResponse
+```
+
+`<aggregate>` is the snake-case singular of Table 1's Resource name (`CacheType` → `cache_type`). `<plural>` is Table 1's Plural value with hyphens replaced by underscores.
+
 ## What NOT to do
 
 - Do **not** put plugin artifacts at the same level as the diagrams (the old `<stem>.specs.md`, `<stem>.exceptions.md` flat layout is replaced by per-plugin folders).

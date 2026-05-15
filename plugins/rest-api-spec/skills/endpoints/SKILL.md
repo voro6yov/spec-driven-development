@@ -103,6 +103,45 @@ def create_resource(
     )
 ```
 
+### POST - Create with Domain TypedDict Parameter
+
+When the application-service method accepts a domain `<<Domain TypedDict>>` (or list thereof) as a parameter, the endpoint **does not** pass the Pydantic submodel directly. Instead, it calls the submodel's `to_domain()` method (see `rest-api-spec:request-serializers` § `to_domain()` method for nested TypedDict targets) so the application layer receives the typed TypedDict shape it declares:
+
+```python
+@router.post(
+    "/",
+    status_code=status.HTTP_201_CREATED,
+    openapi_extra={"visibility": Visibility.PUBLIC},
+    response_model=CreateResponse,
+)
+@inject
+def create(
+    request: CreateRequest,
+    tenant_id: str = Depends(get_tenant_id),
+    cache_type_commands: CacheTypeCommands = Depends(Provide[Containers.cache_type_commands]),
+):
+    return CreateResponse.from_domain(
+        cache_type_commands.create(
+            code=request.code,
+            name=request.name,
+            lookups=[item.to_domain() for item in request.lookups],
+            tenant_id=tenant_id,
+        ),
+    )
+```
+
+Rules of thumb:
+
+| Parameter type | Endpoint call form |
+| --- | --- |
+| `<TypedDict>` (scalar) | `<field>=request.<field>.to_domain()` |
+| `list[<TypedDict>]` | `<field>=[item.to_domain() for item in request.<field>]` |
+| `<TypedDict> \| None` | `<field>=request.<field>.to_domain() if request.<field> is not None else None` |
+| `list[<TypedDict>] \| None` | `<field>=[item.to_domain() for item in request.<field>] if request.<field> is not None else None` |
+| Primitive / value-object / aggregate root | `<field>=request.<field>` (no conversion) |
+
+Do not use `request.<field>.model_dump()` — `to_domain()` is typed, doesn't depend on Pydantic config (`by_alias` flips would silently break `model_dump()`), and gives a colocated hook if the conversion needs to evolve.
+
 ### POST - Action on Resource
 
 ```python

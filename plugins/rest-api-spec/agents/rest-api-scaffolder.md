@@ -1,6 +1,6 @@
 ---
 name: rest-api-scaffolder
-description: "Scaffolds the per-resource REST API package layout under `api/` from a `<dir>/<stem>.rest-api/spec.md` resource spec file (derived from the domain diagram per `rest-api-spec:naming-conventions`): creates `endpoints/` and `serializers/` sub-packages and materializes one empty per-surface sub-package under each (e.g. `endpoints/v1/`, `serializers/v1/`). Idempotent. Does not touch `api/__init__.py`, `containers.py`, `entrypoint.py`, the root `api/serializers/__init__.py` aggregator, or the shared serializer modules. Invoke with: @rest-api-scaffolder <domain_diagram> <locations_report_text>"
+description: "Scaffolds the per-resource REST API package layout under `api/` from a `<dir>/<stem>.rest-api/spec.md` resource spec file (derived from the domain diagram per `rest-api-spec:naming-conventions`): creates `endpoints/` and `serializers/` sub-packages, materializes one empty per-surface sub-package under each (e.g. `endpoints/v1/`, `serializers/v1/`), plus the per-aggregate serializer sub-package `serializers/<surface>/<aggregate>/`. Idempotent. Does not touch `api/__init__.py`, `containers.py`, `entrypoint.py`, the root `api/serializers/__init__.py` aggregator, or the shared serializer modules. Invoke with: @rest-api-scaffolder <domain_diagram> <locations_report_text>"
 tools: Read, Write, Bash, Skill
 model: sonnet
 skills:
@@ -33,7 +33,7 @@ From `<locations_report_text>`, extract the absolute `Path` value for the `API P
 
 If the row is missing or its path is empty, fail with: `Error: API Package row missing from locations report.`
 
-### Step 2 — Read the rest-api spec file and extract the surface list
+### Step 2 — Read the rest-api spec file and extract the surface list + aggregate
 
 Read `<rest_api_spec_file>`.
 
@@ -45,6 +45,10 @@ Inside Table 1, locate the `**Surfaces**` row. Its value column contains a comma
 - If the row is absent or its value column is empty / whitespace-only, fail with: `Error: <rest_api_spec_file> Table 1 has no Surfaces row — re-run /generate-specs.`
 
 Parse the value into `<surfaces>` by splitting on `,`, trimming whitespace from each token, and dropping empty tokens. The resulting order is the canonical order — preserve it; do not re-sort.
+
+Also extract the `**Resource name**` row's value — this is the PascalCase Resource (e.g. `CacheType`, `Load`). Compute `<aggregate>` = snake-case singular of the Resource name (insert `_` before each `[A-Z][a-z]` boundary and each `[a-z0-9][A-Z]` boundary, then lowercase): `CacheType` → `cache_type`, `Load` → `load`, `LineItem` → `line_item`.
+
+- If the `**Resource name**` row is absent or empty, fail with: `Error: <rest_api_spec_file> Table 1 has no Resource name row — re-run /generate-specs.`
 
 ### Step 3 — Ensure the api package directory exists
 
@@ -62,7 +66,7 @@ Let `<endpoints_dir>` = `<api_pkg>/endpoints`.
 
 Track which `__init__.py` files were freshly created vs. skipped for the report.
 
-### Step 5 — Scaffold the `serializers/` sub-package and per-surface dirs
+### Step 5 — Scaffold the `serializers/` sub-package and per-surface / per-aggregate dirs
 
 Let `<serializers_dir>` = `<api_pkg>/serializers`.
 
@@ -70,17 +74,20 @@ Let `<serializers_dir>` = `<api_pkg>/serializers`.
 2. **Do not** create or modify `<serializers_dir>/__init__.py` here — that aggregator is owned by `@serializers-copier` (run via `/rest-api-spec:generate-rest-api-deps`).
 3. For each `<surface>` in `<surfaces>` (canonical order):
    - `mkdir -p <serializers_dir>/<surface>`.
-   - If `<serializers_dir>/<surface>/__init__.py` does not exist, write a zero-byte file there. Never overwrite.
+   - If `<serializers_dir>/<surface>/__init__.py` does not exist, write a zero-byte file there. Never overwrite. The per-surface `__init__.py` stays **empty** — it is intentionally not a star-aggregator over the per-aggregate sub-packages (two aggregates may legitimately expose serializer classes with the same name; a flat star-import would collide). Consumers always import from the per-aggregate qualified path.
+   - `mkdir -p <serializers_dir>/<surface>/<aggregate>` — one per-aggregate sub-package per surface.
+   - If `<serializers_dir>/<surface>/<aggregate>/__init__.py` does not exist, write a zero-byte file there. Never overwrite. The per-aggregate aggregator is (re)written by the serializers implementers as a star-aggregator over the operation modules inside.
 
-Track which surface `__init__.py` files were freshly created vs. skipped.
+Track which `__init__.py` files were freshly created vs. skipped.
 
 ### Step 6 — Report
 
 Emit a concise Markdown report listing:
 
 - API package path: `<api_pkg>`
+- Resource: `<Resource>` → aggregate `<aggregate>`
 - Surfaces: `<surfaces>` (comma-separated, canonical order)
 - `endpoints/`: list of created vs. skipped `__init__.py` paths (root + per-surface)
-- `serializers/`: list of created vs. skipped per-surface `__init__.py` paths
+- `serializers/`: list of created vs. skipped per-surface `__init__.py` paths + per-aggregate `__init__.py` paths
 
 Do not emit anything beyond the report. End with: `Scaffolded REST API.`

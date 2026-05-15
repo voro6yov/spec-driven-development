@@ -139,6 +139,33 @@ def disable_bypass_mode(
 | Retry | `/{id}/retry` | `/tires/{id}/retry` |
 | Close/Complete | `/{id}/close` | `/loads/{id}/close` |
 
+## Domain TypedDict Parameters
+
+When the action command accepts a domain `<<Domain TypedDict>>` (e.g. `corrections: list[CorrectionData]`) the endpoint converts via `to_domain()` on the nested sub-serializer rather than passing the Pydantic model through:
+
+```python
+@loads_router.post(
+    "/{load_id}/corrections",
+    status_code=status.HTTP_200_OK,
+    openapi_extra={"visibility": Visibility.PUBLIC},
+    response_model=AddCorrectionsResponse,
+)
+@inject
+def add_corrections(
+    load_id: str,
+    request: AddCorrectionsRequest,
+    load_commands: LoadCommands = Depends(Provide[Containers.load_commands]),
+):
+    return AddCorrectionsResponse.from_domain(
+        load_commands.add_corrections(
+            load_id,
+            corrections=[item.to_domain() for item in request.corrections],
+        ),
+    )
+```
+
+See the `endpoints` skill's "Create with Domain TypedDict Parameter" section for the full dispatch table; see `request-serializers` § `to_domain()` for the corresponding serializer-side emission.
+
 ## Response Pattern
 
 Command action endpoints typically return minimal responses. See [Simple Command Response](simple-command-response.md) for the serializer pattern.

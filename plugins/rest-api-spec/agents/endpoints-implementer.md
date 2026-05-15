@@ -1,6 +1,6 @@
 ---
 name: endpoints-implementer
-description: "Implements REST API endpoint modules from a `<dir>/<stem>.rest-api/spec.md` resource spec (derived from the domain diagram per `rest-api-spec:naming-conventions`). For every `## Surface:` section, emits one Python module at `api/endpoints/<surface>/<plural>.py` containing the surface's `<plural>_router` (prefix + tags from Table 1) plus one endpoint function per row of Tables 2 and 3. Endpoint kind is dispatched by path shape and Table 5 type signals (plain / nested-resource / command-action / file-upload / binary-streaming). Application-service call kwargs are driven from Table 6. Idempotent: existing per-surface modules are never overwritten. Does not touch aggregator `__init__.py` files, `containers.py`, `entrypoint.py`, or `constants.py`. Invoke with: @endpoints-implementer <domain_diagram> <locations_report_text>"
+description: "Implements REST API endpoint modules from a `<dir>/<stem>.rest-api/spec.md` resource spec (derived from the domain diagram per `rest-api-spec:naming-conventions`). For every `## Surface:` section, emits one Python module at `api/endpoints/<surface>/<plural>.py` containing the surface's `<plural>_router` (prefix + tags from Table 1) plus one endpoint function per row of Tables 2 and 3. Endpoint kind is dispatched by path shape and Table 5 type signals (plain / nested-resource / command-action / file-upload / binary-streaming). Application-service call kwargs are driven from Table 6; body fields whose declared application-service parameter type is a domain `<<Domain TypedDict>>` / `<<Query DTO>>` are emitted as `request.<field>.to_domain()` (or list comprehensions thereof). Serializer imports use the per-aggregate qualified path `...serializers.<surface>.<aggregate>`. Idempotent: existing per-surface modules are never overwritten. Does not touch aggregator `__init__.py` files, `containers.py`, `entrypoint.py`, or `constants.py`. Invoke with: @endpoints-implementer <domain_diagram> <locations_report_text>"
 tools: Read, Write, Bash, Skill
 model: sonnet
 skills:
@@ -81,9 +81,9 @@ The agent emits a deterministic, sorted import block. Compute the union of needs
 | project | `get_tenant_id` (only if any endpoint has an `Auth context` mapping) | `<pkg>.api.auth` |
 | project (relative) | `MarkerRoute` | `...endpoint_marker` |
 | project (relative) | `Visibility` | `...endpoint_visibility` |
-| project (relative) | every request/response serializer class referenced by any endpoint in the module | `...serializers.<surface>` (or `...serializers.<surface>.<operation>` if the per-surface aggregator is missing — see below) |
+| project (relative) | every request/response serializer class referenced by any endpoint in the module | `...serializers.<surface>.<aggregate>` (the per-aggregate aggregator — emitted by the serializers implementers) |
 
-Serializer imports go through `...serializers.<surface>` (the per-surface aggregator). Three dots — endpoint modules live at `api/endpoints/<surface>/<plural>.py`, so two dots would resolve to `api/endpoints/serializers/<surface>` (wrong); three dots resolves to `api/serializers/<surface>` (correct). Even if that aggregator is currently a zero-byte file, the serializers implementers will (re)write it on their next run; we import the public names. List names alphabetically.
+Serializer imports go through `...serializers.<surface>.<aggregate>` — the per-aggregate aggregator inside the surface. Three dots — endpoint modules live at `api/endpoints/<surface>/<plural>.py`, so three dots resolves to `api/serializers/<surface>/<aggregate>` (correct). The per-surface `__init__.py` is intentionally empty (two aggregates may legitimately expose serializer classes with the same name — a flat star-aggregator would clash; see `rest-api-spec:naming-conventions`). List names alphabetically.
 
 `<pkg>` is the project package name resolved from the `Containers` path of `<locations_report_text>` — strip `<repo_path>/src/` from the front and `/containers.py` from the back. `<aggregate>` is the snake-case singular of Table 1's Resource name (e.g., `LineItem` → `line_item`).
 
@@ -157,9 +157,12 @@ Each endpoint's call to `commands.<method>(...)` or `queries.<method>(...)` is e
 | `` Path param `{id}` `` | **positional** `id` — always rendered as the first positional argument of the call (carve-out from the kwarg rule). |
 | `` Path param `{<camelId>}` `` (e.g., `{tireId}`) | `<snake>=<snake>` (e.g., `tire_id=tire_id`) — the snake_case form must match the function parameter name |
 | `Auth context` | `tenant_id=tenant_id` (parameter name comes from Table 6's left column verbatim — typically `tenant_id`, but if some other principal name is used, mirror it) |
-| `` Request body `<field>` `` | `<field>=request.<field>` |
+| `` Request body `<field>` `` (primitive / value-object / aggregate-root target) | `<field>=request.<field>` |
+| `` Request body `<field>` `` (TypedDict / Query DTO target — see below) | `<field>=request.<field>.to_domain()` (scalar) or `<field>=[item.to_domain() for item in request.<field>]` (list); wrap with `... if request.<field> is not None else None` when the original parameter type is `T \| None` |
 | `` Query param `<name>` `` | `<name>=request.<name>` |
 | `` Constructed from query params `<f1>`, `<f2>`, … → `<Type>` `` | `<param>=<Type>(<f1>=request.<f1>, <f2>=request.<f2>, …)` — the kwarg name is the left-column parameter name from Table 6 (e.g., `pagination`); the `<Type>` is imported from `<pkg>.domain.shared` for `Pagination` and from `<pkg>.domain.<aggregate>` for per-aggregate composites like `<Resource>Filtering`. Append ` if any(...) else None` only when the Table 6 cell ends with `(defaults from settings if None)` AND the original parameter is `T \| None` — in that case wrap as `<param>=<Type>(...) if (request.<f1> is not None or request.<f2> is not None or ...) else None`. |
+
+**TypedDict / Query DTO discrimination for body fields.** A `Request body <field>` row uses the `to_domain()` form when the field's declared application-service parameter type (recovered from the commands diagram in [§ Step 3.6 — Cross-reference the commands diagram for `to_domain()` targets](#step-36--cross-reference-the-commands-diagram-for-to_domain-targets)) resolves on the domain diagram to a class whose stereotype is `<<Domain TypedDict>>` or `<<Query DTO>>`. Strip `list[]` and `| None` wrappers to find the base identifier. All other stereotypes (`<<Value Object>>`, `<<Aggregate Root>>`, `<<Entity>>`, primitives, unresolved) use the plain `request.<field>` form.
 
 Important rules:
 
@@ -260,6 +263,16 @@ For each surface in canonical order, within its bounded section (from `## Surfac
 5. **Parse Table 6** (Parameter Mapping) — sub-block per Table 2 and Table 3 row. Used to drive the application-service call signature row-by-row. If a Table 2 or Table 3 row has no Table 6 sub-block, abort with: `Error: surface "<name>" endpoint "<HTTP> <PATH>" has no Table 6 sub-block.`
 
 If a surface has zero query endpoints AND zero command endpoints, record `skipped: <surface>: no endpoints` and continue to the next surface — do not emit a module for it.
+
+#### Step 3.6 — Cross-reference the commands diagram for `to_domain()` targets
+
+Read `<dir>/<stem>.commands.md` once at the start of Step 3 (cache the parse). For each Table 3 row, locate the matching `<Resource>Commands.<method>` declaration on the diagram by the row's Domain Ref (column 5). Bind `<command_method_params>: method → ordered list of (name, type_token)` from each method's declared signature.
+
+Read `<domain_diagram>` once at the start of Step 3 (cache the parse). Build a stereotype lookup `<stereotype_map>: PascalCase → stereotype` over every class declared on the domain diagram.
+
+For each Table 6 sub-block of a command endpoint, for every `Request body <field>` row, resolve the matching `<command_method_params>` entry by snake_case name. Strip `list[]` and `| None` wrappers from its `type_token` to a base PascalCase identifier; look up its stereotype in `<stereotype_map>`. Tag the Table 6 row as `requires_to_domain` when the stereotype is `<<Domain TypedDict>>` or `<<Query DTO>>`; record whether the list form applies (the original `type_token` contained `list[...]`).
+
+If the commands-diagram parse cannot locate the Domain Ref method, emit a warning (`WARNING: surface "<name>" endpoint "<HTTP> <PATH>" Domain Ref "<ref>" not found on commands diagram — to_domain() emission skipped`) and continue with plain `request.<field>` emission for that endpoint. Do not abort.
 
 ### Step 4 — Per-surface module emission
 
@@ -425,6 +438,47 @@ def delete_load(
 ```
 
 Three things to note across these excerpts: (1) `id` is positional, all other Table 6 rows are kwargs in row order; (2) the `confirm_overage` Table 6 row order is `(id, tenant_id, tire_id)` — `id` is hoisted to positional, the rest follow in row order; (3) the binary endpoint emits no `status_code=` and no `response_model=`, the DELETE-204 emits no `response_model=` and no `return`.
+
+### `to_domain()` example for a command with a domain-TypedDict body field
+
+Spec excerpt for resource `CacheType`. Commands diagram declares `CacheTypeCommands.create(code: str, name: str, lookups: list[LookupArgumentData])`. Domain diagram marks `LookupArgumentData` as `<<Domain TypedDict>>`. Table 6 for the `create` endpoint:
+
+```markdown
+**Endpoint:** `POST /` (create)
+| Command Parameter | Request Field / Path Param |
+| --- | --- |
+| `code` | Request body `code` |
+| `name` | Request body `name` |
+| `lookups` | Request body `lookups` |
+| `tenant_id` | Auth context |
+```
+
+Step 3.6 resolves `lookups`'s declared type `list[LookupArgumentData]` to `<<Domain TypedDict>>` and tags the row `requires_to_domain` (list form). The emitted endpoint:
+
+```python
+@cache_types_router.post(
+    "/",
+    status_code=status.HTTP_201_CREATED,
+    openapi_extra={"visibility": Visibility.PUBLIC},
+    response_model=CreateResponse,
+)
+@inject
+def create(
+    request: CreateRequest,
+    tenant_id: str = Depends(get_tenant_id),
+    cache_type_commands: CacheTypeCommands = Depends(Provide[Containers.cache_type_commands]),
+):
+    return CreateResponse.from_domain(
+        cache_type_commands.create(
+            code=request.code,
+            name=request.name,
+            lookups=[item.to_domain() for item in request.lookups],
+            tenant_id=tenant_id,
+        ),
+    )
+```
+
+`code` and `name` are plain `str` → `request.<field>`. `lookups` is `list[<<Domain TypedDict>>]` → list comprehension over `request.lookups` calling each item's `to_domain()` (emitted by `@command-serializers-implementer` on `LookupArgumentDataSerializer`).
 
 ---
 
