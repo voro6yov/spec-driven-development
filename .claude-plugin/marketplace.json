@@ -4,8 +4,13 @@
     "name": "Valentin Vorobyev",
     "email": "voro6yov.valentin@gmail.com"
   },
-  "version": "0.6.0",
+  "version": "0.7.0",
   "plugins": [
+    {
+      "name": "model-diagrams",
+      "source": "./plugins/model-diagrams",
+      "description": "Scaffold, review, and annotate Mermaid class diagrams that feed the spec plugins"
+    },
     {
       "name": "domain-spec",
       "source": "./plugins/domain-spec",

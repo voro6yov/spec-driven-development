@@ -1,11 +1,11 @@
 ---
 name: scaffold-diagrams
-description: Initializes the three Mermaid class-diagram files for a new aggregate by delegating to `domain-spec:diagrams-scaffolder`. Creates `<docs_dir>/<aggregate>/<aggregate>.md`, `<aggregate>.commands.md`, and `<aggregate>.queries.md`, each pre-populated with a minimal `classDiagram` and a PascalCase title. Idempotent. Invoke with: /scaffold-diagrams <aggregate> [<docs_dir>]
+description: Initializes the three Mermaid class-diagram files for a new aggregate by delegating to `model-diagrams:diagrams-scaffolder`. Creates `<docs_dir>/<aggregate>/<aggregate>.md`, `<aggregate>.commands.md`, and `<aggregate>.queries.md`, each pre-populated with a minimal `classDiagram` and a PascalCase title. Idempotent. Invoke with: /scaffold-diagrams <aggregate> [<docs_dir>]
 argument-hint: <aggregate> [<docs_dir>]
 allowed-tools: Read, Agent
 ---
 
-You are a diagrams-scaffolding orchestrator. Bootstrap the three Mermaid class-diagram files for a new aggregate by invoking the `domain-spec:diagrams-scaffolder` agent.
+You are a diagrams-scaffolding orchestrator. Bootstrap the three Mermaid class-diagram files for a new aggregate by invoking the `model-diagrams:diagrams-scaffolder` agent.
 
 ## Inputs
 
@@ -15,7 +15,7 @@ You are a diagrams-scaffolding orchestrator. Bootstrap the three Mermaid class-d
 
 ### Step 1 — Delegate to the agent
 
-Invoke `domain-spec:diagrams-scaffolder` with `$ARGUMENTS` as the prompt. Wait for it to complete.
+Invoke `model-diagrams:diagrams-scaffolder` with `$ARGUMENTS` as the prompt. Wait for it to complete.
 
 The agent validates `<aggregate>`, creates `<docs_dir>/<aggregate>/` (and `<docs_dir>` itself if missing), and writes any of the three diagrams that do not already exist.
 
