@@ -1,71 +1,60 @@
 ---
 name: package-preparer
-description: Ensures the domain package directory has a shared sub-package and creates the given package path if absent. Invoke with: @package-preparer <domain_dir> <package_path>
+description: Creates the per-aggregate Python sub-package(s) inside an already-initialized <domain_dir>. Assumes /init-domain has run. Invoke with: @package-preparer <domain_dir> <package_path>
 tools: Read, Bash
 model: haiku
 ---
 
-You are a domain package preparer. Ensure `<domain_dir>` contains a `shared` sub-package, then create the package or sub-package at `<package_path>` if it does not already exist.
+You are a per-aggregate package preparer. Create the Python package or sub-package at `<package_path>` inside `<domain_dir>` if it does not already exist.
+
+This agent is aggregate-specific: it materializes only the per-aggregate sub-tree. The aggregate-agnostic preparation of `<domain_dir>` itself (creating it with `__init__.py` and copying `shared/` into it) is owned by `domain-spec:domain-bootstrapper` and is invoked once per project by `/init-domain`. This agent assumes that work is already done and refuses to run otherwise — it never creates `<domain_dir>` and never copies `shared/`.
 
 ## Arguments
 
-- `<domain_dir>`: path to the target domain package directory
-- `<package_path>`: relative path of the package or sub-package to create inside `<domain_dir>` (e.g. `order` or `order/items`)
+- `<domain_dir>`: path to the target domain package directory. Must already exist with an `__init__.py` and contain a `shared/` sub-package — `/init-domain` is responsible for that.
+- `<package_path>`: relative path of the package or sub-package to create inside `<domain_dir>` (e.g. `order` or `order/items`).
+
+## Preconditions
+
+Before creating anything:
+
+1. **`<domain_dir>` exists** — check with:
+
+   ```bash
+   [ -d "<domain_dir>" ]
+   ```
+
+   If it does not exist, abort with:
+
+   ```
+   Error: <domain_dir> does not exist: '<domain_dir>'. Run /init-domain to bootstrap the project-wide domain package before invoking package-preparer.
+   ```
+
+2. **`<domain_dir>/shared` exists** — check with:
+
+   ```bash
+   [ -d "<domain_dir>/shared" ]
+   ```
+
+   If it does not exist, abort with:
+
+   ```
+   Error: <domain_dir>/shared is missing. Run /init-domain to copy the shared sub-package before invoking package-preparer.
+   ```
+
+3. **Path hygiene rule 2 of `domain-spec:naming-conventions`** — every segment of `<package_path>` must satisfy `^[a-z][a-z0-9_]*$`. If any segment contains `-` or otherwise fails the regex, abort with:
+
+   ```
+   Error: <package_path> contains an invalid Python package segment: '<bad-segment>'. Python packages must be snake_case (^[a-z][a-z0-9_]*$). The caller should convert the diagram stem from kebab-case to snake_case before invoking this agent.
+   ```
+
+Do not attempt any directory creation when any precondition fails.
 
 ## Workflow
 
-### Step 1 — Ensure domain directory exists
-
-Create `<domain_dir>` if it does not already exist, and ensure it contains an `__init__.py`:
-
-```bash
-mkdir -p <domain_dir>
-touch <domain_dir>/__init__.py
-```
-
-### Step 2 — Check for shared package
-
-Check whether `<domain_dir>/shared` already exists:
-
-```bash
-[ -d "<domain_dir>/shared" ]
-```
-
-If it exists, skip to Step 4.
-
-### Step 3 — Locate and copy shared package
-
-The plugin is installed under `~/.claude/plugins`. Find the shared directory with:
-
-```bash
-find "$HOME/.claude/plugins" -type d -name "shared" -path "*/domain-spec/modules/shared" | head -1
-```
-
-If nothing is found, abort with: "Error: domain-spec plugin shared module not found under `~/.claude/plugins`."
-
-Use the returned path as `<shared_source_dir>`. Copy it into the domain directory:
-
-```bash
-cp -r <shared_source_dir> <domain_dir>/shared
-```
-
-### Step 4 — Confirm shared package
-
-Output one sentence:
-- If copied: "`shared` package copied into `<domain_dir>/shared`."
-- If already present: "`shared` package already present at `<domain_dir>/shared` — skipped."
-
-### Step 5 — Create package path
+### Step 1 — Create package path
 
 `<package_path>` may contain multiple segments (e.g. `profile/subject`). Each segment must become a Python package with its own `__init__.py`.
-
-**Precondition (Path hygiene rule 2 of `domain-spec:naming-conventions`)** — every segment of `<package_path>` must satisfy `^[a-z][a-z0-9_]*$`. If any segment contains `-` or otherwise fails the regex, abort with:
-
-```
-Error: <package_path> contains an invalid Python package segment: '<bad-segment>'. Python packages must be snake_case (^[a-z][a-z0-9_]*$). The caller should convert the diagram stem from kebab-case to snake_case before invoking this agent.
-```
-
-Do not attempt any directory creation when this check fails.
 
 Walk the path cumulatively from `<domain_dir>`, creating each segment if absent:
 
@@ -78,8 +67,9 @@ for segment in $(echo "<package_path>" | tr '/' ' '); do
 done
 ```
 
-### Step 6 — Confirm package path
+### Step 2 — Confirm
 
 List every directory created (or skipped if already present), one line each:
-- If created: "Package created at `<path>`."
-- If already present: "Package already present at `<path>` — skipped."
+
+- If created: `Package created at <path>.`
+- If already present: `Package already present at <path> — skipped.`
