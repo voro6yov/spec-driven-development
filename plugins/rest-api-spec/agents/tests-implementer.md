@@ -1,6 +1,6 @@
 ---
 name: tests-implementer
-description: "Implements pytest integration tests for the REST API endpoints of one resource. Takes a domain diagram and a target-locations report; derives the `<dir>/<stem>.rest-api/spec.md` sibling spec per `rest-api-spec:naming-conventions`, parses every `## Surface:` section, and writes one test module per surface at `<tests_dir>/integration/<resource>/test_<plural>_<surface>_api.py`. Per-endpoint dispatch is Table-driven (success / not_found / already_exists / missing_required_field). Mutating-endpoint JSON bodies are resolved from `<aggregate>_2` (success / not_found) and `<aggregate>_1` (already_exists) by snake_case-mapping Table 5 field names to fixture attributes; nested TypedDict fields are recursively synthesized into minimum-valid dict / list-of-dict literals (not empty `[]`). Cardinality-aware fixture selection swaps to `<aggregate>_2` for nested-DELETE success scenarios when only it satisfies the targeted child-collection's ≥2 cardinality. Update-details body fields fall back to literal `Renamed *` stubs when the two aggregate fixtures share the same source value. Append-only and idempotent. Invoke with: @tests-implementer <domain_diagram> <locations_report_text>"
+description: "Implements pytest integration tests for the REST API endpoints of one resource. Takes a domain diagram and a target-locations report; derives the `<dir>/<stem>.rest-api/spec.md` sibling spec per `rest-api-spec:naming-conventions`, parses every `## Surface:` section, and writes one test module per surface at `<tests_dir>/integration/<resource>/test_<plural>_<surface>_api.py`. Per-endpoint dispatch is Table-driven (success / not_found / already_exists / missing_required_field). Mutating-endpoint JSON bodies are resolved from `<aggregate>_2` (success / not_found) and `<aggregate>_1` (already_exists) by snake_case-mapping Table 5 field names to fixture attributes; nested TypedDict fields are recursively synthesized into minimum-valid dict / list-of-dict literals (not empty `[]`). VO/primitive mismatches (e.g. body declares `list[str]` but the aggregate Guard is a domain VO) fall through to non-empty `list[<primitive>]` stubs rather than emitting the VO instance. Body field names suffixed with `_id` / `_code` / `_ids` / `_codes` drill into intra-aggregate collections (with VO unwrap) before falling back to type-stubs. Nested-id path placeholders drill through VO-wrapped collections to the inner list. Cardinality-aware fixture selection swaps to `<aggregate>_2` for nested-DELETE success scenarios when only it satisfies the targeted child-collection's ≥2 cardinality. Update-details body fields fall back to literal `Renamed *` stubs when the two aggregate fixtures share the same source value. Append-only and idempotent. Invoke with: @tests-implementer <domain_diagram> <locations_report_text>"
 tools: Read, Write, Edit, Bash, Skill
 skills:
   - rest-api-spec:naming-conventions
@@ -203,13 +203,21 @@ Where `<fix>` is `<aggregate>_1`.
 
 For each non-`{id}` camelCase placeholder `{<thingId>}`:
 
-1. Strip the trailing `Id` from the placeholder name (case-sensitive): `tireId` → `tire`, `documentTypeId` → `documentType`.
-2. snake_case the result (same regex as Step 3): `tire` → `tire`, `documentType` → `document_type`.
+1. Strip the trailing `Id` from the placeholder name (case-sensitive): `tireId` → `tire`, `documentTypeId` → `documentType`, `resolvedFieldId` → `resolvedField`.
+2. snake_case the result (same regex as Step 3): `tire` → `tire`, `documentType` → `document_type`, `resolvedField` → `resolved_field`.
 3. Pluralize using these rules (first match wins; same as `application-spec` plural rules):
    - ends with `y` preceded by a non-vowel letter → drop `y`, append `ies` (`policy` → `policies`).
    - ends with `s`, `x`, `ch`, or `sh` → append `es` (`box` → `boxes`).
-   - otherwise → append `s` (`tire` → `tires`, `document_type` → `document_types`).
-4. Substitute the placeholder with `{<aggregate>_1.<plural>[0].id}` — e.g. `{tireId}` → `{load_1.tires[0].id}`, `{documentTypeId}` → `{load_1.document_types[0].id}`.
+   - otherwise → append `s` (`tire` → `tires`, `document_type` → `document_types`, `resolved_field` → `resolved_fields`).
+4. **VO-drill check.** Consult the `<aggregate_guards>` map harvested by "Aggregate attribute discovery" (below). If `<plural>` ∈ `<aggregate_attrs>`:
+   - If `<aggregate_guards>[<plural>].<runtime_type>` is `list` (i.e. the Guard line reads `Guard[list[X]](list, ...)`) → emit `{<aggregate>_1.<plural>[0].id}` (the simple case).
+   - Else if `<aggregate_guards>[<plural>].<runtime_type>` is a domain class (a PascalCase non-builtin token, e.g. `ResolvedFields`) — i.e. the collection is wrapped in a value object — read the VO's inner Guards (harvested as `<vo_attrs>[<plural>]`, a list of `(<attr_name>, <static_type>, <runtime_type>)` triples). Pick the **inner list Guard** by this priority:
+     1. An inner Guard whose **name matches `<plural>` exactly** AND whose runtime type is `list` (the canonical "VO-wraps-same-named-list" pattern, e.g. `ResolvedFields.resolved_fields`). Bind `<inner_list_attr>` = `<plural>`.
+     2. Else, the first inner Guard whose runtime type is `list`. Bind `<inner_list_attr>` = its name.
+     - If a match is found → emit `{<aggregate>_1.<plural>.<inner_list_attr>[0].id}` — e.g. `{resolvedFieldId}` → `{mapping_type_1.resolved_fields.resolved_fields[0].id}`.
+     - If no inner `list` Guard exists → emit `{<aggregate>_1.<plural>[0].id}` (the simple form) and append a Step 9 warning that the VO drill could not be resolved.
+   - Else (Guard runtime type is anything else) → emit `{<aggregate>_1.<plural>[0].id}` (the simple form).
+5. If `<plural>` ∉ `<aggregate_attrs>` (no matching Guard at all) → emit `{<aggregate>_1.<plural>[0].id}` (the simple form) and accept potential runtime `AttributeError`; this surfaces the gap to the user.
 
 If the resolution requires drilling but the aggregate fixture does not actually expose the collection (verifiable only at test runtime), the test will fail with `AttributeError`; the user is expected to either populate the collection in the aggregate fixture or rename the path placeholder. The agent does not attempt diagram-level verification.
 
@@ -290,7 +298,14 @@ For each Table 5 field row `(name, type, required?)` selected for the body (sele
    | `int` | `0` |
    | `bool` | `False` |
    | `float` / `Decimal` | `0` |
-   | `list` / `list[<primitive>]` / `tuple[<primitive>]` | `[]` |
+   | bare `list` / bare `tuple` (no element parameter) | `[]` |
+   | `list[str]` / `tuple[str]` | `["test"]` |
+   | `list[int]` / `tuple[int]` | `[0]` |
+   | `list[bool]` / `tuple[bool]` | `[False]` |
+   | `list[float]` / `tuple[float]` / `list[Decimal]` / `tuple[Decimal]` | `[0]` |
+   | `list[bytes]` / `tuple[bytes]` | `[b""]` |
+   | `list[datetime]` / `tuple[datetime]` | `["2024-01-01T00:00:00Z"]` |
+   | `list[date]` / `tuple[date]` | `["2024-01-01"]` |
    | `list[<PascalCase>]` | `[<recursive_synth(PascalCase)>]` — exactly one element, via [§ Recursive TypedDict body synthesis](#recursive-typeddict-body-synthesis) below. **Never `[]`** when the element is a domain TypedDict — empty lists violate `<<Aggregate Root>>` preconditions like `LookupsNotProvided`. |
    | `<PascalCase>` (scalar nested type) | `<recursive_synth(PascalCase)>` — via [§ Recursive TypedDict body synthesis](#recursive-typeddict-body-synthesis) below. |
    | `dict` / `dict[*]` | `{}` |
@@ -298,7 +313,9 @@ For each Table 5 field row `(name, type, required?)` selected for the body (sele
    | `bytes` | `b""` |
    | anything else | `None` plus `# TODO: provide a value for <name>` trailing comment on that line |
 
-   When a stub is used, append a `# TODO: <name> stubbed (<reason>)` trailing comment on that line where `<reason>` is `not on <src_fix>` or `unsupported type <Type>`. For recursively synthesized TypedDict / list-of-TypedDict literals, append `# TODO: <name> contents are minimum-valid stubs; adjust if a domain rule rejects them` on the same line.
+   The single-element list stubs for `list[<primitive>]` exist for the same reason as the `[<recursive_synth>]` rule for `list[<PascalCase>]`: empty lists violate "non-empty list" domain rules (`SourceFieldsNotProvided`, `DerivedFieldsNotProvided`, etc.) and would cause `__success` factory tests to return 4xx instead of 2xx. Use `[]` **only** when Table 5's Type is bare `list` or bare `tuple` without an element parameter.
+
+   When a stub is used, append a `# TODO: <name> stubbed (<reason>)` trailing comment on that line where `<reason>` is `not on <src_fix>` or `unsupported type <Type>` or `<src_fix>.<attr> is a domain VO; primitive {<Type>} expected`. For recursively synthesized TypedDict / list-of-TypedDict literals, append `# TODO: <name> contents are minimum-valid stubs; adjust if a domain rule rejects them` on the same line.
 
 #### Recursive TypedDict body synthesis
 
@@ -387,23 +404,61 @@ Resolve the module path:
 - Bind `<aggregate_module>` = `<src_root>/<pkg>/domain/<aggregate>/<aggregate>.py` (uses `<src_root>` from Step 1).
 - If `<aggregate_module>` is missing, skip discovery, fall through to type-stub for every body field, and emit a Step 9 warning: `WARNING: aggregate module not found at <aggregate_module> — every body field stubbed.`
 
-Read `<aggregate_module>`. Apply the regex `^\s+([a-z_][a-z0-9_]*)\s*=\s*Guard\b` to harvest top-level Guard-declared attributes. Bind `<aggregate_attrs>` = that set.
+Read `<aggregate_module>`. Apply the regex `^\s+([a-z_][a-z0-9_]*)\s*=\s*Guard\[([^\]]+)\]\(([A-Za-z_][A-Za-z0-9_]*)` to harvest, per Guard declaration, three pieces:
 
-For each Guard whose type token is a domain class (PascalCase, not a Python builtin like `str`/`int`/`bool`/`float`/`bytes`/`list`/`dict`/`tuple`/`datetime`/`date`/`Decimal`), follow the import to the value-object module:
+- Group 1 — the attribute name (e.g. `source_fields`).
+- Group 2 — the **static type parameter** between the `Guard[...]` brackets (e.g. `list[SourceField]`, `SourceFields`, `str`, `list[str]`). May itself be a parameterized type.
+- Group 3 — the **runtime-type token**, the first positional argument to `Guard(...)` (e.g. `list`, `SourceFields`, `str`).
+
+Build:
+
+- `<aggregate_attrs>` = the set of declared attribute names.
+- `<aggregate_guards>[<attr>]` = a pair `(<static_type>, <runtime_type>)` (e.g. `("list[SourceField]", "list")` or `("SourceFields", "SourceFields")`). This map is required by both the Nested-id resolution and the body Fixture-attribute lookup.
+
+A token is treated as a **Python builtin / primitive** if it is one of `str`, `int`, `bool`, `float`, `bytes`, `list`, `dict`, `tuple`, `datetime`, `date`, `Decimal`. Any other PascalCase token is treated as a **domain class** (typically a value object).
+
+For each Guard whose runtime-type token is a domain class, follow the import to the value-object module:
 
 - Scan the same module's top-level `from .<file> import …` lines for the class name. Resolve `<vo_module>` = `<src_root>/<pkg>/domain/<aggregate>/<file>.py`.
 - If the import is from a sub-package (e.g. `from .<sub>.<file> import …`), resolve `<vo_module>` accordingly.
-- Apply the same Guard regex to `<vo_module>` to harvest the value object's attribute set. Bind `<vo_attrs>[<vo_attr_name>]` per Guard-declared attribute on the value object. Drill at most one level — VO-of-VO is treated as opaque and stubs out.
+- Apply the same Guard regex to `<vo_module>` to harvest the value object's attribute set **and** per-attribute (static, runtime) type pairs. Bind `<vo_attrs>[<vo_name>]` = the list of `(<attr_name>, <static_type>, <runtime_type>)` triples from the value object, in source order. Drill at most one level — VO-of-VO is treated as opaque and stubs out.
 
-This produces a two-level attribute map: top-level Guards on the aggregate, plus one-level-deep Guards reachable via a Guard-typed VO attribute.
+This produces a two-level attribute map: top-level Guards on the aggregate (with their static and runtime types), plus one-level-deep Guards reachable via a Guard-typed VO attribute (with the same metadata).
 
-**Fixture-attribute lookup (refined).** snake_case the Table 5 `name` to `<attr>`, then resolve in order:
+**Type compatibility helper.** Used by the body Fixture-attribute lookup below. Given a Table 5 Type cell (with `| None` already stripped) and a Guard `<static_type>`, the pair is **shape-compatible** iff:
 
-1. If `<attr>` ∈ `<aggregate_attrs>` → emit `<src_fix>.<attr>`.
-2. Else, for each `<vo_name>` in `<aggregate_attrs>` whose Guard type is a domain class (i.e. has a populated `<vo_attrs>[<vo_name>]`), if `<attr>` ∈ that VO's attrs → emit `<src_fix>.<vo_name>.<attr>`. First match wins; iteration order = source order in the aggregate module.
-3. Else → fall through to the type-based stub fallback table above. Append a `# TODO: <name> stubbed (not on <src_fix> nor reachable via a value object)` trailing comment on that line.
+- Both reduce to the same leading token from the primitive set (e.g. both `str`, both `list`), AND
+- If both are `list[<X>]` / `tuple[<X>]` (parameterized), the inner parameters `<X>` are both primitives from the set above (so `list[str]` is compatible with `list[str]`, but `list[str]` is **not** compatible with `list[SourceField]` — the latter is a list of domain entities).
+- A bare `list` Guard (e.g. `Guard[list](list)`) is treated as `list[<unknown>]` and is **not** compatible with `list[<primitive>]` from Table 5 (conservative: the inner element type is opaque).
 
-This is a static analysis — it does not import or instantiate anything; unresolvable fields degrade gracefully to type-stub fallback.
+If either side is a PascalCase domain class scalar, they are compatible only if the tokens are byte-identical (e.g. `SourceFields` ↔ `SourceFields`); otherwise they are incompatible.
+
+This rule is intentionally conservative: when in doubt, fall through to the type-stub fallback rather than emit a possibly-mistyped reference. The Table 5 declaration is the authoritative HTTP contract; the Guard's static type is the authoritative Python contract; only when they match structurally is the fixture reference safe.
+
+**FK suffix matcher.** Used by the body Fixture-attribute lookup below. Given a snake_case body field name `<attr>`:
+
+1. If `<attr>` ends with `_ids` → bind `<stem>` = `<attr>` with `_ids` stripped (do not re-pluralize; the stem is already plural). Bind `<item_attr>` = `id`, `<is_list>` = True.
+2. Else if `<attr>` ends with `_codes` → bind `<stem>` = `<attr>` with `_codes` stripped. Bind `<item_attr>` = `code`, `<is_list>` = True.
+3. Else if `<attr>` ends with `_id` → bind `<stem>` = pluralize(`<attr>` with `_id` stripped) per the pluralization rules in [§ Nested-id resolution](#nested-id-resolution). Bind `<item_attr>` = `id`, `<is_list>` = False.
+4. Else if `<attr>` ends with `_code` → bind `<stem>` = pluralize(`<attr>` with `_code` stripped). Bind `<item_attr>` = `code`, `<is_list>` = False.
+5. Else → no match; return `None`.
+
+The matcher returns `(<stem>, <item_attr>, <is_list>)`. The caller then attempts to resolve `<stem>` against `<aggregate_attrs>` and drill through a VO if needed (see step 3 below).
+
+**Fixture-attribute lookup (refined).** snake_case the Table 5 `name` to `<attr>`. Strip a trailing `| None` from the Table 5 Type cell — call it `<t5_type>`. Resolve in this order — first match wins:
+
+1. **Direct attribute lookup.** If `<attr>` ∈ `<aggregate_attrs>`:
+   - Apply the **Type compatibility helper** to `(<t5_type>, <aggregate_guards>[<attr>].<static_type>)`. If incompatible (e.g. `<t5_type> = list[str]` but the Guard's static type is `SourceFields` or `list[SourceField]`), skip this rule and proceed to step 2; the type-stub fallback at step 4 will emit a literal of the correct shape. Append a Step 9 warning: `WARNING: <surface>/<operation>: field '<name>' stubbed — <aggregate>.<attr> static type <Guard_static> is incompatible with Table 5 <t5_type>.`
+   - If compatible → emit `<src_fix>.<attr>`.
+2. **VO sub-attribute lookup.** Else, for each `<vo_name>` in `<aggregate_attrs>` whose Guard runtime type is a domain class (i.e. has a populated `<vo_attrs>[<vo_name>]`), iterate the VO's `(<attr_name>, <static_type>, <runtime_type>)` triples. If `<attr_name>` matches `<attr>` AND the Type compatibility helper accepts `(<t5_type>, <static_type>)` → emit `<src_fix>.<vo_name>.<attr>`. First match wins; iteration order = source order in the aggregate module. If a match is found but compatibility fails (e.g. inner Guard is `list[SourceField]` but Table 5 declares `list[str]`), skip this rule and proceed to step 3.
+3. **FK suffix drill (intra-aggregate).** Else, apply the FK suffix matcher above. If it returns `(<stem>, <item_attr>, <is_list>)` and `<stem>` ∈ `<aggregate_attrs>`:
+   - **List Guard.** If `<aggregate_guards>[<stem>].<runtime_type>` is `list` → bind `<ref>` = `<src_fix>.<stem>[0].<item_attr>`.
+   - **VO-wrapped list Guard.** Else if `<aggregate_guards>[<stem>].<runtime_type>` is a domain class — look up `<vo_attrs>[<stem>]` and pick the inner list Guard by the same priority used in Nested-id resolution: (a) the inner Guard whose name matches `<stem>` exactly with runtime type `list`; (b) the first inner Guard with runtime type `list`. Bind `<inner_list_attr>` accordingly and emit `<ref>` = `<src_fix>.<stem>.<inner_list_attr>[0].<item_attr>`. If no inner `list` Guard exists, skip this rule and continue to step 4.
+   - **Wrap.** If `<is_list>` is True → emit `[<ref>]`. Else → emit `<ref>`.
+   - Append a `# TODO: <name> drilled to <ref expression>; arity is 1 — adjust if the domain rule requires more` trailing comment. Type compatibility is **not** re-checked at step 3 — the suffix matcher's `<item_attr>` is always `id` or `code` (primitive str), so the produced reference is structurally compatible with any primitive `str` / `list[str]` Table 5 type.
+4. **Type-stub fallback.** Else → fall through to the type-based stub fallback table above. Append a `# TODO: <name> stubbed (not on <src_fix> nor reachable via a value object)` trailing comment on that line (the type-incompatibility cases from steps 1 and 2 substitute their own reason).
+
+This is a static analysis — it does not import or instantiate anything; unresolvable fields degrade gracefully to type-stub fallback. The FK suffix drill (step 3) is intentionally intra-aggregate only — it resolves references to a sibling collection on the same aggregate (e.g. `derived_fields_ids` → `[mapping_type_1.derived_fields.derived_fields[0].id]`). Cross-aggregate foreign-key references (e.g. `cache_type_code` referring to a separately-persisted `CacheType` aggregate) are not auto-resolved — they fall to the type-stub fallback in step 4 and emit a TODO comment, since the agent has no way to know which `<foreign>_1` fixture to seed alongside the path-target aggregate.
 
 Concrete body-bearing form (mutating, with body resolution applied):
 
@@ -731,6 +786,134 @@ Note: `start_receiving` and `delete_load` omit `json=` because Table 5 declares 
 
 If the spec also declared a Table 4 query-param sub-block (e.g. `find_loads` with required `page: int` and `per_page: int` rows), the list endpoint URL would gain a `?page=0&per_page=0` suffix and `find_loads.__success` would still keep `add_loads` (list endpoints want some data to list).
 
+### Second example — VO-wrapped collections and FK-suffix drilling
+
+Consider an aggregate `MappingType` whose domain module declares:
+
+```python
+class MappingType(metaclass=Entity):
+    id            = Guard[str](str, ImmutableCheck())
+    code          = Guard[str](str, ImmutableCheck())
+    name          = Guard[str](str)
+    source_fields = Guard[SourceFields](SourceFields)        # VO wraps inner list[SourceField]
+    derived_fields = Guard[DerivedFields](DerivedFields)     # VO wraps inner list[DerivedField]
+    resolved_fields = Guard[ResolvedFields](ResolvedFields)  # VO wraps inner list[ResolvedField]
+    enabled       = Guard[bool](bool)
+```
+
+Each VO has a same-named inner `list` Guard, e.g.:
+
+```python
+class ResolvedFields(metaclass=ValueObject):
+    resolved_fields = Guard[list[ResolvedField]](list, ImmutableCheck())
+```
+
+For the spec excerpt:
+
+```markdown
+### Table 3: Command Endpoints
+| POST | / | create | … |
+| POST | /{id}/source-fields | replace_source_fields | … |
+| POST | /{id}/resolved-fields | add_resolved_field | … |
+| PUT  | /{id}/resolved-fields/{resolvedFieldId} | update_resolved_field | … |
+| DELETE | /{id}/resolved-fields/{resolvedFieldId} | remove_resolved_field | … |
+
+### Table 5: Request Fields
+**Endpoint:** `POST /` (create)
+| code | str | Required |
+| name | str | Required |
+| source_fields | list[str] | Required, non-empty list |
+| derived_fields | list[str] | Required, non-empty list |
+
+**Endpoint:** `POST /{id}/source-fields` (replace_source_fields)
+| source_fields | list[str] | Required, non-empty list |
+
+**Endpoint:** `POST /{id}/resolved-fields` (add_resolved_field)
+| derived_fields_ids | list[str] | Required, non-empty list |
+| lookup_code | str | Required |
+| cache_type_code | str | Required |
+```
+
+The emitted tests (highlights):
+
+```python
+def test_create__success(client, request_headers, mapping_type_2):
+    # GIVEN no mapping_type exists in DB
+    response = client.post(
+        f"{V1_API_PREFIX}/mapping-types",
+        headers=request_headers,
+        json={
+            "code": mapping_type_2.code,
+            "name": mapping_type_2.name,
+            "source_fields": ["test"],  # TODO: source_fields stubbed — mapping_type_2.source_fields static type SourceFields is incompatible with Table 5 list[str]
+            "derived_fields": ["test"],  # TODO: derived_fields stubbed — mapping_type_2.derived_fields static type DerivedFields is incompatible with Table 5 list[str]
+        },
+    )
+
+    assert response.status_code == HTTPStatus.CREATED
+
+
+def test_replace_source_fields__success(client, request_headers, mapping_type_1, add_mapping_types):
+    # GIVEN mapping_type exists in DB
+    response = client.post(
+        f"{V1_API_PREFIX}/mapping-types/{mapping_type_1.id}/source-fields",
+        headers=request_headers,
+        json={
+            "source_fields": ["test"],  # TODO: source_fields stubbed — mapping_type_1.source_fields static type SourceFields is incompatible with Table 5 list[str]
+        },
+    )
+
+    assert response.status_code == HTTPStatus.OK
+
+
+def test_add_resolved_field__success(client, request_headers, mapping_type_1, add_mapping_types):
+    # GIVEN mapping_type exists in DB
+    response = client.post(
+        f"{V1_API_PREFIX}/mapping-types/{mapping_type_1.id}/resolved-fields",
+        headers=request_headers,
+        json={
+            "derived_fields_ids": [mapping_type_1.derived_fields.derived_fields[0].id],  # TODO: derived_fields_ids drilled to mapping_type_1.derived_fields.derived_fields[0].id; arity is 1 — adjust if the domain rule requires more
+            "lookup_code": "test",  # TODO: lookup_code stubbed (not on mapping_type_1 nor reachable via a value object)
+            "cache_type_code": "test",  # TODO: cache_type_code stubbed (not on mapping_type_1 nor reachable via a value object)
+        },
+    )
+
+    assert response.status_code == HTTPStatus.OK
+
+
+def test_update_resolved_field__success(client, request_headers, mapping_type_2, add_mapping_types):
+    # GIVEN mapping_type exists in DB
+    response = client.put(
+        f"{V1_API_PREFIX}/mapping-types/{mapping_type_2.id}/resolved-fields/{mapping_type_2.resolved_fields.resolved_fields[0].id}",
+        headers=request_headers,
+        json={
+            "derived_fields_ids": [mapping_type_2.derived_fields.derived_fields[0].id],
+            "lookup_code": "test",
+            "cache_type_code": "test",
+        },
+    )
+
+    assert response.status_code == HTTPStatus.OK
+
+
+def test_remove_resolved_field__success(client, request_headers, mapping_type_2, add_mapping_types):
+    # GIVEN mapping_type exists in DB
+    response = client.delete(
+        f"{V1_API_PREFIX}/mapping-types/{mapping_type_2.id}/resolved-fields/{mapping_type_2.resolved_fields.resolved_fields[0].id}",
+        headers=request_headers,
+    )
+
+    assert response.status_code == HTTPStatus.NO_CONTENT
+```
+
+What the agent did:
+
+- `source_fields` / `derived_fields` body keys: step 1 finds the matching aggregate Guard but its static type `SourceFields` / `DerivedFields` is incompatible with Table 5 `list[str]` — skip. Step 2 finds an inner Guard inside the VO whose name also matches (`SourceFields.source_fields = Guard[list[SourceField]](list, …)`) but its static type `list[SourceField]` is still incompatible with `list[str]` (entities vs primitives) — skip. Step 3 (FK suffix drill) does not match (no `_id` / `_code` / `_ids` / `_codes` suffix). Step 4 emits the non-empty `list[str]` stub `["test"]`.
+- `derived_fields_ids` body key: snake_case lookup misses the aggregate's flat Guards; the **FK suffix matcher** strips `_ids` → `derived_fields`, which is a Guard on the aggregate whose runtime type is a VO with a same-named inner `list` Guard — drill: `[mapping_type_1.derived_fields.derived_fields[0].id]`.
+- `lookup_code` / `cache_type_code`: cross-aggregate FKs — no intra-aggregate Guard matches, type-stub fallback emits `"test"` with TODO comments. Manual follow-up required.
+- `{resolvedFieldId}` path placeholder: aggregate Guard `resolved_fields` is a VO with a same-named inner `list` Guard — **Nested-id VO drill** → `{mapping_type_2.resolved_fields.resolved_fields[0].id}` instead of the (broken) `{mapping_type_2.resolved_fields[0].id}`.
+- `update_resolved_field` and `remove_resolved_field` `__success`: nested-resource DELETE/PUT shape with `<2` items on `mapping_type_1.resolved_fields` triggers the **cardinality swap** to `mapping_type_2`.
+
 ## Constraints
 
 - Never construct or persist domain objects inside test bodies — fixtures only (Rule 1 of `api-endpoint-test-rules`).
@@ -743,6 +926,10 @@ If the spec also declared a Table 4 query-param sub-block (e.g. `find_loads` wit
 - For nested-resource DELETE / PATCH / PUT `__success` scenarios, prefer the path-target fixture with ≥2 items in the targeted child collection (per § Nested-collection cardinality) — even if that means swapping the default `<aggregate>_1` to `<aggregate>_2`.
 - For update-details `__success` and `__not_found` body fields, fall back to a synthetic `Renamed <Resource>` literal when both aggregate fixtures share the same source literal (per § Update-details literal-rename override). Never emit a no-op rename.
 - For Table 5 body fields whose Type is a domain TypedDict (PascalCase scalar or `list[PascalCase]`), emit a minimum-valid dict / list-of-dict literal by recursively walking the `**Nested:**` sub-tables (per § Recursive TypedDict body synthesis). Never emit `[]` for `list[<TypedDict>]` — that violates "non-empty list" domain rules.
+- For Table 5 body fields whose Type is `list[<primitive>]` (`list[str]`, `list[int]`, etc.), emit a **single-element non-empty stub** (`["test"]`, `[0]`, …) rather than `[]`. Bare `list` / `tuple` without an element parameter stays `[]`. Empty primitive lists violate the same "non-empty list" domain rules.
+- When a Table 5 field's snake_cased name matches an aggregate Guard (or a Guard one level inside a VO) but the resolved Guard's **static type** is incompatible with the Table 5 type per the **Type compatibility helper** (e.g. `source_fields: list[str]` vs `Guard[SourceFields](SourceFields)` or vs an inner `Guard[list[SourceField]](list, …)`), do **not** emit the fixture reference — it would serialize the wrong Python shape. Fall through to the next resolution step and ultimately to the type-stub fallback, emitting a Step 9 warning per § Fixture-attribute lookup step 1 / step 2.
+- For Table 5 body fields whose name ends in `_id` / `_code` / `_ids` / `_codes` and whose stripped stem matches an intra-aggregate collection Guard, drill into that collection (with VO unwrap when applicable) and emit `<src_fix>.<stem>[0].<id|code>` or `[<src_fix>.<stem>.<inner>[0].<id|code>]` (per § Fixture-attribute lookup step 3). Cross-aggregate FK references (no matching intra-aggregate stem) fall to the type-stub fallback with a TODO comment.
+- For nested-id path placeholders whose snake_cased plural maps to a VO-wrapped collection on the aggregate, drill through the VO to the inner list Guard (per § Nested-id resolution step 4) — `{resolvedFieldId}` becomes `{<aggregate>_1.resolved_fields.resolved_fields[0].id}`, not `{<aggregate>_1.resolved_fields[0].id}`.
 - Skip 401-unauthorized, 403-forbidden, response-structure (camelCase), and query-param filter scenarios — out of scope for this agent.
 
 ## Failure modes summary
@@ -765,10 +952,14 @@ If the spec also declared a Table 4 query-param sub-block (e.g. `find_loads` wit
 | Condition | Behavior |
 |---|---|
 | `<constants_path>` missing or `<api_prefix_const>` not present in it | Emit a single `WARNING:` line in Step 9's report; still write the test file (the import will resolve once `@app-integrator` runs). |
-| Non-`{id}` path placeholder in URL | Resolve via the **Nested-id resolution** rule (Step 7) — `{<thingId>}` → `{<aggregate>_1.<plural>[0].id}`. Test will fail at runtime with `AttributeError` if the collection is not exposed by the aggregate fixture. |
+| Non-`{id}` path placeholder in URL targets a list Guard | Resolve via the **Nested-id resolution** rule (Step 7) — `{<thingId>}` → `{<aggregate>_1.<plural>[0].id}`. Test will fail at runtime with `AttributeError` if the collection is not exposed by the aggregate fixture. |
+| Non-`{id}` path placeholder in URL targets a VO-wrapped collection (`Guard[X](X)` where `X` has an inner `list` Guard) | Drill through the VO via the VO-drill check in Nested-id resolution step 4 — `{resolvedFieldId}` → `{<aggregate>_1.resolved_fields.resolved_fields[0].id}`. No warning when the drill resolves; emit a Step 9 warning only if no inner `list` Guard exists. |
 | `<aggregate>_2` fixture missing | Emit a Step 9 warning and fall back to `<aggregate>_1` for mutating `__success` bodies; factory `__success` tests will return 409 instead of 201 — surfaces the gap without blocking generation. |
 | `<aggregate_module>` not found on disk | Skip aggregate-attribute discovery (Step 7), stub every body field with type-based literals, and emit a Step 9 warning. |
-| Body field cannot be resolved on `<src_fix>` | Substitute a type-based stub literal (Step 7 table) and append a `# TODO: <field> stubbed (...)` trailing comment; do not abort. |
+| Body field resolves to an aggregate Guard (or a one-level-deep VO Guard) whose **static type** is incompatible with the Table 5 type per the Type compatibility helper (e.g. `Guard[SourceFields]` vs `list[str]`, or inner `Guard[list[SourceField]]` vs `list[str]`) | Skip the matched reference (it would serialize the wrong Python shape); fall through to subsequent steps and ultimately to the type-stub fallback. Emit a Step 9 warning per Fixture-attribute lookup step 1 / step 2. |
+| Body field cannot be resolved on `<src_fix>` but the snake_cased name has an `_id` / `_code` / `_ids` / `_codes` suffix matching an intra-aggregate collection Guard | Drill into the collection (with VO unwrap when applicable) per Fixture-attribute lookup step 3 — `derived_fields_ids` → `[<src_fix>.derived_fields.derived_fields[0].id]`. Single-element arity; emit a `# TODO: arity is 1` comment. |
+| Body field cannot be resolved on `<src_fix>` and has no matching FK-suffix collection | Substitute a type-based stub literal (Step 7 table; non-empty for `list[<primitive>]`) and append a `# TODO: <field> stubbed (...)` trailing comment; do not abort. Cross-aggregate FK references (e.g. `<foreign>_code` referring to another aggregate) end up here and need manual follow-up. |
 | Body field type is `list[<PascalCase>]` or scalar `<PascalCase>` (domain TypedDict) | Recursively synthesize a minimum-valid dict / list-of-dict literal per § Recursive TypedDict body synthesis; append `# TODO: <field> contents are minimum-valid stubs; adjust if a domain rule rejects them`. Do not abort. |
+| Body field type is `list[<primitive>]` and the stub fallback is taken | Emit a single-element non-empty list (`["test"]`, `[0]`, …) per the type-stub table — never `[]`, to avoid violating "non-empty list" domain rules. |
 | Nested-resource DELETE / PATCH / PUT `__success` would target a fixture with <2 items in the path child collection | Swap `<fix>` to `<aggregate>_2` when its cardinality is ≥2; otherwise emit a Step 9 warning and keep `<aggregate>_1`. |
 | Update-details body field resolves to identical literals on `<aggregate>_1` and `<aggregate>_2` | Replace `<body_fix>.<attr>` with a synthetic `Renamed *` literal; emit a Step 9 warning. Do not abort. |
