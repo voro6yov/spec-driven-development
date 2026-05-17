@@ -70,6 +70,12 @@ A plugin must never write outside its own folder. The only exceptions are:
 - A plugin may **read** any other plugin's folder (cross-plugin reference is fine).
 - A plugin may **append** an entry to the diagram file's `## Artifacts` index (which is the diagram itself, not another plugin's folder).
 
+### Cross-plugin shared report: `commands-updates.md`
+
+The commands-diagram delta report at `<dir>/<stem>.application/commands-updates.md` is produced by `application-spec:commands-updates-detector` but **consumed cross-plugin** by `/messaging-spec:update-specs` and `/rest-api-spec:update-specs` in addition to `/application-spec:update-specs`. This is a deliberate cross-plugin path: the report describes one axis (the commands application-service diagram) and three consumer orchestrators share it rather than maintaining three plugin-local detectors against the same diagram. The cross-plugin dependency is read-only and unidirectional — messaging-spec and rest-api-spec read application-spec's folder; application-spec never reads back. The report's path stays under `<stem>.application/` because the diagram itself (`<stem>.commands.md`) is the application-spec layer's input.
+
+The same policy applies symmetrically to `<dir>/<stem>.application/queries-updates.md` — produced by application-spec, also consumed by rest-api-spec (not by messaging-spec, which is command-side only).
+
 ## File naming inside each plugin folder
 
 ### `<stem>.domain/` (domain-spec)
@@ -95,8 +101,10 @@ A plugin must never write outside its own folder. The only exceptions are:
 | `commands.methods.md` | `commands-methods-writer` | Transient — deleted by `specs-merger` |
 | `queries.deps.md` | `queries-deps-writer` | Transient — deleted by `specs-merger` |
 | `queries.methods.md` | `queries-methods-writer` | Transient — deleted by `specs-merger` |
+| `commands-updates.md` | `application-spec:commands-updates-detector` | Structured diff report of `<stem>.commands.md` — input to `application-spec:update-specs`, `messaging-spec:update-specs`, and `rest-api-spec:update-specs` (read cross-plugin; see *Cross-plugin shared report* above) |
+| `queries-updates.md` | `application-spec:queries-updates-detector` | Structured diff report of `<stem>.queries.md` — input to `application-spec:update-specs` and `rest-api-spec:update-specs` (read cross-plugin; see *Cross-plugin shared report* above) |
 
-The per-side fragments (`commands.deps.md`, `commands.methods.md`, `queries.deps.md`, `queries.methods.md`) exist only between writer and merger. After a successful pipeline run, only `commands.specs.md`, `commands.exceptions.md`, `queries.specs.md`, `queries.exceptions.md`, and `services.md` remain.
+The per-side fragments (`commands.deps.md`, `commands.methods.md`, `queries.deps.md`, `queries.methods.md`) exist only between writer and merger. After a successful pipeline run, only `commands.specs.md`, `commands.exceptions.md`, `queries.specs.md`, `queries.exceptions.md`, and `services.md` remain. The two `*-updates.md` reports are transient producer outputs of the application-spec detectors; they are regenerated wholesale on every detector run and overwrite the prior report.
 
 ### `<stem>.persistence/` (persistence-spec)
 
@@ -188,6 +196,8 @@ Once `<dir>` and `<stem>` are recovered, every other artifact path is built from
 | Application queries spec | `<dir>/<stem>.application/queries.specs.md` |
 | Application queries exceptions | `<dir>/<stem>.application/queries.exceptions.md` |
 | Application services report | `<dir>/<stem>.application/services.md` |
+| Application commands updates report | `<dir>/<stem>.application/commands-updates.md` |
+| Application queries updates report | `<dir>/<stem>.application/queries-updates.md` |
 | Persistence command-repo spec | `<dir>/<stem>.persistence/command-repo-spec.md` |
 | REST API resource spec | `<dir>/<stem>.rest-api/spec.md` |
 | Messaging consumer spec | `<dir>/<stem>.messaging/<consumer_name>.md` |
