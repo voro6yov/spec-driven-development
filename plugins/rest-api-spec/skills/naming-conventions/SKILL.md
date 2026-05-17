@@ -70,6 +70,17 @@ A plugin must never write outside its own folder. The only exceptions are:
 - A plugin may **read** any other plugin's folder (cross-plugin reference is fine).
 - A plugin may **append** an entry to the diagram file's `## Artifacts` index (which is the diagram itself, not another plugin's folder).
 
+### Cross-plugin reads — app-service-axis update reports
+
+`/rest-api-spec:update-specs` reads two reports owned by the **application-spec** plugin even though it never writes inside `<dir>/<stem>.application/`:
+
+| Path | Owner | Consumed by rest-api-spec for |
+|---|---|---|
+| `<dir>/<stem>.application/commands-updates.md` | `application-spec:commands-updates-detector` | dispatching Tables 1, 2/3, 4, 5, 6 regen on commands-diagram deltas |
+| `<dir>/<stem>.application/queries-updates.md` | `application-spec:queries-updates-detector` | dispatching Tables 1, 2/3, 4, 5, 6 regen on queries-diagram deltas |
+
+Both reports are also consumed by `/application-spec:update-specs` and `/messaging-spec:update-specs` (commands-side only). The detectors are write-once-read-many producers; the consumer orchestrators (application-spec, rest-api-spec, messaging-spec) each re-invoke them at their own Step 0 to ensure freshness. The cross-plugin path is deliberate — the reports describe the application-service diagrams (`<stem>.commands.md`, `<stem>.queries.md`), and application-spec is the plugin that anchors those diagrams. See `notes/commands-queries-integration-approach.md` for the full rationale.
+
 ## File naming inside each plugin folder
 
 ### `<stem>.domain/` (domain-spec)
