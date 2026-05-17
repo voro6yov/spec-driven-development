@@ -33,14 +33,34 @@ Before writing, run `mkdir -p "<plugin_dir>"` so the folder exists on a fresh fi
 ### Step 1 — Load both versions of the commands diagram
 
 1. **Working tree** — `Read` `<commands_diagram>`. Missing or unreadable → hard-fail (`ERROR: <commands_diagram> not found or unreadable.`), write nothing.
-2. **HEAD** — `git show HEAD:<path>` needs `<path>` repo-root-relative, not cwd-relative. Normalize first:
+
+2. **REPO_PATH normalization** — `git show HEAD:<path>` needs `<path>` repo-root-relative, not cwd-relative. Normalize first:
    ```
    REPO_PATH="$(git ls-files --full-name -- <commands_diagram>)"
    ```
    - Empty stdout → the file is untracked → **first-run hard-fail** (see *Hard-fail conditions* below); write nothing.
    - Non-zero exit (not a git repo, ambiguous path, IO error) → hard-fail (`ERROR: cannot resolve <commands_diagram> against the git working tree.`), write nothing.
 
-   Then read the HEAD blob:
+3. **Freshness fast-path** — before reading the HEAD blob, check whether the on-disk report is byte-fresh against the current diagram. The sentinel lives on line 1 of `<output_file>` (format owned by `application-updates-report-template`); this sub-step computes the inputs and short-circuits on match.
+
+   1. Compute the HEAD blob hash of the diagram:
+      ```
+      head_hash="$(git rev-parse "HEAD:$REPO_PATH" 2>/dev/null)"
+      ```
+      On non-zero exit or empty stdout, record `head_hash=none`. (The untracked-and-not-in-HEAD case is already hard-failed above; this guard only catches benign `git rev-parse` failures on a present `REPO_PATH`.)
+   2. Compute the working-tree blob hash:
+      ```
+      wt_hash="$(git hash-object -- <commands_diagram>)"
+      ```
+   3. If `<output_file>` exists, `Read` line 1 and parse the sentinel `<!-- detector-baseline: head=<hash>; working-tree=<hash> -->`. Extract `sentinel_head` and `sentinel_wt`. If `<output_file>` is absent, line 1 is missing the sentinel comment, or any field is unparseable, treat as `sentinel_head=none; sentinel_wt=none`. **Never abort on a malformed sentinel** — fall through to the full workflow.
+   4. If `head_hash == sentinel_head` AND `wt_hash == sentinel_wt` (and neither side is the synthetic `none` unless both sides are `none`) → print **exactly** the single line
+      ```
+      <dir>/<stem>.application/commands-updates.md is fresh against current HEAD and working tree; skipping re-generation.
+      ```
+      using the actual `<dir>` and `<stem>` values, and exit 0. **Do not rewrite the file.**
+   5. Otherwise fall through to sub-step 4 below and the rest of the workflow.
+
+4. **HEAD blob** — read with:
    ```
    git show "HEAD:$REPO_PATH"
    ```
@@ -184,8 +204,13 @@ If HEAD's structural baseline was degraded (Step 2 detected zero or >1 Mermaid b
 ### Step 8 — Write and confirm
 
 1. `mkdir -p "<plugin_dir>"` (defensive — the folder may not yet exist on a fresh project).
-2. `Write` `<output_file>` with the rendered content. Always write — on a clean diff, on a no-op, on a degraded baseline. The only paths that write nothing are the *Hard-fail conditions* below.
-3. Confirm with exactly one sentence and nothing else:
+2. **Prepend the freshness sentinel** as the very first line of the rendered content, before the `# Updates Report` heading the template emits at line 2:
+   ```
+   <!-- detector-baseline: head=<head_hash>; working-tree=<wt_hash> -->
+   ```
+   Use the `head_hash` and `wt_hash` values computed in Step 1 sub-step 3. The sentinel must be part of the single atomic `Write` call in the next sub-step — **never** two writes. If the report body is not fully rendered (any prior step aborted), the `Write` does not execute and no sentinel lands on disk; the next invocation will recompute from scratch.
+3. `Write` `<output_file>` with the rendered content (sentinel line 1 + report body from line 2 onward). Always write — on a clean diff, on a no-op, on a degraded baseline. The only paths that write nothing are the *Hard-fail conditions* below and the Step 1 freshness fast-path.
+4. Confirm with exactly one sentence and nothing else:
    ```
    Commands updates report written to <dir>/<stem>.application/commands-updates.md.
    ```
@@ -212,7 +237,9 @@ Each prints exactly one `ERROR: ...` line to stdout, exits non-zero, and writes 
 
 ## Idempotency
 
-Re-running with byte-identical inputs (HEAD blob + working-tree blob) produces byte-identical output, modulo the one LLM prose-summary step per non-trivial prose section diff (treated as `git diff` noise, not an idempotency failure). The report carries no wall-clock timestamp and no hash sentinel — every section is a snapshot of the HEAD-vs-working-tree diff.
+Re-running with byte-identical inputs (HEAD blob + working-tree blob) produces byte-identical output, modulo the one LLM prose-summary step per non-trivial prose section diff (treated as `git diff` noise, not an idempotency failure). The report carries no wall-clock timestamp; every section is a snapshot of the HEAD-vs-working-tree diff.
+
+On byte-stable inputs (HEAD blob + working-tree blob hashes both equal to the sentinel embedded on line 1 of the on-disk report from a prior successful run), the agent now **fast-paths in Step 1 sub-step 3** — it prints the freshness message and exits before reading the HEAD blob, parsing Mermaid, computing structural diffs, or invoking the LLM prose-summary step. Suppressing the prose-summary regen on stable inputs is the **intended behavior**, not a regression: the existing report's prose summaries are already an acceptable description of a diagram that has not changed.
 
 ## What this agent deliberately does NOT do
 
@@ -226,3 +253,4 @@ Re-running with byte-identical inputs (HEAD blob + working-tree blob) produces b
 - It does not record anchor `-->` edges to `<<Domain Event>>` classes (informational arrows per the design note — silently filtered). The event lifecycle itself drives `## Class Lifecycle` and `## External Domain Events`.
 - It does not include orphan prose changes in the `## Affected Categories` footer — orphan prose is informational only.
 - It does not preserve any prior `<output_file>` content — the report is regenerated from scratch every run; there is no report lineage.
+- It does not regenerate the report when the HEAD blob and working-tree blob of the diagram both match the sentinel embedded on line 1 of the existing report. Hand-edits to the report body survive a no-op fresh run; to force a regenerate, delete the report or strip the sentinel line.
