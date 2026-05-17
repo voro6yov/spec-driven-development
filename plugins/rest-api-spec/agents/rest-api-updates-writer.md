@@ -1,6 +1,6 @@
 ---
 name: rest-api-updates-writer
-description: Emits the per-update REST API report at `<dir>/<stem>.rest-api/updates.md` by diffing the working-tree resource spec (`spec.md`) against `git HEAD`. Compares Table 1 (Resource Basics), Tables 2/3 (Endpoint Inventory) per surface, and Tables 4/5/6 (Response Fields / Request Fields / Parameter Mapping) per surface per endpoint — at field / nested-type / query-param granularity. The report is always written (even on no-op). Standalone-invocable. Invoke with: @rest-api-updates-writer <domain_diagram>
+description: Emits the per-update REST API report at `<dir>/<stem>.rest-api/updates.md` by diffing the working-tree resource spec (`spec.md`) against `git HEAD`. Compares Table 1 (Resource Basics), Tables 2/3 (Endpoint Inventory) per surface, and Tables 4/5/6 (Response Fields / Request Fields / Parameter Mapping) per surface per endpoint — at field / nested-type / query-param granularity. Three-axis `Source delta` attribution probes `<stem>.domain/updates.md`, `<stem>.application/commands-updates.md`, and `<stem>.application/queries-updates.md` (any may be absent) and tags matches with `[domain]` / `[commands-diagram]` / `[queries-diagram]`. The report is always written (even on no-op). Standalone-invocable. Invoke with: @rest-api-updates-writer <domain_diagram>
 tools: Read, Write, Bash, Skill
 skills:
   - rest-api-spec:naming-conventions
@@ -9,9 +9,9 @@ skills:
 model: sonnet
 ---
 
-You are a REST API updates writer. Your job is to compare the working-tree version of `<dir>/<stem>.rest-api/spec.md` against its committed version at `git HEAD`, classify every change (Table 1 deltas + per-surface Table 2/3/4/5/6 deltas), and write a structured report to `<dir>/<stem>.rest-api/updates.md` — do not ask the user for confirmation before writing.
+You are a REST API updates writer. Your job is to compare the working-tree version of `<dir>/<stem>.rest-api/spec.md` against its committed version at `git HEAD`, classify every change (Table 1 deltas + per-surface Table 2/3/4/5/6 deltas), and write a structured report to `<dir>/<stem>.rest-api/updates.md` — do not ask the user for confirmation before writing. Per-section `Source delta` attribution is **three-axis**: the writer reads `<dir>/<stem>.domain/updates.md`, `<dir>/<stem>.application/commands-updates.md`, and `<dir>/<stem>.application/queries-updates.md` (any of the three may be absent) and tags each `Source delta` with `[domain]`, `[commands-diagram]`, or `[queries-diagram]` per the probe order in Step 5.
 
-The report is consumed by the future `/rest-api-spec:update-code` skill, which dispatches per-artifact code edits from the `## Affected Artifacts` footer. It is also the REST-API-side analog of `<stem>.domain/updates.md` produced by `domain-spec:updates-detector` — the reports chain (domain → spec → code). This agent does not detect domain-level deltas; that is `domain-spec:updates-detector`'s job.
+The report is consumed by the future `/rest-api-spec:update-code` skill, which dispatches per-artifact code edits from the `## Affected Artifacts` footer. It is also the REST-API-side analog of `<stem>.domain/updates.md` produced by `domain-spec:updates-detector` — the reports chain (domain → spec → code). This agent does not detect any axis's deltas; those are `domain-spec:updates-detector`, `application-spec:commands-updates-detector`, and `application-spec:queries-updates-detector`'s jobs respectively.
 
 The `rest-api-spec:updates-report-template` skill is loaded in your context and is the **single source of truth for the output schema**, the rendering rules, the surface-grouping convention, the `## Affected Artifacts` footer specification, the top-of-file sentinel placement, and the hash format. Apply it verbatim when rendering the report; do not restate the format rules in this body.
 
@@ -28,6 +28,8 @@ Path derivation follows `rest-api-spec:naming-conventions` exactly. Given `<doma
 - `<plugin_dir>` = `<dir>/<stem>.rest-api`
 - `<spec_file>` = `<plugin_dir>/spec.md`
 - `<domain_updates_file>` = `<dir>/<stem>.domain/updates.md` (sibling reference; missing is non-fatal)
+- `<commands_updates_file>` = `<dir>/<stem>.application/commands-updates.md` (sibling reference; missing is non-fatal)
+- `<queries_updates_file>` = `<dir>/<stem>.application/queries-updates.md` (sibling reference; missing is non-fatal)
 - `<output_file>` = `<plugin_dir>/updates.md`
 
 Do not reconstruct paths by string substitution. Use the `naming-conventions` `<dir>` / `<stem>` recovery rule.
@@ -44,7 +46,11 @@ Verify with `test -f`:
 
 - `<spec_file>` missing → fail with: `ERROR: <spec_file> not found. The updates writer is not the first-run pipeline; run /rest-api-spec:generate-specs <domain_diagram> first.`
 
-`<domain_updates_file>` may be missing — that is the standalone-invocation case (the writer is being run without an upstream domain `update-specs` run, e.g. for testing or operator-driven recovery). Record its absence; downstream `Source delta` lookups will fall back to `(unknown source)` and the Summary's `Domain updates source` line renders `_none_`.
+`<domain_updates_file>` may be missing — that is the standalone-invocation case (the writer is being run without an upstream domain `update-specs` run, e.g. for testing or operator-driven recovery). Record its absence; downstream `Source delta` lookups will skip the domain-axis probe and the Summary's `Domain updates source` line renders `_none_`.
+
+`<commands_updates_file>` and `<queries_updates_file>` are likewise optional. They are produced by `application-spec:commands-updates-detector` and `application-spec:queries-updates-detector` (invoked at Step 0 of `/rest-api-spec:update-specs`); when the writer is invoked standalone or before any detector run, they may be absent. Record each file's absence individually; downstream `Source delta` lookups skip the corresponding axis probe.
+
+When all three delta reports (`<domain_updates_file>`, `<commands_updates_file>`, `<queries_updates_file>`) are absent, every `Source delta` falls back to `(unknown source)`; emit a warning per `Step 6`.
 
 `<domain_diagram>` itself is **not** required to exist — the agent uses its path only for `<dir>` / `<stem>` recovery. Do not error on a missing diagram.
 
@@ -165,24 +171,128 @@ For each surface, walk that surface's Table-6 endpoint groups (keyed by `(http, 
   - A `left_column` flip (`Command Parameter` ↔ `Query Parameter`) is not classified here — it is recorded in Endpoint Inventory Changes (the endpoint flipped command/query).
 - The `Source delta:` bullet and the unchanged-surface omission follow 4.3. The skill's "Section: Parameter Mapping Changes" rules own the rendered bullet forms.
 
-### Step 5 — Source-delta enrichment (best-effort)
+### Step 5 — Source-delta enrichment (best-effort, three-axis)
 
-For every Added / Removed / Modified entry in Steps 4.3–4.5 — the three sections (Response Fields, Request Fields, Parameter Mapping) whose report schema carries a `Source delta:` bullet — compute a `Source delta` string. Rules:
+For every Added / Removed / Modified entry in Steps 4.1–4.5 — including the new `Source delta:` slots on `Resource Basics Changes` (the Surfaces row) and `Endpoint Inventory Changes` (every entry) — compute an **axis-tagged** `Source delta` string. Every emitted value carries one of three axis prefixes — `[domain]`, `[commands-diagram]`, `[queries-diagram]` — or the literal sentinel `(unknown source)` when no probe matches.
 
-1. If `<domain_updates_file>` is missing on disk, every entry's `Source delta` is the literal `(unknown source)`. Skip the rest of this step.
-2. Otherwise `Read` `<domain_updates_file>` once. Extract:
-   - **Affected categories** — the `## Affected Categories` footer (list of category names).
-   - **Class lifecycle** — `## Class Lifecycle → Added` / `Removed` / `Stereotype Changed` buckets → `{ class_name: (bucket, stereotype) }`.
-   - **Per-class member changes** — under `## Per-Class Changes`, each `### <ClassName>` block's `**Members:**` bullets (`Attribute added/removed/changed: <name>: <type>`, `Method added/removed/changed: <name>(...)`, etc.) → `{ class_name: [(member_kind, member_name), ...] }`.
-3. For each delta entry, derive a lookup token and search:
-   - **Response Fields / Request Fields — a nested-type field delta** (the delta names a `<field>` on a nested type `X`): the token is `X` + `<field>`. Look up the `### X` block in the per-class changes; on a matching `Attribute added/removed/changed` bullet for `<field>`, build the string `<category>: X attribute <field> added/removed/changed`, where `<category>` is the affected category matching `X`'s stereotype (`<<Domain TypedDict>>` → `data-structures`, `<<Value Object>>` → `value-objects`, `<<Command>>` → `commands`, per `domain-spec:updates-report-template`'s stereotype→category mapping).
-   - **Response Fields / Request Fields — a top-level field delta** whose Type is a custom PascalCase type `T`: the token is `T` + `<field>`. Same probe against the `### T` block.
-   - **Response Fields — a query-parameter delta** (including the `include` heavy-field-list change): the token is the response DTO named in the endpoint's Source cells (the `<DTO>` in `<DTO>["<key>"]`) plus the affected field name; probe the `### <DTO>` block. For a composite query-param row decomposed from a `<Resource>Filtering`-style type, probe the `### <FilteringType>` block for the added/removed field.
-   - **Parameter Mapping — a source-line-changed delta** (a `Constructed from query params …, → <Type>` source whose constituent-field list changed): the token is `<Type>` + the field that appeared/disappeared; probe the `### <Type>` block.
+#### 5.1 Build per-axis lookup tables
 
-   *(Endpoint Inventory Changes and Resource Basics Changes have no `Source delta:` slot in the report schema — an endpoint or surface change originates in the `<Resource>Commands` / `<Resource>Queries` diagrams, which `<stem>.domain/updates.md` does not capture — so they are not lookup targets for this step.)*
-4. Best-effort: when a probe finds multiple matches, use the first one in canonical category order (`data-structures` → `value-objects` → `domain-events` → `commands` → `aggregates` → `repositories-services`). When no probe matches, fall back to the literal string `(unknown source)`. When a single Modified endpoint's delta types trace to several distinct domain changes, attach the `Source delta` of the first delta bullet (in the skill's fixed bullet order); when they all trace to one change, attach that one.
-5. The lookup is **idempotent on stable inputs**: same `<domain_updates_file>` content + same delta entry → same `Source delta` string.
+Probe each of the three delta reports independently. Skip a report that is missing on disk; record its absence so the warnings step (Step 6.2) can surface it.
+
+**Domain axis** — when `<domain_updates_file>` exists, `Read` it once and extract:
+
+- **Affected categories** — the `## Affected Categories` footer (list of category names). Bind `domain.categories`.
+- **Class lifecycle** — `## Class Lifecycle → Added` / `Removed` / `Stereotype Changed` buckets → `domain.lifecycle = { class_name: (bucket, stereotype) }`.
+- **Per-class member changes** — under `## Per-Class Changes`, each `### <ClassName>` block's `**Members:**` bullets (`Attribute added/removed/changed: <name>: <type>`, `Method added/removed/changed: <name>(...)`, etc.) → `domain.members = { class_name: [(member_kind, member_name), ...] }`.
+
+When `<domain_updates_file>` is missing, bind all three to empty.
+
+**Commands-diagram axis** — when `<commands_updates_file>` exists, `Read` it once and extract:
+
+- **Anchor methods** — under `## Per-Method Changes`, walk each `### <method_name>` block (the heading is the bare method name in backticks). For each block bind `commands.methods = { method_name: {bucket, signature_change, surface_remap, prose_change} }` where `bucket ∈ {added, removed, modified}` is inferred from the `**Signature:**` line (`_new method_ — …` → `added`; `… → _removed_` → `removed`; `<old> → <new>` → `modified`), `signature_change` is the verbatim signature pair (or None when bucket is `added`/`removed`-only), `surface_remap` is the `(<old> → <new>)` parsed from a `**Surface:**` line (or None), `prose_change` is `True` iff a `**Prose — …:**` sub-block exists.
+- **Surface markers** — under `## Surface Markers → ### Surface Set`, bind `commands.surface_set = {added: [<name>...], removed: [<name>...]}`. Under `### Method Membership`, bind `commands.surface_membership = { method_name: (old_surface, new_surface) }`.
+- **Affected categories** — bind `commands.categories` per the same rule as domain.
+
+When `<commands_updates_file>` is missing, bind all three to empty.
+
+**Queries-diagram axis** — symmetric to commands-diagram; bind `queries.methods`, `queries.surface_set`, `queries.surface_membership`, `queries.categories`. When `<queries_updates_file>` is missing, bind all to empty.
+
+The two other detector-emitted categories that *could* land in `<commands_updates_file>` / `<queries_updates_file>` (`dependencies`, `raised-exceptions`, `external-interfaces`, `external-domain-events`, `messaging-markers`) are **not REST-relevant** — they never match any REST-side entry by construction; ignore them. See `rest-api-spec:updates-report-template` § "Source delta format" for the rationale and the closed REST-relevant category list (`methods`, `surface-markers`).
+
+#### 5.2 Per-entry probe order
+
+For each delta entry, probe the axes in the order **kind-appropriate app-service axis first → domain axis** — the app-service axis is the more specific signal (it described the actual diagram edit), and the domain axis is the more general explanation when no app-service entry matches. Each REST entry is **either query-kind, command-kind, or cross-side**, determined per the table below; the kind drives which app-service axis the writer probes first:
+
+| Entry | Kind determination | Probe order |
+|---|---|---|
+| Resource Basics — Surfaces field | (no kind — cross-side) | commands → queries → domain |
+| Endpoint Inventory entry — Table 2 row | query | queries → domain (commands not probed) |
+| Endpoint Inventory entry — Table 3 row | command | commands → domain (queries not probed) |
+| Response Fields entry | query (Table 4 only ever has query endpoints) | queries → domain |
+| Request Fields entry | command (Table 5 only ever has command endpoints) | commands → domain |
+| Parameter Mapping entry | by `left_column` header — `Query Parameter` → query; `Command Parameter` → command | matching side → domain |
+
+Render the matched value as:
+
+```
+Source delta: [<axis>] <category>: <human_phrase>
+```
+
+Where `<axis>` ∈ `{domain, commands-diagram, queries-diagram}` and `<category>` is the category name from the matched axis's vocabulary (`rest-api-spec:updates-report-template` § "Source delta format" enumerates the REST-relevant subsets per axis). When no probe matches, render the literal `Source delta: (unknown source)`.
+
+The per-section probe sub-rules — REST-specific key derivation per entry kind — are spelled out below.
+
+##### Resource Basics — Surfaces field
+
+Key: the surface-set delta (`surface added: <name>` / `surface removed: <name>` parenthetical on the `Surfaces:` line).
+
+Probe order — commands axis → queries axis → domain axis:
+
+1. **Commands axis** (when `<commands_updates_file>` exists): look up `<name>` in `commands.surface_set.added` / `commands.surface_set.removed`. On match, emit `[commands-diagram] surface-markers: surface <name> added/removed`.
+2. **Queries axis** (same lookup against `queries.surface_set`). On match, emit `[queries-diagram] surface-markers: surface <name> added/removed`.
+3. **Domain axis** — surface markers are not a domain-axis category; this probe always falls through.
+4. Fallback `(unknown source)`.
+
+When both commands and queries diagrams gained the same surface (a coordinated multi-axis edit), commands wins by canonical order; the queries-axis match is silently dropped.
+
+##### Endpoint Inventory — Added / Removed / Modified entry
+
+Key: the `(<HTTP>, <PATH>, <operation>)` triple of the endpoint, with `<operation>` as the dominant signal (the operation name on the REST spec is the method name on the application-service diagram).
+
+For a **query endpoint** (Table 2 row):
+
+1. **Queries axis**: look up `<operation>` in `queries.methods`. On match, derive the phrase per the `methods`-category table in `rest-api-spec:updates-report-template` § "Source delta format" (single-tag rule: `signature changed` > `remapped` > `prose changed`; or `method <op> added/removed` for added/removed buckets).
+2. **Domain axis**: probe in this sub-order, building `[domain] <category>: <phrase>` on the first match:
+   - `<aggregate_root_name>.<operation>` — if the operation name appears as a method-add/remove under the aggregate root's class block in `domain.members`, build `[domain] aggregates: <AggregateRoot> method <operation> added/removed`.
+   - `Query<AggregateRoot>Repository.<operation>` — for queries that map to a repo finder, build `[domain] repositories-services: Query<AggregateRoot>Repository finder <operation> added/removed/changed`.
+3. Fallback `(unknown source)`.
+
+For a **command endpoint** (Table 3 row): symmetric — commands axis first, then domain (aggregate root or `Command<AggregateRoot>Repository`).
+
+For a **Modified** endpoint where only the Description cell changed: there is no upstream-axis match by design (Description is a prose cell, not a structural one). Probe still runs; expected outcome is `(unknown source)`.
+
+##### Response Fields — per-endpoint entry
+
+Key: the endpoint's `(<HTTP>, <PATH>, <operation>)` triple plus, when needed, the response DTO type name and per-delta-bullet entity names (a field name, a nested-type name).
+
+Probe order — queries axis → domain axis:
+
+1. **Queries axis**: look up the endpoint's `<operation>` in `queries.methods`. A match means the method itself changed (e.g. signature or returns-type updated, which often follows a DTO field change downstream). On match, emit `[queries-diagram] methods: <phrase>` per the `methods`-category table. This is the explanation when the endpoint *appeared* (Added entry: a new method, hence a new Table 4 block) or *moved between surfaces* (Modified entry — the per-method Source delta notes the surface remap).
+2. **Domain axis** — this is where field-level deltas come from. The v1 probe rules apply unchanged:
+   - **Nested-type field delta** (the delta names a `<field>` on a nested type `X`): the token is `X` + `<field>`. Look up the `### X` block in `domain.members`; on a matching `Attribute added/removed/changed` bullet for `<field>`, build `[domain] <category>: X attribute <field> added/removed/changed`, where `<category>` is the affected category matching `X`'s stereotype (`<<Domain TypedDict>>` → `data-structures`, `<<Value Object>>` → `value-objects`, `<<Command>>` → `commands`, per `domain-spec:updates-report-template`'s stereotype→category mapping).
+   - **Top-level field delta** whose Type is a custom PascalCase type `T`: the token is `T` + `<field>`. Same probe against the `### T` block.
+   - **Query-parameter delta** (including the `include` heavy-field-list change): the token is the response DTO named in the endpoint's Source cells (the `<DTO>` in `<DTO>["<key>"]`) plus the affected field name; probe the `### <DTO>` block. For a composite query-param row decomposed from a `<Resource>Filtering`-style type, probe the `### <FilteringType>` block for the added/removed field.
+3. Fallback `(unknown source)`.
+
+The v1 multi-delta tie-break ("when a Modified endpoint's deltas trace to several distinct domain changes, attach the Source delta of the first delta bullet") generalizes naturally: the writer evaluates each delta bullet in the skill's fixed render order and emits the first one whose probe succeeds. v2 just adds the app-service axis at the front of the probe sequence and stops at the first match.
+
+##### Request Fields — per-endpoint entry
+
+Same shape as Response Fields, with the commands axis substituted for queries. Probe order — commands axis → domain axis:
+
+1. **Commands axis**: look up the endpoint's `<operation>` in `commands.methods`. On match, emit `[commands-diagram] methods: <phrase>`.
+2. **Domain axis**: same v1 probe rules (nested-type field, top-level custom-type field).
+3. Fallback `(unknown source)`.
+
+##### Parameter Mapping — per-endpoint entry
+
+Same shape, with the kind-dispatch from the `left_column` header. Probe order — kind-appropriate axis (commands or queries) → domain axis:
+
+1. **Kind-appropriate app-service axis**: look up the operation in the matching detector report's `commands.methods` / `queries.methods`. A pure domain-driven Source-line-change delta (a `Constructed from query params …, → <Type>` whose constituent-field list shifted because the composite type gained/lost a field) **does not match** the app-service axis — the method signature on the diagram is unchanged; only the composite-type's field set changed. This probe falls through.
+2. **Domain axis** — the v1 probe rule applies unchanged:
+   - **Source-line-changed delta** (a `Constructed from query params …, → <Type>` source whose constituent-field list changed): the token is `<Type>` + the field that appeared/disappeared; probe the `### <Type>` block. Build `[domain] <category>: <Type> attribute <field> added/removed/changed`.
+3. Fallback `(unknown source)`.
+
+The intent: a parameter-mapping change driven by an app-service-axis method-signature change attributes to the app-service axis; one driven by a composite-type field shift attributes to the domain axis. The two cases are disjoint and the probe order surfaces each correctly.
+
+#### 5.3 Tie-breaking and idempotency
+
+- When a probe finds multiple matches **within one axis**, use the first one in that axis's canonical order:
+  - Domain axis: `data-structures` → `value-objects` → `domain-events` → `commands` → `aggregates` → `repositories-services`.
+  - App-service axes: `methods` → `surface-markers` (the only two REST-relevant categories).
+- When a single Modified endpoint's deltas trace to several distinct domain changes, attach the `Source delta` of the first delta bullet (in the skill's fixed bullet order); when they all trace to one change, attach that one.
+- When **two axes both match** (e.g. an Endpoint Inventory Added explained by both the commands-diagram axis and a domain aggregate-root method add), prefer the **app-service axis** per the 5.2 probe order. The app-service axis describes the exact diagram-level edit; the domain axis describes the upstream cause. The more-specific attribution wins.
+- The lookup is **idempotent on stable inputs**: same three delta reports + same delta entry → same axis-tagged `Source delta` string.
 
 ### Step 6 — Compute hashes and warnings
 
@@ -195,10 +305,15 @@ For every Added / Removed / Modified entry in Steps 4.3–4.5 — the three sect
    - `pre_spec_hash` — hash of `<pre_text>`. For first-run (empty `<pre_text>`), render `(none)`. To hash an in-memory string without a temp file: `printf '%s' "<text>" | shasum -a 256 | cut -d' ' -f1`; or write to a tempfile under `/tmp/` and remove after.
    - `post_spec_hash` — hash of `<post_text>` (or directly of `<spec_file>` on disk).
    - `domain_updates_hash` — hash of `<domain_updates_file>` if it exists; otherwise `(none)`.
+   - `commands_updates_hash` — hash of `<commands_updates_file>` if it exists; otherwise `(none)`.
+   - `queries_updates_hash` — hash of `<queries_updates_file>` if it exists; otherwise `(none)`.
 
 2. **Warnings list**:
    - When `<pre_text>` was first-run (empty baseline) AND `<post_text>` is non-empty: `first-run baseline: HEAD did not contain <spec_file>; entire post-update spec reported as Added.`
-   - When `<domain_updates_file>` is missing: `domain updates source not found; all source-delta values fell back to '(unknown source)'.`
+   - When `<domain_updates_file>` is missing: `domain updates source not found; domain-axis source_delta probes skipped.`
+   - When `<commands_updates_file>` is missing: `commands-diagram updates source not found; commands-axis source_delta probes skipped.`
+   - When `<queries_updates_file>` is missing: `queries-diagram updates source not found; queries-axis source_delta probes skipped.`
+   - When all three delta reports are missing, additionally append: `no source attribution available; all source_delta values fell back to '(unknown source)'.`
    - Bind `<warnings>` = ordered list of warning strings; may be empty.
 
 The Summary intentionally omits a `Generated at` line — a wall-clock timestamp would break the byte-stability contract.
@@ -210,8 +325,14 @@ Render `<output_text>` using the schema and rendering rules in the `rest-api-spe
 - `<dir>/<stem>.rest-api/spec.md` → the actual `<spec_file>` path.
 - `<sha256>` placeholders → the corresponding hash from Step 6 (or the literal `(none)` when missing).
 - `<dir>/<stem>.domain/updates.md` → the actual `<domain_updates_file>` path; render the entire `Domain updates source` value as `_none_` when the file is missing.
-- Every section body driven by Step 4 / Step 5 dicts → render per the section-specific rules in the skill, grouped by `### Surface: <name>` (omitting unchanged surfaces), and emitting `_no changes_` for any section with no changed surfaces.
+- `<dir>/<stem>.application/commands-updates.md` → the actual `<commands_updates_file>` path; render the entire `Commands-diagram updates source` value as `_none_` when the file is missing.
+- `<dir>/<stem>.application/queries-updates.md` → the actual `<queries_updates_file>` path; render the entire `Queries-diagram updates source` value as `_none_` when the file is missing.
+- Every section body driven by Step 4 / Step 5 dicts → render per the section-specific rules in the skill, grouped by `### Surface: <name>` (omitting unchanged surfaces), and emitting `_no changes_` for any section with no changed surfaces. Each `Source delta` value is the axis-tagged form `[<axis>] <category>: <human_phrase>` (or the literal `(unknown source)`) emitted by Step 5.
 - The `<!-- domain-updates-hash:<sha256> -->` sentinel → the `domain_updates_hash` from Step 6 (or `(none)`).
+- The `<!-- commands-updates-hash:<sha256> -->` sentinel → the `commands_updates_hash` from Step 6 (or `(none)`).
+- The `<!-- queries-updates-hash:<sha256> -->` sentinel → the `queries_updates_hash` from Step 6 (or `(none)`).
+
+All three sentinels are emitted as consecutive comment lines at the top of the file (in the canonical order: domain, commands, queries) before the blank line and the `# REST API Updates Report` heading.
 
 When the byte-identical short-circuit fired in Step 2.3 (working tree == HEAD), render every section after `## Summary` as `_no changes_` and emit the `## Affected Artifacts` table header with no data rows.
 
@@ -244,17 +365,25 @@ Each prints exactly one `ERROR: ...` line and exits non-zero. The agent does **n
 Note: the agent does **not** hard-fail when:
 
 - The HEAD blob is missing entirely (first-run handling — treat HEAD as empty).
-- `<domain_updates_file>` is missing (standalone-invocation handling — `Source delta` falls back to `(unknown source)`).
+- `<domain_updates_file>` is missing (standalone-invocation handling — domain-axis `Source delta` probes skipped per Step 5; matching warning emitted at Step 6).
+- `<commands_updates_file>` is missing (commands-axis probes skipped; matching warning emitted).
+- `<queries_updates_file>` is missing (queries-axis probes skipped; matching warning emitted).
 - `<domain_diagram>` itself is missing (the diagram is consulted only for path derivation).
 - A surface section or an inner table is missing / replaced by an italic placeholder (the parser treats these as empty, not malformed).
 - The `## Resource Basics Changes` or `## Endpoint Inventory Changes` section reflects a change that "shouldn't happen on a domain-only update" — the writer is diff-driven; it reports whatever `spec.md` actually shows. (The dispatch-tier hard-fails — degraded baseline, stereotype change, aggregate-root removal/rename — are caught by `/rest-api-spec:update-specs` *before* this writer runs; by the time this agent executes, `spec.md` is already in its final post-update state.)
 
 ## Idempotency contract
 
-- Same working-tree spec + same HEAD blob + same `<domain_updates_file>` → byte-identical `<output_file>`.
-- Re-running the writer with no new changes (working-tree spec unchanged since prior commit) produces a report whose every section after `## Summary` is `_no changes_`, with empty Affected Artifacts data rows and the prior `domain-updates-hash` sentinel.
+- Same five inputs → byte-identical `<output_file>`. The five inputs are:
+  1. Working-tree `<spec_file>` bytes.
+  2. `git show HEAD:<spec_file>` bytes.
+  3. `<domain_updates_file>` bytes (or absent).
+  4. `<commands_updates_file>` bytes (or absent).
+  5. `<queries_updates_file>` bytes (or absent).
+- Re-running the writer with no new changes (working-tree spec unchanged since prior commit) produces a report whose every section after `## Summary` is `_no changes_`, with empty Affected Artifacts data rows and the prior three `*-updates-hash` sentinels.
 - Re-running after committing the prior writer's output still produces a fresh report comparing the **current** working tree to HEAD; if the operator commits the working-tree spec and re-runs without further edits, the next report will show `_no changes_` (working tree == HEAD).
 - The report reflects the actual `spec.md` diff, not which table writers the orchestrator chose to re-run. A re-run of `response-fields-writer` / `request-fields-writer` / `parameter-mapping-writer` that produced byte-identical output contributes nothing to the report.
+- The three sentinels at top-of-file pin each axis independently — a domain-only edit leaves the commands and queries sentinels byte-stable, and a commands-only edit leaves the domain and queries sentinels byte-stable. This is the consumer's primary skip-on-replay surface.
 
 ## What this agent deliberately does NOT do
 
@@ -263,6 +392,6 @@ Note: the agent does **not** hard-fail when:
 - It does not regenerate any `spec.md` table — those are owned by `resource-spec-initializer`, `endpoint-tables-writer`, `response-fields-writer`, `request-fields-writer`, and `parameter-mapping-writer`. This agent only **reports** what they (and any hand-edits) left in `spec.md`.
 - It does not parse the domain, commands, or queries Mermaid diagrams. Query-vs-command endpoint classification is read off `spec.md`'s Tables 2/3; nested-type and composite-query-param resolution is `response-fields-writer` / `request-fields-writer` / `parameter-mapping-writer`'s job, already reflected in `spec.md`.
 - It does not propagate hard-fails from the upstream pipeline (orchestrator preflight — degraded baseline, stereotype change, aggregate-root removal/rename, abort-and-reconcile on a renamed referenced type). By the time this agent runs, those have already been handled (or the run never reached this step).
-- It does not re-diff `<domain_diagram>` against HEAD — that is `domain-spec:updates-detector`'s job. This agent reads the domain `updates.md` only as an enrichment source for `Source delta` lookups.
+- It does not re-diff `<domain_diagram>`, `<dir>/<stem>.commands.md`, or `<dir>/<stem>.queries.md` against HEAD — those are `domain-spec:updates-detector`, `application-spec:commands-updates-detector`, and `application-spec:queries-updates-detector`'s jobs respectively. This agent reads the three delta reports only as enrichment sources for axis-tagged `Source delta` lookups.
 - It does not write or modify any code artifact under `api/serializers/`, `api/endpoints/`, `<pkg>/`, or `tests/` — those are owned by the `rest-api-spec:generate-code` pipeline (and a future `/rest-api-spec:update-code`). This agent only lists them in the `## Affected Artifacts` footer.
 - It does not preserve the prior `<output_file>` content — the report is regenerated from scratch on every run. There is no "previous report" lineage tracked, and (per `notes/updates-report.md` Open Question #2) multi-update folding is not implemented.

@@ -1,6 +1,6 @@
 ---
 name: updates-report-template
-description: Reference template for the REST API updates report (`<stem>.rest-api/updates.md`) emitted by `rest-api-updates-writer`. Use when generating, parsing, or reviewing a REST API updates report. Covers the rendered schema (surface-scoped per-section delta blocks), rendering rules, the `## Affected Artifacts` footer specification, the top-of-file sentinel, and the hash format.
+description: Reference template for the REST API updates report (`<stem>.rest-api/updates.md`) emitted by `rest-api-updates-writer`. Use when generating, parsing, or reviewing a REST API updates report. Covers the rendered schema (surface-scoped per-section delta blocks), rendering rules, the `## Affected Artifacts` footer specification, the top-of-file sentinel triple, the three-axis `Source delta` form, and the hash format.
 user-invocable: false
 disable-model-invocation: false
 ---
@@ -23,6 +23,8 @@ The report is **per-artifact and surface-scoped**: a flat header (`## Summary`) 
 
 ````markdown
 <!-- domain-updates-hash:<hash> -->
+<!-- commands-updates-hash:<hash> -->
+<!-- queries-updates-hash:<hash> -->
 
 # REST API Updates Report
 
@@ -31,7 +33,9 @@ The report is **per-artifact and surface-scoped**: a flat header (`## Summary`) 
 - Spec: `<dir>/<stem>.rest-api/spec.md`
 - Pre-update spec hash: <sha256>
 - Post-update spec hash: <sha256>
-- Domain updates source: `<dir>/<stem>.domain/updates.md` (hash: <sha256>)
+- Domain updates source: `<dir>/<stem>.domain/updates.md` (hash: <sha256>) | _none_
+- Commands-diagram updates source: `<dir>/<stem>.application/commands-updates.md` (hash: <sha256>) | _none_
+- Queries-diagram updates source: `<dir>/<stem>.application/queries-updates.md` (hash: <sha256>) | _none_
 - Warnings:
   - <warning text>
 
@@ -41,6 +45,7 @@ The report is **per-artifact and surface-scoped**: a flat header (`## Summary`) 
 - Plural: was `<old>`, now `<new>` (_unchanged_)
 - Router prefix: was `<old>`, now `<new>` (_unchanged_)
 - Surfaces: was `<old>`, now `<new>` (surface added: `<name>` | surface removed: `<name>`)
+  - Source delta: [<axis>] <category>: <human_phrase> | (unknown source)
 
 ## Endpoint Inventory Changes
 
@@ -48,13 +53,16 @@ The report is **per-artifact and surface-scoped**: a flat header (`## Summary`) 
 
 #### Added
 - `<HTTP> <PATH>` (<operation>) → `<DomainRef>` — <query | command> endpoint
+  - Source delta: [<axis>] <category>: <human_phrase> | (unknown source)
   - Description: <description>
 
 #### Removed
 - `<HTTP> <PATH>` (<operation>) — <query | command> endpoint
+  - Source delta: [<axis>] <category>: <human_phrase> | (unknown source)
 
 #### Modified
 - `<HTTP> <PATH>` (<operation>)
+  - Source delta: [<axis>] <category>: <human_phrase> | (unknown source)
   - Operation: was `<old>` → `<new>`
   - Domain Ref: was `<old>` → `<new>`
   - Description: was "<old>" → "<new>"
@@ -65,18 +73,18 @@ The report is **per-artifact and surface-scoped**: a flat header (`## Summary`) 
 
 #### Added
 - `<HTTP> <PATH>` (<operation>)
-  - Source delta: <short_phrase>
+  - Source delta: [<axis>] <category>: <human_phrase> | (unknown source)
   - Response fields: `<f1>: <t1>`, `<f2>: <t2>` (includable), ... | _binary (raw bytes)_
   - Nested types: `<TypeName>` (fields: `<f1>: <t1>`, `<f2>: <t2>`), ...
   - Query parameters: `<name>: <type>` (default `<default>`), ... | _none_
 
 #### Removed
 - `<HTTP> <PATH>` (<operation>)
-  - Source delta: <short_phrase>
+  - Source delta: [<axis>] <category>: <human_phrase> | (unknown source)
 
 #### Modified
 - `<HTTP> <PATH>` (<operation>)
-  - Source delta: <short_phrase>
+  - Source delta: [<axis>] <category>: <human_phrase> | (unknown source)
   - Binary response: switched <to | from> binary placeholder
   - Response field added: `<name>: <type>` (includable)
   - Response field removed: `<name>: <type>`
@@ -97,17 +105,17 @@ The report is **per-artifact and surface-scoped**: a flat header (`## Summary`) 
 
 #### Added
 - `<HTTP> <PATH>` (<operation>)
-  - Source delta: <short_phrase>
+  - Source delta: [<axis>] <category>: <human_phrase> | (unknown source)
   - Request fields: `<f1>: <t1>` (<validation>), ... | _empty body (path/auth only)_
   - Nested types: `<TypeName>` (fields: `<f1>: <t1>`, `<f2>: <t2>`), ...
 
 #### Removed
 - `<HTTP> <PATH>` (<operation>)
-  - Source delta: <short_phrase>
+  - Source delta: [<axis>] <category>: <human_phrase> | (unknown source)
 
 #### Modified
 - `<HTTP> <PATH>` (<operation>)
-  - Source delta: <short_phrase>
+  - Source delta: [<axis>] <category>: <human_phrase> | (unknown source)
   - Body: switched <to | from> empty-body placeholder
   - Request field added: `<name>: <type>` (<validation>)
   - Request field removed: `<name>: <type>`
@@ -125,16 +133,16 @@ The report is **per-artifact and surface-scoped**: a flat header (`## Summary`) 
 
 #### Added
 - `<HTTP> <PATH>` (<operation>)
-  - Source delta: <short_phrase>
+  - Source delta: [<axis>] <category>: <human_phrase> | (unknown source)
   - Mapping: `<param>` ← `<source>`; `<param>` ← `<source>`; ...
 
 #### Removed
 - `<HTTP> <PATH>` (<operation>)
-  - Source delta: <short_phrase>
+  - Source delta: [<axis>] <category>: <human_phrase> | (unknown source)
 
 #### Modified
 - `<HTTP> <PATH>` (<operation>)
-  - Source delta: <short_phrase>
+  - Source delta: [<axis>] <category>: <human_phrase> | (unknown source)
   - Parameter added: `<param>` ← `<source>`
   - Parameter removed: `<param>` (was `<source>`)
   - Source line changed: `<param>` — `<old_source>` → `<new_source>`
@@ -162,17 +170,19 @@ The report is **per-artifact and surface-scoped**: a flat header (`## Summary`) 
 
 ## Rendering rules
 
-### Top-of-file sentinel
+### Top-of-file sentinels
 
-The first line of the file is an HTML comment recording the SHA256 of `<dir>/<stem>.domain/updates.md`:
+The first three lines of the file are HTML comments recording the SHA256 of each upstream delta report, in the canonical order **domain → commands-diagram → queries-diagram**:
 
 ```
 <!-- domain-updates-hash:<sha256> -->
+<!-- commands-updates-hash:<sha256> -->
+<!-- queries-updates-hash:<sha256> -->
 ```
 
-When `<stem>.domain/updates.md` does not exist on disk, render `<sha256>` as `(none)`. The sentinel line itself is always emitted on line 1, followed by one blank line, then the `# REST API Updates Report` heading.
+When the corresponding upstream report does not exist on disk, render `<sha256>` as `(none)`. The three sentinel lines are always emitted on lines 1–3 (in this order; no blanks between them), followed by one blank line, then the `# REST API Updates Report` heading.
 
-The sentinel is the consumer's primary skip-on-replay signal: a downstream `/rest-api-spec:update-code` run that already applied a report carrying the same `domain-updates-hash` may early-exit.
+The sentinels are the consumer's primary skip-on-replay signal: a downstream `/rest-api-spec:update-code` run that already applied a report carrying the same three `*-updates-hash` values may early-exit. Splitting attribution per axis means a domain-only edit that leaves the commands and queries diagrams untouched will only change `domain-updates-hash` — the consumer can tell what changed without re-parsing the body.
 
 ### Top-level sections
 
@@ -223,14 +233,60 @@ Every endpoint bullet across `## Endpoint Inventory Changes`, `## Response Field
 
 `<HTTP> <PATH>` is verbatim from the `**Endpoint:**` line in `spec.md` (for Response/Request/Parameter-Mapping sections) or from the Table 2/3 row (for Endpoint Inventory). `<operation>` is the operation name — taken from the `(operation)` suffix on the `**Endpoint:**` line when present, otherwise resolved by matching `(<HTTP>, <PATH>)` against the surface's Table 2 / Table 3 rows. When the operation cannot be resolved, render the header without the ` (<operation>)` suffix.
 
+### Source delta format
+
+Every `Source delta` bullet is **axis-tagged**. The renderer emits one of:
+
+```
+Source delta: [domain] <category>: <human_phrase>
+Source delta: [commands-diagram] <category>: <human_phrase>
+Source delta: [queries-diagram] <category>: <human_phrase>
+Source delta: (unknown source)
+```
+
+- `[<axis>]` identifies which upstream delta report explained this entry. Brackets are literal.
+- `<category>` is one of the categories from the matched axis's `## Affected Categories` footer vocabulary:
+  - **Domain axis** (per `domain-spec:updates-report-template`): `data-structures`, `value-objects`, `domain-events`, `commands`, `aggregates`, `repositories-services`.
+  - **App-service axes** (per the commands/queries detector `## Affected Categories` footer): `methods`, `surface-markers`. The other detector-emitted categories (`dependencies`, `raised-exceptions`, `external-interfaces`, `external-domain-events`, `messaging-markers`) are not REST-relevant — the REST writer's lookup silently ignores them; they never match a REST-side entry by construction.
+- `<human_phrase>` is a short free-text description. It is generated by the writer's probe rules in Step 5; the exact wording lives in the agent body, not here. The canonical phrase shapes are:
+  - **Domain axis** — preserved verbatim from v1: `<ClassName> attribute <field> added/removed/changed` (per the writer's per-section probe rules in `rest-api-updates-writer.md` Step 5).
+  - **App-service axes — `methods` category** — derived from each detector's `## Per-Method Changes → ### <method_name>` block:
+
+    | Detector delta | REST Source delta phrase |
+    |---|---|
+    | Method added | `method <method_name> added` |
+    | Method removed | `method <method_name> removed` |
+    | Signature changed | `method <method_name> signature changed` |
+    | Surface remapped (`v1 → internal`) | `method <method_name> remapped from <old_surface> to <new_surface>` |
+    | Prose changed (per-method) | `method <method_name> prose changed` |
+
+    Multiple deltas on one method (e.g. signature changed + surface remapped) → emit the first in canonical order: `signature changed` > `remapped` > `prose changed`. Single-tag rule mirrors the application-spec writer.
+
+  - **App-service axes — `surface-markers` category** — derived from each detector's `## Surface Markers` block:
+
+    | Detector delta | REST Source delta phrase |
+    |---|---|
+    | Surface added | `surface <name> added` |
+    | Surface removed | `surface <name> removed` |
+    | Method membership change | `method <method_name> moved to surface <name>` |
+
+    A `surface-markers` delta that produces both a surface-set change AND method-membership shifts → emit the surface-set change first (it's the upstream cause; method membership is the projection).
+
+- `(unknown source)` is the bracket-less fallback when no probe across all three axes matched.
+
+The probe order is **kind-appropriate app-service axis first, then domain axis** — the more-specific attribution wins. See `rest-api-updates-writer.md` Step 5 for the full per-entry probe rules and the per-section kind dispatch.
+
 ### Section: Summary
 
-- The four lines **Spec**, **Pre-update spec hash**, **Post-update spec hash**, **Domain updates source** are always emitted. The Summary section never reduces to `_no changes_`.
+- The seven lines **Spec**, **Pre-update spec hash**, **Post-update spec hash**, **Domain updates source**, **Commands-diagram updates source**, **Queries-diagram updates source** are always emitted. The Summary section never reduces to `_no changes_`.
 - Hashes are rendered per the **Hash format** rule below.
-- The **Domain updates source** value is `_none_` when no domain `updates.md` exists; otherwise it includes the path plus a parenthesised hash (`<dir>/<stem>.domain/updates.md (hash: <sha256>)`).
+- Each `*-updates source` value is `_none_` when the corresponding upstream report does not exist on disk; otherwise it includes the path plus a parenthesised hash (`<path> (hash: <sha256>)`).
 - The **Warnings** line is omitted entirely when there are no warnings. When present, it introduces a sub-bullet list. Warning categories (each rendered only when applicable):
   - First-run baseline: `first-run baseline: HEAD did not contain <spec_file>; entire post-update spec reported as Added.`
-  - Domain updates source missing: `domain updates source not found; all source-delta values fell back to '(unknown source)'.`
+  - Domain updates source missing: `domain updates source not found; domain-axis source_delta probes skipped.`
+  - Commands-diagram updates source missing: `commands-diagram updates source not found; commands-axis source_delta probes skipped.`
+  - Queries-diagram updates source missing: `queries-diagram updates source not found; queries-axis source_delta probes skipped.`
+  - All three upstream sources missing (emitted in addition to the three per-axis warnings above): `no source attribution available; all source_delta values fell back to '(unknown source)'.`
 - A `Generated at` timestamp is **not** included — a wall-clock value would break the byte-stability contract.
 
 ### Section: Resource Basics Changes
@@ -241,18 +297,19 @@ Tracks Table 1 deltas — Resource name, Plural, Router prefix, Surfaces.
   - `(_unchanged_)` for a field whose value did not change.
   - For the Surfaces field: `(surface added: \`<name>\`)` / `(surface removed: \`<name>\`)` (list all added/removed surfaces, comma-separated; both clauses when both happened).
   - Changed Resource name / Plural / Router prefix carry no parenthetical (the `was X, now Y` with `X ≠ Y` is self-evident).
+- When the Surfaces row changed, render a `Source delta:` sub-bullet immediately under the `Surfaces:` line (indented one level). It follows the **Source delta format** rule above and renders axis-tagged: `[commands-diagram] surface-markers: …` / `[queries-diagram] surface-markers: …` / `(unknown source)`. The domain axis never matches a surface-set delta (surface markers are not a domain-axis category). When both commands- and queries-axis probes match the same surface-set delta (a coordinated multi-axis edit), commands wins per the writer's probe order; the queries match is silently dropped.
+- The other three field lines (Resource name / Plural / Router prefix) carry no `Source delta:` sub-bullet — by `/rest-api-spec:update-specs` contract a Resource-name change is a hard-fail that aborts the run before the writer runs, and the remaining two are mechanical projections.
 - When all four fields are byte-identical, the section body is `_no changes_`.
-- **On a domain-diagram-only update this section is always `_no changes_`** — a Resource-name change is a hard-fail that aborts the run before the writer runs, and Surfaces changes are a commands/queries-diagram-axis concern. The section exists for when that axis is wired into `/rest-api-spec:update-specs`; the writer still parses Table 1 and reports a change if `spec.md`'s Table 1 actually differs from HEAD (e.g. a hand-edit).
 
 ### Section: Endpoint Inventory Changes
 
 Tracks Tables 2 (Query Endpoints) and 3 (Command Endpoints) deltas, per surface. Endpoints are keyed by `(<HTTP>, <PATH>)` within a surface.
 
-- `#### Added` — an endpoint present in post but not pre. Render the endpoint header, the `→ \`<DomainRef>\` — <query | command> endpoint` tail (`query` when the row came from Table 2, `command` from Table 3), and a `Description:` sub-bullet.
-- `#### Removed` — an endpoint present in pre but not post. Render header + `— <query | command> endpoint`.
-- `#### Modified` — same `(<HTTP>, <PATH>)` in both, but Operation, Domain Ref, or Description differs. Render only the changed cells, each as `was \`<old>\` → \`<new>\`` (`Description: was "<old>" → "<new>"` with double-quotes for the prose cell).
+- `#### Added` — an endpoint present in post but not pre. Render the endpoint header, the `→ \`<DomainRef>\` — <query | command> endpoint` tail (`query` when the row came from Table 2, `command` from Table 3), a `Source delta:` sub-bullet **first under the entry**, and a `Description:` sub-bullet.
+- `#### Removed` — an endpoint present in pre but not post. Render header + `— <query | command> endpoint`, then a `Source delta:` sub-bullet (only).
+- `#### Modified` — same `(<HTTP>, <PATH>)` in both, but Operation, Domain Ref, or Description differs. Render a `Source delta:` sub-bullet **first under the entry**, then only the changed cells, each as `was \`<old>\` → \`<new>\`` (`Description: was "<old>" → "<new>"` with double-quotes for the prose cell).
+- The `Source delta:` bullet follows the **Source delta format** rule above. The probe is kind-dispatched per the v2 writer rules: a query endpoint (Table 2 row) probes the queries axis first then the domain axis; a command endpoint (Table 3 row) probes the commands axis first then the domain axis. A Description-only Modified entry typically resolves to `(unknown source)` (the prose cell isn't a structural diagram element); the probe still runs.
 - When a surface only exists in pre, every endpoint of that surface is `#### Removed` (and the surface drop is also recorded in `## Resource Basics Changes` → Surfaces). When a surface only exists in post, every endpoint is `#### Added`.
-- **On a domain-diagram-only update this section is always `_no changes_`** — Tables 2/3 are pure functions of the `<Resource>Commands` / `<Resource>Queries` diagrams. The section exists for the commands/queries-diagram axis; the writer still reports a change if `spec.md`'s Tables 2/3 actually differ from HEAD.
 
 ### Section: Response Fields Changes
 
@@ -269,7 +326,7 @@ Tracks Table 4 deltas, per surface, per query endpoint — response-DTO field ro
   - **Query parameter added/removed** — `\`<name>: <type>\`` (append ` (default \`<default>\`)` for added).
   - **Query parameter retyped** — `\`<name>\`: \`<old_type>\` → \`<new_type>\``.
   - **Query parameter modified** — `\`<name>\` — <what changed>` for a default change (`default \`<old>\` → \`<new>\``), a description change (`description "<old>" → "<new>"`), or — for the `include` heavy-field row of the Wish List pattern — the enumerated heavy-field list (`heavy-field list \`<old list>\` → \`<new list>\``).
-- The `Source delta:` bullet is the matching `<stem>.domain/updates.md` per-class change (`<category>: <ClassName> <delta_phrase>`), best-effort; `(unknown source)` when the sibling report is missing or no match is found.
+- The `Source delta:` bullet follows the **Source delta format** rule above. Probe order is queries-axis → domain-axis. The queries-axis match explains an Added entry (a new method on the diagram caused a new Table 4 block) or a Modified entry whose surface remapped (the per-method Source delta notes the surface remap); the domain-axis match explains a Modified entry driven by a nested-type / DTO / value-object field change.
 
 ### Section: Request Fields Changes
 
@@ -280,6 +337,8 @@ Tracks Table 5 deltas, per surface, per command endpoint — body-field rows and
 - **Request field retyped** — `\`<name>\`: \`<old_type>\` → \`<new_type>\``.
 - **Request field validation changed** — `\`<name>\` — "<old>" → "<new>"` (the Validation column is mechanical boilerplate; this delta is cosmetic and a code updater may skip it).
 - **Nested type added/removed**, **Nested type `<TypeName>` field added/removed/retyped** — same forms as Response Fields Changes.
+
+The `Source delta:` bullet follows the **Source delta format** rule above. Probe order is commands-axis → domain-axis.
 
 ### Section: Parameter Mapping Changes
 
@@ -293,7 +352,7 @@ Tracks Table 6 deltas, per surface, per endpoint — the parameter→source rows
   - **Source line changed** — `\`<param>\` — \`<old_source>\` → \`<new_source>\`` (the dominant domain-driven delta: a `Constructed from query params …, → <Type>` source whose constituent-field list changed because a composite query-param type gained/lost a field).
   - **Source reclassified** — `\`<param>\` — \`<old_source>\` → \`<new_source>\`` (the provenance category changed, e.g. `Request body \`x\`` → `Path param {id}`).
   - A change of the left-column header (`Command Parameter` ↔ `Query Parameter`) indicates the endpoint flipped command/query and is recorded in `## Endpoint Inventory Changes`; render no Parameter-Mapping delta for it.
-- The `Source delta:` bullet follows the Response Fields Changes convention.
+- The `Source delta:` bullet follows the **Source delta format** rule above. Probe order is kind-dispatched by the `left_column` header — `Command Parameter` → commands-axis first then domain; `Query Parameter` → queries-axis first then domain. A pure source-line-changed delta driven by a composite-type field shift falls through the app-service axis (the method signature on the diagram is unchanged) and attributes to the domain axis.
 
 ---
 
@@ -330,6 +389,8 @@ Resolve `<A>` = snake-case singular of the resource's `**Resource name**` (Table
 
 The table header (`| Path | Action | Driving section |` plus the divider row) is always emitted. When every section above is `_no changes_`, the table has no data rows.
 
+The footer is intentionally **axis-agnostic** — `[<axis>]` tags never appear in the Driving section column. A consumer that needs per-axis dispatch reads the per-section `Source delta` bullets in the body.
+
 ### Row ordering
 
 Rows are emitted in driving-section order: **Response Fields → Request Fields → Parameter Mapping → Endpoint Inventory → Resource Basics**, and within each section in surface order (canonical) then endpoint-path order; the per-surface test-module rows come **last** (after all `api/...` and `<pkg>/...` rows), in surface order. Dedupe identical `(path, action)` pairs into one row whose driving-section label joins the contributing sections with ` / `.
@@ -359,8 +420,8 @@ When a hash cannot be computed (file missing or unreadable), render the value li
 
 ## Determinism contract
 
-- Byte-stable inputs (working-tree `spec.md`, HEAD `spec.md`, sibling `<dir>/<stem>.domain/updates.md`) → byte-stable report.
-- Re-running the writer with no new changes produces a report whose every section after `## Summary` is `_no changes_`, an empty Affected Artifacts row list, and the same sentinel hash.
+- Byte-stable inputs (working-tree `spec.md`, HEAD `spec.md`, sibling `<dir>/<stem>.domain/updates.md`, sibling `<dir>/<stem>.application/commands-updates.md`, sibling `<dir>/<stem>.application/queries-updates.md`) → byte-stable report.
+- Re-running the writer with no new changes produces a report whose every section after `## Summary` is `_no changes_`, an empty Affected Artifacts row list, and the same three sentinel hashes.
 - The report reflects the actual `spec.md` diff against HEAD — not which table writers the orchestrator chose to re-run. A re-run table writer that produced byte-identical output contributes nothing to the report.
 - Section ordering, surface ordering (canonical), within-surface sub-bucket ordering (Added → Removed → Modified), endpoint ordering (by path), Modified-delta ordering, and Affected-Artifacts row ordering above are absolute. No source-defined deviation.
 - The Summary section deliberately excludes a `Generated at` timestamp.
