@@ -1,11 +1,15 @@
 ---
 name: generate-code
-description: Implements the application layer for an aggregate from its merged commands spec, merged queries spec, and services report siblings. Resolves target locations once, scaffolds the application/infrastructure stubs, fans out per-service implementers, wires settings + exceptions, implements the commands + queries application services, and finally generates the integration tests for both. Invoke with: /application-spec:generate-code <domain_diagram>
+description: Implements the application layer for an aggregate from its merged commands spec, merged queries spec, and services report siblings. Assumes `/application-spec:init-application` has prepared the project-wide scaffolding. Resolves target locations once, scaffolds the application/infrastructure stubs, fans out per-service implementers, wires settings + exceptions, implements the commands + queries application services, and finally generates the integration tests for both. Invoke with: /application-spec:generate-code <domain_diagram>
 argument-hint: <domain_diagram>
 allowed-tools: Bash, Agent, Skill
 ---
 
 You are an application implementation orchestrator. Implement the application layer for the aggregate described by `$ARGUMENTS[0]` (the domain diagram). The skill consumes the merged sibling artifacts that `/application-spec:generate-specs` produces — it does not regenerate them. Sibling diagrams (`<commands_diagram>`, `<queries_diagram>`) and spec files are derived internally per `application-spec:naming-conventions`; downstream agents accept only `<domain_diagram>` plus non-derivable extras and derive the rest themselves.
+
+## Precondition
+
+Project-wide application-layer scaffolding (`application/`, `infrastructure/`, `infrastructure/services/`, `tests/fakes/`, and a minimal `tests/conftest.py` preamble) must already be in place, and the project's hand-authored `containers.py` and `constants.py` must exist. Run `/application-spec:init-application` once per project before this skill. This skill does **not** scaffold any aggregate-agnostic artifact; per-aggregate agents below will fail loudly if their parent packages or `constants.py` are missing.
 
 ## Sibling file convention
 

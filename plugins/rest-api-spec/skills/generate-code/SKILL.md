@@ -26,11 +26,13 @@ Invoke `rest-api-spec:target-locations-finder` with an empty prompt. Wait for co
 
 Capture the agent's full Markdown table output verbatim as `<locations_report_text>`. This text is the locations argument passed to every downstream agent in Steps 2–7. Pass it verbatim — do not trim, summarize, or reformat it.
 
+Test fixtures (`app`, `client`, `containers`, `token_payload`, `request_headers`) in `<tests_dir>/conftest.py` are project-wide and assumed already in place — `/rest-api-spec:init-rest-api` owns that step. If you have not yet run `/rest-api-spec:init-rest-api` for this project, do so before invoking this skill; otherwise `@tests-implementer` (Step 7) will produce test modules whose required fixtures are not defined.
+
 ### Step 2 — Scaffold the per-surface package layout
 
 Invoke `rest-api-spec:rest-api-scaffolder` with prompt `$ARGUMENTS[0] <locations_report_text>`. Wait for completion.
 
-This emits the `endpoints/` and `serializers/` sub-packages and the per-surface sub-directories under each. Subsequent steps assume these stubs exist on disk. The shared serializer modules (`error.py`, `configured_base_serializer.py`, `json_utils.py`) and the root `serializers/__init__.py` aggregator are **not** owned by this step — they are project-wide dependencies installed once by `/rest-api-spec:generate-rest-api-deps`. Run that skill before this one if it has not yet been run for this project.
+This emits the `endpoints/` and `serializers/` sub-packages and the per-surface sub-directories under each. Subsequent steps assume these stubs exist on disk. The shared serializer modules (`error.py`, `configured_base_serializer.py`, `json_utils.py`) and the root `serializers/__init__.py` aggregator are **not** owned by this step — they are project-wide dependencies installed once by `/rest-api-spec:init-rest-api`. Run that skill before this one if it has not yet been run for this project.
 
 If the scaffolder aborts, propagate the failure and stop — do not proceed to Step 3.
 
@@ -68,23 +70,15 @@ This regenerates the per-surface `endpoints/<surface>/__init__.py` aggregators a
 
 If the integrator aborts, propagate the failure and stop.
 
-### Step 7 — Prepare test fixtures
-
-Invoke `rest-api-spec:test-fixtures-preparer` with prompt `<locations_report_text>`. Wait for completion.
-
-This ensures the root `tests/conftest.py` defines the API client and authentication fixtures (`app`, `client`, `containers`, `token_payload`, `request_headers`) required by the REST API integration tests. Append-only and idempotent.
-
-If the preparer aborts, propagate the failure and stop — do not proceed to Step 8.
-
-### Step 8 — Implement REST API tests
+### Step 7 — Implement REST API tests
 
 Invoke `rest-api-spec:tests-implementer` with prompt `$ARGUMENTS[0] <locations_report_text>`. Wait for completion.
 
-This writes one integration test module per surface at `<tests_dir>/integration/<resource>/test_<plural>_<surface>_api.py`, with success / not_found / already_exists / missing_required_field scenarios dispatched per endpoint shape. Append-only and idempotent.
+This writes one integration test module per surface at `<tests_dir>/integration/<resource>/test_<plural>_<surface>_api.py`, with success / not_found / already_exists / missing_required_field scenarios dispatched per endpoint shape. Append-only and idempotent. Relies on the API client + authentication fixtures (`app`, `client`, `containers`, `token_payload`, `request_headers`) installed once per project by `/rest-api-spec:init-rest-api`.
 
 If the implementer aborts, propagate the failure and stop.
 
-### Step 9 — Report
+### Step 8 — Report
 
 Emit a single completion line:
 

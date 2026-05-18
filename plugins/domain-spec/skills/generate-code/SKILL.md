@@ -32,19 +32,15 @@ If any of the four rows is missing or its path cell is empty, output an `ERROR:`
 
 Invoke `domain-spec:package-preparer` with prompt `<domain_dir> <package_path>`. Wait for completion.
 
-### Step 3 — Prepare test package
-
-Invoke `domain-spec:test-package-preparer` with prompt `<tests_dir>`. Wait for completion. The agent is given the absolute `Tests` path from the locations report directly — do not pass `<source_root>` and let the agent re-derive (per Path hygiene rule 4 of `domain-spec:naming-conventions`).
-
-### Step 4 — Scaffold package
+### Step 3 — Scaffold package
 
 Invoke `domain-spec:scaffold-builder` with prompt `$ARGUMENTS <aggregate_pkg_dir>`. Wait for completion.
 
-### Step 5 — Implement exceptions
+### Step 4 — Implement exceptions
 
 Read `<aggregate_pkg_dir>/exceptions.py`. If the file contains at least one `class` definition (i.e. there are domain exception stubs), invoke `domain-spec:exceptions-implementer` with prompt `<aggregate_pkg_dir>`. Wait for completion. If the file is absent or contains no class definitions, skip this step silently.
 
-### Step 6 — Implement other modules in parallel
+### Step 5 — Implement other modules in parallel
 
 Use Bash to list all `.py` files in `<aggregate_pkg_dir>` excluding `__init__.py` and `exceptions.py`, producing absolute paths:
 
@@ -63,15 +59,15 @@ If any line fails either check, abort with `ERROR: unexpected file path '<line>'
 
 For each validated absolute file path, invoke `domain-spec:code-implementer` with prompt `<file_path>`. Launch all invocations in parallel (do not wait for one before starting the next). Wait for all to complete.
 
-### Step 7 — Generate fixtures
+### Step 6 — Generate fixtures
 
 Invoke `domain-spec:aggregate-fixtures-writer` with prompt `$ARGUMENTS <tests_dir>`. Wait for completion.
 
-### Step 8 — Implement tests
+### Step 7 — Implement tests
 
 Invoke `domain-spec:aggregate-tests-implementator` with prompt `$ARGUMENTS <tests_dir>`. Wait for completion.
 
-### Step 9 — Update diagram with implementation paths
+### Step 8 — Update diagram with implementation paths
 
 Compute two values:
 
@@ -116,6 +112,6 @@ Update the file as follows, then write it back with the Write tool:
 - Else if a `## Artifacts` section exists, insert the new section immediately before its `## Artifacts` heading, separated by a single blank line on each side.
 - Else append the new section at the end of the file, ensuring exactly one blank line before it and a trailing newline.
 
-### Step 10 — Report
+### Step 9 — Report
 
 Confirm with one sentence: "Implementation complete for `<aggregate_pkg_dir>`."
