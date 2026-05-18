@@ -114,6 +114,40 @@ Worked example (from `mapping-type.md`):
 - Applies to every method spec under `## Invariants` (factories, mutating methods, queries) — no exemption for any method kind.
 - The rule governs the `**Exceptions:**` section and exception-related qualifiers in `**Flow:**`. It does not constrain `**Preconditions:**` prose, which may describe what causes a direct raise even when that direct raise originates inside a tightly-coupled internal check.
 
+### Collection Value Objects compose Entities with mutating methods
+
+**Convention.** A `<<Value Object>>` whose role is to manage an aggregate-owned collection of `<<Entity>>` (or another `<<Value Object>>`) is a **Collection Value Object**. It holds the collection in an internal `dict` / `list` keyed by natural identity, exposes mutating methods (`add_*`, `remove_*`, `increment`, `confirm_*`, `defer_*`, `associate`, etc.) that batch changes and forward domain events through the owning aggregate, and is the canonical way the project keeps aggregate roots thin. The pattern is implemented under `domain-spec:collection-value-objects` and is the project's deliberate alternative to either fattening the aggregate root with collection bookkeeping or modelling each child collection as its own aggregate.
+
+The VO stereotype is preserved by `ImmutableCheck()` Guard descriptors on the attribute slots: the **container references** (`items`, `overages`, etc.) cannot be reassigned, while their **contents** are mutated through the VO's dedicated methods. Generic DDD intuition flags this as "VOs must be immutable, so a VO with mutating methods or entity children contradicts the stereotype" — in this project that intuition is wrong, and the reviewer must suppress it.
+
+**Recognition cues.** A class is a Collection Value Object when **all** of the following hold:
+
+1. Stereotype is `<<Value Object>>`.
+2. It composes (`*--` or `o--`) one or more `<<Entity>>` or `<<Value Object>>` children, typically at `1 --> "0..*"` multiplicity.
+3. It is itself composed by an `<<Aggregate Root>>` (single-aggregate ownership).
+4. It exposes one or more mutating methods (return type `None`, names like `add_*`, `remove_*`, `increment`, `confirm_*`, `associate`, etc.) that operate on the collection.
+
+When these cues line up, the VO is canonical and **must not be flagged** for any of:
+
+- "Value Object declared as `<<Value Object>>` but contains mutable Entities" — composing Entities is the pattern.
+- "Value Object exposes mutating methods, contradicting the stereotype" — mutation through dedicated methods is the pattern (the Guard's `ImmutableCheck()` enforces container-reference immutability, not deep immutability).
+- "Equality / hashing will break because the VO holds identity-bearing entities" — Collection VOs are not used as dict keys; they are aggregate-internal orchestrators.
+- "Child Entities should live directly on the aggregate root" — pulling them out of the Collection VO defeats the pattern's purpose.
+
+The same suppression applies recursively: a child Entity inside a Collection VO may itself expose mutating methods that own its own grandchildren (e.g. `SourceDMS.add_file(...)` where `SourceDMS` is the entity owned by the `SourceDMSes` Collection VO). The mutation-through-dedicated-method shape is canonical at every level of the aggregate-owned hierarchy, not just at the top.
+
+**Recognition rule (reviewer).**
+
+1. Before flagging a `<<Value Object>>` for "containing mutable Entities", "exposing mutating methods", or "breaking VO immutability/equality semantics", check whether the four recognition cues above hold. If they do, **do not flag** — this is the Collection Value Objects pattern.
+2. Do not propose "convert to `<<Entity>>`", "promote to `<<Aggregate Root>>`", or "hoist children onto the aggregate root" as remediation for a class that matches the pattern. Those changes would break the project's chosen aggregate decomposition.
+3. The reviewer is free to raise substantive concerns about a Collection VO that are **independent** of the stereotype-vs-mutation question (e.g., a missing invariant, an inconsistent batch policy, an event emitted without the aggregate parameter). This suppression covers the stereotype objection only.
+
+**Scope and constraints.**
+
+- Applies to domain diagrams (`<stem>.md`) only.
+- Applies regardless of the child stereotype: `<<Entity>>`, `<<Value Object>>`, or `<<Domain TypedDict>>` may all sit inside a Collection VO.
+- Does not apply to a `<<Value Object>>` that holds only primitive / immutable VO attributes (e.g. `Money { amount, currency }`). Those remain plain Value Objects and are reviewed under generic VO rules.
+
 ### Aggregate-level cross-cutting invariants
 
 **Convention.** An aggregate root may declare invariants that apply uniformly across all of its state-mutating methods — `updated_at` is bumped on every mutation, domain events are accumulated by the root, a version counter is incremented, an audit field is touched, and so on. These cross-cutting rules are stated **once**, as free-form prose bullets under the aggregate root's class-level `### <Aggregate>` block in the `## Invariants` section. They are **not** re-stated in each method's `**Flow:**`, `**Postconditions:**`, or `**Exceptions:**`, and they are **not** cross-referenced from child Value Object / Entity methods that participate in the mutation path.
