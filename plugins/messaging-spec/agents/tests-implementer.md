@@ -136,6 +136,48 @@ grep -nE "^def <command_aggregate>_[0-9]+\(" <tests_dir>/conftest.py || true
 
 Capture the set of integers `<N>` for which `def <command_aggregate>_<N>(` is declared at column 0. If `<tests_dir>/conftest.py` does not exist or the grep returns zero matches, the set is empty.
 
+**Fixture-body kwarg harvest** (also run **once** per `<command_aggregate>`, immediately after the disk-discovery step). For every declared `<command_aggregate>_<N>` fixture, parse its body to capture the literal kwargs passed to function calls in its setup. These are typically constructor kwargs (e.g. `Project.new(project_type=…, company_id=…, cmf=…)`) and mutator kwargs (e.g. `project.register_file(file_id="file-001", source_id="source-A", file_type="invoice", stage="raw")`). The harvest feeds Step 7c's **Rule 5** (selected-fixture body literal) and Step 7b's optional fixture-coverage NOTE line.
+
+Use `python3` with the `ast` module — regex matching is fragile across line wraps and string escapes:
+
+```bash
+python3 - "<tests_dir>/conftest.py" "<command_aggregate>" <<'PY'
+import ast, sys
+path, agg = sys.argv[1], sys.argv[2]
+prefix = agg + "_"
+try:
+    src = open(path).read()
+except FileNotFoundError:
+    sys.exit(0)
+mod = ast.parse(src)
+out = {}
+for node in mod.body:
+    if not isinstance(node, ast.FunctionDef):
+        continue
+    if not node.name.startswith(prefix):
+        continue
+    suffix = node.name[len(prefix):]
+    if not suffix.isdigit():
+        continue
+    kwargs = {}
+    for sub in ast.walk(node):
+        if isinstance(sub, ast.Call):
+            for kw in sub.keywords:
+                if kw.arg is None: continue
+                if kw.arg in kwargs: continue  # first-occurrence-wins
+                if isinstance(kw.value, ast.Constant):
+                    kwargs[kw.arg] = repr(kw.value.value)
+    out[int(suffix)] = kwargs
+for n in sorted(out):
+    for k, v in out[n].items():
+        print(f"{n}\t{k}\t{v}")
+PY
+```
+
+Bind `<fixture_kwargs>[<command_aggregate>]` = `dict[<N> → dict[<kwarg_name> → <literal_repr>]]`. The `<literal_repr>` is Python's `repr()` of the constant — for `"file-001"` it is `'file-001'`, for `5` it is `5`, for `True` it is `True`, for `None` it is `None`. Emit these verbatim in Step 7c Rule 5; they are syntactically valid Python literals.
+
+If `<tests_dir>/conftest.py` does not exist, the AST parse fails, or no matching fixture is found, the dict is empty. Non-literal kwarg values (e.g. `created_at=utc_now()`, `evo_version=some_var`) are skipped — only `ast.Constant` literals are harvested. First-occurrence-wins for duplicate kwarg names within a single fixture body; this rule is deterministic on rerun.
+
 **Per-row default.**
 
 - **Creation handler** (`<has_precondition>` = False): `<aggregate_fix>` = `<command_aggregate>_1` unconditionally. The aggregate is not persisted in the test (creation handlers build fresh aggregates server-side); `_1` is the canonical template the test sources field values from. If `_1` is not declared on disk, fall through to `_1` literally and emit a Step 9 warning: `WARNING: <command_aggregate>_1 not defined in <tests_dir>/conftest.py — test '<test_name>' will fail at collection. Run @aggregate-fixtures-writer for <command_aggregate>.`
@@ -257,12 +299,29 @@ def <test_name>(
 
 One fixture per line, indented exactly 4 spaces; trailing comma on every line; closing `):` on its own line at column 0. Otherwise emit the single-line form. The threshold is a hard cap (not a soft target) so reruns produce byte-stable output regardless of fixture-name length.
 
-#### 7b. GIVEN comment
+#### 7b. GIVEN comment (and optional fixture-coverage NOTE)
 
 One leading comment line:
 
 - `<has_precondition>` is `True`: `# GIVEN <command_aggregate> exists in DB`
 - `<has_precondition>` is `False`: `# GIVEN no <command_aggregate> exists in DB`
+
+**Fixture-coverage NOTE line** (computed after Step 7c renders the body, but emitted in the rendered output immediately after the GIVEN comment line). When the body has at least one Rule-6 (type-stub) field, scan `<fixture_kwargs>[<command_aggregate>]` for alternative fixtures that would have resolved more of the stubbed fields via Rule 5 than `<aggregate_fix>` did. Procedure:
+
+1. Collect `<stubbed_attrs>` = set of `<event_attr>` values rendered via Rule 6 in this test's body.
+2. For each `<N>` ≠ `<selected_N>` in `<fixture_kwargs>[<command_aggregate>]`, compute `<coverage>[<N>]` = number of `<event_attr>` in `<stubbed_attrs>` that appear as a key in `<fixture_kwargs>[<command_aggregate>][<N>]`.
+3. Find `<best_N>` = the `<N>` with the highest `<coverage>[<N>]` > 0 (tie-break: lowest `<N>`).
+4. If `<best_N>` exists, emit the NOTE line indented exactly 4 spaces:
+
+   ```python
+       # NOTE: <command_aggregate>_<best_N> setup binds <field1>, <field2>, ... — replace <aggregate_fix> with <command_aggregate>_<best_N> if testing that scenario.
+   ```
+
+   `<field1>, <field2>, ...` lists the `<stubbed_attrs>` ∩ `<fixture_kwargs>[<command_aggregate>][<best_N>]` in event-class declaration order (Step 6 harvest order), comma-separated. The NOTE is one line regardless of length — line-wrapping would make the test render non-deterministic across fixture-rename refactors.
+
+5. If `<coverage>` is all-zero or empty (no alt fixture covers any stubbed field), omit the NOTE line entirely.
+
+The NOTE line is purely advisory — the agent still emits `<aggregate_fix>` per Step 4a's disk-driven default. The author can switch fixtures by hand-editing the test (the swap is mechanical: rename `<aggregate_fix>` in the signature, in `<add_fix>` derivation if applicable, and in any Rule-1/2/3/4-resolved references; Rule-5 lines already use the fixture name in the trailing comment).
 
 #### 7c. Body — envelope construction + handler call
 
@@ -280,6 +339,8 @@ One leading comment line:
 
 **Iteration source.** One kwarg is emitted **per declared field on the event class** — i.e. per `(<field_name>, <type_expr>)` pair in `<event_fields>[<EventName>]` (Step 6's harvest). The kwarg order matches the event class's source-order declaration, which is the order `@dataclass` synthesizes the constructor signature in. This is critical because event dataclasses commonly carry fields the handler does *not* read (e.g. `evo_version`, audit fields, denormalized identifiers); Table 3 only documents the projection from event to handler params, so iterating Table 3 alone would silently drop required positional/keyword args from the dataclass constructor and fail with `TypeError: missing N required positional argument(s)` at runtime.
 
+**Selected-fixture index `<selected_N>`.** Before iterating fields, extract `<selected_N>` from `<aggregate_fix>` by stripping the `<command_aggregate>_` prefix and parsing the remainder as an integer (e.g. `project_2` → `2`, `conversion_reqs_1` → `1`). Used by Rule 5 to address `<fixture_kwargs>[<command_aggregate>][<selected_N>]`.
+
 **Degraded fallback.** If `<event_fields>[<EventName>]` is empty (Step 6 harvest failed), fall back to iterating Table 3 rows in their declared order — the pre-fix behavior. The Step 9 warning emitted in Step 6 surfaces the degraded mode.
 
 **Build the Table 3 lookup index.** For the active `<EventName>`, take Table 3's parsed pairs `<table3>[<EventName>]` and group by **right column** (Event Field): `<table3_by_attr>[<EventName>]` = `dict[<event_attr> → <param>]`. When the same `<event_attr>` appears in multiple Table 3 rows, keep the first occurrence (Table 3 sub-blocks are deduplicated upstream by `@event-fields-writer`, so collisions are spec authoring errors that surface as a Step 9 warning).
@@ -293,7 +354,8 @@ One leading comment line:
   2. **Table 3 — VO drill.** Else (Table 3 binding present but `<param>` not on top-level Guards), for each `<vo_name>` in `<aggregate_attrs>[<command_aggregate>]` whose Guard type is a domain class (i.e. has a populated `<vo_attrs>[<command_aggregate>][<vo_name>]`), if `<param>` ∈ that VO's attrs → emit `<aggregate_fix>.<vo_name>.<param>`. First match wins; iteration order = source order in the aggregate module.
   3. **Direct aggregate attribute lookup by event-attr name.** Else (no Table 3 binding for this event field, OR the Table 3 binding's `<param>` failed both 1 and 2), if `<event_attr>` ∈ `<aggregate_attrs>[<command_aggregate>]` → emit `<aggregate_fix>.<event_attr>`. This catches event fields the handler does not consume but that the aggregate carries verbatim — typically `evo_version`, `tenant_id`, version cursors, audit timestamps. The match is case-sensitive; the spec author can adopt camelCase event fields and snake_case aggregate Guards (or vice versa) but a successful match requires byte-identical names.
   4. **Direct VO drill by event-attr name.** Else, for each `<vo_name>` whose Guard type is a domain class, if `<event_attr>` ∈ `<vo_attrs>[<command_aggregate>][<vo_name>]` → emit `<aggregate_fix>.<vo_name>.<event_attr>`. First match wins; same iteration order as rule 2.
-  5. **Type-stub fallback.** Else, map `<type_expr>` by the leading token (strip a trailing `| None` from the type cell first):
+  5. **Selected-fixture body literal.** Else, look up `<event_attr>` in `<fixture_kwargs>[<command_aggregate>][<selected_N>]`, where `<selected_N>` is the integer suffix of `<aggregate_fix>` (e.g. `2` for `project_2`). If a match exists → emit `<event_attr>=<literal_repr>` directly (e.g. `file_id='file-001'`) followed by a trailing comment `# from <aggregate_fix> setup`. The match is case-sensitive on the kwarg name; the harvested `<literal_repr>` is Python `repr()` of a constant, so it pastes back as valid Python verbatim. This rule resolves fields whose values are introduced via mutator/factory kwargs in the fixture setup but never surface as Guard attributes on the aggregate (e.g. `file_id` introduced via `project.register_file(file_id="file-001", …)` — `file_id` is consumed into `SourceDMS` collection items, not declared as a top-level Guard).
+  6. **Type-stub fallback.** Else, map `<type_expr>` by the leading token (strip a trailing `| None` from the type cell first):
 
      | Type token (leading) | Stub literal |
      |---|---|
@@ -310,16 +372,20 @@ One leading comment line:
 
      PascalCase detection: the first non-`Optional` token is `[A-Z][A-Za-z0-9]*`. The `{}` rendering for these tokens is intentional — TypedDict-typed fields are the most common case, and `{}` round-trips through the dataclass constructor (no positional-arg error) while making the placeholder obvious. The handler may still crash inside the test if it reads keys off the empty dict, which is the signal the user fills the placeholder in manually.
 
-     When a stub is used (rule 5), append a trailing comment on that line. The comment text depends on which earlier rule was attempted:
-     - If a Table 3 binding existed and the `<param>` failed rules 1+2: `# TODO: <event_attr> stubbed (param '<param>' not on <aggregate_fix>)`.
-     - If no Table 3 binding existed and rules 3+4 failed: `# TODO: <event_attr> stubbed (no Table 3 binding; not on <aggregate_fix>)`.
-     - If Step 6 harvested no type for the field (degraded harvest, type unknown): append `; type unknown` before the closing parenthesis.
+     When a stub is used (rule 6), append a trailing comment on that line. The comment text depends on the cumulative attempt history:
 
-  When rule 3 fires (direct aggregate match, no Table 3 binding) the kwarg has no trailing comment — the resolution is unambiguous and the test reads cleanly.
+     - Compute `<alt_fixtures>` = sorted list of fixture names `<command_aggregate>_<N>` (for `<N>` != `<selected_N>`) whose body contains `<event_attr>` as a literal kwarg in `<fixture_kwargs>[<command_aggregate>][<N>]`.
+     - If a Table 3 binding existed and rules 1+2 failed: base comment = `# TODO: <event_attr> stubbed (param '<param>' not on <aggregate_fix>)`.
+     - If no Table 3 binding existed and rules 3+4 failed: base comment = `# TODO: <event_attr> stubbed (no Table 3 binding; not on <aggregate_fix>)`.
+     - If `<alt_fixtures>` is non-empty, append `; available on <alt_fixtures comma-joined>` to the base comment (before the closing punctuation) — signals the test author can switch fixtures to resolve the field cleanly.
+     - If `<alt_fixtures>` is empty, append `; likely new state introduced by handler` — signals the field is genuinely new data the event introduces and the stub is the right shape.
+     - If Step 6 harvested no type for the field (degraded harvest, type unknown): also append `; type unknown` at the end.
+
+  When rule 3 fires (direct aggregate match, no Table 3 binding) the kwarg has no trailing comment — the resolution is unambiguous and the test reads cleanly. When rule 5 fires, the trailing comment is `# from <aggregate_fix> setup` (informational, not a TODO).
 
 Indent each kwarg line by exactly 12 spaces (4 for function body + 4 for `make_event_envelope` arg + 4 for `<EventName>` constructor arg). Trailing comma on every kwarg line.
 
-**Idempotency note.** The per-field iteration is deterministic (event class declaration order); the Table 3 index is keyed off `<event_attr>` (single-valued by spec contract); rule 5's PascalCase detection is regex-driven. Re-running the agent on unchanged inputs produces byte-identical kwarg ordering and stub choices.
+**Idempotency note.** The per-field iteration is deterministic (event class declaration order); the Table 3 index is keyed off `<event_attr>` (single-valued by spec contract); rule 5's fixture-body lookup is keyed off `<event_attr>` against a first-occurrence-wins map; rule 6's PascalCase detection is regex-driven. Re-running the agent on unchanged inputs produces byte-identical kwarg ordering, fixture-body literals, stub choices, and NOTE-line emissions.
 
 #### 7d. No assertions
 
@@ -373,7 +439,7 @@ Per-field resolution:
 
 - `id` — Table 3 binding `(id, id)`; `id` ∈ aggregate Guards → rule 1 → `conversion_reqs_2.id`.
 - `evo_version` — no Table 3 binding; `evo_version` ∈ aggregate Guards → rule 3 → `conversion_reqs_2.evo_version`.
-- `domain_type` — Table 3 binding `(domain_type, domain_type)`; `domain_type` ∉ aggregate Guards (the aggregate has `domain_types` plural, not singular `domain_type`); rule 1 fails, rule 2 (VO drill) fails. Falls through to rule 5 with type `DomainTypeData` (PascalCase identifier) → `{}` plus `# TODO: domain_type stubbed (param 'domain_type' not on conversion_reqs_2)`.
+- `domain_type` — Table 3 binding `(domain_type, domain_type)`; `domain_type` ∉ aggregate Guards (the aggregate has `domain_types` plural, not singular `domain_type`); rule 1 fails, rule 2 (VO drill) fails. Rule 5 also fails (assume `domain_type` does not appear as a literal kwarg in any `conversion_reqs_N` fixture body — the value would be a `DomainTypeData` TypedDict, typically constructed by a helper rather than passed as a bare constant). Falls through to rule 6 with type `DomainTypeData` (PascalCase identifier) → `{}` plus `# TODO: domain_type stubbed (param 'domain_type' not on conversion_reqs_2); likely new state introduced by handler`.
 
 Renders:
 
@@ -389,7 +455,7 @@ def test_domain_type_added_handler__success(
         DomainTypeAdded(
             id=conversion_reqs_2.id,
             evo_version=conversion_reqs_2.evo_version,
-            domain_type={},  # TODO: domain_type stubbed (param 'domain_type' not on conversion_reqs_2)
+            domain_type={},  # TODO: domain_type stubbed (param 'domain_type' not on conversion_reqs_2); likely new state introduced by handler
         ),
     )
 
@@ -397,6 +463,84 @@ def test_domain_type_added_handler__success(
 ```
 
 The `evo_version` kwarg is emitted automatically (resolved off the aggregate by direct attribute name, rule 3) — no Table 3 row was needed. The `domain_type={}` placeholder is a real `dict[str, Any]` literal that satisfies the dataclass constructor; the user fills in the matching `DomainTypeData` keys (`id`, `name`, `description`) before running the test against a populated state.
+
+**Example C — fields live in a deep collection, but a sibling fixture's setup binds them as literals.**
+
+For an entry with `<EventName>` = `FileValidated`, `<CommandClass>` = `ProjectCommands`, `<CommandMethod>` = `on_file_validated`, `<type>` = `external`, `<SourceDestination>` = `Fileset`, and Table 3 mapping every event field 1:1 onto the same-named param (`file_id` → `file_id`, `project_type` → `project_type`, `stage` → `stage`, `company_id` → `company_id`, `cmf` → `cmf`, `source_id` → `source_id`, `file_type` → `file_type`).
+
+Step 6 harvest (`FileValidated` declared fields, source order): `[("file_id", "str"), ("project_type", "str"), ("stage", "str"), ("company_id", "str"), ("cmf", "str"), ("source_id", "str"), ("file_type", "str")]`.
+
+Bindings: `<command_aggregate>` = `project`, `<plural>` = `projects`, `<has_precondition>` = `True`, `<handler_name>` = `file_validated_handler`, `<event_module>` = `<pkg>.messaging.project_ops.events`. Disk discovery in `<tests_dir>/conftest.py` finds `project_1` through `project_5`, so `<aggregate_fix>` = `project_2` (non-creation default).
+
+Aggregate-attribute discovery: top-level Guards on `project.py` are `id, project_details, evo_version, source_dmses, created_at, updated_at`. VO drill into `project_details` yields `project_type, company_id, cmf`. The `source_dmses` Guard is a collection VO whose item-level Guards (`SourceDMS.files[i].id`, `.file_type`, `.stage`) lie past the 1-level drill cap and are unreachable.
+
+Fixture-body kwarg harvest (Step 4a):
+- `project_2`: `{project_type: 'LoanFile-002', cmf: 'CMF-001', evo_version: 'v1.0.0'}` (the `company_id=DEFAULT_COMPANY_ID` is skipped — `DEFAULT_COMPANY_ID` is an `ast.Name`, not a constant).
+- `project_3`: `{project_type: 'LoanFile-003', cmf: 'CMF-001', file_id: 'file-001', source_id: 'source-A', file_type: 'invoice', stage: 'raw'}` (via the `register_file(...)` call in setup).
+- `project_4`, `project_5`: similar to `project_3` but with their own literal values from their `register_file(...)` calls.
+
+Per-field resolution against `<aggregate_fix>` = `project_2` (so `<selected_N>` = `2`):
+
+- `file_id` — Table 3 (file_id, file_id). Rules 1+2 fail (not a Guard on `project` or `project_details`). Rule 5: `file_id` ∉ `<fixture_kwargs>[project][2]`. Rule 6 → `"test"`. `<alt_fixtures>` = `[project_3, project_4, project_5]`. Comment: `# TODO: file_id stubbed (param 'file_id' not on project_2); available on project_3, project_4, project_5`.
+- `project_type` — Rule 2 → `project_2.project_details.project_type` (clean, no comment).
+- `stage` — same shape as `file_id` → stub + alt-fixture hint.
+- `company_id`, `cmf` — Rule 2 (VO drill) → clean.
+- `source_id`, `file_type` — same shape as `file_id` → stub + alt-fixture hint.
+
+`<stubbed_attrs>` = `{file_id, stage, source_id, file_type}`. Fixture-coverage scan against `<stubbed_attrs>`: `project_3` covers all 4 (coverage = 4), `project_4` and `project_5` also cover all 4. Tie-break by lowest `<N>` → `<best_N>` = `3`. NOTE line emits.
+
+Renders:
+
+```python
+def test_file_validated_handler__success(
+    make_event_envelope,
+    file_validated_handler,
+    project_2,
+    add_projects,
+):
+    # GIVEN project exists in DB
+    # NOTE: project_3 setup binds file_id, stage, source_id, file_type — replace project_2 with project_3 if testing that scenario.
+    envelope = make_event_envelope(
+        FileValidated(
+            file_id="test",  # TODO: file_id stubbed (param 'file_id' not on project_2); available on project_3, project_4, project_5
+            project_type=project_2.project_details.project_type,
+            stage="test",  # TODO: stage stubbed (param 'stage' not on project_2); available on project_3, project_4, project_5
+            company_id=project_2.project_details.company_id,
+            cmf=project_2.project_details.cmf,
+            source_id="test",  # TODO: source_id stubbed (param 'source_id' not on project_2); available on project_3, project_4, project_5
+            file_type="test",  # TODO: file_type stubbed (param 'file_type' not on project_2); available on project_3, project_4, project_5
+        ),
+    )
+
+    file_validated_handler(envelope)
+```
+
+After the author swaps `project_2` → `project_3` (also renaming the four Rule-2 references), the body resolves cleanly via Rule 5 — no TODOs remain:
+
+```python
+def test_file_validated_handler__success(
+    make_event_envelope,
+    file_validated_handler,
+    project_3,
+    add_projects,
+):
+    # GIVEN project exists in DB
+    envelope = make_event_envelope(
+        FileValidated(
+            file_id='file-001',  # from project_3 setup
+            project_type=project_3.project_details.project_type,
+            stage='raw',  # from project_3 setup
+            company_id=project_3.project_details.company_id,
+            cmf=project_3.project_details.cmf,
+            source_id='source-A',  # from project_3 setup
+            file_type='invoice',  # from project_3 setup
+        ),
+    )
+
+    file_validated_handler(envelope)
+```
+
+The Rule-5 literal values come straight from the fixture's `register_file(...)` kwargs, so the event payload aligns with the fixture's pre-registered state — the test exercises the idempotency / no-op path (the file is already registered with these exact attributes). To test the "register a new file" path instead, keep `project_2` and edit the four `"test"` placeholders to fresh unique strings.
 
 ### Step 8 — Compose the file (append-only, idempotent)
 
@@ -457,11 +601,13 @@ Emit one line per `<test_name>`. The status field is one of two literal strings:
 <test_name>: present — skipped
 ```
 
-If body resolution stubbed any field, append one warning line per stubbed `(test, field)` pair:
+If body resolution stubbed any field (Rule 6 fallback), append one warning line per stubbed `(test, field)` pair:
 
 ```
 WARNING: <test_name>: field '<event_attr>' stubbed (<reason>) — replace with a real value if the test fails.
 ```
+
+The `<reason>` mirrors the TODO comment's body: either `param '<param>' not on <aggregate_fix>; available on <alt_fixtures>` (Table 3 binding existed, alt fixture exists), `param '<param>' not on <aggregate_fix>; likely new state introduced by handler` (no alt fixture), or the matching `no Table 3 binding` variant. Fields resolved by Rule 5 (selected-fixture body literal) do **not** appear in the warnings list — they are clean resolutions, not stubs.
 
 If aggregate-module discovery (Step 5) fell through for any `<command_aggregate>`, append one warning per missing module:
 
@@ -601,11 +747,13 @@ Notes:
 - Always construct events via the `make_event_envelope` helper fixture — never inline `DomainEventEnvelope(event=…, metadata=…)`. The helper is owned by `@test-fixtures-preparer`; the agent's contract is that it exists in `<tests_dir>/conftest.py`.
 - No assertions are emitted in test bodies — by design, the success contract is "handler does not raise". User-authored assertions are preserved on rerun (the test is classified as already-present and skipped).
 - Per-handler scenario dispatch is fixed at one scenario (`__success`). The agent does not emit `__not_found`, `__idempotency`, or `__invalid_state` tests; downstream authors add those manually as needed, and they round-trip on rerun.
-- Resolve mutating-handler bodies from existing aggregate fixtures per the **body resolution** rules (Step 7). Do not author new fixtures, do not import the aggregate to introspect its attributes at runtime, and do not emit `<event>(…)` placeholders — every kwarg either resolves to a fixture-attribute reference or a typed stub literal with a TODO comment.
+- Resolve mutating-handler bodies from existing aggregate fixtures per the **body resolution** rules (Step 7). Do not author new fixtures, do not import the aggregate to introspect its attributes at runtime, and do not emit `<event>(…)` placeholders — every kwarg either resolves to a fixture-attribute reference (rules 1–4), a fixture-body literal (rule 5), or a typed stub literal with a TODO comment (rule 6).
+- Fixture-body kwarg harvest (Step 4a) is **best-effort and never aborts**. If `<tests_dir>/conftest.py` is missing, the AST parse fails, or a fixture has no `ast.Constant` kwargs in its body, `<fixture_kwargs>[<command_aggregate>][<N>]` is empty — Rule 5 simply never fires for that fixture, and the per-field resolution falls through to Rule 6. The harvest scans every `Call` node inside the fixture's function body (constructors, mutators, helpers — any nesting depth), with first-occurrence-wins for repeated kwarg names. Non-literal values (`ast.Name`, `ast.Call`, `ast.Attribute`, …) are skipped silently — only constants are emittable verbatim as test arguments.
+- The fixture-coverage NOTE line (Step 7b) is purely advisory and additive — it does not change which fixture the agent emits in the test signature, and it is omitted entirely when no alt fixture would resolve any stubbed field. Re-running against an unchanged conftest + spec produces the same NOTE (or its absence) byte-for-byte.
 - Skip upstream fixture verification — let pytest surface missing fixtures (`make_event_envelope`, `<handler_name>`, `<aggregate_fix>`, `<add_fix>`) at collection time. The agent's contract is that `@test-fixtures-preparer`, `@aggregate-fixtures-writer`, and `@integration-fixtures-writer` have run; if they haven't, pytest will produce a clean fixture-not-found error.
 - Aggregate-fixture naming is derived from `<CommandClass>` (strip `Commands`, snake_case), NOT from `<SourceDestination>`. Source Destination names the *publishing* service's aggregate; Command Class names the *local* aggregate whose state responds to the event — and the local aggregate's fixture is what the test uses for body resolution. The numeric suffix is `_1` for creation handlers (template; not persisted) and `_2` for non-creation handlers (canonical "after first mutation" state per `domain-spec:aggregate-fixtures`), with disk-driven fallback to `_1` when `_2` is undefined.
 - The `<plural>` form follows **lightweight pluralization** — `<command_aggregate>` if the snake_case name already ends in `s` (e.g. `conversion_reqs`), else `<command_aggregate> + "s"` (e.g. `profile` → `profiles`). This matches `persistence-spec`'s `@unit-of-work-integrator` / `@query-context-integrator` so cross-pipeline naming aligns. Truly irregular plurals (e.g. `policy/policies`) still require the user to override the fixture name in `<tests_dir>/integration/conftest.py` and rename the test arg manually.
-- Body kwargs iterate over the **event class's declared fields** (Step 6 harvest), not Table 3 rows — every dataclass field is emitted, including audit/version fields the handler does not consume. Table 3 supplies the param→aggregate binding *when a row matches*; unmatched fields fall through to direct aggregate-attribute lookup by event-attr name (rule 3 of Step 7c) and finally to the type-stub table (rule 5). This eliminates the silent-drop failure where Table 3 lists a strict subset of the event's fields.
+- Body kwargs iterate over the **event class's declared fields** (Step 6 harvest), not Table 3 rows — every dataclass field is emitted, including audit/version fields the handler does not consume. Table 3 supplies the param→aggregate binding *when a row matches*; unmatched fields fall through to direct aggregate-attribute lookup by event-attr name (rule 3 of Step 7c), to fixture-body literal lookup (rule 5), and finally to the type-stub table (rule 6). This eliminates the silent-drop failure where Table 3 lists a strict subset of the event's fields.
 - The closed creation allow-list (`created, initialized, started, opened, registered`) is intentionally narrow. Verbs outside it keep the `add_<plural>` precondition. Renaming a method in the diagram is the user's escape hatch for the rare case where the heuristic gets it wrong.
 - Test naming is `test_<handler_name>__success` — the `__<scenario>` suffix is reserved so future scenario expansion (e.g. `__idempotency`) does not collide with existing tests.
 - File ordering: imports first (internal-domain first sorted, then external-messaging sorted), then test functions in `<rows>` source order. The order is intentionally mechanical so reruns produce byte-identical output (modulo append actions for new rows).
@@ -639,7 +787,8 @@ Notes:
 | `<aggregate_module>` not found on disk | Skip aggregate-attribute discovery for the affected `<command_aggregate>`, stub every body field with type-based literals, and emit a Step 9 warning. |
 | Event class field-type harvest fails | Skip the harvest for the affected `<EventName>`, fall back to **Table 3 rows** as the iteration source (degraded mode — pre-fix behavior), and emit a Step 9 warning. |
 | Table 3 lists an Event Field not declared on the event class | Continue rendering, skip the unresolved row, and emit a Step 9 warning per stale row: `Table 3 sub-block for '<EventName>' lists Event Field '<event_attr>' that is not a declared attribute on the event class — Table 3 may be stale; re-run @event-fields-writer.` |
-| Body field cannot be resolved on `<aggregate_fix>` | Substitute a type-based stub literal (Step 7c rule 5 table) and append a `# TODO: <event_attr> stubbed (...)` trailing comment; do not abort. PascalCase types (TypedDicts, dataclasses) render as `{}`. |
+| Body field cannot be resolved on `<aggregate_fix>` via rules 1–5 | Substitute a type-based stub literal (Step 7c rule 6 table) and append a `# TODO: <event_attr> stubbed (...)` trailing comment with alt-fixture availability or `; likely new state introduced by handler`; do not abort. PascalCase types (TypedDicts, dataclasses) render as `{}`. |
+| Fixture-body kwarg harvest fails (AST parse error, missing conftest) | `<fixture_kwargs>` empty; Rule 5 never fires; per-field resolution falls through to Rule 6. No warning is emitted — the agent treats this as the trivial case of "no fixture-body data available". |
 | `<command_aggregate>_1` not declared in `<tests_dir>/conftest.py` | Emit `<command_aggregate>_1` literally in the test signature plus a Step 9 warning naming the missing fixture; do not abort. |
 | `<command_aggregate>_2` not declared (non-creation handler) | Fall back to `<command_aggregate>_1` and emit a Step 9 warning hinting that the handler may need a populated state; emit `_1` literally in the test signature. |
 | Test function already present | Preserve byte-identical and record `skipped` in the Step 9 per-test report. |
