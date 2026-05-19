@@ -69,13 +69,15 @@ Then enumerate its parameters in declaration order.
 
 #### Step 3a — Classify each parameter
 
+Let `<resource_singular>` be the lowercase singular of `<ResourceName>` from Table 1 (e.g. `Project` → `project`). The form `<resource_singular>_id` is an interchangeable alias for the aggregate id `id` (so a domain method may declare `project_id: str` and we treat it identically to `id: str`).
+
 Apply this rule set (first match wins):
 
-1. **Aggregate id.** Parameter name `id` → `Path param \`{id}\``.
+1. **Aggregate id.** Parameter name is `id` **or** `<resource_singular>_id` → `Path param \`{id}\``. (The alias never maps to `{<resourceSingular>Id}` — it collapses to the canonical `{id}` placeholder.) **Only applies when the row's path contains `{id}`**; if the path has no `{id}` placeholder (e.g. collection-level row 1 or 4b from `endpoint-tables-writer`), the parameter cannot be path-sourced and falls through to rule 4 (commands) or 5 (queries).
 2. **Tenant / principal.** Parameter name `tenant_id` (or any other principal-derived name documented in the project, by default just `tenant_id`) → `Auth context`.
-3. **Nested id.** Parameter name ends with `_id` (singular; not `_ids`) and is not `id`/`tenant_id`. Compute its camelCase placeholder: split the param name on `_`, drop the trailing `id` token, lowercase the first remaining token, TitleCase subsequent tokens, append `Id`. Example: `document_type_id` → `documentTypeId`.
+3. **Nested id.** Parameter name ends with `_id` (singular; not `_ids`) and is not `id`, `<resource_singular>_id`, or `tenant_id`. Compute its camelCase placeholder: split the param name on `_`, drop the trailing `id` token, lowercase the first remaining token, TitleCase subsequent tokens, append `Id`. Example: `document_type_id` → `documentTypeId`.
    - If the path of the Table 2/3 row contains `{<camelPlaceholder>}`, emit `Path param \`{<camelPlaceholder>}\``.
-   - Otherwise abort with `Path param {<camelPlaceholder>} expected on <HTTP> <PATH> for parameter <param_name> but not present.`
+   - Otherwise fall through to rule 4 (commands) or 5 (queries) — for `endpoint-tables-writer`'s composite-key rows (commands row 1b, queries row 4b), nested-id-shaped params are not path segments but body fields or query-string filters.
 4. **Command body field** (commands rows only). Any remaining parameter → `Request body \`<param_name>\``.
 5. **Query parameter** (queries rows only). First, normalize the parameter type by stripping a trailing `| None` so optional composites are handled the same as required ones (`Pagination | None` → test as `Pagination`).
    - **Composite type.** If the (normalized) type is a custom PascalCase type (not `str`/`int`/`bool`/`float`/`bytes`/`datetime`/`list[...]`/`dict[...]`/`Literal[...]`), look it up on the domain diagram, falling back to the **Shared domain types registry** below. If found and it declares ≥1 fields, emit `` Constructed from query params `<f1>`, `<f2>`, … → `<Type>` ``. The constituent fields are taken from the type's declared field list in declaration order. Append ` (defaults from settings if None)` when any constituent field's type is `T \| None` **or** the original parameter type was itself `T \| None`.
@@ -154,7 +156,7 @@ Print a one-line summary listing per-surface counts:
 - Right column draws from the canonical vocabulary only: `Path param \`{...}\`` / `Auth context` / `Request body \`<field>\`` / `Query param \`<name>\`` / `` Constructed from query params `<a>`, `<b>` → `<Type>` ``.
 - `tenant_id` is sourced from `Auth context` exclusively — never from body or query.
 - Every parameter of every Domain Ref method (resolved within its surface) must appear as a row.
-- Path placeholders for nested ids are matched in camelCase (`document_type_id` ↔ `{documentTypeId}`); a missing placeholder aborts the run.
+- Path placeholders for nested ids are matched in camelCase (`document_type_id` ↔ `{documentTypeId}`). When the placeholder is present in the row's path, the nested-id parameter must be sourced from it. When the row's path has no `{id}` and no nested-id placeholders (composite-key / collection-level rows), nested-id-shaped parameters fall through to body/query-string classification — this is not an abort condition.
 - Never overwrite Tables 1–5 in any Surface section.
 - Never modify any file other than the target `<output>`. The domain diagram, queries diagram, and commands diagram are read-only inputs. If a referenced type is missing from the domain diagram and not in the Shared domain types registry, abort — never edit the diagram to add it.
 
@@ -165,5 +167,5 @@ Print a one-line summary listing per-surface counts:
 - Target `<output>` is missing, lacks Table 1, or contains no `## Surface:` section.
 - A Table 1 surface has no `## Surface:` section in the file (or vice versa).
 - A Table 2/3 row's Domain Ref in a surface does not match a public method on the corresponding application-service class tagged for that surface.
-- A nested-id parameter has no matching `{<camelCase>Id}` placeholder in the row's path.
+- A nested-id parameter has no matching `{<camelCase>Id}` placeholder in a row whose path **does** contain other placeholders (i.e. the row clearly expects path-bound nested ids and one is missing). Composite-key / collection-level rows with no placeholders at all are not subject to this check.
 - A query-parameter composite type cannot be resolved on the domain diagram.

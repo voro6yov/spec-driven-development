@@ -80,9 +80,11 @@ Within each surface's commands list, drop every method whose name starts with `o
 
 For each surface in `<surfaces>`, for every commands method assigned to that surface (after Step 4 filtering), classify by signature and name and emit one row.
 
-Define helpers used throughout (unchanged from prior contract):
+Define helpers used throughout:
 
-- **`extra_id_params(method)`** — the ordered list of parameters whose name ends in `_id` and is not `id` or `tenant_id`. Parameters ending in `_ids` (plural — e.g. `field_ids`) are **not** id params; they are body lists and are excluded. Example: `(id, tenant_id, document_type_id, validation_rule_id, field_ids)` → `[document_type_id, validation_rule_id]`.
+- **`<resource_singular>`** — lowercase singular of `<ResourceName>` from Table 1 (e.g. `Project` → `project`). Used both for description rendering and for the aggregate-id alias below.
+- **`has_aggregate_id(method)`** — true iff the method's parameter list contains a parameter named `id` **or** a parameter named `<resource_singular>_id` (e.g. `project_id` when the resource is `Project`). The two forms are interchangeable: both render as `{id}` in the path and as `` Path param `{id}` `` in Table 6. A method that has neither is a **composite-key** or **collection-level** call — its path must not contain `{id}`.
+- **`extra_id_params(method)`** — the ordered list of parameters whose name ends in `_id` and is not `id`, `<resource_singular>_id`, or `tenant_id`. Parameters ending in `_ids` (plural — e.g. `field_ids`) are **not** id params; they are body lists and are excluded. Example for resource `DocumentBatch`: `(id, tenant_id, document_type_id, validation_rule_id, field_ids)` → `[document_type_id, validation_rule_id]`.
 - **`tail_noun(method, extra_ids)`** — computed by tokenizing the method name on `_`, dropping the leading verb token, then walking left-to-right consuming each `extra_id`'s noun (itself tokenized on `_`) as a longest-left-prefix match. Whatever tokens remain (joined by `_`) is the tail. For `update_document_type_validation_rule` with extras `[document_type_id, validation_rule_id]`: tokens after verb = `[document, type, validation, rule]`; consume `[document, type]` → `[validation, rule]`; consume `[validation, rule]` → `[]`; tail = `""`. For `add_document_type_validation_rule` with extras `[document_type_id]`: consume `[document, type]` → `[validation, rule]`; tail = `"validation_rule"`. If at any step the prefix does not match the next extra's noun tokens, classification fails — fall through to row 8.
 - **`pluralize(noun)`** — last-word pluralization rule from `resource-spec-initializer`: `y`-after-consonant → `ies`; `s/x/z/ch/sh` → `+es`; otherwise `+s`. Multi-token nouns: pluralize only the last token. **Idempotent guard:** if the last token already ends in `s`, `es`, or `ies`, return the noun unchanged (treat as already plural). Prevents `corrections → correctionses`.
 - **`kebab(noun_phrase)`** — replace `_` with `-`, lowercase. Used for path segments.
@@ -90,11 +92,12 @@ Define helpers used throughout (unchanged from prior contract):
 - **`humanize(noun_phrase)`** — replace `_` with space, lowercase. Used in descriptions.
 - **`parent_path(extra_ids)`** — join `/<plural-kebab(noun)>/{<camel(noun)>Id}` for each extra id in order. Empty string if none. **Only meaningful when the method has an aggregate `id` parameter** — for collection-level methods (no `id`), extra `_id` params are query-string filters, not path segments, and `parent_path` is unused.
 
-Use this dispatch table, **first match wins**:
+Use this dispatch table, **first match wins**. Rows are grouped by whether the method has an aggregate id (per `has_aggregate_id`). Rows 1a–1b apply to methods **without** an aggregate id; rows 2–8 apply to methods **with** an aggregate id.
 
 | # | Pattern (signature + name) | HTTP | Path | Operation | Description boilerplate |
 | - | -------------------------- | ---- | ---- | --------- | ----------------------- |
-| 1 | No `id` parameter at all (factory) | `POST` | `/` | `<method_name>` | `Create a new <resource>` |
+| 1a | `has_aggregate_id` is false AND method name starts with a factory verb (`create`, `new`, `register`, `make`) | `POST` | `/` | `<method_name>` | `Create a new <resource>` |
+| 1b | `has_aggregate_id` is false AND method name does **not** start with a factory verb (composite-key / collection-level action) | `POST` | apply the **no-id plural-tail heuristic** below | see heuristic | see heuristic |
 | 2 | Name starts with `bulk_` | `POST` | `/bulk-<kebab(name without 'bulk_')>` | `<method_name>` | `Bulk <humanize(name without 'bulk_')> <plural>` |
 | 3 | Name starts with `delete_` AND `extra_ids` non-empty AND `tail_noun` empty | `DELETE` | `/{id}<parent_path>` | `<method_name>` | `Remove a <humanize(last extra_id noun)> from the <resource>` |
 | 4 | Name starts with `update_` AND `extra_ids` non-empty AND `tail_noun` empty | `PUT` | `/{id}<parent_path>` | `<method_name>` | `Update an existing <humanize(last extra_id noun)> of the <resource>` |
@@ -103,11 +106,19 @@ Use this dispatch table, **first match wins**:
 | 7 | Name starts with `delete_` AND `extra_ids` empty | `DELETE` | `/{id}` | `<method_name>` | `Delete the <resource>` |
 | 8 | Otherwise (named action: `retry`, `skip`, `retry_processing`, `assign_document_types`, `add_corrections`, ...) — apply the **plural-tail heuristic** below | `POST` | see heuristic | see heuristic | see heuristic |
 
-**Plural-tail heuristic (row 8 only).** Tokenize the method name on `_`. The first token is the verb; the remaining tokens (if any) are the noun tail. Inspect the noun tail:
+**Plural-tail heuristic (row 8 — `has_aggregate_id` is true).** Tokenize the method name on `_`. The first token is the verb; the remaining tokens (if any) are the noun tail. Inspect the noun tail:
 
 - If the noun tail is **non-empty and plural** (last token ends in `s`, `es`, or `ies`), drop the verb from the path and use only the noun tail: path = `/{id}/<kebab(noun_tail)>`. Operation = `<method_name>` (full, including verb). Description = `<humanize(verb).capitalize()> <humanize(noun_tail)> for the <resource>` (e.g., `assign_document_types` → path `/{id}/document-types`, op `assign_document_types`, desc "Assign document types for the <resource>"; `add_corrections` → path `/{id}/corrections`, op `add_corrections`, desc "Add corrections for the <resource>").
 - If the noun tail is **non-empty and singular**, strip it and use only the verb: path = `/{id}/<verb>`. Operation = `<verb>` (verb-only). Description = `<humanize(verb).capitalize()> the <resource>` (e.g., `retry_processing` → path `/{id}/retry`, op `retry`, desc "Retry the <resource>").
 - If the method is **single-token** (no noun tail; e.g., `skip`, `retry`): path = `/{id}/<method_name>`. Operation = `<method_name>`. Description = `<method_name.capitalize()> the <resource>`.
+
+**No-id plural-tail heuristic (row 1b — `has_aggregate_id` is false).** Same shape as the row 8 heuristic, but with the `/{id}` prefix dropped — the aggregate has no path-segment id, so the path lives at the collection root:
+
+- Noun tail **non-empty and plural**: path = `/<kebab(noun_tail)>`. Operation = `<method_name>`. Description = `<humanize(verb).capitalize()> <humanize(noun_tail)> for the <resource>`.
+- Noun tail **non-empty and singular**: path = `/<verb>`. Operation = `<verb>` (verb-only). Description = `<humanize(verb).capitalize()> the <resource>` (e.g., for resource `Project` with composite key in body: `update_evo_version` → path `/update`, op `update`, desc "Update the project"; `remove` → path `/remove`, op `remove`, desc "Remove the project").
+- Method is **single-token**: path = `/<method_name>`. Operation = `<method_name>`. Description = `<method_name.capitalize()> the <resource>`.
+
+For row 1b, the aggregate's composite-key parameters (e.g. `project_type`, `company_id`, `cmf`) travel in the request body, classified by `parameter-mapping-writer` per its standard body-field rule. They are never path segments.
 
 Note: `<resource>` in the description is the lowercase singular form of `<ResourceName>` (split PascalCase, lowercase, join with space). `<plural>` is taken from Table 1 directly but rendered with spaces instead of dashes for descriptions. Path segments always use dashes (kebab-case).
 
@@ -119,17 +130,20 @@ Note: `<resource>` in the description is the lowercase singular form of `<Resour
 
 For each surface in `<surfaces>`, for every public method on `<AggregateRoot>Queries` assigned to that surface, emit a row. Methods on the queries service are never message handlers; do not filter `on_*` (they should not appear there in the first place — if they do, abort with an error).
 
-Use this dispatch table, **first match wins**:
+Use this dispatch table, **first match wins**. Rows are split between methods that have the aggregate id (per `has_aggregate_id`) and methods that do not.
 
 | # | Pattern (signature + name) | Path | Operation | Description boilerplate |
 | - | -------------------------- | ---- | --------- | ----------------------- |
-| 1 | No `id` parameter (collection / paginated list) | `/` | `<method_name>` | `Retrieve a paginated list of <plural humanized> with optional filtering` |
-| 2 | Has `id` parameter and `extra_ids` non-empty | `/{id}<parent_path>` | `<method_name>` | `Retrieve a single <humanize(last extra_id noun)> of the <resource>` |
-| 3 | Method name is exactly `find_<resource>` (e.g., `find_file`) | `/{id}` | `<method_name>` | `Retrieve a single <resource> by id` |
-| 4 | Method name has shape `find_<resource>_<segment...>` (sub-resource projection) | `/{id}/<kebab(segment...)>` | `<method_name>` | `Retrieve <humanize(segment...)> of the <resource>` |
+| 1 | `has_aggregate_id` is false AND method name matches `find_<plural>` (paginated list — `<plural>` is the Table 1 Plural with `_` accepted in place of dashes) | `/` | `<method_name>` | `Retrieve a paginated list of <plural humanized> with optional filtering` |
+| 2 | `has_aggregate_id` is true AND `extra_ids` non-empty (nested-id read) | `/{id}<parent_path>` | `<method_name>` | `Retrieve a single <humanize(last extra_id noun)> of the <resource>` |
+| 3 | `has_aggregate_id` is true AND method name is exactly `find_<resource>` (e.g. `find_file`) | `/{id}` | `<method_name>` | `Retrieve a single <resource> by id` |
+| 4 | `has_aggregate_id` is true AND method name has shape `find_<resource>_<segment...>` (sub-resource projection of an aggregate identified by id) | `/{id}/<kebab(segment...)>` | `<method_name>` | `Retrieve <humanize(segment...)> of the <resource>` |
+| 4b | `has_aggregate_id` is false AND method name has shape `find_<resource>_<segment...>` (collection-level alternate-key lookup, e.g. `find_<resource>_by_<key>`) | `/<kebab(segment...)>` | `<method_name>` | `Retrieve <humanize(segment...)> of the <resource>` |
 | 5 | Otherwise | abort with `Cannot derive query endpoint shape for <method>.` | — | — |
 
-For sub-resource projections (row 4), inspect the return type for binary cues — if it is one of `bytes`, `BinaryIO`, `IO[bytes]`, or `Iterator[bytes]`, append ` (returns raw bytes for streaming response)` to the description.
+For sub-resource projections (rows 4 and 4b), inspect the return type for binary cues — if it is one of `bytes`, `BinaryIO`, `IO[bytes]`, or `Iterator[bytes]`, append ` (returns raw bytes for streaming response)` to the description.
+
+Row 4b emits a path **without** `{id}`. The method's parameters (including any composite-key fields like `project_type`, `company_id`, `cmf`) become query-string parameters via `parameter-mapping-writer`. A worked example: for resource `Project`, `find_project_by_details(project_type: str, company_id: str, cmf: str) ProjectInfo` emits `GET /by-details` with operation `find_project_by_details` and description `Retrieve by details of the project`.
 
 HTTP is always `GET` for Table 2. Domain Ref is always `<AggregateRoot>Queries.<method_name>`.
 
