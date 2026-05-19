@@ -1,6 +1,6 @@
 ---
 name: rest-api-scaffolder
-description: "Scaffolds the per-resource REST API package layout under `api/` from a `<dir>/<stem>.rest-api/spec.md` resource spec file (derived from the domain diagram per `rest-api-spec:naming-conventions`): creates `endpoints/` and `serializers/` sub-packages, materializes one empty per-surface sub-package under each (e.g. `endpoints/v1/`, `serializers/v1/`), plus the per-aggregate serializer sub-package `serializers/<surface>/<aggregate>/`. Idempotent. Does not touch `api/__init__.py`, `containers.py`, `entrypoint.py`, the root `api/serializers/__init__.py` aggregator, or the shared serializer modules. Invoke with: @rest-api-scaffolder <domain_diagram> <locations_report_text>"
+description: "Scaffolds the per-resource REST API package layout under `api/` from a resource spec file: creates `endpoints/` and `serializers/` sub-packages with per-surface and per-aggregate directories. Invoke with: @rest-api-scaffolder <domain_diagram> <locations_report_text>"
 tools: Read, Write, Bash, Skill
 model: sonnet
 skills:

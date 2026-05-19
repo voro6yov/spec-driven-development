@@ -1,6 +1,6 @@
 ---
 name: resource-spec-initializer
-description: Initializes a REST API resource input spec sibling file (`<dir>/<stem>.rest-api/spec.md`) next to a Mermaid domain diagram by detecting the `<<Aggregate Root>>` class on the domain diagram and the surface set on the commands and queries diagrams (sibling diagrams derived from the domain diagram per `rest-api-spec:naming-conventions`). Writes Table 1 (Resource Basics) and one empty `## Surface: <name>` H2 heading per discovered surface, in canonical order. Idempotent — leaves an existing Table 1 intact. Invoke with: @resource-spec-initializer <domain_diagram>
+description: "Initializes a REST API resource input spec sibling file next to a Mermaid domain diagram by detecting aggregate root and surfaces. Invoke with: @resource-spec-initializer <domain_diagram>"
 tools: Read, Write, Bash, Skill
 model: haiku
 skills:

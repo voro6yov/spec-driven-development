@@ -1,6 +1,6 @@
 ---
 name: specs-merger
-description: Merges the deps, methods, and exceptions sibling fragments produced by the application-spec writers into a single `<side>.specs.md` inside the per-plugin folder next to the domain class diagram, then deletes the consumed fragments. Invoke once per side. Invoke with: @specs-merger <domain_diagram> <side>
+description: "Merges deps, methods, and exceptions sibling fragments into a single \`<side>.specs.md\`, then deletes the consumed fragments. Invoke with: @specs-merger <domain_diagram> <side>"
 tools: Read, Write, Bash, Skill
 skills:
   - application-spec:naming-conventions

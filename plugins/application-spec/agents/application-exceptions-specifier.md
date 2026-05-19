@@ -1,6 +1,6 @@
 ---
 name: application-exceptions-specifier
-description: Enriches the Application Exceptions sections in the commands and queries exceptions sibling files with full class specs for each exception raised by the application services. Invoke with: @application-exceptions-specifier <domain_diagram>
+description: Enriches Application Exceptions sections in commands and queries files with full class specs for each exception raised by application services. Invoke with: @application-exceptions-specifier <domain_diagram>
 tools: Read, Write
 model: sonnet
 skills:

@@ -1,6 +1,6 @@
 ---
 name: messaging-updates-writer
-description: "Emits the per-update messaging report at `<dir>/<stem>.messaging/updates.md` by diffing every working-tree consumer spec (`<dir>/<stem>.messaging/*.md`) against `git HEAD`, cross-referenced with the domain `updates.md` and the commands-diagram `commands-updates.md`. Consumer-keyed: each consumer is reported as `updated` (Table 3 regenerated), `aborted` (subscribes to a removed/renamed internal domain event — reconcile the commands diagram), `unaffected`, `needs-init` (commands diagram declares a `%% Messaging - <C>` block but no on-disk spec exists), or `orphaned` (spec on disk but the commands diagram no longer declares the consumer). Two-axis `Source delta` attribution probes `<stem>.domain/updates.md` and `<stem>.application/commands-updates.md` (either may be absent) and tags each match with `[domain]` / `[commands-diagram]`. The report is always written (even on no-op). Standalone-invocable. Invoke with: @messaging-updates-writer <domain_diagram>"
+description: "Emits the per-update messaging report by diffing working-tree consumer specs against git HEAD and cross-referencing domain and commands-diagram updates. Invoke with: @messaging-updates-writer <domain_diagram>"
 tools: Read, Write, Bash, Skill
 skills:
   - messaging-spec:naming-conventions

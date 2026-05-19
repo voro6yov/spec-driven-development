@@ -1,6 +1,6 @@
 ---
 name: response-fields-writer
-description: Fills Table 4 (Response Fields) inside every `## Surface: <name>` section of an existing `<dir>/<stem>.rest-api/spec.md` by reading the `<Resource>Queries` Mermaid application-service diagram (sibling of the domain diagram, derived per `rest-api-spec:naming-conventions`) and the domain class diagram, deriving one response-fields sub-block per query endpoint already enumerated in that surface's Table 2. Replaces existing per-surface Table 4 in place; preserves prose and other tables. Invoke with: @response-fields-writer <domain_diagram>
+description: "Fills Table 4 (Response Fields) inside every `## Surface: <name>` section by deriving response-fields sub-blocks per query endpoint. Invoke with: @response-fields-writer <domain_diagram>"
 tools: Read, Edit, Skill
 model: sonnet
 skills:

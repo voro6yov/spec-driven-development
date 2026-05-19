@@ -1,6 +1,6 @@
 ---
 name: queries-implementer
-description: "Implements the `<Aggregate>Queries` application service end-to-end: fills the scaffolded `<aggregate>_queries.py` stub from the merged queries spec (derived from the domain diagram), registers the `<aggregate>_queries` provider in containers.py with every dep wired, and adds a function-scoped `<aggregate>_queries` fixture to tests/conftest.py. Single-aggregate, idempotent. Invoke with: @queries-implementer <domain_diagram> <locations_report_text>"
+description: "Implements the `<Aggregate>Queries` application service end-to-end. Invoke with: @queries-implementer <domain_diagram> <locations_report_text>"
 tools: Read, Write, Edit, Bash, Skill
 skills:
   - application-spec:naming-conventions

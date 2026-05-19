@@ -1,6 +1,6 @@
 ---
 name: application-files-scaffolder
-description: "Scaffolds the per-aggregate application package (`application/<aggregate>/`) — including one stub module per external-interface class name — and the per-package infrastructure service stubs (`infrastructure/services/<package>/`) from the merged commands and queries specs (derived from the domain diagram) plus a target-locations-finder report. Also registers a `<UPPER_AGGREGATE>_DESTINATION` constant in the project's `constants.py` (next to `containers.py`). Emits empty class stubs and aggregator `__init__.py` files; does not implement bodies. Invoke with: @application-files-scaffolder <domain_diagram> <locations_report_text>"
+description: "Scaffolds the per-aggregate application package and infrastructure service stubs from merged specs. Invoke with: @application-files-scaffolder <domain_diagram> <locations_report_text>"
 tools: Read, Write, Bash, Skill
 skills:
   - application-spec:naming-conventions

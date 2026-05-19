@@ -1,6 +1,6 @@
 ---
 name: exceptions-implementer
-description: "Implements application-layer exception classes by reading the merged commands and queries application specs (derived from the domain diagram) and appending fully implemented classes (plus `__all__` and shared-base import updates) to the domain aggregate's `exceptions.py`. Skips classes already defined in the file. Creates `exceptions.py` if missing. Invoke with: @application-spec:exceptions-implementer <domain_diagram> <locations_report_text>"
+description: "Implements application-layer exception classes from merged commands and queries specs to the domain aggregate's `exceptions.py`. Invoke with: @application-spec:exceptions-implementer <domain_diagram> <locations_report_text>"
 tools: Read, Write, Edit, Skill
 skills:
   - application-spec:naming-conventions

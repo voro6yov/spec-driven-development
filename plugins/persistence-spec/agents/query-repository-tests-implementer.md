@@ -1,6 +1,6 @@
 ---
 name: query-repository-tests-implementer
-description: "Implements pytest integration tests for an aggregate's query-side repository through the `query_context` fixture. Append-only and signature-driven. Invoke with: @query-repository-tests-implementer <domain_diagram> <tests_dir>"
+description: "Implements pytest integration tests for an aggregate's query-side repository through the `query_context` fixture. Invoke with: @query-repository-tests-implementer <domain_diagram> <tests_dir>"
 tools: Read, Write, Edit, Bash, Skill
 skills:
   - persistence-spec:naming-conventions

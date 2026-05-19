@@ -1,6 +1,6 @@
 ---
 name: generate-code
-description: Implements the application layer for an aggregate from its merged commands spec, merged queries spec, and services report siblings. Assumes `/application-spec:init-application` has prepared the project-wide scaffolding. Resolves target locations once, scaffolds the application/infrastructure stubs, fans out per-service implementers, wires settings + exceptions, implements the commands + queries application services, and finally generates the integration tests for both. Invoke with: /application-spec:generate-code <domain_diagram>
+description: Implements the application layer for an aggregate from its merged commands spec, merged queries spec, and services report siblings. Invoke with: /application-spec:generate-code <domain_diagram>
 argument-hint: <domain_diagram>
 allowed-tools: Bash, Agent, Skill
 ---

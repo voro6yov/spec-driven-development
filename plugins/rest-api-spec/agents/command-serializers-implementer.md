@@ -1,6 +1,6 @@
 ---
 name: command-serializers-implementer
-description: "Implements REST API command-side serializer modules from a `<dir>/<stem>.rest-api/spec.md` resource spec (derived from the domain diagram per `rest-api-spec:naming-conventions`). For every `## Surface:` section, walks Table 3 (Command Endpoints) and emits one Python module per command endpoint under `api/serializers/<surface>/<aggregate>/<operation>.py`, each containing the `<Operation>Request` body class (when Table 5 has fields) and the simple `<Operation>Response` (id-only) serializer. Emits `to_domain(self) -> <TypedDict>` on every nested request sub-serializer whose target application-service parameter type resolves to a `<<Domain TypedDict>>` / `<<Query DTO>>`. (Re)writes the per-aggregate `__init__.py` as a star-aggregator. The per-surface `__init__.py` and the root `serializers/__init__.py` are left empty / untouched. Idempotent: existing per-endpoint modules are never overwritten. Invoke with: @command-serializers-implementer <domain_diagram> <locations_report_text>"
+description: "Implements REST API command-side serializer modules from a REST API spec. Invoke with: @command-serializers-implementer <domain_diagram> <locations_report_text>"
 tools: Read, Write, Bash, Skill
 model: sonnet
 skills:

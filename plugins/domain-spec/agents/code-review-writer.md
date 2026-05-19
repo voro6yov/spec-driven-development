@@ -1,6 +1,6 @@
 ---
 name: code-review-writer
-description: Phase-3 review agent of the three-agent `/update-code` flow. Reads `<dir>/<stem>.domain/code-brief.md` produced by `@code-brief-writer` and `<dir>/<stem>.domain/code-changes.md` produced by `@code-change-writer` for the domain layer, then verifies the on-disk result with structural + semantic spot checks (loading pattern skill bodies lazily per row), runs cross-row consistency probes (residual references, aggregator drift, orphaned exceptions), and surfaces one prose paragraph per Risk:risky row. Report-only — never edits source. Writes a closed-checklist verdict to `<dir>/<stem>.domain/code-review.md`. Byte-stable on unchanged inputs. Standalone-invocable. Invoke with: @code-review-writer <domain_diagram> <locations_report_text>
+description: "Phase-3 review agent of the three-agent `/update-code` flow. Invoke with: @code-review-writer <domain_diagram> <locations_report_text>"
 tools: Read, Write, Bash, Skill
 model: sonnet
 skills:

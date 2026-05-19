@@ -1,6 +1,6 @@
 ---
 name: error-handlers-integrator
-description: "Initializes REST API exception-to-HTTP mapping end-to-end: discovers domain exceptions in `<pkg>/domain/shared/exceptions.py` (and infrastructure exceptions in `<pkg>/infrastructure/exceptions.py` when present), renders `<api_pkg>/error_handlers.py` from the `rest-api-spec:error-handlers` skill template (always regenerated), and patches `<pkg>/entrypoint.py` additively to call `register_error_handler(fastapi_app)` inside `create_fastapi`. Idempotent and additive — never modifies any line outside `create_fastapi` in an existing entrypoint. Invoke with: @error-handlers-integrator <locations_report_text>"
+description: "Initializes REST API exception-to-HTTP mapping end-to-end. Invoke with: @error-handlers-integrator <locations_report_text>"
 tools: Read, Write, Edit, Bash, Skill
 skills:
   - rest-api-spec:error-handlers

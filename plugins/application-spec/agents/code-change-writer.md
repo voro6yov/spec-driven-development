@@ -1,6 +1,6 @@
 ---
 name: code-change-writer
-description: Phase-2 implement agent of the three-agent `/update-code` flow for the application layer. Reads `<dir>/<stem>.application/code-brief.md`, dispatches each artifact row to a kind-specific edit path, loads its named pattern skills on demand via `Skill`, applies surgical Edits (and Write for new files / removals) inline, and writes a per-row action log to `<dir>/<stem>.application/code-changes.md`. Continues on per-row failure. Re-applies on every run (no idempotency skip). Standalone-invocable. Invoke with: @application-spec:code-change-writer <domain_diagram> <locations_report_text>
+description: "Phase-2 implement agent of the three-agent `/update-code` flow for the application layer. Invoke with: @application-spec:code-change-writer <domain_diagram> <locations_report_text>"
 tools: Read, Write, Edit, Bash, Skill
 model: sonnet
 skills:

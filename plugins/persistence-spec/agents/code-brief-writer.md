@@ -1,6 +1,6 @@
 ---
 name: code-brief-writer
-description: Phase-1 gather agent of the three-agent `/update-code` flow for the persistence layer. Reads `<dir>/<stem>.persistence/updates.md` and `<dir>/<stem>.persistence/command-repo-spec.md`, derives the per-artifact change set by walking the `## Affected Artifacts` footer, resolves the driving §2 pattern variant per row, looks up its implementer skill via the (kind, variant) catalog, tags each artifact `mechanical` or `risky`, and writes a flat-section brief to `<dir>/<stem>.persistence/code-brief.md`. Spec-only — never opens YAML changeSet bodies or repository method bodies; reads on-disk class top-of-file to detect spec/code variant drift. Standalone-invocable. Invoke with: @code-brief-writer <domain_diagram> <locations_report_text>
+description: Phase-1 gather agent of the three-agent `/update-code` flow for the persistence layer. Invoke with: @code-brief-writer <domain_diagram> <locations_report_text>
 tools: Read, Write, Bash
 model: sonnet
 skills:

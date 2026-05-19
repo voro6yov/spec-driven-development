@@ -1,6 +1,6 @@
 ---
 name: commands-methods-writer
-description: Writes the Method Specifications section of an `<AggregateRoot>Commands` application service spec to a per-plugin sibling file next to the domain class diagram, plus a sibling exceptions file enumerating exceptions raised by the methods. Designs each method's flow by reading the domain diagram for the aggregate's public API, repository finders, and collaborators. Invoke with: @commands-methods-writer <domain_diagram>
+description: "Writes the Method Specifications section of an `<AggregateRoot>Commands` application service spec. Invoke with: @commands-methods-writer <domain_diagram>"
 tools: Read, Write, Bash, Skill
 skills:
   - application-spec:naming-conventions

@@ -1,6 +1,6 @@
 ---
 name: diagram-conventions
-description: Conventions used by hand-authored Mermaid class diagrams in this project (domain, commands, queries kinds). Auto-load when reviewing or critiquing a diagram to recognize convention-driven choices as valid and avoid false-positive findings.
+description: Conventions used by hand-authored Mermaid class diagrams in this project (domain, commands, queries kinds).
 when_to_use: Use when reviewing, critiquing, or otherwise judging the soundness of a Mermaid class diagram in this project. Consult before flagging any pattern as non-standard — if the pattern is documented here, it is canonical and must not be a finding.
 user-invocable: false
 ---

@@ -1,6 +1,6 @@
 ---
 name: app-integrator
-description: "Integrates per-aggregate REST API endpoints into the FastAPI application. From a `<dir>/<stem>.rest-api/spec.md` resource spec (derived from the domain diagram per `rest-api-spec:naming-conventions`) and a target-locations report, regenerates per-surface aggregator `__init__.py` files and the top-level `endpoints/__init__.py` from a disk scan of `<api_pkg>/endpoints/`; patch-merges API constants into `<pkg>/constants.py`; creates `<pkg>/entrypoint.py` from the full `rest-api-spec:entrypoint` skill template (with auth/error_handlers blocks conditioned on disk presence) or, if it already exists, additively inserts missing `include_router` lines into `create_fastapi` only; and when the `internal` surface is present, additively patches `<pkg>/api/auth.py` to add an auth-skip guard for internal paths plus the supporting `INTERNAL_API_PREFIX` import. Per-aggregate, idempotent, multi-aggregate-safe. Does not write endpoint modules, serializers, `containers.py`, `api/__init__.py`, `error_handlers.py`, or any messaging module; never modifies any line outside `create_fastapi` in an existing entrypoint or outside `set_user_from_token` in `auth.py`. Messaging integration is owned by a separate workflow and is out of scope for this agent. Invoke with: @app-integrator <domain_diagram> <locations_report_text>"
+description: "Integrates per-aggregate REST API endpoints into the FastAPI application. Invoke with: @app-integrator <domain_diagram> <locations_report_text>"
 tools: Read, Write, Edit, Bash, Skill
 model: sonnet
 skills:

@@ -1,6 +1,6 @@
 ---
 name: dispatcher-implementer
-description: Implements the `dispatcher.py` factory for a messaging consumer by reading the consumer spec at `<dir>/<stem>.messaging/<consumer_name>.md` and rendering the `make_<consumer_name_snake>_dispatcher(...)` body. Auto-selects the single-aggregate or multi-aggregate template from the auto-loaded `messaging-spec:domain-event-dispatchers` and `messaging-spec:multi-aggregate-domain-event-dispatchers` skills based on the count of distinct Source Destinations in Table 2. External events are imported from `.events`; internal events are imported from `<pkg>.domain.<source_dest_snake>` (the aggregate-root subpackage); handler names follow the `consumer-scaffolder` collision-aware naming rule. Verifies that `dispatcher.py`, every expected handler in `handlers.py`, every required destination + queue constant in `constants.py`, and every internal-event aggregate subpackage are present before writing; aborts with an explicit error otherwise. Always regenerates `dispatcher.py` (full-file overwrite). Idempotent on unchanged inputs (output is byte-identical). Invoke with: @dispatcher-implementer <commands_diagram> <consumer_name> <locations_report_text>
+description: "Implements the `dispatcher.py` factory for a messaging consumer by reading the consumer spec at `<dir>/<stem>.messaging/<consumer_name>.md` and rendering the `make_<consumer_name_snake>_dispatcher(...)` body. Invoke with: @dispatcher-implementer <commands_diagram> <consumer_name> <locations_report_text>"
 tools: Read, Write, Bash
 model: sonnet
 skills:

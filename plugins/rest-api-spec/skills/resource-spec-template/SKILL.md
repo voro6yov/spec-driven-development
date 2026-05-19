@@ -1,6 +1,6 @@
 ---
 name: resource-spec-template
-description: Reference template for the Resource Basics table (Table 1) and the per-surface section convention of a REST API resource input spec. Load when authoring or reviewing the input spec for a REST API resource — covers the four required fields of Table 1, casing/format rules, derivation conventions, the `## Surface: <name>` section layout that scopes Tables 2–6, and worked examples.
+description: "Reference template for the Resource Basics table (Table 1) and the per-surface section convention of a REST API resource input spec."
 user-invocable: false
 disable-model-invocation: false
 ---

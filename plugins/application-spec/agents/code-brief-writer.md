@@ -1,6 +1,6 @@
 ---
 name: code-brief-writer
-description: Phase-1 gather agent of the three-agent `/update-code` flow for the application layer. Reads `<dir>/<stem>.application/updates.md` and resolves each row of its `## Affected Artifacts` table into a brief artifact row, attaches the role-driven pattern-skill list, lifts per-method / per-exception / per-service members verbatim from the Changes sections, tags each row `mechanical` or `risky`, and writes a flat-section brief to `<dir>/<stem>.application/code-brief.md`. Trusts updates.md as the authoritative artifact list — performs no on-disk drift detection. Standalone-invocable. Invoke with: @application-spec:code-brief-writer <domain_diagram> <locations_report_text>
+description: "Phase-1 gather agent of the three-agent `/update-code` flow for the application layer. Invoke with: @application-spec:code-brief-writer <domain_diagram> <locations_report_text>"
 tools: Read, Write
 model: sonnet
 skills:

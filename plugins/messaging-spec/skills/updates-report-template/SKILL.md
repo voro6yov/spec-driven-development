@@ -1,6 +1,6 @@
 ---
 name: updates-report-template
-description: Reference template for the messaging updates report (`<stem>.messaging/updates.md`) emitted by `messaging-updates-writer`. Use when generating, parsing, or reviewing a messaging updates report. Covers the rendered schema (consumer-keyed change blocks, including the `needs-init` and `orphaned` advisory forms), rendering rules, the axis-tagged Source delta grammar, the `## Operator Actions` H2 between `## Consumer Changes` and `## Affected Artifacts`, the `## Affected Artifacts` footer specification, the two-line top-of-file sentinel, and the hash format.
+description: "Reference template for the messaging updates report (`<stem>.messaging/updates.md`) emitted by `messaging-updates-writer`. Use when generating, parsing, or reviewing a messaging updates report."
 when_to_use: Generating, parsing, or reviewing `<stem>.messaging/updates.md`; computing the per-consumer change blocks, the `## Operator Actions` advisory list, or the `## Affected Artifacts` footer of a messaging updates report.
 user-invocable: false
 disable-model-invocation: false

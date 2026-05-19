@@ -1,6 +1,6 @@
 ---
 name: code-brief-writer
-description: Phase-1 gather agent of the three-agent `/update-code` flow for the messaging layer. Reads `<dir>/<stem>.messaging/updates.md`, every `updated` consumer's `<dir>/<stem>.messaging/<consumer>.md` spec, the commands diagram (for `needs-init` consumers), and the domain updates report (for `aborted` attribution); derives the per-artifact change set; resolves patterns kind-derivedly from each consumer's Table 2 composition; tags each artifact `mechanical` or `risky`; emits operator-action rows for advisory consumers (`needs-init` / `orphaned` / `aborted`); and writes a flat-section brief to `<dir>/<stem>.messaging/code-brief.md`. Spec-only — never opens handler function bodies. Standalone-invocable. Invoke with: @code-brief-writer <domain_diagram> <locations_report_text>
+description: "Phase-1 gather agent of the three-agent `/update-code` flow for the messaging layer. Invoke with: @code-brief-writer <domain_diagram> <locations_report_text>"
 tools: Read, Write, Bash
 model: sonnet
 skills:

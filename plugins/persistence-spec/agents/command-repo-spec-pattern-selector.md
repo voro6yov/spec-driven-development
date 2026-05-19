@@ -1,6 +1,6 @@
 ---
 name: command-repo-spec-pattern-selector
-description: Fills (or refreshes) Section 1 (Aggregate Analysis) and Section 2 (Pattern Selection — except the Migrations sub-table, owned by command-repo-spec-migrations-writer) of a command repository spec by analyzing the source class diagram and applying the implementation roadmap. Idempotent — safe to re-run; replaces the snapshot sub-sections in place. Invoke with: @command-repo-spec-pattern-selector <domain_diagram>
+description: "Fills (or refreshes) Section 1 (Aggregate Analysis) and Section 2 (Pattern Selection) of a command repository spec by analyzing the source class diagram and applying the implementation roadmap. Invoke with: @command-repo-spec-pattern-selector <domain_diagram>"
 tools: Read, Edit, Skill
 skills:
   - persistence-spec:naming-conventions

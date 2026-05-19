@@ -1,6 +1,6 @@
 ---
 name: messaging-handler-test-rules
-description: Messaging Handler Test Rules pattern for message-handler integration testing. Use when writing or reviewing tests for event handlers and command handlers that route messages to application services and verify the full integration flow.
+description: Messaging Handler Test Rules pattern for message-handler integration testing. Use when writing or reviewing tests for event handlers and command handlers.
 user-invocable: false
 disable-model-invocation: false
 ---

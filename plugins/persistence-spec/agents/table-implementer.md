@@ -1,6 +1,6 @@
 ---
 name: table-implementer
-description: "Implements scaffolded per-aggregate table modules by replacing each `<table>_table = ...` placeholder with a SQLAlchemy `Table(...)` definition. Reads the command-repo-spec for column lists and pattern variants, discovers stub modules under the Tables location reported by @target-locations-finder, and emits a worklist of implemented module paths. Invoke with: @table-implementer <domain_diagram> <locations_report_text>"
+description: "Implements scaffolded per-aggregate table modules by replacing each `<table>_table = ...` placeholder with a SQLAlchemy `Table(...)` definition. Invoke with: @table-implementer <domain_diagram> <locations_report_text>"
 tools: Read, Write, Bash, Skill
 skills:
   - persistence-spec:naming-conventions

@@ -1,6 +1,6 @@
 ---
 name: queries-settings-implementer
-description: "Implements all `<aggregate>_queries_settings.py` stub modules in the application package by applying the auto-loaded `application-spec:settings` skill. Discovers stubs from the locations report; preserves any file whose contents have already diverged from the scaffolder stub. Invoke with: @queries-settings-implementer <locations_report_text>"
+description: "Implements all `<aggregate>_queries_settings.py` stub modules in the application package by applying the auto-loaded `application-spec:settings` skill. Invoke with: @queries-settings-implementer <locations_report_text>"
 tools: Read, Write, Bash, Skill
 skills:
   - application-spec:settings

@@ -1,6 +1,6 @@
 ---
 name: update-specs
-description: Surgically updates the REST API resource spec (`spec.md`) after a domain, commands-diagram, or queries-diagram change — invokes the two app-service-axis update detectors, runs only the table writers whose owned table the union of deltas touches (Tables 1, 2/3, 4, 5, 6), leaves byte-stable tables alone, and emits the REST API updates report. Per-axis-scoped preflight; degraded axes are disabled, not fatal. Invoke with: /rest-api-spec:update-specs <domain_diagram>
+description: "Surgically updates the REST API resource spec after a domain, commands-diagram, or queries-diagram change. Invoke with: /rest-api-spec:update-specs <domain_diagram>"
 argument-hint: <domain_diagram>
 allowed-tools: Read, Bash, Agent
 ---

@@ -1,6 +1,6 @@
 ---
 name: auth-integrator
-description: "Initializes JWT-style request authentication for a FastAPI service end-to-end: scaffolds the `application/auth/` subpackage (`AuthCommands` + `UserData`), renders `<api_pkg>/auth.py` from the `rest-api-spec:auth-middleware` skill template (PUBLIC_ENDPOINTS / INTERNAL_ENDPOINTS_PREFIX derived from `<pkg>/constants.py`), patches `<api_pkg>/__init__.py` to re-export the auth module via `from .auth import *` and extend `__all__`, registers a `Singleton(AuthCommands)` provider in `containers.py`, and patches `<pkg>/entrypoint.py` to call `register_auth(fastapi_app)` inside `create_fastapi`. `auth.py` is always re-rendered on every run; the other artifacts are idempotent and additive. Invoke with: @auth-integrator <locations_report_text>"
+description: "Initializes JWT-style request authentication for a FastAPI service: scaffolds the application auth subpackage, renders the API auth middleware, and registers authentication in the DI container. Invoke with: @auth-integrator <locations_report_text>"
 tools: Read, Write, Edit, Bash, Skill
 skills:
   - rest-api-spec:auth-middleware

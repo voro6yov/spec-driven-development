@@ -1,6 +1,6 @@
 ---
 name: endpoint-tables-writer
-description: Fills Tables 2 (Query Endpoints) and 3 (Command Endpoints) of every `## Surface: <name>` section in an existing `<dir>/<stem>.rest-api/spec.md` by reading the Mermaid `<Resource>Commands` and `<Resource>Queries` application-service diagrams (siblings of the domain diagram, derived per `rest-api-spec:naming-conventions`) and partitioning their methods by surface marker. Discovers the full surface set, updates Table 1's Surfaces row, materializes any missing `## Surface:` sections, and emits one (Table 2 + Table 3) pair per surface — replacing existing per-surface tables in place. Preserves prose and other tables. Invoke with: @endpoint-tables-writer <domain_diagram>
+description: "Fills Tables 2 and 3 (Query and Command Endpoints) in each `## Surface:` section by reading application-service diagrams and partitioning methods by surface marker. Invoke with: @endpoint-tables-writer <domain_diagram>"
 tools: Read, Edit, Skill
 model: sonnet
 skills:

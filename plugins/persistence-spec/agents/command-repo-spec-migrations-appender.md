@@ -1,6 +1,6 @@
 ---
 name: command-repo-spec-migrations-appender
-description: Appends delta-driven migration rows to the §2 Migrations sub-table of an existing command repository spec, derived from `<dir>/<stem>.domain/updates.md`. Each successful run writes a `<!-- appended-from updates-hash:<short_hash> -->` sentinel before the new block; re-runs against the same updates.md exit silently. IDs allocate from `max(existing_id) + 1`. Idempotent on unchanged inputs. Trusts the orchestrator to filter hard-fail conditions; this agent operates on already-validated reports. Invoke with: @command-repo-spec-migrations-appender <domain_diagram>
+description: Appends delta-driven migration rows to an existing command repository spec from `updates.md`. Invoke with: @command-repo-spec-migrations-appender <domain_diagram>
 tools: Read, Edit, Bash, Skill
 skills:
   - persistence-spec:naming-conventions

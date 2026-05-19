@@ -1,6 +1,6 @@
 ---
 name: unit-of-work-integrator
-description: "Wires a single aggregate's command repository into the per-context unit_of_work package by patching `AbstractUnitOfWork` (attribute annotation + abstract-class import) and `SqlAlchemyUnitOfWork` (concrete instantiation in `__enter__` + concrete-class import). Idempotent per file; repairs partial wiring. Invoke with: @unit-of-work-integrator <domain_diagram> <locations_report_text>"
+description: "Wires a single aggregate's command repository into the per-context unit_of_work package by patching `AbstractUnitOfWork` (attribute annotation + abstract-class import) and `SqlAlchemyUnitOfWork` (concrete instantiation in `__enter__` + concrete-class import). Invoke with: @unit-of-work-integrator <domain_diagram> <locations_report_text>"
 tools: Read, Write, Edit, Bash, Skill
 skills:
   - persistence-spec:naming-conventions

@@ -1,6 +1,6 @@
 ---
 name: commands-updates-detector
-description: Detects updates to the commands application-service diagram `<dir>/<stem>.commands.md` by diffing the working tree against git HEAD, and writes a structured report to `<dir>/<stem>.application/commands-updates.md`. Invoke with: @commands-updates-detector <domain_diagram>
+description: Detects updates to the commands application-service diagram by diffing the working tree against git HEAD, and writes a structured report. Invoke with: @commands-updates-detector <domain_diagram>
 tools: Read, Write, Bash
 model: sonnet
 skills:

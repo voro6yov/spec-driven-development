@@ -1,6 +1,6 @@
 ---
 name: endpoint-io-template
-description: Reference template for the Response Fields, Request Fields, and Parameter Mapping tables (Tables 4, 5, 6) of a REST API resource input spec — covers the shape of each table, type and source/validation conventions, nested type sub-tables, query-parameter sub-blocks under Table 4, italic placeholders for binary or empty bodies, the Wish List `(includable)` annotation, and the canonical Source vocabulary for parameter mapping.
+description: Reference template for the Response Fields, Request Fields, and Parameter Mapping tables (Tables 4, 5, 6) of a REST API resource input spec.
 when_to_use: Load when authoring or reviewing the per-endpoint I/O of a REST API resource input spec — populating Table 4 (Response Fields), Table 5 (Request Fields), or Table 6 (Parameter Mapping); validating the response/request shape of a query or command endpoint; or normalizing legacy Parameter Mapping tables.
 user-invocable: false
 paths:

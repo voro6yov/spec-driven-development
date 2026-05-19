@@ -1,6 +1,6 @@
 ---
 name: repositories-scaffolder
-description: "Scaffolds the per-aggregate repository package (command and query repository module stubs) from a command-repo-spec file and a target-locations-finder report. Emits two bare class stubs with no embedded spec text and no imports. Mapper modules are owned by `@mappers-scaffolder`. Table modules are owned by `@table-scaffolder`. Invoke with: @repositories-scaffolder <domain_diagram> <locations_report_text>"
+description: "Scaffolds repository package stubs from a command-repo-spec file and locations report. Invoke with: @repositories-scaffolder <domain_diagram> <locations_report_text>"
 tools: Read, Write, Bash, Skill
 skills:
   - persistence-spec:naming-conventions

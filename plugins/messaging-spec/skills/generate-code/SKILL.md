@@ -1,6 +1,6 @@
 ---
 name: generate-code
-description: Implements the messaging consumer package for a single consumer from its `<dir>/<stem>.messaging/<consumer_name>.md` spec file and the derived `<dir>/<stem>.commands.md` Mermaid commands diagram. Resolves target locations once, scaffolds the per-consumer submodule, fills external event dataclasses + handler functions + the dispatcher factory, wires the dispatcher into containers/entrypoint/__main__, and finally prepares the test fixtures and writes the handler integration tests. Invoke with: /messaging-spec:generate-code <domain_diagram> <consumer_name>
+description: "Implements the messaging consumer package for a single consumer. Invoke with: /messaging-spec:generate-code <domain_diagram> <consumer_name>"
 argument-hint: <domain_diagram> <consumer_name>
 allowed-tools: Bash, Agent
 ---

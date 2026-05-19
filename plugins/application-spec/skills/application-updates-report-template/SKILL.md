@@ -1,6 +1,6 @@
 ---
 name: application-updates-report-template
-description: Reference template for the application-service-axis updates reports (`<stem>.application/commands-updates.md` and `<stem>.application/queries-updates.md`) emitted by `commands-updates-detector` and `queries-updates-detector`. Use when generating, parsing, or reviewing these reports. Covers the rendered schema (per-method blocks for the anchor class + per-class blocks for non-anchor classes), rendering rules, the `## Affected Categories` footer specification, and the canonical trigger → category mapping.
+description: Reference template for the application-service-axis updates reports emitted by commands-updates-detector and queries-updates-detector. Use when generating, parsing, or reviewing these reports.
 user-invocable: false
 ---
 

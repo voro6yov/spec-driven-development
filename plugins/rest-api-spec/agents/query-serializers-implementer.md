@@ -1,6 +1,6 @@
 ---
 name: query-serializers-implementer
-description: "Implements REST API query-side serializer modules from a `<dir>/<stem>.rest-api/spec.md` resource spec (derived from the domain diagram per `rest-api-spec:naming-conventions`). For every `## Surface:` section, walks Table 2 (Query Endpoints) and emits one Python module per query endpoint under `api/serializers/<surface>/<aggregate>/<operation>.py`, each containing the `<Operation>Request` query-params class (when query params exist) and the `<Operation>Response` serializer with all nested sub-serializers inline. Generates the shared `result_set.py` and `paginated_result_metadata.py` at `api/serializers/` root the first time pagination is needed. (Re)writes the per-aggregate `__init__.py` as a star-aggregator. The per-surface `__init__.py` and the root `serializers/__init__.py` are left empty / untouched. Idempotent: existing per-endpoint modules are never overwritten. Invoke with: @query-serializers-implementer <domain_diagram> <locations_report_text>"
+description: "Implements REST API query-side serializer modules from a resource spec. Invoke with: @query-serializers-implementer <domain_diagram> <locations_report_text>"
 tools: Read, Write, Bash, Skill
 model: sonnet
 skills:

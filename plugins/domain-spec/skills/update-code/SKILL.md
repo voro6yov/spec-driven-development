@@ -1,6 +1,6 @@
 ---
 name: update-code
-description: Three-phase orchestrator for cross-layer code updates after `/update-specs`. Phase 1 (gather) spawns one `code-brief-writer` per active layer in parallel; Phase 1.5 fires a single risk-tag checkpoint only when any brief flags a `risky` row; Phase 2 (implement) spawns `code-change-writer` agents in three dependency-ordered waves (domain → persistence + application in parallel → rest-api + messaging in parallel); Phase 3 (review) is opt-in via the `--review` flag and runs every active layer's `code-review-writer` in parallel. The orchestrator itself never reads a spec sibling and never edits source code. Invoke with: /update-code <domain_diagram> [--review]
+description: Three-phase orchestrator for cross-layer code updates after `/update-specs`. Invoke with: /update-code <domain_diagram> [--review]
 argument-hint: <domain_diagram> [--review]
 allowed-tools: Read, Bash, Agent, AskUserQuestion
 ---

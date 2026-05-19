@@ -1,6 +1,6 @@
 ---
 name: surface-markers
-description: Parsing rules for surface markers in Mermaid application-service class diagrams. Load when reading a `<Resource>Commands` or `<Resource>Queries` diagram that may group methods under per-surface markers like `%% v1` or `%% internal`. Defines the marker regex, scoping rules, default surface, ordering convention, and the canonical surface-set construction.
+description: Parsing rules for surface markers in Mermaid application-service class diagrams. Load when reading a `<Resource>Commands` or `<Resource>Queries` diagram that may group methods under per-surface markers like `%% v1` or `%% internal`.
 user-invocable: false
 disable-model-invocation: false
 ---

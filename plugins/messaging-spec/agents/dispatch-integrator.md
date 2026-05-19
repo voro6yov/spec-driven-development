@@ -1,6 +1,6 @@
 ---
 name: dispatch-integrator
-description: "Wires a single consumer's dispatcher into the running service end-to-end by patching three files: registers a `<consumer>_dispatcher: providers.Singleton[IMessageConsumer]` provider in `containers.py`, defines a `run_<consumer>_dispatcher()` runner in `entrypoint.py`, and adds a `dispatch_<consumer>` Click command in `<pkg>/__main__.py`. All three target files must already exist (the agent never bootstraps them); the consumer's `dispatcher.py` must already be present (the agent never wires unbuilt dispatchers). Per-substep, line-level idempotence — partial wiring across files (or within a file) is silently repaired without wholesale skips. Imports, dispatcher Singleton block, runner def, click command def, entrypoint import names, and `cli.add_command(...)` registrations are additively patched, with multi-entry regions kept alphabetically sorted on every run. Invoke with: @dispatch-integrator <consumer_name> <locations_report_text>"
+description: "Wires a consumer's dispatcher into the service by patching containers.py, entrypoint.py, and __main__.py. Invoke with: @dispatch-integrator <consumer_name> <locations_report_text>"
 tools: Read, Write, Edit, Bash
 model: sonnet
 skills:

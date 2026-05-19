@@ -1,6 +1,6 @@
 ---
 name: update-specs
-description: Surgically updates the application service specs (`commands.specs.md`, `queries.specs.md`, `services.md`) after a domain, commands-diagram, or queries-diagram change — invokes the three update detectors, regenerates only the dirty side(s), refreshes application exceptions, re-runs the services finder, and emits the application updates report. Per-axis-scoped preflight; degraded axes are disabled, not fatal. Invoke with: /application-spec:update-specs <domain_diagram>
+description: "Surgically updates the application service specs (`commands.specs.md`, `queries.specs.md`, `services.md`) from domain/diagram changes. Invoke with: /application-spec:update-specs <domain_diagram>"
 argument-hint: <domain_diagram>
 allowed-tools: Read, Bash, Agent
 ---

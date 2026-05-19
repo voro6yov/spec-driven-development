@@ -1,6 +1,6 @@
 ---
 name: unit-of-work-fixtures-preparer
-description: Writes the unit_of_work fixture and the autouse empty_unit_of_work cleanup fixture into <tests_dir>/integration/conftest.py for an aggregate's command-side integration tests. Idempotent — preserves existing fixtures and only injects the aggregate's erase_all() line into the cleanup block. Invoke with: @unit-of-work-fixtures-preparer <domain_diagram> <tests_dir>
+description: Writes unit_of_work and empty_unit_of_work fixtures into <tests_dir>/integration/conftest.py for integration tests. Invoke with: @unit-of-work-fixtures-preparer <domain_diagram> <tests_dir>
 tools: Read, Write, Edit, Bash, Skill
 skills:
   - persistence-spec:naming-conventions

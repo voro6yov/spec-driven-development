@@ -1,6 +1,6 @@
 ---
 name: generate-specs
-description: Orchestrates persistence spec generation (command repository spec) for an aggregate diagram by running scaffolder, pattern-selector, migrations-writer, and schema-writer agents in sequence. Invoke with: /persistence-spec:generate-specs <domain_diagram>
+description: "Orchestrates persistence spec generation (command repository spec) for an aggregate diagram by running scaffolder, pattern-selector, migrations-writer, and schema-writer agents in sequence. Invoke with: /persistence-spec:generate-specs <domain_diagram>"
 argument-hint: <domain_diagram>
 allowed-tools: Read, Agent, Skill
 ---

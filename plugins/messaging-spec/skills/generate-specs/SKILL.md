@@ -1,6 +1,6 @@
 ---
 name: generate-specs
-description: Orchestrates messaging consumer spec generation for a single consumer by running the consumer-spec-initializer, event-tables-writer, and event-fields-writer agents in sequence to populate Tables 1–3 of the `<dir>/<stem>.messaging/<consumer_name>.md` sibling file. Invoke with: /messaging-spec:generate-specs <domain_diagram> <consumer_name>
+description: "Orchestrates messaging consumer spec generation for a single consumer. Invoke with: /messaging-spec:generate-specs <domain_diagram> <consumer_name>"
 argument-hint: <domain_diagram> <consumer_name>
 allowed-tools: Bash, Agent
 ---

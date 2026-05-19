@@ -1,6 +1,6 @@
 ---
 name: query-repository-implementer
-description: "Implements the scaffolded query-side repository module by replacing the `class <X>: pass` placeholder with a body driven by the abstract `Query<Aggregate>Repository` interface in the domain package and the body templates in `persistence-spec:query-repository`. Each method's return TypedDict drives both the SQL projection (via the column-expression resolver against the on-disk table and command-side value-object mappers) and the explicit TypedDict construction in the return statement. Reads the command-repo-spec for multi-tenancy and Section 3 PK info, parses the query ABC, the TypedDict/Enum DTOs it references on disk, the on-disk table module, and the aggregate's command-side mappers. Emits a worklist with the implemented module path. Invoke with: @query-repository-implementer <domain_diagram> <locations_report_text>"
+description: "Implements the query-side repository module body driven by the abstract `Query<Aggregate>Repository` interface. Invoke with: @query-repository-implementer <domain_diagram> <locations_report_text>"
 tools: Read, Write, Bash, Skill
 skills:
   - persistence-spec:naming-conventions

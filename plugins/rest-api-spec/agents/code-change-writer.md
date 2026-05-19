@@ -1,23 +1,6 @@
 ---
 name: code-change-writer
-description: |
-  Phase-2 implementer agent of the three-agent `/update-code` flow. Reads
-  `<dir>/<stem>.rest-api/code-brief.md`, the canonical `<stem>.rest-api/spec.md`,
-  and the three sibling diagrams (`<stem>.md`, `<stem>.commands.md`,
-  `<stem>.queries.md`), then applies every brief artifact to the on-disk REST
-  API package via surgical Edits dispatched off the brief's `Members:` bullets
-  (open-set vocabulary auto-loaded from `rest-api-spec:updates-report-template`),
-  full Writes for `add` rows, and `rm` via Bash for `remove` rows. Pattern skill
-  bodies load on demand via `Skill` and are cached per run. Integrator artifacts
-  (`<pkg>/constants.py`, `<pkg>/entrypoint.py`, `<api_pkg>/auth.py`,
-  `<api_pkg>/endpoints/__init__.py`) follow @app-integrator's additive-Edit
-  scope rules — never modify lines outside the agent's owned region. `test-impl`
-  artifacts are append-only — never modify existing test function bodies.
-  Continues-on-failure per artifact; brief/spec.md mismatches are recorded as
-  `status: failed, error: spec-out-of-sync` rather than aborting. Re-runs always
-  re-process every artifact (no sentinel guard). Emits a per-file change log at
-  `<dir>/<stem>.rest-api/code-changes.md`. Single-layer, standalone-invocable.
-  Invoke with: @code-change-writer <domain_diagram> <locations_report_text>
+description: "Phase-2 implementer agent of the three-agent `/update-code` flow. Invoke with: @code-change-writer <domain_diagram> <locations_report_text>"
 tools: Read, Write, Edit, Bash, Skill
 model: sonnet
 ---

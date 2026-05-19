@@ -1,6 +1,6 @@
 ---
 name: collection-fixtures
-description: Collection Fixtures pattern for aggregating multiple individual aggregate fixtures into a list for bulk persistence operations and integration tests. Use when defining project-wide test data collections in tests/conftest.py that bundle per-aggregate fixtures.
+description: Aggregates multiple individual aggregate fixtures into a list for bulk persistence operations and tests. Use when defining project-wide test data collections in tests/conftest.py that bundle per-aggregate fixtures.
 user-invocable: false
 disable-model-invocation: false
 ---

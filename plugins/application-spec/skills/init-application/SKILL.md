@@ -1,6 +1,6 @@
 ---
 name: init-application
-description: Initializes the project-wide application-layer scaffolding (project package discovery, src/<pkg>/application/, src/<pkg>/infrastructure/, src/<pkg>/infrastructure/services/, src/tests/fakes/, and a minimal src/tests/conftest.py). Aggregate-agnostic — run once per project before any /application-spec:generate-code invocation. Invoke with: /application-spec:init-application
+description: "Initializes the project-wide application-layer scaffolding (project package discovery, src/<pkg>/application/, src/<pkg>/infrastructure/, src/<pkg>/infrastructure/services/, src/tests/fakes/, and a minimal src/tests/conftest.py). Invoke with: /application-spec:init-application"
 allowed-tools: Bash, Agent
 ---
 

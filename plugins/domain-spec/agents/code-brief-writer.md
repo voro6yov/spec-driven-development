@@ -1,6 +1,6 @@
 ---
 name: code-brief-writer
-description: Phase-1 gather agent of the three-agent `/update-code` flow. Reads `<dir>/<stem>.domain/updates.md` and `<dir>/<stem>.domain/specs.md`, derives the per-artifact change set for the domain layer, resolves the driving `**Pattern**:` skill list per class, tags each artifact `mechanical` or `risky`, and writes a flat-section brief to `<dir>/<stem>.domain/code-brief.md`. Spec-only — never opens method bodies; reads class docstrings only to detect spec/code pattern-list drift. Standalone-invocable. Invoke with: @code-brief-writer <domain_diagram> <locations_report_text>
+description: "Phase-1 gather agent for `/update-code` flow. Derives per-artifact changes and risk tags from domain specs and updates. Invoke with: @code-brief-writer <domain_diagram> <locations_report_text>"
 tools: Read, Write, Bash
 model: sonnet
 skills:

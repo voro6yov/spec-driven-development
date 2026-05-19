@@ -1,21 +1,6 @@
 ---
 name: code-review-writer
-description: |
-  Phase-3 reviewer agent of the three-agent `/update-code` flow. Verifies the
-  Phase-2 implementer's work against a closed checklist plus lightweight
-  semantic spot-checks (endpoint↔serializer linkage, `to_domain()` target on
-  the domain diagram, integrator scope discipline via `git diff HEAD`). Reads
-  the brief at `<dir>/<stem>.rest-api/code-brief.md`, the change log at
-  `<dir>/<stem>.rest-api/code-changes.md`, and every source module the change
-  log references. Loads pattern skill bodies on demand via `Skill` only for
-  shape-conformance checks. Trusts Phase-2 self-reported statuses (`failed` /
-  `deferred` / `skipped`) and passes them through verbatim, but adds a
-  follow-up note for any failed/deferred row that was `risky`-tagged in the
-  brief. Emits a single layer-wide verdict (`clean` | `issues`) with severity
-  rubric `blocker` / `warn` / `info` — only a blocker flips the verdict.
-  Always re-renders `<dir>/<stem>.rest-api/code-review.md` from scratch (no
-  sentinel guard). Single-layer, standalone-invocable, read-only on source.
-  Invoke with: @code-review-writer <domain_diagram> <locations_report_text>
+description: "Phase-3 reviewer agent of the three-agent `/update-code` flow. Invoke with: @code-review-writer <domain_diagram> <locations_report_text>"
 tools: Read, Write, Bash, Skill
 model: sonnet
 skills:

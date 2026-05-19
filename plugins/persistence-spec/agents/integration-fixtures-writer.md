@@ -1,6 +1,6 @@
 ---
 name: integration-fixtures-writer
-description: Writes the collection fixture (`test_<plural>`) and persistence fixture (`add_<plural>`) for an aggregate into <tests_dir>/integration/conftest.py. Discovers the per-state aggregate fixtures (`<snake>_1`, `<snake>_2`, ...) in <tests_dir>/conftest.py and bundles them. Idempotent — preserves existing fixtures and only adds missing ones. Invoke with: @integration-fixtures-writer <domain_diagram> <tests_dir>
+description: "Writes the collection fixture (`test_<plural>`) and persistence fixture (`add_<plural>`) for an aggregate into <tests_dir>/integration/conftest.py. Invoke with: @integration-fixtures-writer <domain_diagram> <tests_dir>"
 tools: Read, Write, Edit, Bash, Skill
 skills:
   - persistence-spec:naming-conventions

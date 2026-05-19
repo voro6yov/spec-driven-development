@@ -1,6 +1,6 @@
 ---
 name: endpoints-implementer
-description: "Implements REST API endpoint modules from a `<dir>/<stem>.rest-api/spec.md` resource spec (derived from the domain diagram per `rest-api-spec:naming-conventions`). For every `## Surface:` section, emits one Python module at `api/endpoints/<surface>/<plural>.py` containing the surface's `<plural>_router` (prefix + tags from Table 1) plus one endpoint function per row of Tables 2 and 3. Endpoint kind is dispatched by path shape and Table 5 type signals (plain / nested-resource / command-action / file-upload / binary-streaming). Application-service call kwargs are driven from Table 6; body fields whose declared application-service parameter type is a domain `<<Domain TypedDict>>` / `<<Query DTO>>` are emitted as `request.<field>.to_domain()` (or list comprehensions thereof). Serializer imports use the per-aggregate qualified path `...serializers.<surface>.<aggregate>`. Idempotent: existing per-surface modules are never overwritten. Does not touch aggregator `__init__.py` files, `containers.py`, `entrypoint.py`, or `constants.py`. Invoke with: @endpoints-implementer <domain_diagram> <locations_report_text>"
+description: "Implements REST API endpoint modules from a `<dir>/<stem>.rest-api/spec.md` resource spec. Invoke with: @endpoints-implementer <domain_diagram> <locations_report_text>"
 tools: Read, Write, Bash, Skill
 model: sonnet
 skills:

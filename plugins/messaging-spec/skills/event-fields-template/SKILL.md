@@ -1,6 +1,6 @@
 ---
 name: event-fields-template
-description: Reference template for the Event Parameter Mapping table (Table 3) of a messaging consumer input spec. Load when authoring or reviewing per-event mappings between event attributes and `<AggregateRoot>Commands.on_<event>` method parameters — covers per-event sub-block layout, column shape, ordering, completeness, the empty-consumer placeholder, and a worked example.
+description: "Reference template for the Event Parameter Mapping table (Table 3) of a messaging consumer input spec. Load when authoring or reviewing per-event mappings between event attributes and `<AggregateRoot>Commands.on_<event>` method parameters."
 when_to_use: Authoring or reviewing the per-event parameter mapping of a messaging consumer; binding event attributes to <AggregateRoot>Commands.on_<event> method parameters; Table 3 ordering, empty-state placeholder, or completeness rules.
 user-invocable: false
 ---

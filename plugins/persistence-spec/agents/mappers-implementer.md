@@ -1,6 +1,6 @@
 ---
 name: mappers-implementer
-description: "Implements scaffolded mapper modules by replacing each `class <X>Mapper: pass` placeholder with the body produced by the matching template variant in `persistence-spec:mappers`. Reads the command-repo-spec for mapper rows + pattern variants, reads each domain class file referenced by a mapper, and emits a worklist of implemented module paths. Invoke with: @mappers-implementer <domain_diagram> <locations_report_text>"
+description: "Implements scaffolded mapper modules by replacing `class <X>Mapper: pass` with rendered bodies from `persistence-spec:mappers` templates. Invoke with: @mappers-implementer <domain_diagram> <locations_report_text>"
 tools: Read, Write, Bash, Skill
 skills:
   - persistence-spec:naming-conventions

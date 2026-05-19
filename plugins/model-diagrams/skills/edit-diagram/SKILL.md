@@ -1,6 +1,6 @@
 ---
 name: edit-diagram
-description: Applies a targeted change (add/modify/remove attribute, method, class, or relationship) to an existing Mermaid class diagram. Classifies the task, adaptively interviews the user via AskUserQuestion to fill gaps, edits the diagram in place with Edit, updates affected prose under `## Invariants` directly, delegates brand-new invariant prose to `@invariant-scribe`, and runs `@diagram-reviewer` to surface architectural concerns introduced by the change. Invoke with: /edit-diagram <diagram_file> <task>
+description: Applies a targeted change (add/modify/remove attribute, method, class, or relationship) to an existing Mermaid class diagram. Invoke with: /edit-diagram <diagram_file> <task>
 argument-hint: <diagram_file> <task>
 allowed-tools: Read, Edit, Agent, AskUserQuestion, Skill
 ---

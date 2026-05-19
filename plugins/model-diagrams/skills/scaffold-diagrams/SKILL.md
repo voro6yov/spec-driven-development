@@ -1,6 +1,6 @@
 ---
 name: scaffold-diagrams
-description: Initializes the three Mermaid class-diagram files for a new aggregate by delegating to `model-diagrams:diagrams-scaffolder`. Creates `<docs_dir>/<aggregate>/<aggregate>.md`, `<aggregate>.commands.md`, and `<aggregate>.queries.md`, each pre-populated with a minimal `classDiagram` and a PascalCase title. Idempotent. Invoke with: /scaffold-diagrams <aggregate> [<docs_dir>]
+description: "Initializes the three Mermaid class-diagram files for a new aggregate by delegating to \`model-diagrams:diagrams-scaffolder\`. Invoke with: /scaffold-diagrams <aggregate> [<docs_dir>]"
 argument-hint: <aggregate> [<docs_dir>]
 allowed-tools: Read, Agent
 ---

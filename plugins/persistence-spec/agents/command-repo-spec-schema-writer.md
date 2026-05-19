@@ -1,6 +1,6 @@
 ---
 name: command-repo-spec-schema-writer
-description: Fills (or refreshes) Section 3 (Schema Specification) of a command repository spec by projecting the aggregate's fields, value-object composition, and repository finder signatures onto SQL tables, columns, and indexes. Idempotent — safe to re-run; replaces the whole §3 body in place. Invoke with: @command-repo-spec-schema-writer <domain_diagram>
+description: "Fills Section 3 (Schema Specification) by projecting aggregate fields onto SQL tables, columns, and indexes. Invoke with: @command-repo-spec-schema-writer <domain_diagram>"
 tools: Read, Edit, Skill
 skills:
   - persistence-spec:naming-conventions

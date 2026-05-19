@@ -1,6 +1,6 @@
 ---
 name: unit-of-work-scaffolder
-description: "Copies the unit_of_work package into the target context-integration directory and wires the unit_of_work provider into containers.py. Aggregate-agnostic — operates per-context. Callers may skip invocation when the locations report shows Context Integration as exists. Invoke with: @unit-of-work-scaffolder <locations_report_text>"
+description: "Copies the unit_of_work package into the target context-integration directory and wires the unit_of_work provider into containers.py. Invoke with: @unit-of-work-scaffolder <locations_report_text>"
 tools: Read, Write, Edit, Bash
 model: sonnet
 ---

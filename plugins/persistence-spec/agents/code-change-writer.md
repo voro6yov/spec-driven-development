@@ -1,6 +1,6 @@
 ---
 name: code-change-writer
-description: Phase-2 implement agent of the three-agent `/update-code` flow for the persistence layer. Reads `<dir>/<stem>.persistence/code-brief.md` (produced by `@code-brief-writer`) and applies each artifact row directly inline — loading pattern skills on demand, surgically editing or fully rewriting on-disk persistence modules per the row's `kind` and `action` using a Read-then-check-then-Edit idempotence protocol, and writing a per-artifact change log to `<dir>/<stem>.persistence/code-changes.md`. Consults `<dir>/<stem>.persistence/command-repo-spec.md` and `<dir>/<stem>.persistence/updates.md` for column lists, variants, and delta details (Read once at preflight; navigate per-row sections from in-context content, falling back to a targeted `offset`/`limit` Read if context has been trimmed). Sequential, continue-on-failure, append-only for tests, additive-only for `containers.py`. Standalone-invocable — when invoked outside the `/update-code` orchestrator, the Phase 1.5 risk-screen is skipped and risky-tagged rows apply without operator confirmation. Invoke with: @code-change-writer <domain_diagram> <locations_report_text>
+description: "Phase-2 implement agent of the three-agent `/update-code` flow for the persistence layer. Invoke with: @code-change-writer <domain_diagram> <locations_report_text>"
 tools: Read, Write, Edit, Bash, Skill
 model: sonnet
 skills:

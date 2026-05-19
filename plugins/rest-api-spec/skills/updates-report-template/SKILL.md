@@ -1,6 +1,6 @@
 ---
 name: updates-report-template
-description: Reference template for the REST API updates report (`<stem>.rest-api/updates.md`) emitted by `rest-api-updates-writer`. Use when generating, parsing, or reviewing a REST API updates report. Covers the rendered schema (surface-scoped per-section delta blocks), rendering rules, the `## Affected Artifacts` footer specification, the top-of-file sentinel triple, the three-axis `Source delta` form, and the hash format.
+description: "Reference template for the REST API updates report (`<stem>.rest-api/updates.md`) emitted by `rest-api-updates-writer`. Use when generating, parsing, or reviewing a REST API updates report."
 user-invocable: false
 disable-model-invocation: false
 ---

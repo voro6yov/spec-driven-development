@@ -1,6 +1,6 @@
 ---
 name: application-updates-writer
-description: Emits the per-update application report at `<dir>/<stem>.application/updates.md` by diffing the working-tree application specs (`commands.specs.md`, `queries.specs.md`, `services.md`) against `git HEAD`. Snapshot sections (Commands/Queries Methods, Application Exceptions, Services) are compared structurally. Three-axis `Source delta` attribution probes `<stem>.domain/updates.md`, `commands-updates.md`, and `queries-updates.md` (any may be absent) and tags matches with `[domain]` / `[commands-diagram]` / `[queries-diagram]`. The report is always written (even on no-op). Standalone-invocable. Invoke with: @application-updates-writer <domain_diagram>
+description: "Emits the per-update application report at `<dir>/<stem>.application/updates.md` by diffing the working-tree application specs (`commands.specs.md`, `queries.specs.md`, `services.md`) against `git HEAD`. Invoke with: @application-updates-writer <domain_diagram>"
 tools: Read, Write, Bash, Skill
 skills:
   - application-spec:naming-conventions

@@ -1,6 +1,6 @@
 ---
 name: consumer-spec-initializer
-description: Initializes a messaging consumer input spec file (`<dir>/<stem>.messaging/<consumer_name>.md`) next to a Mermaid commands class diagram by validating the presence of a `%% Messaging - <consumer_name>` marker inside the diagram and deriving the service prefix from the project's package name reported by the messaging target-locations-finder. Writes Table 1 (Consumer Basics) only. Idempotent — leaves an existing Table 1 intact. Invoke with: @consumer-spec-initializer <commands_diagram> <consumer_name> <locations_report_text>
+description: "Initializes a messaging consumer input spec file by validating the marker and deriving the service prefix. Invoke with: @consumer-spec-initializer <commands_diagram> <consumer_name> <locations_report_text>"
 tools: Read, Write, Bash
 model: haiku
 skills:

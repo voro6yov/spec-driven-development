@@ -1,6 +1,6 @@
 ---
 name: domain-event-dispatchers
-description: Domain Event Dispatchers pattern for messaging. Use when configuring routing of domain events from pubsub queues to handlers, setting up DomainEventDispatcher with event-to-handler mappings, or initializing message consumption for domain events from a single aggregate type.
+description: Domain Event Dispatchers pattern for messaging. Use when configuring routing of domain events from pubsub queues to handlers.
 user-invocable: false
 disable-model-invocation: false
 ---

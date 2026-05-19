@@ -1,6 +1,6 @@
 ---
 name: diagrams-scaffolder
-description: Initializes the three Mermaid class-diagram files for a new aggregate (`<stem>.md`, `<stem>.commands.md`, `<stem>.queries.md`) inside `<docs_dir>/<aggregate>/`. Each file is a minimal `classDiagram` with a pre-populated `title:` derived from the kebab-case aggregate name (PascalCase variants for commands/queries). Idempotent — existing files are preserved. Invoke with: @diagrams-scaffolder <aggregate> [<docs_dir>]
+description: Initializes the three Mermaid class-diagram files for a new aggregate. Invoke with: @diagrams-scaffolder <aggregate> [<docs_dir>]
 tools: Read, Write, Bash, Skill
 model: haiku
 skills:

@@ -1,6 +1,6 @@
 ---
 name: command-dispatchers
-description: Command Dispatchers pattern for messaging. Use when configuring routing of commands from pubsub queues to handlers, setting up CommandDispatcher with command-to-handler mappings, or initializing message consumption for commands.
+description: Command Dispatchers pattern for messaging. Use when configuring routing of commands from pubsub queues to handlers.
 user-invocable: false
 disable-model-invocation: false
 ---

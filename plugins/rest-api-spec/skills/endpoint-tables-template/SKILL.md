@@ -1,6 +1,6 @@
 ---
 name: endpoint-tables-template
-description: Reference template for the Query Endpoints and Command Endpoints tables (Tables 2 and 3) of a REST API resource input spec. Load when authoring or reviewing the endpoint inventory of a resource — covers column shape, path conventions, operation naming, HTTP verb mapping, Domain Ref traceability, special endpoint shapes (binary content, sub-resources, actions, bulk), and worked examples.
+description: Reference template for the Query Endpoints and Command Endpoints tables (Tables 2 and 3) of a REST API resource input spec. Load when authoring or reviewing the endpoint inventory of a resource.
 user-invocable: false
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: init-messaging
-description: Initializes the project-wide messaging scaffolding (project package discovery, src/<pkg>/messaging/ as an empty aggregator package, and a canonical Click __main__.py skeleton). Aggregate-agnostic — run once per project before any /messaging-spec:generate-code invocation. Invoke with: /messaging-spec:init-messaging
+description: "Initializes the project-wide messaging scaffolding (project package discovery, src/<pkg>/messaging/ as an empty aggregator package, and a canonical Click __main__.py skeleton). Invoke with: /messaging-spec:init-messaging"
 allowed-tools: Bash, Write, Agent
 ---
 

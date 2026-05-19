@@ -1,17 +1,6 @@
 ---
 name: code-brief-writer
-description: |
-  Phase-1 gather agent of the three-agent `/update-code` flow. Reads
-  `<dir>/<stem>.rest-api/updates.md` and `<dir>/<stem>.rest-api/spec.md`, expands
-  the updates report's `## Affected Artifacts` footer into a surface-grouped
-  per-artifact brief with kind-dispatched skill lists (inline classification of
-  endpoint kind and serializer mix — file-upload / binary / nested-resource /
-  command-action / plain; request / response / nested / pagination /
-  polymorphic), tags each artifact `mechanical` or `risky`, and writes
-  `<dir>/<stem>.rest-api/code-brief.md`. Spec-only — never reads
-  commands.md/queries.md/domain.md, never reads on-disk endpoint/serializer
-  modules, never resolves `to_domain()` requirements (Phase 2 owns that).
-  Standalone-invocable. Invoke with: @code-brief-writer <domain_diagram> <locations_report_text>
+description: "Phase-1 gather agent of the three-agent `/update-code` flow. Invoke with: @code-brief-writer <domain_diagram> <locations_report_text>"
 tools: Read, Write, Bash
 model: sonnet
 skills:

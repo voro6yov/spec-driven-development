@@ -1,6 +1,6 @@
 ---
 name: code-change-writer
-description: Phase-2 implement agent of the three-agent `/update-code` flow for the messaging layer. Reads `<dir>/<stem>.messaging/code-brief.md`, processes each consumer in brief order through a fixed sub-step sequence — auto-derive sweep (events.py, dispatcher.py, messaging aggregator, constants.py) → handlers.py (overwrite-always) → test module (append-only / signature-driven) — and writes a per-consumer sectioned change log to `<dir>/<stem>.messaging/code-changes.md`. Loads pattern skills via Skill on demand per artifact. Always re-applies on replay; per-row failures are logged and processing continues; auto-derive failure for a consumer skips that consumer's brief rows. Standalone-invocable. Invoke with: @code-change-writer <domain_diagram> <locations_report_text>
+description: "Phase-2 implement agent for messaging `/update-code` flow. Auto-derives events/dispatcher/aggregator/constants, edits handlers, generates tests per consumer. Invoke with: @code-change-writer <domain_diagram> <locations_report_text>"
 tools: Read, Write, Edit, Bash, Skill
 model: sonnet
 skills:

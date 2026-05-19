@@ -1,6 +1,6 @@
 ---
 name: command-repository-implementer
-description: "Implements the scaffolded command-side repository module by replacing the `class <X>: pass` placeholder with a body driven by the abstract `Command<Aggregate>Repository` interface in the domain package and the `Simple` / `With Children` template variant in `persistence-spec:command-repository`. Reads the command-repo-spec for variant selection, multi-tenancy, column lists, and alternative-lookup hints, and emits a worklist with the implemented module path. Invoke with: @command-repository-implementer <domain_diagram> <locations_report_text>"
+description: "Implements the command-side repository stub driven by `Command<Aggregate>Repository` and `persistence-spec:command-repository` variant. Invoke with: @command-repository-implementer <domain_diagram> <locations_report_text>"
 tools: Read, Write, Bash, Skill
 skills:
   - persistence-spec:naming-conventions

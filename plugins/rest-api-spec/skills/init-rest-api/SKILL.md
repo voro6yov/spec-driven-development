@@ -1,6 +1,6 @@
 ---
 name: init-rest-api
-description: Initializes the project-wide REST API scaffolding (project package discovery, src/<pkg>/api/ with seeded __init__.py, shared serializer modules under api/serializers/, error_handlers.py + entrypoint patch, auth.py + application/auth/ subpackage + containers.py provider + entrypoint patch, and src/tests/conftest.py API client fixtures). Aggregate-agnostic — run once per project before any /rest-api-spec:generate-code invocation. Invoke with: /rest-api-spec:init-rest-api
+description: "Initializes the project-wide REST API scaffolding. Invoke with: /rest-api-spec:init-rest-api"
 allowed-tools: Bash, Write, Agent
 ---
 

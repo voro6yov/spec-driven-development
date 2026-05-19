@@ -1,6 +1,6 @@
 ---
 name: update-specs
-description: Surgically updates DDD class specs after a diagram change by detecting deltas, regenerating only affected categories, splicing them into the existing siblings, refreshing exceptions, and conditionally replanning tests — then cascades into the persistence-, application-, rest-api-, and messaging-spec updaters. Invoke with: /update-specs <domain_diagram>
+description: "Surgically updates DDD class specs after a diagram change by detecting deltas, regenerating only affected categories, splicing them into the existing siblings, refreshing exceptions, and conditionally replanning tests. Invoke with: /update-specs <domain_diagram>"
 argument-hint: <domain_diagram>
 allowed-tools: Read, Bash, Agent, Skill
 ---

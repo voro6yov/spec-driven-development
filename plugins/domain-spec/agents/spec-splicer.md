@@ -1,6 +1,6 @@
 ---
 name: spec-splicer
-description: Splices regenerated class blocks from per-category temp files (under `<stem>.domain/.specs-tmp/`) into `<stem>.domain/specs.md` based on the structured updates report, then refreshes the `## Domain Exceptions` stub in `<stem>.domain/exceptions.md` from the spliced spec's `▪ Raises:` lines. Replaces touched class blocks, inserts added classes (creating missing `#### <Category>` sections in canonical order), preserves untouched blocks byte-identical, and rebuilds `### Dependencies` by merging temp partial-deps with surviving existing entries. Idempotent. Invoke with: @spec-splicer <domain_diagram>
+description: "Splices regenerated class blocks from per-category temp files (under `<stem>.domain/.specs-tmp/`) into `<stem>.domain/specs.md` based on the structured updates report. Invoke with: @spec-splicer <domain_diagram>"
 tools: Read, Write, Bash
 model: sonnet
 skills:

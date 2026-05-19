@@ -1,6 +1,6 @@
 ---
 name: test-fixtures-preparer
-description: "Ensures the root `tests/conftest.py` defines the API client + authentication fixtures required by REST API tests (`app`, `client`, `containers`, `token_payload`, `request_headers`). Reads a target-locations report to resolve `<tests_dir>` and the project package name, then creates `tests/conftest.py` from the `rest-api-spec:api-client-fixtures` skill template if absent, or append-only patches it to add any missing fixtures (and their imports) when present. Append-only, idempotent, signature-driven. Never modifies an existing fixture body. Invoke with: @test-fixtures-preparer <locations_report_text>"
+description: "Ensures the root `tests/conftest.py` defines the API client + authentication fixtures required by REST API tests (`app`, `client`, `containers`, `token_payload`, `request_headers`). Invoke with: @test-fixtures-preparer <locations_report_text>"
 tools: Read, Write, Edit, Bash
 model: sonnet
 skills:

@@ -1,6 +1,6 @@
 ---
 name: generate-specs
-description: Orchestrates application spec generation (commands + queries dependencies, method specifications, and application exceptions) for an aggregate by running four writer agents in parallel, an exceptions enricher, then per-side mergers that consolidate the fragments into final `<side>.specs.md` files inside the per-plugin folder. Invoke with: /application-spec:generate-specs <domain_diagram>
+description: "Orchestrates application spec generation (commands + queries dependencies, method specifications, and application exceptions) for an aggregate. Invoke with: /application-spec:generate-specs <domain_diagram>"
 argument-hint: <domain_diagram>
 allowed-tools: Read, Agent, Skill
 ---

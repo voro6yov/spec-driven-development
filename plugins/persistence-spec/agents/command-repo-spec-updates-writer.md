@@ -1,6 +1,6 @@
 ---
 name: command-repo-spec-updates-writer
-description: Emits the per-update persistence report at `<dir>/<stem>.persistence/updates.md` by diffing the spec's working tree against `git HEAD`. Snapshot sections (§1, §2 Tables/Mappers/Repository/Context Integration, §3) are compared structurally; §2.Migrations is compared by row ID to extract the appended-row list. The report is always written (even on no-op). Standalone-invocable. Invoke with: @command-repo-spec-updates-writer <domain_diagram>
+description: "Emits the per-update persistence report at `<dir>/<stem>.persistence/updates.md` by diffing the spec's working tree against `git HEAD`. Invoke with: @command-repo-spec-updates-writer <domain_diagram>"
 tools: Read, Write, Bash, Skill
 skills:
   - persistence-spec:naming-conventions

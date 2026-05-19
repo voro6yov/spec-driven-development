@@ -1,6 +1,6 @@
 ---
 name: commands-tests-implementer
-description: "Implements pytest integration tests for an aggregate's `<Aggregate>Commands` application service. Parses the merged commands spec (derived from the domain diagram) for method signatures and flow, classifies each method (factory / mutating canonical / non-mutating), and synthesizes the standard test scenarios. Append-only and signature-driven. Invoke with: @commands-tests-implementer <domain_diagram> <tests_dir>"
+description: "Implements pytest integration tests for an aggregate's `<Aggregate>Commands` application service. Invoke with: @commands-tests-implementer <domain_diagram> <tests_dir>"
 tools: Read, Write, Edit, Bash, Skill
 skills:
   - application-spec:naming-conventions

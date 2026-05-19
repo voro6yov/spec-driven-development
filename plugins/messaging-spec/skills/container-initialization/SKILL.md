@@ -1,6 +1,6 @@
 ---
 name: container-initialization
-description: Container Initialization pattern for messaging applications. Use when initializing the DI container with application settings, loading configuration from Pydantic, initializing resources (broker connections), and wiring packages for dependency injection.
+description: Container Initialization pattern for messaging applications. Use when initializing DI containers with configuration, resources, and dependency injection wiring.
 user-invocable: false
 disable-model-invocation: false
 ---

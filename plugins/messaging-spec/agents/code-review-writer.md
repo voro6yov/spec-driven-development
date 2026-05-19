@@ -1,6 +1,6 @@
 ---
 name: code-review-writer
-description: Phase-3 review agent of the three-agent `/update-code` flow for the messaging layer. Reads `<dir>/<stem>.messaging/code-brief.md` and `<dir>/<stem>.messaging/code-changes.md`, re-reads every file the change log declared modified or created, loads pattern skill bodies per artifact via `Skill` to anchor a per-kind closed structural checklist, forms a per-consumer verdict (`clean | issues | failed`) with auto-elevation from Phase 2's `failed` status, attributes shared-file checks (aggregator + constants) per-consumer, surfaces every `risky`-tagged brief row through a dedicated `## Risky Notes` section, and writes `<dir>/<stem>.messaging/code-review.md` plus a final YAML payload. Standalone-invocable. Invoke with: @code-review-writer <domain_diagram> <locations_report_text>
+description: "Phase-3 review agent of the three-agent `/update-code` flow for the messaging layer. Invoke with: @code-review-writer <domain_diagram> <locations_report_text>"
 tools: Read, Write, Bash, Skill
 model: sonnet
 skills:

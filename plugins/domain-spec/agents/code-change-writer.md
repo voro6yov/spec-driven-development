@@ -1,6 +1,6 @@
 ---
 name: code-change-writer
-description: Phase-2 implement agent of the three-agent `/update-code` flow. Reads `<dir>/<stem>.domain/code-brief.md` produced by `@code-brief-writer` and applies every artifact row to disk for the domain layer — inline, using `Skill`-loaded pattern bodies and surgical Edits. Dependency-aware order (remove → add → modify → collateral), per-row fail-soft, naive-re-run idempotent (overwrites by design). Writes a per-row change log to `<dir>/<stem>.domain/code-changes.md` mirroring the brief's flat-section schema. Standalone-invocable. Invoke with: @code-change-writer <domain_diagram> <locations_report_text>
+description: "Phase-2 implement agent of the three-agent `/update-code` flow. Invoke with: @code-change-writer <domain_diagram> <locations_report_text>"
 tools: Read, Write, Edit, Bash, Skill
 model: sonnet
 skills:

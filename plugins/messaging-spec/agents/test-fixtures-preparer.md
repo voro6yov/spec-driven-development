@@ -1,6 +1,6 @@
 ---
 name: test-fixtures-preparer
-description: "Ensures the root `<tests_dir>/conftest.py` defines the messaging handler fixtures and the `make_event_envelope` helper required by message-handler integration tests for one consumer. Reads the consumer spec at `<dir>/<stem>.messaging/<consumer_name>.md` (derived from `<commands_diagram>` and `<consumer_name>` per `messaging-spec:naming-conventions`) and a target-locations-finder report to resolve `<tests_dir>`, the project package name `<pkg>`, and the consumer's handler set (one fixture per unique (Event Name, Source Destination) tuple in Table 2, naming follows `@consumer-scaffolder`'s collision rule). Creates `<tests_dir>/conftest.py` from the `messaging-spec:messaging-handler-fixtures` skill template if absent, or append-only patches it to add any missing fixtures (and their imports) when present. Append-only, idempotent, signature-driven. Never modifies an existing fixture body. Invoke with: @test-fixtures-preparer <commands_diagram> <consumer_name> <locations_report_text>"
+description: "Ensures `<tests_dir>/conftest.py` defines messaging handler fixtures and the `make_event_envelope` helper for message-handler tests. Invoke with: @test-fixtures-preparer <commands_diagram> <consumer_name> <locations_report_text>"
 tools: Read, Write, Edit, Bash
 model: sonnet
 skills:

@@ -1,6 +1,6 @@
 ---
 name: request-fields-writer
-description: Fills Table 5 (Request Fields) inside every `## Surface: <name>` section of an existing `<dir>/<stem>.rest-api/spec.md` by reading the `<Resource>Commands` Mermaid application-service diagram (sibling of the domain diagram, derived per `rest-api-spec:naming-conventions`) and the domain class diagram, deriving one request-fields sub-block per command endpoint already enumerated in that surface's Table 3. Replaces existing per-surface Table 5 in place; preserves prose and other tables. Invoke with: @request-fields-writer <domain_diagram>
+description: "Fills Table 5 (Request Fields) inside every `## Surface: <name>` section of an existing `<dir>/<stem>.rest-api/spec.md`. Invoke with: @request-fields-writer <domain_diagram>"
 tools: Read, Edit, Skill
 model: sonnet
 skills:

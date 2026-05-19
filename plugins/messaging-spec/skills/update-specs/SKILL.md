@@ -1,6 +1,6 @@
 ---
 name: update-specs
-description: "Surgically updates the messaging consumer input specs (`<stem>.messaging/<consumer>.md`) after a domain or commands-diagram change — invokes the commands-diagram detector, regenerates Tables 2–3 for every consumer whose `internal` subscriptions intersect a changed domain event or whose `%% Messaging` markers / handler signatures / external event classes changed, aborts-and-reconciles consumers that subscribe to a removed/renamed internal event, and emits the messaging updates report. Per-axis-scoped preflight; degraded axes are disabled, not fatal. Invoke with: /messaging-spec:update-specs <domain_diagram>"
+description: "Surgically updates the messaging consumer input specs (`<stem>.messaging/<consumer>.md`) after a domain or commands-diagram change. Invoke with: /messaging-spec:update-specs <domain_diagram>"
 argument-hint: <domain_diagram>
 allowed-tools: Read, Bash, Agent
 ---

@@ -1,6 +1,6 @@
 ---
 name: services-finder
-description: Identifies every service the application layer must implement by reconciling command/query merged specs with the domain and application diagrams, then writes a `services.md` sibling inside the per-plugin folder next to the domain diagram. Invoke with: @services-finder <domain_diagram>
+description: "Identifies every service the application layer must implement by reconciling command/query merged specs with the domain and application diagrams. Invoke with: @services-finder <domain_diagram>"
 tools: Read, Write, Skill
 skills:
   - application-spec:naming-conventions

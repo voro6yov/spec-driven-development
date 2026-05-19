@@ -1,6 +1,6 @@
 ---
 name: command-action-endpoint
-description: Command Action Endpoint pattern for exposing domain commands as POST endpoints performing non-CRUD actions on resources. Use when implementing state transitions, toggles, or business operations that trigger workflows or side effects on a resource.
+description: Expose domain commands as POST endpoints for non-CRUD actions on resources. Use when implementing state transitions, toggles, or business operations that trigger workflows or side effects.
 user-invocable: false
 disable-model-invocation: false
 ---

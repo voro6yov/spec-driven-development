@@ -1,6 +1,6 @@
 ---
 name: updates-report-template
-description: Reference template for the updates report (`<stem>.domain/updates.md`) emitted by `updates-detector`. Use when generating, parsing, or reviewing an updates report. Covers the rendered schema (class-grouped body), rendering rules, the `## Affected Categories` footer specification, the canonical stereotype→category mapping, and the Mermaid stereotype-inference rules.
+description: "Reference template for the updates report (`<stem>.domain/updates.md`) emitted by `updates-detector`. Use when generating, parsing, or reviewing an updates report."
 user-invocable: false
 ---
 

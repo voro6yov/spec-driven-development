@@ -1,6 +1,6 @@
 ---
 name: database-session-scaffolder
-description: "Copies the database_session package into the target Database Session directory and ensures the parent `extras/__init__.py` re-exports `DatabaseSession` so that `from <pkg>.extras import DatabaseSession` resolves. Aggregate-agnostic — operates per-project. Invoke with: @database-session-scaffolder <locations_report_text>"
+description: "Copies the database_session package into the target Database Session directory and ensures the parent `extras/__init__.py` re-exports `DatabaseSession`. Invoke with: @database-session-scaffolder <locations_report_text>"
 tools: Read, Write, Edit, Bash
 model: sonnet
 ---

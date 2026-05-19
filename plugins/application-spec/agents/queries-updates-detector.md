@@ -1,6 +1,6 @@
 ---
 name: queries-updates-detector
-description: Detects updates to a queries application-service Mermaid class diagram (`<dir>/<stem>.queries.md`) and its surrounding prose by comparing the working tree against git HEAD, then writes a structured `<dir>/<stem>.application/queries-updates.md` report. Invoke with: @queries-updates-detector <queries_diagram>
+description: "Detects updates to a queries application-service Mermaid class diagram and writes a structured report. Invoke with: @queries-updates-detector <queries_diagram>"
 tools: Read, Write, Bash
 model: sonnet
 skills:

@@ -1,6 +1,6 @@
 ---
 name: mappers-scaffolder
-description: "Scaffolds the `mappers/` sub-package for a command-side aggregate from a command-repo-spec file and a target-locations-finder report. Emits one empty class stub module per mapper declared in the spec and (re)writes `mappers/__init__.py` from the spec. Invoke with: @mappers-scaffolder <domain_diagram> <locations_report_text>"
+description: "Scaffolds the `mappers/` sub-package for a command-side aggregate from a command-repo-spec file and a target-locations-finder report. Invoke with: @mappers-scaffolder <domain_diagram> <locations_report_text>"
 tools: Read, Write, Bash, Skill
 skills:
   - persistence-spec:naming-conventions

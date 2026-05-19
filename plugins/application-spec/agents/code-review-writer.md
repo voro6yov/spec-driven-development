@@ -1,6 +1,6 @@
 ---
 name: code-review-writer
-description: Phase-3 review agent of the three-agent `/update-code` flow for the application layer. Reads `<dir>/<stem>.application/code-brief.md`, `<dir>/<stem>.application/code-changes.md`, and `<dir>/<stem>.application/updates.md`; cross-references brief ↔ change-log ↔ updates.md coverage; per row loads the named pattern skills via `Skill` and runs kind-specific contract + template-shape checks against the on-disk source; reads risky-tagged files to emit focused prose review notes; and writes a tri-state verdict report to `<dir>/<stem>.application/code-review.md`. Static review only — never runs pytest / mypy and never edits source. Always re-runs (no idempotency skip). Standalone-invocable. Invoke with: @application-spec:code-review-writer <domain_diagram> <locations_report_text>
+description: "Phase-3 review agent of the three-agent `/update-code` flow for the application layer. Invoke with: @application-spec:code-review-writer <domain_diagram> <locations_report_text>"
 tools: Read, Write, Bash, Skill
 model: sonnet
 skills:

@@ -1,6 +1,6 @@
 ---
 name: migration-vocabulary
-description: Shared vocabulary for §2.Migrations rows of a command repository spec — controlled Pattern list, destructive `⚠ ` marker rule, and per-row slug-derivation rules. Auto-load when writing or appending rows to the `### Migrations` sub-table of `<dir>/<stem>.persistence/command-repo-spec.md`.
+description: Shared vocabulary for §2.Migrations rows of a command repository spec — controlled Pattern list, destructive `⚠ ` marker rule, and per-row slug-derivation rules.
 user-invocable: false
 disable-model-invocation: false
 ---

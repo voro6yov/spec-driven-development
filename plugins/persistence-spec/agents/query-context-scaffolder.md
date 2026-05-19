@@ -1,6 +1,6 @@
 ---
 name: query-context-scaffolder
-description: "Copies the query_context package into the target context-integration directory (as a sibling of unit_of_work), wires the query_context provider into containers.py, and adds a `query_context` pytest fixture to the integration conftest. Aggregate-agnostic — operates per-context. Callers may skip invocation when the locations report shows Context Integration as exists. Invoke with: @query-context-scaffolder <locations_report_text>"
+description: "Copies the query_context package into the target context-integration directory, wires its provider into containers.py, and adds a pytest fixture to the integration conftest. Invoke with: @query-context-scaffolder <locations_report_text>"
 tools: Read, Write, Edit, Bash
 model: sonnet
 ---

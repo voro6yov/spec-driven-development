@@ -1,6 +1,6 @@
 ---
 name: external-events-implementer
-description: Implements external event classes in a consumer's `events.py` by walking Table 2 (Events to Consume) of the consumer spec, looking up each `external` event class on the Mermaid commands diagram, and rendering each as a `@dataclass` extending `DomainEvent` with verbatim field types from the diagram. Auto-resolves PascalCase type imports from `<pkg>/domain/**` (preferring `domain/shared`, then the local-aggregate package derived from the row's `<CommandClass>`) and from the `typing` module (closed allow-list); emits `# TODO: import <Type>` comments for unresolvable tokens. Per-class additive — upgrades the consumer-scaffolder's bare `class X: pass` stubs in place; preserves user-implemented classes and existing imports byte-identical; never modifies present implementations. Idempotent. Invoke with: @external-events-implementer <commands_diagram> <consumer_name> <locations_report_text>
+description: "Implements external event classes in a consumer's `events.py` by walking the consumer spec and commands diagram. Invoke with: @external-events-implementer <commands_diagram> <consumer_name> <locations_report_text>"
 tools: Read, Write, Bash
 model: sonnet
 skills:

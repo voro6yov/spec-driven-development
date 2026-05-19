@@ -1,6 +1,6 @@
 ---
 name: query-context-integrator
-description: "Wires a single aggregate's query repository into the per-context query_context package by patching `AbstractQueryContext` (attribute annotation + abstract-class import) and `SqlAlchemyQueryContext` (concrete instantiation in `__enter__` + concrete-class import). Idempotent per file; repairs partial wiring. Invoke with: @query-context-integrator <domain_diagram> <locations_report_text>"
+description: "Wires a single aggregate's query repository into the per-context query_context package. Invoke with: @query-context-integrator <domain_diagram> <locations_report_text>"
 tools: Read, Write, Edit, Bash, Skill
 skills:
   - persistence-spec:naming-conventions

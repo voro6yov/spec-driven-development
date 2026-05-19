@@ -1,6 +1,6 @@
 ---
 name: parameter-mapping-writer
-description: Fills Table 6 (Parameter Mapping) inside every `## Surface: <name>` section of an existing `<dir>/<stem>.rest-api/spec.md` by reading the `<Resource>Commands` and `<Resource>Queries` Mermaid application-service diagrams (siblings of the domain diagram, derived per `rest-api-spec:naming-conventions`), deriving one mapping sub-block per endpoint already enumerated in that surface's Tables 2 and 3. Replaces existing per-surface Table 6 in place; preserves prose and other tables. Invoke with: @parameter-mapping-writer <domain_diagram>
+description: "Fills Table 6 (Parameter Mapping) inside every Surface section by reading application-service diagrams and deriving parameter mappings per endpoint. Invoke with: @parameter-mapping-writer <domain_diagram>"
 tools: Read, Edit, Skill
 model: sonnet
 skills:

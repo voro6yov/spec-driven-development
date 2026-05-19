@@ -1,6 +1,6 @@
 ---
 name: aggregate-fixtures
-description: Aggregate Fixtures pattern for DDD Python testing. Use when writing pytest aggregate fixtures, applying state mutations to reach specific lifecycle states, deciding between simple vs. mutated fixture variants, or structuring conftest.py for unit/integration/application test reuse.
+description: Aggregate Fixtures pattern for DDD Python testing.
 user-invocable: false
 disable-model-invocation: false
 ---

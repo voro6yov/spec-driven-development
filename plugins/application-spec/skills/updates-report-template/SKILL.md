@@ -1,6 +1,6 @@
 ---
 name: application-spec:updates-report-template
-description: Reference template for the application updates report (`<stem>.application/updates.md`) emitted by `application-updates-writer`. Use when generating, parsing, or reviewing an application updates report. Covers the rendered schema (per-section delta blocks), rendering rules, the `## Affected Artifacts` footer specification, the top-of-file sentinel, and the hash format.
+description: "Reference template for the application updates report (`<stem>.application/updates.md`) emitted by `application-updates-writer`. Use when generating, parsing, or reviewing an application updates report."
 user-invocable: false
 disable-model-invocation: false
 ---

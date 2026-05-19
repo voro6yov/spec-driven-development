@@ -1,6 +1,6 @@
 ---
 name: event-fields-writer
-description: Fills Table 3 (Event Parameter Mapping) of a messaging consumer input spec by, for every row of Table 2, matching the bound `<AggregateRoot>Commands.on_<event>` handler's parameters against the source event class's attributes and emitting one per-event sub-block. Internal events are sourced from the domain diagram (`<<Domain Event>>`); external events from the commands diagram (`<<Domain Event>>`). Best-match by name similarity — emits the best guess for every parameter and flags low-confidence sub-blocks in italic prose. Replaces any existing Table 3 in place directly after Table 2. Idempotent. Invoke with: @event-fields-writer <commands_diagram> <consumer_name>
+description: "Fills Table 3 (Event Parameter Mapping) of a messaging consumer input spec by matching handler parameters against source event class attributes. Invoke with: @event-fields-writer <commands_diagram> <consumer_name>"
 tools: Read, Write
 model: sonnet
 skills:

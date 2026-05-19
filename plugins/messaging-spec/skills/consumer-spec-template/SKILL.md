@@ -1,6 +1,6 @@
 ---
 name: consumer-spec-template
-description: Reference template for the Consumer Basics table (Table 1) of a messaging consumer input spec. Load when authoring or reviewing the input spec for a messaging consumer — covers the three required fields of Table 1, casing/format rules, queue-name derivation conventions, and worked examples.
+description: Reference template for the Consumer Basics table (Table 1) of a messaging consumer input spec.
 user-invocable: false
 disable-model-invocation: false
 ---

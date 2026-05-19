@@ -1,6 +1,6 @@
 ---
 name: command-repository-tests-implementer
-description: "Implements pytest integration tests for an aggregate's command-side repository. Enumerates `@abstractmethod` members on the abstract `Command<Aggregate>Repository`, classifies each by signature using the same dispatch rules as `@command-repository-implementer`, and synthesizes the standard test scenarios per method kind. Append-only and signature-driven. Invoke with: @command-repository-tests-implementer <domain_diagram> <tests_dir>"
+description: "Implements pytest integration tests for an aggregate's command-side repository. Invoke with: @command-repository-tests-implementer <domain_diagram> <tests_dir>"
 tools: Read, Write, Edit, Bash, Skill
 skills:
   - persistence-spec:naming-conventions

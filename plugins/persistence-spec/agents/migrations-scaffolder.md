@@ -1,6 +1,6 @@
 ---
 name: migrations-scaffolder
-description: "Scaffolds Liquibase migration YAML files (one per changeset row) under the Migrations target location and registers them in `master.yaml`. Each new file is a minimal valid stub (`databaseChangeLog: []`); a downstream implementer fills in changeSets. Reads the `### Migrations` table from a command-repo-spec file. Invoke with: @migrations-scaffolder <domain_diagram> <locations_report_text>"
+description: "Scaffolds Liquibase migration YAML files (one per changeset row) under the Migrations target location and registers them in `master.yaml`. Invoke with: @migrations-scaffolder <domain_diagram> <locations_report_text>"
 tools: Read, Write, Bash, Skill
 skills:
   - persistence-spec:naming-conventions

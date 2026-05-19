@@ -1,6 +1,6 @@
 ---
 name: invariant-scribe
-description: Documents invariants for a class or method in a domain diagram file. User provides the file path, target class/method, and free-text description. Agent categorizes and appends structured Preconditions/Flow/Postconditions/Invariants sections into the file.
+description: Documents invariants for a class or method in a domain diagram file.
 tools: Read, Edit
 model: sonnet
 ---

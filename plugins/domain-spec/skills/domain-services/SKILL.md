@@ -1,6 +1,6 @@
 ---
 name: domain-services
-description: Domain Services and Interfaces pattern for DDD Python. Use when defining operations that depend on infrastructure or external systems, implementing ABCs or Protocols for dependency injection, or when the spec contains <<Service>> stereotype.
+description: Domain Services and Interfaces pattern for DDD Python. Use when defining operations that depend on infrastructure or external systems, or implementing ABCs or Protocols for dependency injection.
 user-invocable: false
 disable-model-invocation: false
 ---

@@ -1,6 +1,6 @@
 ---
 name: consumer-scaffolder
-description: Scaffolds the per-consumer messaging submodule (`messaging/<consumer_name>/`) from a populated consumer spec at `<dir>/<stem>.messaging/<consumer_name>.md` and a target-locations-finder report. Emits empty class/function stubs for `__init__.py`, `dispatcher.py`, `handlers.py`, and conditionally `events.py` (only when Table 2 has at least one external event), additively patches the root `messaging/__init__.py` aggregator, and appends destination + queue constants to `constants.py`. Per-file idempotent. Invoke with: @consumer-scaffolder <commands_diagram> <consumer_name> <locations_report_text>
+description: Scaffolds the per-consumer messaging submodule from a populated consumer spec and a target-locations-finder report. Invoke with: @consumer-scaffolder <commands_diagram> <consumer_name> <locations_report_text>
 tools: Read, Write, Bash
 model: sonnet
 skills:

@@ -1,6 +1,6 @@
 ---
 name: persistence-spec:updates-report-template
-description: Reference template for the persistence updates report (`<stem>.persistence/updates.md`) emitted by `command-repo-spec-updates-writer`. Use when generating, parsing, or reviewing a persistence updates report. Covers the rendered schema (per-section delta blocks), rendering rules, the `## Affected Artifacts` footer specification, the top-of-file sentinel, and the hash format.
+description: Reference template for the persistence updates report (`<stem>.persistence/updates.md`) emitted by `command-repo-spec-updates-writer`. Use when generating, parsing, or reviewing a persistence updates report.
 user-invocable: false
 disable-model-invocation: false
 ---

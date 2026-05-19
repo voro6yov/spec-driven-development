@@ -1,6 +1,6 @@
 ---
 name: rest-api-updates-writer
-description: Emits the per-update REST API report at `<dir>/<stem>.rest-api/updates.md` by diffing the working-tree resource spec (`spec.md`) against `git HEAD`. Compares Table 1 (Resource Basics), Tables 2/3 (Endpoint Inventory) per surface, and Tables 4/5/6 (Response Fields / Request Fields / Parameter Mapping) per surface per endpoint — at field / nested-type / query-param granularity. Three-axis `Source delta` attribution probes `<stem>.domain/updates.md`, `<stem>.application/commands-updates.md`, and `<stem>.application/queries-updates.md` (any may be absent) and tags matches with `[domain]` / `[commands-diagram]` / `[queries-diagram]`. The report is always written (even on no-op). Standalone-invocable. Invoke with: @rest-api-updates-writer <domain_diagram>
+description: "Emits a per-update REST API report by diffing `spec.md` against `git HEAD`. Invoke with: @rest-api-updates-writer <domain_diagram>"
 tools: Read, Write, Bash, Skill
 skills:
   - rest-api-spec:naming-conventions

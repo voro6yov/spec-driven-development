@@ -1,6 +1,6 @@
 ---
 name: table-scaffolder
-description: "Scaffolds the per-aggregate table modules and the surrounding `__init__.py` aggregators from a command-repo-spec file and a target-locations-finder report. Emits bare placeholder stubs in `<table>.py` files containing `<table>_table = ...`, with no embedded spec text. Invoke with: @table-scaffolder <domain_diagram> <locations_report_text>"
+description: "Scaffolds the per-aggregate table modules and the surrounding `__init__.py` aggregators from a command-repo-spec file and a target-locations-finder report. Invoke with: @table-scaffolder <domain_diagram> <locations_report_text>"
 tools: Read, Write, Bash, Skill
 skills:
   - persistence-spec:naming-conventions

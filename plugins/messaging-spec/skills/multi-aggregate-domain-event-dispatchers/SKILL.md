@@ -1,6 +1,6 @@
 ---
 name: multi-aggregate-domain-event-dispatchers
-description: Multi-Aggregate Domain Event Dispatchers pattern for routing domain events from multiple aggregate types to handlers in a single dispatcher. Use when events from multiple Destinations need coordinated handling, related business logic spans multiple domain boundaries, or related events from different services should be processed together.
+description: Multi-Aggregate Domain Event Dispatchers pattern for routing domain events from multiple aggregate types to handlers. Use when events from multiple Destinations need coordinated handling.
 user-invocable: false
 disable-model-invocation: false
 ---

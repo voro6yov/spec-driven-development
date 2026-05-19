@@ -1,6 +1,6 @@
 ---
 name: integration-test-package-preparer
-description: Prepares the integration test package structure for command-repository tests. Creates <tests_dir>/ and <tests_dir>/integration/ as Python packages and ensures their conftest.py files exist. Invoke with: @integration-test-package-preparer <tests_dir>
+description: "Prepares the integration test package structure for command-repository tests. Invoke with: @integration-test-package-preparer <tests_dir>"
 tools: Read, Bash
 model: haiku
 ---

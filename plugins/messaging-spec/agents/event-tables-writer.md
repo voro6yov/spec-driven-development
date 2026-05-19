@@ -1,6 +1,6 @@
 ---
 name: event-tables-writer
-description: Fills Table 2 (Events to Consume) of a messaging consumer input spec by parsing the `%% Messaging - <consumer_name>` block(s) inside a Mermaid commands class diagram. Each block line of the form `<X>Commands <arrow> <Event> : handles (<Source>, <on_method>)` becomes one row, where `<arrow>` is `-->` for external events or `--()` for internal events. Replaces any existing Table 2 in place directly after Table 1. Idempotent — re-running on an unchanged diagram produces identical output. Invoke with: @event-tables-writer <commands_diagram> <consumer_name>
+description: "Fills Table 2 (Events to Consume) of a messaging consumer input spec by parsing the \`%% Messaging - <consumer_name>\` block(s) inside a Mermaid commands class diagram. Invoke with: @event-tables-writer <commands_diagram> <consumer_name>"
 tools: Read, Write
 model: haiku
 skills:

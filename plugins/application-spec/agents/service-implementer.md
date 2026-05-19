@@ -1,6 +1,6 @@
 ---
 name: service-implementer
-description: "Implements one application-layer service end-to-end: fills its application interface stubs (external) or locates its domain ABCs (domain), writes the infrastructure stub class, writes the test fake, registers the provider in containers.py, and wires the autouse fake fixtures into tests/conftest.py. Operates on a single service identified by name in the services report. Invoke with: @service-implementer <domain_diagram> <locations_report_text> <service_identifier>"
+description: "Implements one application-layer service end-to-end across interface stubs, infrastructure, test fakes, DI containers, and test fixtures. Invoke with: @service-implementer <domain_diagram> <locations_report_text> <service_identifier>"
 tools: Read, Write, Edit, Bash, Skill
 skills:
   - application-spec:naming-conventions

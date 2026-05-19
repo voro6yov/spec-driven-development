@@ -1,6 +1,6 @@
 ---
 name: migrations-implementer
-description: "Implements scaffolded Liquibase migration YAML files by replacing each `databaseChangeLog: []` placeholder with the changeSets produced by the matching template variant in `persistence-spec:migration`. Reads the command-repo-spec for migration rows + pattern variants, cross-references Section 3 for columns/FKs/indexes, and emits a worklist of implemented module paths. Invoke with: @migrations-implementer <domain_diagram> <locations_report_text>"
+description: "Implements scaffolded Liquibase migration YAML files by replacing each `databaseChangeLog: []` placeholder with the changeSets produced by the matching template variant in `persistence-spec:migration`. Invoke with: @migrations-implementer <domain_diagram> <locations_report_text>"
 tools: Read, Write, Bash, Skill
 skills:
   - persistence-spec:naming-conventions

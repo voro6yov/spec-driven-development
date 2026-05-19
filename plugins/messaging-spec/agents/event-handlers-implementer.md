@@ -1,6 +1,6 @@
 ---
 name: event-handlers-implementer
-description: Implements every event handler in a consumer's `handlers.py` by walking Table 2 (Events to Consume) and Table 3 (Event Parameter Mapping) of the consumer spec and rendering one `@inject`-decorated handler function per unique (Event Name, Source Destination) tuple. External event classes are imported from the local `.events` module; internal event classes are imported per-aggregate from `<pkg>.domain.<source_destination_snake>` (where `<source_destination_snake>` is derived from the row's Source Destination cell). Handler function names follow `@consumer-scaffolder`'s collision rule (`<event_snake>_handler` for unique events, `<event_snake>_from_<source_snake>_handler` for collisions). Per-handler additive — upgrades the consumer-scaffolder's bare `def x(): pass` stubs in place; preserves user-implemented handlers byte-identical; never modifies present implementations. Idempotent. Invoke with: @event-handlers-implementer <commands_diagram> <consumer_name> <locations_report_text>
+description: Implements event handlers in a consumer's `handlers.py` from Tables 2 and 3 of the consumer spec. Invoke with: @event-handlers-implementer <commands_diagram> <consumer_name> <locations_report_text>
 tools: Read, Write, Bash
 model: sonnet
 skills:

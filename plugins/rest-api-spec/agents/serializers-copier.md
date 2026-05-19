@@ -1,6 +1,6 @@
 ---
 name: serializers-copier
-description: "Copies the shared serializer modules (`error.py`, `configured_base_serializer.py`, `json_utils.py`) from the plugin's `modules/serializers/` reference into `<api_pkg>/serializers/`, then (re)writes `<api_pkg>/serializers/__init__.py` as a star-aggregator over the root-level modules on disk. Aggregate-agnostic — operates per-project. Idempotent: existing files are never overwritten; the only file unconditionally (re)written is `serializers/__init__.py`. Invoke with: @serializers-copier <locations_report_text>"
+description: "Copies the shared serializer modules (`error.py`, `configured_base_serializer.py`, `json_utils.py`) from the plugin's `modules/serializers/` reference into `<api_pkg>/serializers/`, then (re)writes `<api_pkg>/serializers/__init__.py` as a star-aggregator over the root-level modules on disk. Invoke with: @serializers-copier <locations_report_text>"
 tools: Read, Write, Bash
 model: sonnet
 ---

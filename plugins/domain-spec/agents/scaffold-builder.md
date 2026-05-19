@@ -1,6 +1,6 @@
 ---
 name: scaffold-builder
-description: Creates the package skeleton — empty class stubs with spec docstrings and inter-module imports — following the domain package layout conventions. Reads `<stem>.domain/specs.md` and `<stem>.domain/exceptions.md`. Invoke with: @scaffold-builder <domain_diagram> <output_dir>
+description: "Creates the package skeleton — empty class stubs with spec docstrings and inter-module imports — following the domain package layout conventions. Invoke with: @scaffold-builder <domain_diagram> <output_dir>"
 tools: Read, Write, Bash
 model: sonnet
 skills:

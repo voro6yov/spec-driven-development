@@ -1,6 +1,6 @@
 ---
 name: generate-code
-description: Implements the REST API layer for a resource from its `<dir>/<stem>.rest-api/spec.md` resource spec sibling. Resolves target locations once, scaffolds the per-surface package layout, implements query and command serializers in sequence (so they don't race on shared aggregators), implements endpoint modules, and finally wires everything into the FastAPI app. Invoke with: /rest-api-spec:generate-code <domain_diagram>
+description: "Implements the REST API layer for a resource from its `<dir>/<stem>.rest-api/spec.md` resource spec sibling. Invoke with: /rest-api-spec:generate-code <domain_diagram>"
 argument-hint: <domain_diagram>
 allowed-tools: Agent, Skill
 ---

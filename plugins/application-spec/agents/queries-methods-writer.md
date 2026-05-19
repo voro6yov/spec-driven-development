@@ -1,6 +1,6 @@
 ---
 name: queries-methods-writer
-description: Writes the Method Specifications section of an `<AggregateRoot>Queries` application service spec to a per-plugin sibling file next to the domain class diagram, plus a sibling exceptions file enumerating exceptions raised by the methods. Designs each method's flow by reading the domain diagram for the aggregate's query repository finders and external interfaces. Invoke with: @queries-methods-writer <domain_diagram>
+description: Writes Method Specifications for an `<AggregateRoot>Queries` application service. Invoke with: @queries-methods-writer <domain_diagram>
 tools: Read, Write, Bash, Skill
 skills:
   - application-spec:naming-conventions

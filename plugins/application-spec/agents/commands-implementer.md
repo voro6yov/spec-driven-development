@@ -1,6 +1,6 @@
 ---
 name: commands-implementer
-description: "Implements the `<Aggregate>Commands` application service end-to-end: fills the scaffolded `<aggregate>_commands.py` stub from the merged commands spec (derived from the domain diagram), registers the `<aggregate>_commands` provider in containers.py with every dep wired, and adds a function-scoped `<aggregate>_commands` fixture to tests/conftest.py. Single-aggregate, idempotent. Invoke with: @commands-implementer <domain_diagram> <locations_report_text>"
+description: "Implements the `<Aggregate>Commands` application service end-to-end. Invoke with: @commands-implementer <domain_diagram> <locations_report_text>"
 tools: Read, Write, Edit, Bash, Skill
 skills:
   - application-spec:naming-conventions

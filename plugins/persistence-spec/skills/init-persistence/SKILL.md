@@ -1,6 +1,6 @@
 ---
 name: init-persistence
-description: Initializes the project-wide persistence scaffolding (infrastructure/, infrastructure/repositories/, infrastructure/repositories/tables/, infrastructure/unit_of_work/, infrastructure/query_context/, extras/database_session/ with extras re-export, etc/migrator/migrations/master.yaml, and tests/integration/). Aggregate-agnostic — run once per project before any /persistence-spec:generate-code invocation. Invoke with: /init-persistence
+description: Initializes the project-wide persistence scaffolding. Invoke with: /init-persistence
 allowed-tools: Bash, Agent
 ---
 

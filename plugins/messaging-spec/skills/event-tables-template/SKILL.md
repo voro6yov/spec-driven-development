@@ -1,6 +1,6 @@
 ---
 name: event-tables-template
-description: Reference template for the Events to Consume table (Table 2) of a messaging consumer input spec. Load when authoring or reviewing the events inventory of a consumer — covers column shape, per-column casing rules, ordering convention, the empty-consumer placeholder, and a worked example.
+description: Reference template for the Events to Consume table (Table 2) of a messaging consumer input spec.
 when_to_use: Authoring or reviewing the subscribed events table of a messaging consumer; consumer event inventory; Table 2 ordering or empty-state placeholder; binding events to <AggregateRoot>Commands.on_<event_snake> handlers.
 user-invocable: false
 ---

@@ -1,6 +1,6 @@
 ---
 name: generate-code
-description: Implements the command-side and query-side persistence package for an aggregate from its command-repo-spec and writes its repository integration tests. Assumes `/persistence-spec:init-persistence` has prepared the project-wide scaffolding. Resolves target locations once, runs per-aggregate scaffolders in parallel, runs implementers in dependency order, wires the aggregate into the per-context unit of work and query context, and finally generates fixtures and tests. Invoke with: /persistence-spec:generate-code <domain_diagram>
+description: "Implements the command-side and query-side persistence package for an aggregate from its command-repo-spec and writes its repository integration tests. Invoke with: /persistence-spec:generate-code <domain_diagram>"
 argument-hint: <domain_diagram>
 allowed-tools: Read, Agent
 ---

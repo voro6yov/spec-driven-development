@@ -1,6 +1,6 @@
 ---
 name: command-repo-spec-migrations-writer
-description: Fills the §2 Migrations sub-table of an already-scaffolded command repository spec with concrete migration rows derived from the source domain diagram. Emits a 4-column table (ID / Changeset / Pattern / Template) keyed by zero-padded per-aggregate IDs starting at 0001. Idempotent on already-filled tables. Invoke with: @command-repo-spec-migrations-writer <domain_diagram>
+description: "Fills the §2 Migrations sub-table of an already-scaffolded command repository spec with concrete migration rows derived from the source domain diagram. Invoke with: @command-repo-spec-migrations-writer <domain_diagram>"
 tools: Read, Edit, Skill
 skills:
   - persistence-spec:naming-conventions

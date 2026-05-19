@@ -1,6 +1,6 @@
 ---
 name: generate-specs
-description: Orchestrates REST API resource spec generation by running the rest-api-spec agents in sequence to populate Tables 1–6 of the `<dir>/<stem>.rest-api/spec.md` sibling file. Use when the user asks to generate a REST API spec from a Mermaid domain class diagram. Invoke with: /generate-specs <domain_diagram>
+description: "Orchestrates REST API resource spec generation from a domain diagram. Use when the user asks to generate a REST API spec from a Mermaid domain class diagram. Invoke with: /generate-specs <domain_diagram>"
 argument-hint: <domain_diagram>
 allowed-tools: Read, Agent, Skill
 ---
