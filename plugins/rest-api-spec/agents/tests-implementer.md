@@ -142,8 +142,9 @@ Within the surface's bounded section (from `## Surface: <surface>` to the next `
 1. **Parse Table 2** (Query Endpoints). Treat `*No query endpoints in this surface.*` as zero rows. Otherwise capture each row as `(http, path, operation, description, domain_ref)`.
 2. **Parse Table 3** (Command Endpoints). Treat `*No command endpoints in this surface.*` as zero rows. Otherwise capture rows; drop rows whose Domain Ref method name starts with `on_`.
 3. **Parse Table 5** (Request Fields) — sub-block per Table 3 row. Bind `has_body` per row:
-   - `has_body == False` if the Table 5 sub-block is the placeholder `*No request body*` (or equivalently empty / absent).
+   - `has_body == False` if the Table 5 sub-block begins with `*No request body` (any variant — `*No request body*`, `*No request body — composite key sourced from query parameters.*`, `*No request body — id and tenant_id are sourced from path and auth.*`, …) or is empty / absent.
    - `has_body == True` otherwise. Capture each field row as `(name, type, required?, description)`; a field is **required** iff its Type cell does not contain `| None`.
+4. **Parse Table 6** (Parameter Mapping) — sub-block per Table 3 row. For each command endpoint, bind `<cmd_query_params>` = the ordered list of left-column parameter names whose Source cell is `` Query param `<name>` `` (a composite-key aggregate produces these; for an id-bearing aggregate the list is empty). No other Table 6 column is needed by this agent.
 
 If a surface has zero endpoints (Tables 2 and 3 both empty / placeholder), record `skipped: <surface>: no endpoints` and continue.
 
@@ -164,6 +165,8 @@ For each endpoint row, classify by `(http, path, body?)` and emit the listed sce
 The `__missing_required_field` test sends an **empty JSON body** (`json={}`) and asserts `422 UNPROCESSABLE_ENTITY`. The required-field detection (first non-`| None` row in Table 5) is used only to decide whether the test is emitted — the body itself is `{}`.
 
 When `has_body == False` for a mutating endpoint (e.g. `POST /{id}/start-receiving` with `*No request body*`), the emitted `__success` and `__not_found` tests **omit the `json=` keyword entirely**.
+
+Composite-key command endpoints (no `{id}` in path — e.g. `PATCH /evo-version`, `DELETE /`) match the **Anything else** row and receive a `__success` test only. Their identifying composite key is supplied as query parameters resolved from `<aggregate>_1` (per § Query parameter resolution), so the `__success` test keeps `<aggregate>_1` and `add_<plural_agg>` in its function args.
 
 If a row's HTTP/path combination is unparseable, abort with: `ERROR: surface "<surface>" endpoint row "<row>" is malformed.`
 
@@ -249,7 +252,10 @@ This replaces "drill at most one level" for path-placeholder and nested-collecti
 
 #### Query parameter resolution
 
-For every endpoint that declares query parameters in Table 4, the agent emits required params on the test URL so Pydantic validation passes before the endpoint body runs.
+For every endpoint that declares query parameters, the agent emits required params on the test URL so Pydantic validation passes before the endpoint body runs. Query parameters come from two sources:
+
+- **Query (Table 2) endpoints** — a `**Query Parameters:**` sub-block under Table 4, parsed per *Locating the sub-block* below.
+- **Command (Table 3) endpoints of a composite-key aggregate** — the `<cmd_query_params>` list bound from Table 6 in Step 5 (item 4). Every entry is a **required** query parameter (composite-key fields identify the aggregate and are never optional). Resolve each value via the **Fixture-attribute lookup** (Step 7) against `<aggregate>_1` — composite-key fields are aggregate-root attributes, so they resolve to `{<aggregate>_1.<name>}`; fall back to the `str` stub `test` with a Step 9 warning only if the lookup fails. Command endpoints have no Table 4 sub-block — skip *Locating the sub-block* for them.
 
 **Locating the sub-block.** Within the surface section, immediately after the endpoint's response field table (and after any `**Nested:**` sub-tables), look for a block of the form:
 
@@ -281,7 +287,7 @@ The sub-block is one of:
 | `list` / `list[*]` | omit (lists rarely belong in required query params; emit no fragment and append a Step 9 warning) |
 | anything else | `test` plus a Step 9 warning that the param was stubbed with an unverified literal |
 
-**Param names — emit the camelCase alias.** Request serializers apply `alias_generator=to_camel`, and for a Pydantic model consumed via `Depends()` FastAPI binds each query parameter by its **alias** — so the wire name is camelCase (`source_id` → `sourceId`). Emit the camelCased Param Name on the URL: apply the inverse of the Step 3 snake_case regex (drop each `_` and TitleCase the following letter). A snake_case query key is silently ignored by FastAPI — the param then falls back to its default, or fails validation when required — so never emit the raw snake_case form.
+**Param names — emit the camelCase alias.** Request serializers apply `alias_generator=to_camel`, and for a Pydantic model consumed via `Depends()` FastAPI binds each query parameter by its **alias** — so the wire name is camelCase (`source_id` → `sourceId`). Emit the camelCased Param Name on the URL: apply the inverse of the Step 3 snake_case regex (drop each `_` and TitleCase the following letter). A snake_case query key is silently ignored by FastAPI — the param then falls back to its default, or fails validation when required — so never emit the raw snake_case form. Composite-key command query parameters are individual `Query(..., alias="<camel>")` parameters (emitted by `@endpoints-implementer`) and are bound by the same camelCase alias — emit them camelCased too (a name with no underscores, e.g. `cmf`, is already its own camelCase form).
 
 **Combining.** Concatenate fragments with `&` and prepend `?`. Bind `<query_string>` to the result, or to the empty string when no required params remain. Optional params (Type contains `| None`) are omitted — they default at the framework or settings layer and are not the agent's concern.
 

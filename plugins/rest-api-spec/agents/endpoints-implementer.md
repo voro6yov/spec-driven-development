@@ -115,7 +115,7 @@ For each Table 2 / Table 3 row, classify with this rule set (first match wins):
 2. **Binary streaming** — Table 2 row only, and the row's Table 4 sub-block is the binary placeholder (`*Binary response* — returns raw …`). Render with `StreamingResponse`; no `response_model`.
 3. **Nested resource** — path contains ≥ 2 `{…}` placeholders (e.g., `/{id}/overages/{tireId}/confirm`, `/{id}/overages/{tireId}`). Render per `rest-api-spec:nested-resource-endpoints`.
 4. **Command action** — HTTP is POST/PATCH/PUT and path matches `/{id}/<one-or-more-static-kebab-segments>` (i.e. has exactly one placeholder — `{id}` — followed by one or more static segments and no further placeholders). Render per `rest-api-spec:command-action-endpoint`.
-5. **Plain endpoint** — everything else (`POST /`, `GET /`, `GET /{id}`, `PATCH /{id}`, `DELETE /{id}`). Render per `rest-api-spec:endpoints`.
+5. **Plain endpoint** — everything else (`POST /`, `GET /`, `GET /{id}`, `PATCH /{id}`, `DELETE /{id}`, and composite-key command paths such as `PATCH /evo-version` and `DELETE /`). Render per `rest-api-spec:endpoints`.
 
 The dispatch is purely mechanical: a row's `(http, path, table5_types)` triple uniquely determines its kind.
 
@@ -133,11 +133,12 @@ Within an endpoint function signature, parameters are emitted in this fixed orde
 3. File parameters — `<field>_file: UploadFile = File(...)` for file-upload endpoints. (Defaulted.)
 4. Body() parameters — non-bytes Table 5 fields for file-upload endpoints. (Defaulted.)
 5. Nested path ids — `<x>_id: str = Path(..., alias="<xId>")`. (Defaulted.)
-6. Query body model — `request: <Operation>Request = Depends()` for query endpoints with query params.
-7. `tenant_id: str = Depends(get_tenant_id)` — when any Table 6 row is `Auth context`.
-8. Application-service dependency — `<aggregate>_commands` / `<aggregate>_queries`.
+6. Command query params — `<name>: <type> = Query(..., alias="<camelName>")` for each Table 6 `Query param` row on a command endpoint (composite-key aggregates; see [§ Composite-key query parameters](#composite-key-query-parameters)). (Defaulted.) Emit in Table 6 row order.
+7. Query body model — `request: <Operation>Request = Depends()` for query endpoints with query params.
+8. `tenant_id: str = Depends(get_tenant_id)` — when any Table 6 row is `Auth context`.
+9. Application-service dependency — `<aggregate>_commands` / `<aggregate>_queries`.
 
-Python requires defaulted parameters after non-defaulted ones; the ordering above respects that. Within a group (3, 4, 5), preserve the order in which the corresponding Table 5 / path placeholders appear.
+Python requires defaulted parameters after non-defaulted ones; the ordering above respects that. Within a group (3, 4, 5, 6), preserve the order in which the corresponding Table 5 / Table 6 / path placeholders appear.
 
 ### Visibility
 
@@ -174,7 +175,8 @@ Each endpoint's call to `commands.<method>(...)` or `queries.<method>(...)` is e
 | `Auth context` | `tenant_id=tenant_id` (parameter name comes from Table 6's left column verbatim — typically `tenant_id`, but if some other principal name is used, mirror it) |
 | `` Request body `<field>` `` — Table 5 Type has **no** `**Nested:**` sub-table (primitive / scalar / id) | `<field>=request.<field>` |
 | `` Request body `<field>` `` — Table 5 Type is backed by a `**Nested:**` sub-serializer (see discrimination rule below) | `<field>=request.<field>.to_domain()` (scalar) or `<field>=[item.to_domain() for item in request.<field>]` (list); wrap with `... if request.<field> is not None else None` when the Table 5 Type ends in `T \| None` |
-| `` Query param `<name>` `` | `<name>=request.<name>` |
+| `` Query param `<name>` `` — **query endpoint** (Table 2 row) | `<name>=request.<name>` — sourced from the `Depends()` query-params model |
+| `` Query param `<name>` `` — **command endpoint** (Table 3 row; composite-key aggregate) | `<name>=<name>` — sourced from an individual `Query(...)` function parameter (see [§ Composite-key query parameters](#composite-key-query-parameters)) |
 | `` Constructed from query params `<f1>`, `<f2>`, … → `<Type>` `` | `<param>=<Type>(<f1>=request.<f1>, <f2>=request.<f2>, …)` — the kwarg name is the left-column parameter name from Table 6 (e.g., `pagination`); the `<Type>` is imported from `<pkg>.domain.shared` for `Pagination` and from `<pkg>.domain.<aggregate>` for per-aggregate composites like `<Resource>Filtering`. Append ` if any(...) else None` only when the Table 6 cell ends with `(defaults from settings if None)` AND the original parameter is `T \| None` — in that case wrap as `<param>=<Type>(...) if (request.<f1> is not None or request.<f2> is not None or ...) else None`. |
 
 **Nested sub-serializer discrimination for body fields — non-negotiable.** A `Request body <field>` row uses the `.to_domain()` form whenever the request field is backed by a **nested sub-serializer** — *never* the raw `request.<field>` form. Passing a Pydantic sub-serializer straight into the command layer is always a defect: the domain layer expects a plain `dict` (a domain TypedDict) or a constructed value object, never a serializer instance, and rejects it at runtime (400/422).
@@ -228,8 +230,22 @@ For non-upload endpoints:
 - **Command endpoints** without a request class (`*No request body*` placeholder): omit the `request` parameter entirely.
 - **Query endpoints** with `<Operation>Request` (any query params per Table 4 sub-block, or `**Wish List**` include): emit `request: <Operation>Request = Depends()` (note `= Depends()` — query-params class is consumed via Depends).
 - **Query endpoints** without a request class: omit `request` entirely.
+- **Command endpoints** whose Table 6 sub-block has `Query param` rows additionally carry one individual `Query(...)` parameter per such row (composite-key aggregates — see [§ Composite-key query parameters](#composite-key-query-parameters)). This is orthogonal to whether a body `request` model is present: a composite-key `PATCH` carries both; a composite-key `DELETE` carries the `Query(...)` params and no body.
 
 The presence of an `<Operation>Request` is determined by the same skip rule the serializers implementers use (a real Table 5 fields table for commands; a real Query Parameters sub-block under Table 4 for queries). Re-derive locally — do not consult the serializers files.
+
+### Composite-key query parameters
+
+A **composite-key aggregate** has no single `id` — it is identified by a tuple of fields (e.g. `Project` keyed by `project_type`, `company_id`, `cmf`). `@endpoint-tables-writer` emits its command endpoints on `/`-rooted paths (`PATCH /evo-version`, `DELETE /`) with no `{id}` placeholder, and `@parameter-mapping-writer` maps every key field to `` Query param `<name>` `` in Table 6.
+
+For each `Query param` row in a **command** endpoint's Table 6 sub-block, emit one FastAPI `Query(...)` function parameter:
+
+- Python name = the Table 6 left-column parameter name (snake_case), used verbatim.
+- Type = the parameter's declared type recovered from the commands-diagram method signature (`<command_method_params>`, parsed in Step 3.6). If the commands-diagram parse could not resolve the Domain Ref method, default the type to `str` and emit `WARNING: surface "<name>" endpoint "<HTTP> <PATH>" composite-key query param "<name>" typed as str — commands diagram unresolved`.
+- Binding = `Query(..., alias="<camelName>")` (required) or `Query(None, alias="<camelName>")` when the type ends in `| None`; omit the `alias=` argument when `<camelName>` is identical to the snake_case name (e.g. `cmf`). `<camelName>` is the camelCase form of the name — the wire name stays camelCase, matching the `Path(..., alias=...)` convention and the `Depends()` query-model alias generator.
+- The application-service call passes `<name>=<name>` (the bare function-parameter name), per [§ Application-service call construction](#application-service-call-construction-driven-by-table-6).
+
+`Query` is added to the `fastapi` import. These parameters never appear in `<Operation>Request` — the request body model holds only the Table 5 body fields (the non-key payload).
 
 ## Workflow
 
@@ -381,6 +397,8 @@ No `status_code=`, no `response_model=`.
 def <operation>(id: str, tenant_id: str = Depends(get_tenant_id), <aggregate>_commands: ...):
     <aggregate>_commands.<method_name>(id, tenant_id=tenant_id)  # Table 6 kwargs, dropped return
 ```
+
+For a composite-key aggregate the path is `/` (no `{id}`); the `id` parameter is replaced by the individual `Query(...)` composite-key parameters per [§ Composite-key query parameters](#composite-key-query-parameters), and the call passes them as kwargs.
 
 ---
 
@@ -568,6 +586,91 @@ def create(
 ```
 
 `request.globals` is a `GlobalsSerializer` Pydantic model — `globals=request.globals` (the raw form) would reach the domain layer as a serializer instead of the `Globals` TypedDict the command expects and fail at runtime. `.to_domain()` is **not optional** here; the pre-write self-check exists to catch exactly this omission.
+
+### Composite-key command endpoint example
+
+Spec excerpt for resource `Project` (composite key `project_type`, `company_id`, `cmf`), surface `v1`, `<pkg>` = `stps`:
+
+```markdown
+### Table 3: Command Endpoints
+| HTTP   | Path           | Operation          | … | Domain Ref |
+| PATCH  | `/evo-version` | update_evo_version | … | `ProjectCommands.update_evo_version` |
+| DELETE | `/`            | remove             | … | `ProjectCommands.remove` |
+
+### Table 5: Request Fields
+**Endpoint:** `PATCH /evo-version`
+| Field Name  | Type  | Validation |
+| evo_version | `str` | Required   |
+
+**Endpoint:** `DELETE /`
+*No request body — composite key sourced from query parameters.*
+
+### Table 6: Parameter Mapping
+**Endpoint:** `PATCH /evo-version` (update_evo_version)
+| `project_type` | Query param `project_type` |
+| `company_id`   | Query param `company_id`   |
+| `cmf`          | Query param `cmf`          |
+| `evo_version`  | Request body `evo_version` |
+| `tenant_id`    | Auth context               |
+
+**Endpoint:** `DELETE /` (remove)
+| `project_type` | Query param `project_type` |
+| `company_id`   | Query param `company_id`   |
+| `cmf`          | Query param `cmf`          |
+| `tenant_id`    | Auth context               |
+```
+
+Emitted excerpt of `api/endpoints/v1/projects.py`:
+
+```python
+@projects_router.patch(
+    "/evo-version",
+    status_code=status.HTTP_200_OK,
+    openapi_extra={"visibility": Visibility.PUBLIC},
+    response_model=UpdateEvoVersionResponse,
+)
+@inject
+def update_evo_version(
+    request: UpdateEvoVersionRequest,
+    project_type: str = Query(..., alias="projectType"),
+    company_id: str = Query(..., alias="companyId"),
+    cmf: str = Query(...),
+    tenant_id: str = Depends(get_tenant_id),
+    project_commands: ProjectCommands = Depends(Provide[Containers.project_commands]),
+):
+    return UpdateEvoVersionResponse.from_domain(
+        project_commands.update_evo_version(
+            project_type=project_type,
+            company_id=company_id,
+            cmf=cmf,
+            evo_version=request.evo_version,
+            tenant_id=tenant_id,
+        ),
+    )
+
+
+@projects_router.delete(
+    "/",
+    status_code=status.HTTP_204_NO_CONTENT,
+    openapi_extra={"visibility": Visibility.PUBLIC},
+)
+@inject
+def remove(
+    project_type: str = Query(..., alias="projectType"),
+    company_id: str = Query(..., alias="companyId"),
+    cmf: str = Query(...),
+    tenant_id: str = Depends(get_tenant_id),
+    project_commands: ProjectCommands = Depends(Provide[Containers.project_commands]),
+):
+    project_commands.remove(
+        project_type=project_type,
+        company_id=company_id,
+        cmf=cmf,
+        tenant_id=tenant_id,
+    )
+```
+
+`update_evo_version` carries both a body model (`request` — the Table 5 payload `evo_version`) and three individual `Query(...)` params (the composite key); `cmf` has no underscores so its `alias=` is omitted. `remove` is a DELETE-204 with the `Query(...)` params, no body, no `response_model`, no `return`.
 
 ---
 
