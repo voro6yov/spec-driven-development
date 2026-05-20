@@ -85,34 +85,53 @@ Define helpers used throughout:
 - **`<resource_singular>`** — lowercase singular of `<ResourceName>` from Table 1 (e.g. `Project` → `project`). Used both for description rendering and for the aggregate-id alias below.
 - **`has_aggregate_id(method)`** — true iff the method's parameter list contains a parameter named `id` **or** a parameter named `<resource_singular>_id` (e.g. `project_id` when the resource is `Project`). The two forms are interchangeable: both render as `{id}` in the path and as `` Path param `{id}` `` in Table 6. A method that has neither is a **composite-key** or **collection-level** call — its path must not contain `{id}`.
 - **`extra_id_params(method)`** — the ordered list of parameters whose name ends in `_id` and is not `id`, `<resource_singular>_id`, or `tenant_id`. Parameters ending in `_ids` (plural — e.g. `field_ids`) are **not** id params; they are body lists and are excluded. Example for resource `DocumentBatch`: `(id, tenant_id, document_type_id, validation_rule_id, field_ids)` → `[document_type_id, validation_rule_id]`.
-- **`tail_noun(method, extra_ids)`** — computed by tokenizing the method name on `_`, dropping the leading verb token, then walking left-to-right consuming each `extra_id`'s noun (itself tokenized on `_`) as a longest-left-prefix match. Whatever tokens remain (joined by `_`) is the tail. For `update_document_type_validation_rule` with extras `[document_type_id, validation_rule_id]`: tokens after verb = `[document, type, validation, rule]`; consume `[document, type]` → `[validation, rule]`; consume `[validation, rule]` → `[]`; tail = `""`. For `add_document_type_validation_rule` with extras `[document_type_id]`: consume `[document, type]` → `[validation, rule]`; tail = `"validation_rule"`. If at any step the prefix does not match the next extra's noun tokens, classification fails — fall through to row 8.
+- **`classify_extras(method)`** — splits the noun of a method into a parent chain, an optional own-id, and a target noun. This is the core path-shape derivation; it replaces the old left-prefix-only `tail_noun` rule, which could not model a parent id absent from the method name (e.g. `add_file_type(id, category_id, file_type_id, …)` — `category_id` is a parent that `add_file_type` never names, so the old consume loop aborted and the method collapsed onto `POST /{id}/add`).
+
+  Tokenize the method name on `_`; drop the leading verb token to get the noun-token list `N`. Set `remaining = N`, `parents = []`, `own_id = None`. Walk `extra_id_params(method)` in order; for each `eid` (its noun tokens = the `eid` name with the trailing `id` token dropped, tokenized on `_`):
+    1. **Own-id check (last extra only).** If `eid` is the *last* extra **and** its noun tokens equal `remaining` exactly, token-for-token (`remaining` non-empty): set `own_id = eid`. Do **not** consume `remaining` — it is the target noun.
+    2. **Named-parent check.** Else if `remaining` *starts with* `eid`'s noun tokens as a prefix: append `eid` to `parents` and drop that prefix from `remaining` (the parent is named inside the method).
+    3. **Unnamed-parent fallback.** Else: append `eid` to `parents` and leave `remaining` unchanged (the parent is a real path id that the method name does not mention).
+
+  After the walk, `target_noun` = `remaining` joined by `_` (may be empty). Returns `(parents, own_id, target_noun)`. The own-id check is tried before the named-parent check so a last extra whose noun equals all of `remaining` is read as the target's own id, not as a parent that consumes the whole noun.
+
+  Worked cases — resource `Template`:
+    - `add_file_type(id, category_id, file_type_id, …)`: `N=[file,type]`. `category_id` → step 3, unnamed parent. `file_type_id` (last) noun `[file,type]` == `remaining` → `own_id`. ⇒ `parents=[category_id]`, `own_id=file_type_id`, `target_noun="file_type"`.
+    - `remove_category(id, category_id)`: `N=[category]`. `category_id` (last) noun `[category]` == `remaining` → `own_id`. ⇒ `parents=[]`, `own_id=category_id`, `target_noun="category"`.
+    - `add_document_type_validation_rule(id, document_type_id, …)`: `N=[document,type,validation,rule]`. `document_type_id` (last) noun `[document,type]` ≠ `remaining` but is a prefix → named parent; `remaining=[validation,rule]`. ⇒ `parents=[document_type_id]`, `own_id=None`, `target_noun="validation_rule"`.
+    - `update_document_type_validation_rule(id, document_type_id, validation_rule_id)`: `document_type_id` → named parent, `remaining=[validation,rule]`; `validation_rule_id` (last) noun == `remaining` → `own_id`. ⇒ `parents=[document_type_id]`, `own_id=validation_rule_id`, `target_noun="validation_rule"`.
 - **`pluralize(noun)`** — last-word pluralization rule from `resource-spec-initializer`: `y`-after-consonant → `ies`; `s/x/z/ch/sh` → `+es`; otherwise `+s`. Multi-token nouns: pluralize only the last token. **Idempotent guard:** if the last token already ends in `s`, `es`, or `ies`, return the noun unchanged (treat as already plural). Prevents `corrections → correctionses`.
 - **`kebab(noun_phrase)`** — replace `_` with `-`, lowercase. Used for path segments.
 - **`camel(noun_phrase)`** — first token lowercase, subsequent tokens TitleCase, no separators. Used for path placeholders. Append `Id` for id placeholders. Example: `document_type` → `documentTypeId`.
 - **`humanize(noun_phrase)`** — replace `_` with space, lowercase. Used in descriptions.
-- **`parent_path(extra_ids)`** — join `/<plural-kebab(noun)>/{<camel(noun)>Id}` for each extra id in order. Empty string if none. **Only meaningful when the method has an aggregate `id` parameter** — for collection-level methods (no `id`), extra `_id` params are query-string filters, not path segments, and `parent_path` is unused.
+- **`parent_path(parents)`** — join `/<kebab(pluralize(noun))>/{<camel(noun)>Id}` for each parent id in the `parents` list returned by `classify_extras`, in order, where `noun` is the parent param name with the trailing `_id` token dropped. Empty string if `parents` is empty. **Only meaningful when the method has an aggregate `id` parameter** — for collection-level methods (no `id`), extra `_id` params are query-string filters, not path segments, and `parent_path` is unused.
 
-Use this dispatch table, **first match wins**. Rows are grouped by whether the method has an aggregate id (per `has_aggregate_id`). Rows 1a–1b apply to methods **without** an aggregate id; rows 2–8 apply to methods **with** an aggregate id.
+Use this dispatch table, **first match wins**. Rows are grouped by whether the method has an aggregate id (per `has_aggregate_id`). Rows 1a–1b apply to methods **without** an aggregate id; rows 2–9 apply to methods **with** an aggregate id. For rows 2–9, let `(parents, own_id, target_noun) = classify_extras(method)` and let `verb` be the leading `_`-token of the method name. The **removal-verb set** is `{delete, remove}` — both map to HTTP `DELETE` (the dispatch must not privilege `delete_` over the equally common `remove_`).
 
 | # | Pattern (signature + name) | HTTP | Path | Operation | Description boilerplate |
 | - | -------------------------- | ---- | ---- | --------- | ----------------------- |
 | 1a | `has_aggregate_id` is false AND method name starts with a factory verb (`create`, `new`, `register`, `make`) | `POST` | `/` | `<method_name>` | `Create a new <resource>` |
 | 1b | `has_aggregate_id` is false AND method name does **not** start with a factory verb (composite-key / collection-level action) | `POST` | apply the **no-id plural-tail heuristic** below | see heuristic | see heuristic |
 | 2 | Name starts with `bulk_` | `POST` | `/bulk-<kebab(name without 'bulk_')>` | `<method_name>` | `Bulk <humanize(name without 'bulk_')> <plural>` |
-| 3 | Name starts with `delete_` AND `extra_ids` non-empty AND `tail_noun` empty | `DELETE` | `/{id}<parent_path>` | `<method_name>` | `Remove a <humanize(last extra_id noun)> from the <resource>` |
-| 4 | Name starts with `update_` AND `extra_ids` non-empty AND `tail_noun` empty | `PUT` | `/{id}<parent_path>` | `<method_name>` | `Update an existing <humanize(last extra_id noun)> of the <resource>` |
-| 5 | Name starts with `add_` and `tail_noun` non-empty | `POST` | `/{id}<parent_path>/<kebab(pluralize(tail_noun))>` | `<method_name>` | `Add a new <humanize(tail_noun)> to the <resource>` |
-| 6 | Name starts with `update_` or `patch_` AND `extra_ids` empty (aggregate-level update) | `PATCH` | `/{id}` | `<method_name>` | `Update <resource> details` |
-| 7 | Name starts with `delete_` AND `extra_ids` empty | `DELETE` | `/{id}` | `<method_name>` | `Delete the <resource>` |
-| 8 | Otherwise (named action: `retry`, `skip`, `retry_processing`, `assign_document_types`, `add_corrections`, ...) — apply the **plural-tail heuristic** below | `POST` | see heuristic | see heuristic | see heuristic |
+| 3 | `verb` in removal-verb set AND `own_id` is present | `DELETE` | `/{id}<parent_path(parents)>/<kebab(pluralize(target_noun))>/{<camel(target_noun)>Id}` | `<method_name>` | `Remove a <humanize(target_noun)> from the <resource>` |
+| 4 | `verb` in removal-verb set AND `own_id` absent AND `target_noun` non-empty | `DELETE` | `/{id}<parent_path(parents)>/<kebab(pluralize(target_noun))>` | `<method_name>` | `Remove <humanize(target_noun)> from the <resource>` |
+| 5 | `verb` in removal-verb set AND `extra_ids` empty | `DELETE` | `/{id}` | `<method_name>` | `Delete the <resource>` |
+| 6 | `verb` is `update` or `patch` AND `own_id` is present | `PUT` | `/{id}<parent_path(parents)>/<kebab(pluralize(target_noun))>/{<camel(target_noun)>Id}` | `<method_name>` | `Update an existing <humanize(target_noun)> of the <resource>` |
+| 6b | `verb` is `update` or `patch` AND `own_id` absent AND `parents` non-empty AND `target_noun` non-empty (update of a named singular sub-resource of a nested parent) | `PUT` | `/{id}<parent_path(parents)>/<kebab(target_noun)>` | `<method_name>` | `Update the <humanize(target_noun)> of the <resource>` |
+| 7 | `verb` is `update` or `patch` AND `extra_ids` empty (aggregate-level update) | `PATCH` | `/{id}` | `<method_name>` | `Update <resource> details` |
+| 8 | `verb` is `add` AND `target_noun` non-empty | `POST` | `/{id}<parent_path(parents)>/<kebab(pluralize(target_noun))>` | `<method_name>` | `Add a new <humanize(target_noun)> to the <resource>` |
+| 9 | Otherwise (named action: `retry`, `skip`, `retry_processing`, `assign_document_types`, ...) — apply the **plural-tail heuristic** below | `POST` | see heuristic | see heuristic | see heuristic |
 
-**Plural-tail heuristic (row 8 — `has_aggregate_id` is true).** Tokenize the method name on `_`. The first token is the verb; the remaining tokens (if any) are the noun tail. Inspect the noun tail:
+For rows 3 and 6, `own_id` is the new sub-resource's own identifier and becomes the **trailing path segment** `/{<camel(target_noun)>Id}`. For row 8 (`add_*`), an `own_id` — when the method passes the new entity's id explicitly, e.g. `add_file_type(…, file_type_id, …)` — is **not** a path segment: it travels in the request body, classified by `parameter-mapping-writer` per its standard body-field rule. The Operation column is always the full `<method_name>`, so two `add_*` (or two `remove_*`) commands that differ only by their sub-resource noun never collide.
 
-- If the noun tail is **non-empty and plural** (last token ends in `s`, `es`, or `ies`), drop the verb from the path and use only the noun tail: path = `/{id}/<kebab(noun_tail)>`. Operation = `<method_name>` (full, including verb). Description = `<humanize(verb).capitalize()> <humanize(noun_tail)> for the <resource>` (e.g., `assign_document_types` → path `/{id}/document-types`, op `assign_document_types`, desc "Assign document types for the <resource>"; `add_corrections` → path `/{id}/corrections`, op `add_corrections`, desc "Add corrections for the <resource>").
+Row 6b is the **no-own-id** update sibling of row 6: the `target_noun` names a *singleton* component of the nested parent (e.g. `update_category_details` → `target_noun = "details"`, parent `category_id`), not a member of a collection. Its `target_noun` is therefore **not** pluralized and there is **no** trailing `/{...Id}` segment — `update_category_details(id, category_id, …)` yields `PUT /{id}/categories/{categoryId}/details`. This is what keeps such methods off the row 9 named-action fallback (which would otherwise collapse them to a bare-verb path).
+
+**Plural-tail heuristic (row 9 — `has_aggregate_id` is true).** Tokenize the method name on `_`. The first token is the verb; the remaining tokens (if any) are the noun tail. Inspect the noun tail:
+
+- If the noun tail is **non-empty and plural** (last token ends in `s`, `es`, or `ies`), drop the verb from the path and use only the noun tail: path = `/{id}/<kebab(noun_tail)>`. Operation = `<method_name>` (full, including verb). Description = `<humanize(verb).capitalize()> <humanize(noun_tail)> for the <resource>` (e.g., `assign_document_types` → path `/{id}/document-types`, op `assign_document_types`, desc "Assign document types for the <resource>"). Note: `add_*` methods reach row 8 before this heuristic, so a plural `add_*` noun tail is handled there, not here.
 - If the noun tail is **non-empty and singular**, strip it and use only the verb: path = `/{id}/<verb>`. Operation = `<verb>` (verb-only). Description = `<humanize(verb).capitalize()> the <resource>` (e.g., `retry_processing` → path `/{id}/retry`, op `retry`, desc "Retry the <resource>").
 - If the method is **single-token** (no noun tail; e.g., `skip`, `retry`): path = `/{id}/<method_name>`. Operation = `<method_name>`. Description = `<method_name.capitalize()> the <resource>`.
 
-**No-id plural-tail heuristic (row 1b — `has_aggregate_id` is false).** Same shape as the row 8 heuristic, but with the `/{id}` prefix dropped — the aggregate has no path-segment id, so the path lives at the collection root:
+**No-id plural-tail heuristic (row 1b — `has_aggregate_id` is false).** Same shape as the row 9 heuristic, but with the `/{id}` prefix dropped — the aggregate has no path-segment id, so the path lives at the collection root:
 
 - Noun tail **non-empty and plural**: path = `/<kebab(noun_tail)>`. Operation = `<method_name>`. Description = `<humanize(verb).capitalize()> <humanize(noun_tail)> for the <resource>`.
 - Noun tail **non-empty and singular**: path = `/<verb>`. Operation = `<verb>` (verb-only). Description = `<humanize(verb).capitalize()> the <resource>` (e.g., for resource `Project` with composite key in body: `update_evo_version` → path `/update`, op `update`, desc "Update the project"; `remove` → path `/remove`, op `remove`, desc "Remove the project").
@@ -124,7 +143,7 @@ Note: `<resource>` in the description is the lowercase singular form of `<Resour
 
 **Domain Ref column** — always `<AggregateRoot>Commands.<method_name>` (full method name, never the stripped operation).
 
-**Validation for rows 3 and 4** — the tail of the method name (after the leading verb token) must equal the concatenation of the noun parts of `extra_ids` in order. If it does not, fall through to row 8 (named action) rather than emitting a misleading row.
+**Path derivation for rows 3, 4, 6, 6b, and 8** — `classify_extras` always succeeds: the unnamed-parent fallback (step 3) absorbs any extra `_id` whose noun the method name does not mention, so these rows never abort or fall through on a "classification failure". They produce nested paths whose parent segments come from the parent param **names** and whose final segment comes from the method's own noun tail. A parent id that the method name omits (e.g. `category_id` in `add_file_type`) still becomes a `/<plural>/{...Id}` segment via `parent_path`. If the resulting path reads awkwardly for an irregular noun, emit it anyway and let the user override manually.
 
 ### Step 6 — Derive Table 2 (Query Endpoints) rows per surface
 
@@ -153,6 +172,21 @@ For each surface independently:
 
 - **Table 2 (Query Endpoints).** Emit rows in this order: (1) singular fetch by id (`find_<resource>`) if present, (2) paginated list (`find_<resources>`/no-id), (3) sub-resource projections in declaration order, (4) any nested-id reads in declaration order.
 - **Table 3 (Command Endpoints).** Emit rows in this order: (1) factory (`POST /`), (2) aggregate-level updates (`PATCH /{id}`), (3) aggregate-level delete (`DELETE /{id}`), (4) named-action rows (POST /{id}/...) in declaration order, (5) sub-resource add/update/delete groups in declaration order — within a group, order add → update → delete, (6) bulk endpoints last.
+
+### Step 7b — Collision check (abort before writing)
+
+After Steps 5–7 have produced the Table 2 and Table 3 rows for every surface, and **before** rendering or writing anything in Step 8, verify two invariants per surface. These collisions are unrecoverable downstream: `tests-implementer` aborts on a duplicate Operation, while `endpoints-implementer` and `command-serializers-implementer` would silently keep only the *first* of each colliding group — emitting a half-built API with genuine FastAPI route conflicts. Catch the collision here, at the source, instead of after five downstream agents have written partial output to disk.
+
+For each surface, across the combined Table 2 + Table 3 rows:
+
+- **Operation uniqueness.** Every Operation value must be distinct (operations become Python function/module names downstream).
+- **(HTTP, Path) uniqueness.** Every `(HTTP, Path)` pair must be distinct (duplicates are FastAPI route conflicts).
+
+If either invariant fails for any surface, **abort without writing the file** and report, for each colliding group:
+
+`Cannot write endpoint tables — surface "<surface>" has <N> rows colliding on <Operation '<op>' | (HTTP,Path) '<http> <path>'>: <DomainRef1>, <DomainRef2>, …. The application-service method names do not yield distinct REST endpoints. Give the colliding commands distinct paths/operations in <commands_diagram> — typically by naming each one's parent resource so it nests (e.g. add_file_type under a category) — and re-run.`
+
+A collision after the Step 5 dispatch almost always means several methods fell through to the row 9 named-action heuristic and were stripped to the same bare verb. List every colliding Domain Ref so the user can see exactly which methods need renaming or re-pathing.
 
 ### Step 8 — Render per-surface tables
 
@@ -224,7 +258,7 @@ Print a one-line summary, listing per-surface counts and any orphans:
 
 - Never emit a row whose Domain Ref does not correspond to a public method on the parsed application-service class assigned to the same surface.
 - Never include `on_*` methods in any Table 3.
-- Never invent a verb or path segment that has no signature/name basis. When the dispatch tables fall through, use the row 8 (named action) heuristic for commands or abort for queries.
+- Never invent a verb or path segment that has no signature/name basis. When the dispatch tables fall through, use the row 9 (named action) heuristic for commands or abort for queries.
 - Path placeholders for the aggregate root are always `{id}`; nested ids are camelCase with `Id` suffix; tenant/user id parameters are dropped from the path.
 - Never overwrite Tables 4, 5, or 6 in any Surface section — those are owned by other writers.
 - Never modify any file other than the target `<output>`. The domain diagram, queries diagram, and commands diagram are read-only inputs.
@@ -239,5 +273,5 @@ Print a one-line summary, listing per-surface counts and any orphans:
 - The two aggregate roots derived from commands and queries diagrams disagree.
 - The aggregate root from the diagrams does not match Table 1's Resource name.
 - The target `<output>` does not exist or lacks `### Table 1: Resource Basics`.
-- A queries method falls through every dispatch row (row 5).
-- A commands method classified as row 3 or 4 has a tail-noun mismatch and the row 8 heuristic also yields nothing usable.
+- A queries method falls through every dispatch row (Table 2, row 5).
+- A surface has a duplicate Operation, or a duplicate `(HTTP, Path)` pair, across its combined Table 2 + Table 3 rows (Step 7b collision check).

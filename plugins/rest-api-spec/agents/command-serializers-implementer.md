@@ -195,6 +195,8 @@ Locate `### Table 3: Command Endpoints` inside the surface section. Three states
 - **Real table**: collect every data row (skip the header and separator). Each row supplies `(http, path, operation, description, domain_ref)`. Validate `http` is one of `POST`, `PUT`, `PATCH`, `DELETE`; skip rows that don't.
 - **Missing**: abort with `Error: surface "<name>" missing '### Table 3: Command Endpoints'.`
 
+**Collision check.** Within the surface's Table 3, every Operation value must be distinct and every `(HTTP, Path)` pair must be distinct. Two rows sharing an Operation would both resolve to the same `<operation>.py` module — the second would be silently dropped as `skipped: exists`, leaving its command with no serializer. If either invariant fails, **abort without writing any module**: `Error: surface "<name>" Table 3 has <N> rows colliding on <Operation '<op>' | (HTTP,Path) '<http> <path>'>: <DomainRef1>, <DomainRef2>, …. The rest-api spec is internally inconsistent — re-run @endpoint-tables-writer (and fix the colliding command names in the commands diagram) before implementing serializers.`
+
 #### 3b. Parse Table 5 (Request Fields) — per-endpoint sub-blocks
 
 Locate `### Table 5: Request Fields` inside the surface section. Three states are possible:
@@ -612,6 +614,7 @@ Note: the top-level `CreateRequest` has no `to_domain()` — the endpoint access
 - Spec Table 1 lacks `Resource name` or `Surfaces`.
 - A surface listed in Table 1 has no `## Surface:` section, or vice versa.
 - A surface has Table 3 rows but Table 5 is the empty placeholder, or the file is missing Table 5 entirely.
+- A surface's Table 3 has a duplicate Operation, or a duplicate `(HTTP, Path)` pair, across its rows.
 - A Table 3 row's `(http, path)` has no matching Table 5 sub-block.
 - A nested PascalCase type referenced in a request Type column has no `**Nested:**` sub-table inside the same endpoint group.
 

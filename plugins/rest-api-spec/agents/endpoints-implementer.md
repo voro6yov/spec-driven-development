@@ -261,6 +261,7 @@ For each surface in canonical order, within its bounded section (from `## Surfac
 3. **Parse Table 4** (Response Fields) — sub-block per Table 2 row. Used only to detect `**Wish List**` (any response field Source ends with `(includable)`) and **binary** placeholder (`*Binary response*`).
 4. **Parse Table 5** (Request Fields) — sub-block per Table 3 row. Used only to detect (a) presence of any field rows (drives whether the endpoint has a request body), and (b) any field whose Type is `bytes` or `bytes | None` (drives file-upload dispatch).
 5. **Parse Table 6** (Parameter Mapping) — sub-block per Table 2 and Table 3 row. Used to drive the application-service call signature row-by-row. If a Table 2 or Table 3 row has no Table 6 sub-block, abort with: `Error: surface "<name>" endpoint "<HTTP> <PATH>" has no Table 6 sub-block.`
+6. **Collision check.** Across the combined Table 2 + Table 3 rows of the surface, every Operation value must be distinct and every `(HTTP, Path)` pair must be distinct. If either invariant fails, **abort without writing any module** — do not silently keep the first row of a colliding group. Abort with: `Error: surface "<name>" has <N> endpoint rows colliding on <Operation '<op>' | (HTTP,Path) '<http> <path>'>: <DomainRef1>, <DomainRef2>, …. The rest-api spec is internally inconsistent — re-run @endpoint-tables-writer (and fix the colliding command names in the commands diagram) before implementing endpoints.` A duplicate Operation produces clashing function names; a duplicate `(HTTP, Path)` is a FastAPI route conflict. Both must be resolved in the spec, not papered over here.
 
 If a surface has zero query endpoints AND zero command endpoints, record `skipped: <surface>: no endpoints` and continue to the next surface — do not emit a module for it.
 
@@ -490,6 +491,7 @@ def create(
 - `<rest_api_spec_file>` does not exist.
 - Spec Table 1 lacks any of `Resource name`, `Plural`, `Router prefix`, or `Surfaces`.
 - A surface's Table 2 or Table 3 row has no Table 6 sub-block.
+- A surface has a duplicate Operation, or a duplicate `(HTTP, Path)` pair, across its combined Table 2 + Table 3 rows.
 - A Table 6 row's Source value does not match any of the canonical vocabulary forms in [§ Application-service call construction](#application-service-call-construction-driven-by-table-6).
 
 In all error cases, write nothing and report the error message verbatim. Do not produce a partial run.
