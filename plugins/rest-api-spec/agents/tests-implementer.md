@@ -160,13 +160,14 @@ For each endpoint row, classify by `(http, path, body?)` and emit the listed sce
 | Table 2 GET without `{id}` (list) | `__success` |
 | Table 3 POST with path == `/` (factory) | `__success` + `__already_exists` + (`__missing_required_field` iff `has_body` AND Table 5 has at least one required field) |
 | Table 3 with `{id}` in path (PATCH/PUT/DELETE/POST action) | `__success` + `__not_found` + (`__missing_required_field` iff method ∈ {POST, PUT, PATCH} AND `has_body` AND Table 5 has at least one required field) |
+| Table 3 row with non-empty `<cmd_query_params>` (composite-key command endpoint; not the factory `POST /` handled above) | `__success` + `__not_found` |
 | Anything else | `__success` |
 
 The `__missing_required_field` test sends an **empty JSON body** (`json={}`) and asserts `422 UNPROCESSABLE_ENTITY`. The required-field detection (first non-`| None` row in Table 5) is used only to decide whether the test is emitted — the body itself is `{}`.
 
 When `has_body == False` for a mutating endpoint (e.g. `POST /{id}/start-receiving` with `*No request body*`), the emitted `__success` and `__not_found` tests **omit the `json=` keyword entirely**.
 
-Composite-key command endpoints (no `{id}` in path — e.g. `PATCH /evo-version`, `DELETE /`) match the **Anything else** row and receive a `__success` test only. Their identifying composite key is supplied as query parameters resolved from `<aggregate>_1` (per § Query parameter resolution), so the `__success` test keeps `<aggregate>_1` and `add_<plural_agg>` in its function args.
+Composite-key command endpoints (no `{id}` in path — e.g. `PATCH /evo-version`, `DELETE /`) are identified by composite-key query parameters rather than a path id. Their `__success` test resolves the key from `<aggregate>_1` (per § Query parameter resolution) and keeps `<aggregate>_1` and `add_<plural_agg>` in its function args; their `__not_found` test substitutes a non-existent key and seeds nothing (see § `__not_found`).
 
 If a row's HTTP/path combination is unparseable, abort with: `ERROR: surface "<surface>" endpoint row "<row>" is malformed.`
 
@@ -557,6 +558,8 @@ def test_<operation>__not_found(client, request_headers):
 ```
 
 Body emission for `__not_found` follows the same **Body resolution** rules as `__success` (so the test reaches the not-found branch instead of failing validation first): omit `json=` entirely when `has_body == False` or method ∈ {GET, DELETE}; otherwise build the dict from `<body_fix>` per the resolution rules. Inject `<body_fix>` into the function args if any field resolved to a fixture reference.
+
+**Composite-key command endpoints.** When the endpoint has a non-empty `<cmd_query_params>` (no `{id}` in path), `__not_found` cannot substitute a path id — instead it substitutes **each** composite-key query parameter with the literal value `non-existent`, so no persisted aggregate matches the key. The URL is `f"{<api_prefix_const>}<router_prefix><path>?<camelKey1>=non-existent&<camelKey2>=non-existent&…"` (camelCase keys per § Query parameter resolution; `<path>` carries no `{id}`). No aggregate is seeded — `add_<plural_agg>` and `<aggregate>_1` are **not** in the function args. Body emission is unchanged: omit `json=` for DELETE / `has_body == False`; otherwise build the dict from `<body_fix>` so body validation passes and the request reaches the not-found branch (inject `<body_fix>` into the args when a field resolves to a fixture). The `# GIVEN` comment reads `# GIVEN no <aggregate> matches the composite key`.
 
 ##### `__already_exists` (factory POST `/` only)
 
