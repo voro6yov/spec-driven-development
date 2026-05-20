@@ -59,6 +59,13 @@ Partition commands and queries methods by surface per the **surface-markers pars
 
 Preserve declaration order within each surface. Record name, parameter list (name + type), and return type.
 
+**Composite-key detection.** If **no** method on `<AggregateRoot>Commands` or `<AggregateRoot>Queries` declares an aggregate-id parameter — `id`, or the alias `<resource_singular>_id` — the aggregate has a *composite key*. Compute the **composite-key set** of parameter names:
+
+- If `<AggregateRoot>Commands` has ≥2 methods: the set of parameter names present in *every* commands-method signature, excluding `tenant_id`.
+- If it has exactly one method: that method's parameters, excluding `tenant_id` and excluding any parameter whose name equals the method's `noun_tail` (the method name with the leading verb token removed, remaining tokens joined by `_`).
+
+When the aggregate has an aggregate id, the composite-key set is empty. The set is used by Step 3a rule 4 to route a command endpoint's key parameters to the query string.
+
 ### Step 3 — Per-surface, per-endpoint dispatch
 
 For each Surface section in Table 1's Surfaces row order, process its Table 2 rows then its Table 3 rows, in the order they appear in the section. Skip Table 3 rows whose Domain Ref method name starts with `on_` (message handlers — already excluded by `endpoint-tables-writer`, but guard anyway).
@@ -77,8 +84,8 @@ Apply this rule set (first match wins):
 2. **Tenant / principal.** Parameter name `tenant_id` (or any other principal-derived name documented in the project, by default just `tenant_id`) → `Auth context`.
 3. **Nested id.** Parameter name ends with `_id` (singular; not `_ids`) and is not `id`, `<resource_singular>_id`, or `tenant_id`. Compute its camelCase placeholder: split the param name on `_`, drop the trailing `id` token, lowercase the first remaining token, TitleCase subsequent tokens, append `Id`. Example: `document_type_id` → `documentTypeId`.
    - If the path of the Table 2/3 row contains `{<camelPlaceholder>}`, emit `Path param \`{<camelPlaceholder>}\``.
-   - Otherwise fall through to rule 4 (commands) or 5 (queries) — for `endpoint-tables-writer`'s composite-key rows (commands row 1b, queries row 4b), nested-id-shaped params are not path segments but body fields or query-string filters.
-4. **Command body field** (commands rows only). Any remaining parameter → `Request body \`<param_name>\``.
+   - Otherwise fall through to rule 4 (commands) or 5 (queries) — for `endpoint-tables-writer`'s composite-key rows (commands rows 1b-del/1b-upd/1b-act, queries row 4b), nested-id-shaped params are not path segments; rule 4 then routes a composite-key param to the query string and any other to the body.
+4. **Command parameter** (commands rows only). Any remaining parameter: if its name is in the composite-key set (non-empty only for composite-key aggregates) → `` Query param `<param_name>` ``; otherwise → `` Request body `<param_name>` ``.
 5. **Query parameter** (queries rows only). First, normalize the parameter type by stripping a trailing `| None` so optional composites are handled the same as required ones (`Pagination | None` → test as `Pagination`).
    - **Composite type.** If the (normalized) type is a custom PascalCase type (not `str`/`int`/`bool`/`float`/`bytes`/`datetime`/`list[...]`/`dict[...]`/`Literal[...]`), look it up on the domain diagram, falling back to the **Shared domain types registry** below. If found and it declares ≥1 fields, emit `` Constructed from query params `<f1>`, `<f2>`, … → `<Type>` ``. The constituent fields are taken from the type's declared field list in declaration order. Append ` (defaults from settings if None)` when any constituent field's type is `T \| None` **or** the original parameter type was itself `T \| None`.
    - **`list[str]` / `list[int]` etc.** → `` Query param `<param_name>` ``.

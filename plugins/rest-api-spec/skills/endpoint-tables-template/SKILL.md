@@ -85,10 +85,12 @@ The italic line is the entire content of that table — never mix the placeholde
 | --- | --- | --- |
 | `POST` | Create at collection root, or named action on an instance/collection | `/`, `/{id}/<verb>`, `/bulk-<verb>` |
 | `PUT` | Full replacement of an existing resource | `/{id}` |
-| `PATCH` | Partial update of an existing resource | `/{id}` |
-| `DELETE` | Remove an existing resource | `/{id}` |
+| `PATCH` | Partial update of an existing resource | `/{id}` (or `/` / `/<segment>` for a composite-key aggregate) |
+| `DELETE` | Remove an existing resource | `/{id}` (or `/` for a composite-key aggregate) |
 
 `POST` is the default for action endpoints with domain-specific verbs. Reserve `PUT`/`PATCH`/`DELETE` for canonical CRUD.
+
+**Composite-key aggregates.** An aggregate identified by a composite key (no single `id` parameter — e.g. `Project` keyed by `(project_type, company_id, cmf)`) has no `{id}` path segment. Its `update`/`patch` commands still map to `PATCH` and its `delete`/`remove` commands to `DELETE`, but on a `/` or `/<segment>` path; the composite-key fields travel as **query parameters**. See the `endpoint-tables-writer` rows 1b-del / 1b-upd / 1b-act.
 
 ---
 
@@ -182,7 +184,7 @@ Paths are relative to the resource's Router prefix (Table 1). A leading `/` is r
 ### Table 3 — Command Endpoints
 
 - [ ] HTTP column is one of `POST`, `PUT`, `PATCH`, `DELETE`
-- [ ] `PUT` / `PATCH` / `DELETE` rows use the `/{id}` shape; non-CRUD actions use `POST`
+- [ ] `PUT` / `PATCH` / `DELETE` rows use the `/{id}` shape (or, for a composite-key aggregate, `/` / `/<segment>`); non-CRUD actions use `POST`
 - [ ] Action paths follow `/{id}/<verb>`, bulk paths follow `/bulk-<verb>`, create uses `POST /`
 - [ ] Operation mirrors a snake-case method name on `<Resource>Commands` (domain-driven verbs preferred over generic REST verbs)
 - [ ] Domain Ref is present on **every** row, formatted `<AggregateRoot>Commands.<snake_case_method>`

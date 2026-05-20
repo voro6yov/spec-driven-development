@@ -57,6 +57,8 @@ Partition commands methods by surface per the **surface-markers parsing rules** 
 
 Preserve declaration order within each surface. Record name, ordered parameter list (name + type + optional default), and return type.
 
+**Composite-key detection.** If **no** method on `<AggregateRoot>Commands` declares an aggregate-id parameter — `id`, or the alias `<resource_singular>_id` (`<resource_singular>` is the lowercase singular of the Resource name) — the aggregate has a *composite key*. Compute the **composite-key set** of parameter names: if the commands class has ≥2 methods, the set of parameter names present in *every* commands-method signature, excluding `tenant_id`; if it has exactly one method, that method's parameters excluding `tenant_id` and excluding any parameter whose name equals the method's `noun_tail` (the method name with the leading verb token removed, remaining tokens joined by `_`). When the aggregate has an aggregate id, the set is empty. Composite-key parameters are query-string parameters, not body fields (see Step 4a).
+
 ### Step 3 — Match each Table 3 row to its commands method
 
 For each `(surface, row)` pair in declared order:
@@ -72,6 +74,7 @@ For each method, partition its parameters:
 
 - `id` (the aggregate id) → path; **not** a body field.
 - `tenant_id` → auth context; **not** a body field.
+- Any parameter whose name is in the composite-key set (composite-key aggregates only) → **query parameter**, sourced from the query string per `parameter-mapping-writer`'s composite-key rule; **not** a body field.
 - Any other parameter whose name ends in `_id` (singular, not `_ids`) → **conditional path-bound nested id**. Compute the camelCase placeholder (split on `_`, drop trailing `id`, lowercase first remaining token, TitleCase the rest, append `Id`; e.g., `document_type_id` → `documentTypeId`). Look up the Table 3 row's path: if it contains `{<camelPlaceholder>}`, the parameter is path-bound and **not** a body field. **If no such placeholder exists in the path, treat the parameter as a body field** (this aligns with `parameter-mapping-writer`, which would otherwise abort on the mismatch — keeping the body schema lossless).
 - All remaining parameters → body fields.
 
@@ -85,7 +88,7 @@ If the body-field list is empty, emit:
 *No request body — uses path parameter only.*
 ```
 
-When `tenant_id` was the only non-id parameter, prefer the variant `*No request body — id and tenant_id are sourced from path and auth.*` for clarity. Either single-italic line satisfies the placeholder rule.
+When `tenant_id` was the only non-id parameter, prefer the variant `*No request body — id and tenant_id are sourced from path and auth.*` for clarity. When the endpoint is a composite-key command whose parameters are all composite-key fields (optionally plus `tenant_id`) — e.g. a `remove` on a composite-key aggregate — prefer `*No request body — composite key sourced from query parameters.*`. Any single-italic line beginning with `*No request body` satisfies the placeholder rule.
 
 Skip steps 4c–4d for empty-body endpoints.
 
@@ -168,7 +171,7 @@ Print a one-line summary listing per-surface counts:
 ## Constraints
 
 - One sub-block per command endpoint enumerated in the surface's Table 3 — never invent endpoints not in Table 3.
-- Body fields = command method parameters minus `id`, `tenant_id`, and any other `*_id` parameters (path-bound).
+- Body fields = command method parameters minus `id`, `tenant_id`, composite-key parameters (query-string-bound), and any other `*_id` parameters (path-bound).
 - Validation column is mechanical: Required/Optional, plus `, non-empty list` for `list[T]`, plus `; valid UUID` only for `*_id: str` body fields. No fabricated domain rules.
 - Nested sub-tables are scoped per endpoint group; repeat across endpoints (and across surfaces — sub-tables are not deduplicated across Surface sections) when the same type recurs.
 - Never overwrite Tables 1, 2, 3, 4, or 6 in any Surface section.
