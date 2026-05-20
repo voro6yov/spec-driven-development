@@ -160,14 +160,14 @@ For each endpoint row, classify by `(http, path, body?)` and emit the listed sce
 | Table 2 GET without `{id}` (list) | `__success` |
 | Table 3 POST with path == `/` (factory) | `__success` + `__already_exists` + (`__missing_required_field` iff `has_body` AND Table 5 has at least one required field) |
 | Table 3 with `{id}` in path (PATCH/PUT/DELETE/POST action) | `__success` + `__not_found` + (`__missing_required_field` iff method ∈ {POST, PUT, PATCH} AND `has_body` AND Table 5 has at least one required field) |
-| Table 3 row with non-empty `<cmd_query_params>` (composite-key command endpoint; not the factory `POST /` handled above) | `__success` + `__not_found` |
+| Table 3 row with non-empty `<cmd_query_params>` (composite-key command endpoint; not the factory `POST /` handled above) | `__success` + `__not_found` + (`__missing_required_field` iff method ∈ {POST, PUT, PATCH} AND `has_body` AND Table 5 has at least one required field) |
 | Anything else | `__success` |
 
 The `__missing_required_field` test sends an **empty JSON body** (`json={}`) and asserts `422 UNPROCESSABLE_ENTITY`. The required-field detection (first non-`| None` row in Table 5) is used only to decide whether the test is emitted — the body itself is `{}`.
 
 When `has_body == False` for a mutating endpoint (e.g. `POST /{id}/start-receiving` with `*No request body*`), the emitted `__success` and `__not_found` tests **omit the `json=` keyword entirely**.
 
-Composite-key command endpoints (no `{id}` in path — e.g. `PATCH /evo-version`, `DELETE /`) are identified by composite-key query parameters rather than a path id. Their `__success` test resolves the key from `<aggregate>_1` (per § Query parameter resolution) and keeps `<aggregate>_1` and `add_<plural_agg>` in its function args; their `__not_found` test substitutes a non-existent key and seeds nothing (see § `__not_found`).
+Composite-key command endpoints (no `{id}` in path — e.g. `PATCH /evo-version`, `DELETE /`) are identified by composite-key query parameters rather than a path id. Their `__success` test resolves the key from `<aggregate>_1` (per § Query parameter resolution) and keeps `<aggregate>_1` and `add_<plural_agg>` in its function args; their `__not_found` test substitutes a non-existent key and seeds nothing (see § `__not_found`); their `__missing_required_field` test, when applicable, reuses the `__success` URL with an empty body (see § `__missing_required_field`).
 
 If a row's HTTP/path combination is unparseable, abort with: `ERROR: surface "<surface>" endpoint row "<row>" is malformed.`
 
@@ -598,6 +598,8 @@ def test_<operation>__missing_required_field(client, request_headers{, <fix>, ad
 ```
 
 For canonical endpoints (`{id}` in path), include `<fix>` and `add_<plural_agg>` so the not-found path doesn't pre-empt the validation error. For factory POST `/`, drop both fixtures.
+
+For composite-key command endpoints (non-empty `<cmd_query_params>`), include `<fix>` and `add_<plural_agg>` and append the composite-key query string resolved from `<aggregate>_1` — identical to the `__success` URL — so the `422` is raised by the missing required body field, not by missing required query parameters.
 
 ### Step 8 — Compose the file
 
