@@ -118,6 +118,21 @@ Per missing fixture, abort with the matching message — except `<aggregate>_2`,
 | `<aggregate>_2` | (non-fatal) emit a Step 9 warning: `WARNING: fixture '<aggregate>_2' not found — falling back to <aggregate>_1 for mutating __success bodies (factory tests will likely return 409).` |
 | `add_<plural_agg>` | `ERROR: fixture 'add_<plural_agg>' not found in <tests_dir>/integration/conftest.py. Run @integration-fixtures-writer first.` |
 
+#### Fixture catalog — full conftest scan
+
+The three fixtures above are the *minimum* required set — they are **not** the only fixtures the project provides. Defaulting to a synthesized stub when `<aggregate>_1` lacks the needed data, while a purpose-built fixture sits unused in the same `conftest.py`, is the single largest source of unsatisfiable `__success` tests. Before rendering any test, scan **both** conftest files in full and build `<fixture_catalog>`.
+
+Read `<tests_dir>/conftest.py` and `<tests_dir>/integration/conftest.py` end to end. For **every** `@pytest.fixture`-decorated `def <name>(...)`, statically harvest (no import, no execution):
+
+- `<name>` and its parameter list (other fixtures it depends on).
+- **Provides** — the domain class it constructs (the PascalCase callee of the `return` / `yield` expression, e.g. `Template(...)`, `DomainType(...)`), or `None` for a plain-value fixture.
+- **Persists** — `True` when the fixture body calls a repository / `add_*` / `save` / `session.add`-style sink, or when the fixture name itself begins with `add_`.
+- **Literal kwargs** — every constructor keyword argument whose value is a string / number literal (e.g. `code="DT-001"`, `name="Domain Type 1"`), recorded as `attr → literal`.
+- **Nested-collection cardinality** — for every constructor kwarg whose value is a list literal, the element count; plus `+1` per `add_<singular>(...)` mutation call in the fixture body (same counting rule as § Nested-collection cardinality).
+- **Aggregate index** — when the name matches `<x>_<N>` (e.g. `template_3`), record `(<x>, <N>)` so the full `<aggregate>_N` series is discovered, not assumed to stop at `_2`.
+
+`<fixture_catalog>` is consulted by every resolution rule below — § Nested-collection cardinality, § Query parameter resolution, and Fixture-attribute lookup steps 3b and 4. The principle is uniform: **when a `__success` test needs data, prefer an existing fixture that already supplies it over a synthesized stub.** A stub is the last resort, not the default.
+
 ### Step 5 — Per surface: enumerate endpoints and dispatch scenarios
 
 For each surface name `<surface>` in `<surfaces>`, locate its `## Surface: <surface>` H2 section. If a surface listed in Table 1 has no matching H2, abort with: `ERROR: surface "<surface>" listed in Table 1 has no '## Surface:' section.`
@@ -217,9 +232,20 @@ For each non-`{id}` camelCase placeholder `{<thingId>}`:
      - If a match is found → emit `{<aggregate>_1.<plural>.<inner_list_attr>[0].id}` — e.g. `{resolvedFieldId}` → `{mapping_type_1.resolved_fields.resolved_fields[0].id}`.
      - If no inner `list` Guard exists → emit `{<aggregate>_1.<plural>[0].id}` (the simple form) and append a Step 9 warning that the VO drill could not be resolved.
    - Else (Guard runtime type is anything else) → emit `{<aggregate>_1.<plural>[0].id}` (the simple form).
-5. If `<plural>` ∉ `<aggregate_attrs>` (no matching Guard at all) → emit `{<aggregate>_1.<plural>[0].id}` (the simple form) and accept potential runtime `AttributeError`; this surfaces the gap to the user.
+5. If `<plural>` ∉ `<aggregate_attrs>` (no matching Guard at all) → the placeholder targets a deeper nested entity; resolve it via § Domain-diagram composition path below instead of emitting a flat guess.
 
-If the resolution requires drilling but the aggregate fixture does not actually expose the collection (verifiable only at test runtime), the test will fail with `AttributeError`; the user is expected to either populate the collection in the aggregate fixture or rename the path placeholder. The agent does not attempt diagram-level verification.
+For a path with a single non-`{id}` placeholder, the steps above resolve against the aggregate's own Guards. For a path with **multiple** nested placeholders, or when step 5 finds no matching aggregate Guard, fall through to § Domain-diagram composition path — derive the access chain from the domain diagram and back it with a fixture, instead of emitting a flat guess that raises `AttributeError` at runtime.
+
+#### Domain-diagram composition path
+
+A nested entity is **never** a flat attribute on the aggregate root — it is reached through the chain of collections that contain it (`template.categories[0].file_types.file_types[0].id`). The report's recurring defect is the generator emitting a guessed flat path (`template.file_types[0]`) that raises `AttributeError`. When a path has **more than one** `{…}` placeholder, or a placeholder's collection segment is not a direct aggregate Guard, derive the real access path from `<domain_diagram>` rather than guessing.
+
+1. Parse the composition / aggregation edges of `<domain_diagram>` (`A *-- B`, `A o-- B`, and the `A "1" *-- "*" B` cardinality forms). Build a containment tree rooted at `<AggregateRoot>`: each edge `Parent *-- Child` records that `Parent` holds a collection of `Child`.
+2. Walk the endpoint path's static segments left to right. Each static segment between two placeholders (or between `{id}` and the first nested placeholder) names one containment edge — snake_case + singularize the segment, match it to a child class on the tree.
+3. For each edge, resolve the **accessor** on the parent class via that class's harvested Guards (run Aggregate attribute discovery on **every** class along the chain, not only the root): a direct `list` Guard is the collection accessor itself; a VO-wrapped collection drills one more level (`<collection>.<inner_list_attr>`) per the VO-drill rule. Concatenate the accessors into the full path expression — e.g. `categories` (list Guard on `Template`) + `file_types` (VO-wrapped list inside `Category`) ⇒ `<fix>.categories[0].file_types.file_types[0]`.
+4. Choose `<fix>` from `<fixture_catalog>`: pick the lowest-numbered `<aggregate>_N` whose harvested cardinality is non-zero at **every** level of the chain (per the report, `template_1` has no categories at all, while `template_3`–`template_6` are pre-seeded). If none qualifies, keep `<aggregate>_1` and emit a Step 9 warning that the composition path could not be backed by a fixture.
+
+This replaces "drill at most one level" for path-placeholder and nested-collection resolution — the chain length is whatever the path declares. Aggregate attribute discovery is still capped at one VO level *per class*, but it is now run for **each class along the composition chain**, which covers arbitrarily deep entity nesting.
 
 #### Query parameter resolution
 
@@ -240,7 +266,9 @@ The sub-block is one of:
 
 **Required signal.** A param is **required** iff its Type cell does **not** contain `| None`. This mirrors the convention used for Table 5 body fields and is robust to spec authors who fill the Default column with `None` for params whose serializer actually rejects None (e.g. `page: int = Field(default=None)` is required in Pydantic v2). The endpoint-io-template's canonical "Default == `—` = required" marker is honored only as a secondary tie-breaker — once `| None` is absent, the param is required regardless of Default.
 
-**Stub values.** For each required param, build a `<name>=<stub>` fragment where `<stub>` follows the same type-based stub fallback table as Step 7 body resolution (with one carve-out for query-string serialization):
+**Param values — resolve from a fixture before stubbing.** For each required param, first run the **Fixture-attribute lookup** (Step 7, steps 1–3b) against `<aggregate>_1`, exactly as for a body field: snake_case the Param Name and attempt to resolve it to an aggregate attribute or a cross-aggregate FK. A lookup-by-key query endpoint such as `find_template_by_source` takes `source_id` — an attribute of the aggregate itself — so its value must be `{<aggregate>_1.source_id}` (an f-string interpolation) with the aggregate seeded via `add_<plural_agg>`, **not** a literal `test` that matches no persisted row. When the lookup resolves, emit the fixture reference as the fragment value and keep `add_<plural_agg>` (and any `add_<stem>` the cross-aggregate rule adds) in the test's function args. Only when the lookup fails does the type-based stub below apply.
+
+**Stub values (fallback).** For a required param that did not resolve to a fixture, build a `<name>=<stub>` fragment where `<stub>` follows the same type-based stub fallback table as Step 7 body resolution (with one carve-out for query-string serialization):
 
 | Type cell (with `| None` already stripped, but here irrelevant since Type lacks `| None`) | Query-string stub |
 |---|---|
@@ -253,7 +281,7 @@ The sub-block is one of:
 | `list` / `list[*]` | omit (lists rarely belong in required query params; emit no fragment and append a Step 9 warning) |
 | anything else | `test` plus a Step 9 warning that the param was stubbed with an unverified literal |
 
-Param names are emitted **verbatim** from the Table 4 row (snake_case per the template), not camelCased — request serializers configured with `alias_generator=to_camel` accept both via `validate_by_name=True`, and snake_case matches the spec without translation.
+**Param names — emit the camelCase alias.** Request serializers apply `alias_generator=to_camel`, and for a Pydantic model consumed via `Depends()` FastAPI binds each query parameter by its **alias** — so the wire name is camelCase (`source_id` → `sourceId`). Emit the camelCased Param Name on the URL: apply the inverse of the Step 3 snake_case regex (drop each `_` and TitleCase the following letter). A snake_case query key is silently ignored by FastAPI — the param then falls back to its default, or fails validation when required — so never emit the raw snake_case form.
 
 **Combining.** Concatenate fragments with `&` and prepend `?`. Bind `<query_string>` to the result, or to the empty string when no required params remain. Optional params (Type contains `| None`) are omitted — they default at the framework or settings layer and are not the agent's concern.
 
@@ -371,13 +399,11 @@ For HTTP=DELETE endpoints whose path is **nested-resource shape** (≥2 `{…}` 
 Resolution rule, applied **only for `__success`** of nested-resource DELETE / PATCH / PUT endpoints whose path matches `/{id}/<collection>/{<x>Id}<rest>`:
 
 1. Identify the collection name from the path's static segment between `{id}` and the next placeholder (e.g., `lookups` in `/{id}/lookups/{lookupId}`). Snake-case it: `<collection>`.
-2. Read both `<aggregate>_1` and `<aggregate>_2` fixture definitions from `<tests_dir>/conftest.py`. Count their `<collection>` cardinality:
-   - Look for the initial constructor literal (e.g., `lookups=[Lookup(...)]` → 1; `lookups=[Lookup(...), Lookup(...)]` → 2).
-   - Add explicit `<fixture>.add_<singular>(...)` mutation calls in the fixture body (e.g., `cache_type_2.add_lookup(...)` → +1).
-3. **Swap rule:**
-   - If `<aggregate>_2` has cardinality ≥2 AND `<aggregate>_1` has cardinality <2 → swap `<fix>` to `<aggregate>_2` for this endpoint's `__success` test. URL path, function args, and the `add_<plural_agg>` fixture parameter all reflect the swap.
-   - If both fixtures have cardinality ≥2 → default rule applies (use `<aggregate>_1`).
-   - If neither does → emit a Step 9 warning: `WARNING: <surface>/<operation>: neither <aggregate>_1 nor <aggregate>_2 has ≥2 <collection> — __success will likely return 409.`
+2. From `<fixture_catalog>`, take **every** aggregate-instance fixture in the `<aggregate>_N` series (`<aggregate>_1`, `<aggregate>_2`, `<aggregate>_3`, … — not just `_1` / `_2`) and read each one's harvested **Nested-collection cardinality** for `<collection>` (initial list-literal element count plus `+1` per `add_<singular>(...)` mutation in the fixture body). When the targeted collection sits two levels deep (e.g. `/{id}/categories/{categoryId}/file-types/{fileTypeId}` — `file_types` nested inside a `categories` element), follow the **Domain-diagram composition path** (below) and require an inner element with ≥2 of the deepest collection.
+3. **Selection rule:**
+   - Pick the **lowest-numbered** `<aggregate>_N` whose `<collection>` cardinality is ≥2. Bind `<fix>` to it for this endpoint's `__success` test; the URL path, function args, and the `add_<plural_agg>` parameter all reflect the choice.
+   - If `<aggregate>_1` already has cardinality ≥2, keep the default (`<aggregate>_1`).
+   - If **no** `<aggregate>_N` fixture has cardinality ≥2 → emit a Step 9 warning: `WARNING: <surface>/<operation>: no <aggregate>_N fixture has ≥2 <collection> — __success will likely return 409.` and keep `<aggregate>_1`.
 4. The `__not_found` scenario is **unchanged** (it uses a literal `non-existent-id` for the parent `{id}`, so cardinality is moot).
 
 #### Update-details literal-rename override
@@ -456,9 +482,14 @@ The matcher returns `(<stem>, <item_attr>, <is_list>)`. The caller then attempts
    - **VO-wrapped list Guard.** Else if `<aggregate_guards>[<stem>].<runtime_type>` is a domain class — look up `<vo_attrs>[<stem>]` and pick the inner list Guard by the same priority used in Nested-id resolution: (a) the inner Guard whose name matches `<stem>` exactly with runtime type `list`; (b) the first inner Guard with runtime type `list`. Bind `<inner_list_attr>` accordingly and emit `<ref>` = `<src_fix>.<stem>.<inner_list_attr>[0].<item_attr>`. If no inner `list` Guard exists, skip this rule and continue to step 4.
    - **Wrap.** If `<is_list>` is True → emit `[<ref>]`. Else → emit `<ref>`.
    - Append a `# TODO: <name> drilled to <ref expression>; arity is 1 — adjust if the domain rule requires more` trailing comment. Type compatibility is **not** re-checked at step 3 — the suffix matcher's `<item_attr>` is always `id` or `code` (primitive str), so the produced reference is structurally compatible with any primitive `str` / `list[str]` Table 5 type.
-4. **Type-stub fallback.** Else → fall through to the type-based stub fallback table above. Append a `# TODO: <name> stubbed (not on <src_fix> nor reachable via a value object)` trailing comment on that line (the type-incompatibility cases from steps 1 and 2 substitute their own reason).
+3b. **Cross-aggregate FK resolution.** Else, apply the FK suffix matcher; if it returns `(<stem>, <item_attr>, <is_list>)` but `<stem>` ∉ `<aggregate_attrs>` (no intra-aggregate Guard), the field is a **foreign key into another aggregate** — e.g. `domain_type_code` validates against the separately-persisted `DomainType` aggregate. A literal stub here guarantees the command's cross-aggregate validation returns 404; resolve it against `<fixture_catalog>` instead:
+   - Singularize `<stem>` (`domain_types` → `domain_type`) to `<foreign>`. Search the catalog for an **instance** fixture providing that class — by convention `<foreign>_1` (`domain_type_1`), or any fixture whose **Provides** is the PascalCased `<foreign>`.
+   - Search for a **persistence** fixture that seeds that aggregate — by convention `add_<stem>` (`add_domain_types`), or any catalog fixture with `Persists == True` providing the same class.
+   - If **both** are found: emit `<foreign>_1.<item_attr>` (e.g. `domain_type_1.code`), or — when no instance fixture exists but the persistence fixture seeds a known **Literal kwarg** — that literal (e.g. `"DT-001"`). Wrap in `[...]` when `<is_list>`. **Add the persistence fixture to the test's function args** so the foreign aggregate is actually seeded. Append `# TODO: <name> resolved to a cross-aggregate FK — seeded via <add fixture>`.
+   - If only one or neither is found, fall through to step 4 and note the catalog miss in the warning.
+4. **Type-stub fallback.** Else → fall through to the type-based stub fallback table above. Append a `# TODO: <name> stubbed (not on <src_fix>, not reachable via a value object, no cross-aggregate fixture in conftest)` trailing comment on that line (the type-incompatibility cases from steps 1 and 2 substitute their own reason).
 
-This is a static analysis — it does not import or instantiate anything; unresolvable fields degrade gracefully to type-stub fallback. The FK suffix drill (step 3) is intentionally intra-aggregate only — it resolves references to a sibling collection on the same aggregate (e.g. `derived_fields_ids` → `[mapping_type_1.derived_fields.derived_fields[0].id]`). Cross-aggregate foreign-key references (e.g. `cache_type_code` referring to a separately-persisted `CacheType` aggregate) are not auto-resolved — they fall to the type-stub fallback in step 4 and emit a TODO comment, since the agent has no way to know which `<foreign>_1` fixture to seed alongside the path-target aggregate.
+This is a static analysis — it does not import or instantiate anything; unresolvable fields degrade gracefully to type-stub fallback. Step 3 (FK suffix drill) resolves references to a sibling collection on the **same** aggregate (e.g. `derived_fields_ids` → `[mapping_type_1.derived_fields.derived_fields[0].id]`); step 3b resolves **cross-aggregate** foreign keys (e.g. `domain_type_code` → `domain_type_1.code`, seeded via `add_domain_types`) by consulting `<fixture_catalog>`. A field reaches the type-stub fallback (step 4) only when no intra-aggregate Guard *and* no matching cross-aggregate fixture exists.
 
 Concrete body-bearing form (mutating, with body resolution applied):
 
@@ -784,7 +815,7 @@ def test_delete_load__not_found(client, request_headers):
 
 Note: `start_receiving` and `delete_load` omit `json=` because Table 5 declares `*No request body*`. `create_load` __success drops both `load_1` and `add_loads` from its args (factory POST `/` requires an empty DB; otherwise the request collides on the unique key) and resolves its body from `load_2`; `create_load` __already_exists keeps `load_1` + `add_loads` to force the collision and resolves its body from `load_1`. Both bodies use camelCase keys mirroring Table 5. `start_receiving` does **not** get a `__missing_required_field` test (no body to validate); `delete_load` does **not** get one either (DELETE excluded from the dispatch table).
 
-If the spec also declared a Table 4 query-param sub-block (e.g. `find_loads` with required `page: int` and `per_page: int` rows), the list endpoint URL would gain a `?page=0&per_page=0` suffix and `find_loads.__success` would still keep `add_loads` (list endpoints want some data to list).
+If the spec also declared a Table 4 query-param sub-block (e.g. `find_loads` with required `page: int` and `per_page: int` rows), the list endpoint URL would gain a `?page=0&perPage=0` suffix (params emitted under their camelCase aliases) and `find_loads.__success` would still keep `add_loads` (list endpoints want some data to list).
 
 ### Second example — VO-wrapped collections and FK-suffix drilling
 
@@ -866,22 +897,22 @@ def test_replace_source_fields__success(client, request_headers, mapping_type_1,
     assert response.status_code == HTTPStatus.OK
 
 
-def test_add_resolved_field__success(client, request_headers, mapping_type_1, add_mapping_types):
+def test_add_resolved_field__success(client, request_headers, mapping_type_1, add_mapping_types, add_cache_types, cache_type_1):
     # GIVEN mapping_type exists in DB
     response = client.post(
         f"{V1_API_PREFIX}/mapping-types/{mapping_type_1.id}/resolved-fields",
         headers=request_headers,
         json={
             "derived_fields_ids": [mapping_type_1.derived_fields.derived_fields[0].id],  # TODO: derived_fields_ids drilled to mapping_type_1.derived_fields.derived_fields[0].id; arity is 1 — adjust if the domain rule requires more
-            "lookup_code": "test",  # TODO: lookup_code stubbed (not on mapping_type_1 nor reachable via a value object)
-            "cache_type_code": "test",  # TODO: cache_type_code stubbed (not on mapping_type_1 nor reachable via a value object)
+            "lookup_code": "test",  # TODO: lookup_code stubbed (not on mapping_type_1, not reachable via a value object, no cross-aggregate fixture in conftest)
+            "cache_type_code": cache_type_1.code,  # TODO: cache_type_code resolved to a cross-aggregate FK — seeded via add_cache_types
         },
     )
 
     assert response.status_code == HTTPStatus.OK
 
 
-def test_update_resolved_field__success(client, request_headers, mapping_type_2, add_mapping_types):
+def test_update_resolved_field__success(client, request_headers, mapping_type_2, add_mapping_types, add_cache_types, cache_type_1):
     # GIVEN mapping_type exists in DB
     response = client.put(
         f"{V1_API_PREFIX}/mapping-types/{mapping_type_2.id}/resolved-fields/{mapping_type_2.resolved_fields.resolved_fields[0].id}",
@@ -889,7 +920,7 @@ def test_update_resolved_field__success(client, request_headers, mapping_type_2,
         json={
             "derived_fields_ids": [mapping_type_2.derived_fields.derived_fields[0].id],
             "lookup_code": "test",
-            "cache_type_code": "test",
+            "cache_type_code": cache_type_1.code,
         },
     )
 
@@ -910,7 +941,7 @@ What the agent did:
 
 - `source_fields` / `derived_fields` body keys: step 1 finds the matching aggregate Guard but its static type `SourceFields` / `DerivedFields` is incompatible with Table 5 `list[str]` — skip. Step 2 finds an inner Guard inside the VO whose name also matches (`SourceFields.source_fields = Guard[list[SourceField]](list, …)`) but its static type `list[SourceField]` is still incompatible with `list[str]` (entities vs primitives) — skip. Step 3 (FK suffix drill) does not match (no `_id` / `_code` / `_ids` / `_codes` suffix). Step 4 emits the non-empty `list[str]` stub `["test"]`.
 - `derived_fields_ids` body key: snake_case lookup misses the aggregate's flat Guards; the **FK suffix matcher** strips `_ids` → `derived_fields`, which is a Guard on the aggregate whose runtime type is a VO with a same-named inner `list` Guard — drill: `[mapping_type_1.derived_fields.derived_fields[0].id]`.
-- `lookup_code` / `cache_type_code`: cross-aggregate FKs — no intra-aggregate Guard matches, type-stub fallback emits `"test"` with TODO comments. Manual follow-up required.
+- `cache_type_code`: a cross-aggregate FK — no intra-aggregate Guard matches, so step 3b consults `<fixture_catalog>`, finds the `cache_type_1` instance + `add_cache_types` persistence fixtures, emits `cache_type_1.code`, and adds `add_cache_types` to the test args so the `CacheType` aggregate is seeded. `lookup_code`: no instance/persistence fixture pair exists in the catalog → type-stub fallback emits `"test"` with a TODO. Manual follow-up is needed only for the genuine miss.
 - `{resolvedFieldId}` path placeholder: aggregate Guard `resolved_fields` is a VO with a same-named inner `list` Guard — **Nested-id VO drill** → `{mapping_type_2.resolved_fields.resolved_fields[0].id}` instead of the (broken) `{mapping_type_2.resolved_fields[0].id}`.
 - `update_resolved_field` and `remove_resolved_field` `__success`: nested-resource DELETE/PUT shape with `<2` items on `mapping_type_1.resolved_fields` triggers the **cardinality swap** to `mapping_type_2`.
 
@@ -930,6 +961,10 @@ What the agent did:
 - When a Table 5 field's snake_cased name matches an aggregate Guard (or a Guard one level inside a VO) but the resolved Guard's **static type** is incompatible with the Table 5 type per the **Type compatibility helper** (e.g. `source_fields: list[str]` vs `Guard[SourceFields](SourceFields)` or vs an inner `Guard[list[SourceField]](list, …)`), do **not** emit the fixture reference — it would serialize the wrong Python shape. Fall through to the next resolution step and ultimately to the type-stub fallback, emitting a Step 9 warning per § Fixture-attribute lookup step 1 / step 2.
 - For Table 5 body fields whose name ends in `_id` / `_code` / `_ids` / `_codes` and whose stripped stem matches an intra-aggregate collection Guard, drill into that collection (with VO unwrap when applicable) and emit `<src_fix>.<stem>[0].<id|code>` or `[<src_fix>.<stem>.<inner>[0].<id|code>]` (per § Fixture-attribute lookup step 3). Cross-aggregate FK references (no matching intra-aggregate stem) fall to the type-stub fallback with a TODO comment.
 - For nested-id path placeholders whose snake_cased plural maps to a VO-wrapped collection on the aggregate, drill through the VO to the inner list Guard (per § Nested-id resolution step 4) — `{resolvedFieldId}` becomes `{<aggregate>_1.resolved_fields.resolved_fields[0].id}`, not `{<aggregate>_1.resolved_fields[0].id}`.
+- Before stubbing any value, build `<fixture_catalog>` by scanning both conftest files in full (per § Fixture catalog), and prefer an existing fixture over a synthesized stub for every `__success` body field, query param, and nested-collection need.
+- For a body field that is a cross-aggregate foreign key (`<foreign>_code` / `<foreign>_id` with no intra-aggregate Guard), resolve it against `<fixture_catalog>` and add the seeding `add_<stem>` fixture to the test args (per § Fixture-attribute lookup step 3b) — a literal stub guarantees the command's cross-aggregate validation returns 404.
+- Reach nested entities through the domain diagram's composition chain (`<fix>.categories[0].file_types.file_types[0]`), never as a flat attribute on the aggregate root (per § Domain-diagram composition path).
+- Emit query parameters under their camelCase alias and resolve their values from a fixture before falling back to a type stub (per § Query parameter resolution).
 - Skip 401-unauthorized, 403-forbidden, response-structure (camelCase), and query-param filter scenarios — out of scope for this agent.
 
 ## Failure modes summary
@@ -963,3 +998,6 @@ What the agent did:
 | Body field type is `list[<primitive>]` and the stub fallback is taken | Emit a single-element non-empty list (`["test"]`, `[0]`, …) per the type-stub table — never `[]`, to avoid violating "non-empty list" domain rules. |
 | Nested-resource DELETE / PATCH / PUT `__success` would target a fixture with <2 items in the path child collection | Swap `<fix>` to `<aggregate>_2` when its cardinality is ≥2; otherwise emit a Step 9 warning and keep `<aggregate>_1`. |
 | Update-details body field resolves to identical literals on `<aggregate>_1` and `<aggregate>_2` | Replace `<body_fix>.<attr>` with a synthetic `Renamed *` literal; emit a Step 9 warning. Do not abort. |
+| A `__success` body / query / nested need has no backing fixture in `<fixture_catalog>` | Fall back to a type stub with a `# TODO` comment and a Step 9 warning; still write the test. |
+| Cross-aggregate FK field cannot be matched to an instance + persistence fixture pair in `<fixture_catalog>` | Type-stub fallback with a TODO; emit a Step 9 warning naming the unresolved foreign aggregate. |
+| Domain-diagram composition path cannot be backed by any `<aggregate>_N` fixture | Keep `<aggregate>_1`, emit the best-effort path, and emit a Step 9 warning. |

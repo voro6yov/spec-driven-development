@@ -50,8 +50,23 @@ These rules are non-negotiable. Every artifact emitted by this agent must satisf
     1. Module-level imports (computed from the union of needs across all endpoints in the file).
     2. `__all__ = ["<plural>_router"]`.
     3. The router declaration: `<plural>_router = APIRouter(prefix="<router_prefix>", tags=["<Tag>"], route_class=MarkerRoute)`.
-    4. One endpoint function per Table 2 row (in Table 2 order), then one per Table 3 row (in Table 3 order). Skip Table 3 rows whose Domain Ref method name starts with `on_` (defensive — `endpoint-tables-writer` already excludes them).
+    4. One endpoint function per Table 2 row, then one per Table 3 row — each table independently re-ordered per [§ Route ordering](#route-ordering) (do **not** emit in raw Table 2 / Table 3 row order). Skip Table 3 rows whose Domain Ref method name starts with `on_` (defensive — `endpoint-tables-writer` already excludes them).
 - Every endpoint function uses `@<plural>_router.<method>(...)` decorator and `@inject`.
+
+### Route ordering
+
+FastAPI matches routes **top-to-bottom by decorator/registration order**, and registration order is the order endpoint functions appear in the module. A parameterized route (`GET /{id}`) registered before a static-segment route on the same prefix (`GET /by-source`) **captures** the static route — `/by-source` is matched by `/{id}` with `id="by-source"` and the intended handler becomes unreachable. This is a hard FastAPI requirement, not a style preference.
+
+The agent therefore re-orders the emitted endpoint functions so that, **within each HTTP method, more specific paths precede less specific ones**. Table 2 (all `GET`) and Table 3 (mixed `POST`/`PUT`/`PATCH`/`DELETE`) are ordered independently; rows are never moved between the two tables.
+
+Sort rule — for two routes of the **same HTTP method**, split each path on `/` into segments and compare segment-by-segment:
+
+1. At the first position where the segments differ in kind — one a **literal** (e.g. `by-source`), the other a `{…}` **placeholder** (e.g. `{id}`) — the **literal sorts first**.
+2. If both segments at a position are literal, or both are placeholders, move to the next position (a tie — keep comparing).
+3. If one path runs out of segments first (it is a prefix of the other), the **shorter path sorts first**.
+4. If two routes tie on every position (identical path shape), preserve their original Table 2 / Table 3 row order (stable sort).
+
+This is a stable sort keyed on `(segment-kind tuple)`; routes of different HTTP methods never collide, so the sort is applied per-method. Worked: `GET /by-source` (segment 1 = literal) sorts before `GET /{id}` (segment 1 = placeholder), so `find_template_by_source` is emitted before `find_template` regardless of their Table 2 order.
 
 ### Router naming
 
@@ -157,12 +172,16 @@ Each endpoint's call to `commands.<method>(...)` or `queries.<method>(...)` is e
 | `` Path param `{id}` `` | **positional** `id` — always rendered as the first positional argument of the call (carve-out from the kwarg rule). |
 | `` Path param `{<camelId>}` `` (e.g., `{tireId}`) | `<snake>=<snake>` (e.g., `tire_id=tire_id`) — the snake_case form must match the function parameter name |
 | `Auth context` | `tenant_id=tenant_id` (parameter name comes from Table 6's left column verbatim — typically `tenant_id`, but if some other principal name is used, mirror it) |
-| `` Request body `<field>` `` (primitive / value-object / aggregate-root target) | `<field>=request.<field>` |
-| `` Request body `<field>` `` (TypedDict / Query DTO target — see below) | `<field>=request.<field>.to_domain()` (scalar) or `<field>=[item.to_domain() for item in request.<field>]` (list); wrap with `... if request.<field> is not None else None` when the original parameter type is `T \| None` |
+| `` Request body `<field>` `` — Table 5 Type has **no** `**Nested:**` sub-table (primitive / scalar / id) | `<field>=request.<field>` |
+| `` Request body `<field>` `` — Table 5 Type is backed by a `**Nested:**` sub-serializer (see discrimination rule below) | `<field>=request.<field>.to_domain()` (scalar) or `<field>=[item.to_domain() for item in request.<field>]` (list); wrap with `... if request.<field> is not None else None` when the Table 5 Type ends in `T \| None` |
 | `` Query param `<name>` `` | `<name>=request.<name>` |
 | `` Constructed from query params `<f1>`, `<f2>`, … → `<Type>` `` | `<param>=<Type>(<f1>=request.<f1>, <f2>=request.<f2>, …)` — the kwarg name is the left-column parameter name from Table 6 (e.g., `pagination`); the `<Type>` is imported from `<pkg>.domain.shared` for `Pagination` and from `<pkg>.domain.<aggregate>` for per-aggregate composites like `<Resource>Filtering`. Append ` if any(...) else None` only when the Table 6 cell ends with `(defaults from settings if None)` AND the original parameter is `T \| None` — in that case wrap as `<param>=<Type>(...) if (request.<f1> is not None or request.<f2> is not None or ...) else None`. |
 
-**TypedDict / Query DTO discrimination for body fields.** A `Request body <field>` row uses the `to_domain()` form when the field's declared application-service parameter type (recovered from the commands diagram in [§ Step 3.6 — Cross-reference the commands diagram for `to_domain()` targets](#step-36--cross-reference-the-commands-diagram-for-to_domain-targets)) resolves on the domain diagram to a class whose stereotype is `<<Domain TypedDict>>` or `<<Query DTO>>`. Strip `list[]` and `| None` wrappers to find the base identifier. All other stereotypes (`<<Value Object>>`, `<<Aggregate Root>>`, `<<Entity>>`, primitives, unresolved) use the plain `request.<field>` form.
+**Nested sub-serializer discrimination for body fields — non-negotiable.** A `Request body <field>` row uses the `.to_domain()` form whenever the request field is backed by a **nested sub-serializer** — *never* the raw `request.<field>` form. Passing a Pydantic sub-serializer straight into the command layer is always a defect: the domain layer expects a plain `dict` (a domain TypedDict) or a constructed value object, never a serializer instance, and rejects it at runtime (400/422).
+
+The **primary, sufficient signal is local to Table 5**: the field's Table 5 Type — after stripping `list[]` and `| None` wrappers — is a PascalCase identifier that has a matching `**Nested:** <Type>` sub-table in the same endpoint group. By the `@command-serializers-implementer` contract, every such field is backed by a generated `<Type>Serializer` that carries a `to_domain()` method. When this signal holds, emit `request.<field>.to_domain()` (scalar) or `[item.to_domain() for item in request.<field>]` (when the Table 5 Type wrapper is `list[...]`); wrap with `... if request.<field> is not None else None` when the Type ends in `| None`.
+
+The commands-diagram / domain-diagram stereotype resolution in [§ Step 3.6](#step-36--tag-to_domain-body-fields) is retained only as a **secondary cross-check** — it does **not** gate emission. A field that has a `**Nested:**` sub-table gets `.to_domain()` even when Step 3.6 cannot locate the Domain Ref method on the commands diagram. Primitive types, and PascalCase types with no `**Nested:**` sub-table, use the plain `request.<field>` form.
 
 Important rules:
 
@@ -175,6 +194,8 @@ Important rules:
     ```
 - For Table 2 endpoints with a `**Wish List**` `include` query param, the call passes `include=request.include` (raw list[str]); response building also gets `include=request.include` as a keyword argument to `from_domain` (only when the response class accepts it — see below).
 - For binary streaming endpoints, wrap the call in `StreamingResponse(<call>, media_type="application/octet-stream")`.
+
+**Pre-write self-check (mandatory).** Before writing a module, scan every emitted application-service call. For each kwarg of the bare form `<field>=request.<field>`, look up `<field>`'s Table 5 row in the endpoint's sub-block. If its Type — with `list[]` / `| None` stripped — is a PascalCase identifier that has a `**Nested:** <Type>` sub-table in the same endpoint group, the kwarg is **wrong**: it passes a raw sub-serializer into the command layer. Rewrite it to the `.to_domain()` form per the discrimination rule before writing the file. A raw `request.<field>` is only ever valid for a primitive / scalar / id field.
 
 ### `include` handling for Wish List endpoints
 
@@ -265,15 +286,20 @@ For each surface in canonical order, within its bounded section (from `## Surfac
 
 If a surface has zero query endpoints AND zero command endpoints, record `skipped: <surface>: no endpoints` and continue to the next surface — do not emit a module for it.
 
-#### Step 3.6 — Cross-reference the commands diagram for `to_domain()` targets
+#### Step 3.6 — Tag `to_domain()` body fields
 
-Read `<dir>/<stem>.commands.md` once at the start of Step 3 (cache the parse). For each Table 3 row, locate the matching `<Resource>Commands.<method>` declaration on the diagram by the row's Domain Ref (column 5). Bind `<command_method_params>: method → ordered list of (name, type_token)` from each method's declared signature.
+The decisive, sufficient signal is **local to Table 5** and requires no external diagram. For each command endpoint, for every `Request body <field>` row in its Table 6 sub-block:
 
-Read `<domain_diagram>` once at the start of Step 3 (cache the parse). Build a stereotype lookup `<stereotype_map>: PascalCase → stereotype` over every class declared on the domain diagram.
+1. Find the field's Table 5 row in the same endpoint group. Strip `list[]` and `| None` wrappers from its Type to a base token; record whether the list form applied (the `list[...]` wrapper was present).
+2. If the base token is a PascalCase identifier **and** the same endpoint group has a `**Nested:** <token>` sub-table, tag the Table 6 row `requires_to_domain` (carrying the recorded list flag). This holds regardless of the commands / domain diagrams — the `**Nested:**` sub-table guarantees `@command-serializers-implementer` generated a `<token>Serializer` carrying `to_domain()`.
+3. Otherwise (primitive base token, or a PascalCase token with no `**Nested:**` sub-table) leave the row untagged → plain `request.<field>` emission.
 
-For each Table 6 sub-block of a command endpoint, for every `Request body <field>` row, resolve the matching `<command_method_params>` entry by snake_case name. Strip `list[]` and `| None` wrappers from its `type_token` to a base PascalCase identifier; look up its stereotype in `<stereotype_map>`. Tag the Table 6 row as `requires_to_domain` when the stereotype is `<<Domain TypedDict>>` or `<<Query DTO>>`; record whether the list form applies (the original `type_token` contained `list[...]`).
+The commands diagram and domain diagram are still read once at the start of Step 3 (cache the parse) as a **secondary cross-check**: build `<command_method_params>: method → ordered list of (name, type_token)` from each `<Resource>Commands.<method>` declaration in `<dir>/<stem>.commands.md` (matched by each Table 3 row's Domain Ref), and `<stereotype_map>: PascalCase → stereotype` over `<domain_diagram>`. The cross-check does **not** gate `requires_to_domain` — it only diagnoses:
 
-If the commands-diagram parse cannot locate the Domain Ref method, emit a warning (`WARNING: surface "<name>" endpoint "<HTTP> <PATH>" Domain Ref "<ref>" not found on commands diagram — to_domain() emission skipped`) and continue with plain `request.<field>` emission for that endpoint. Do not abort.
+- If a field tagged `requires_to_domain` resolves through `<command_method_params>` + `<stereotype_map>` to a non-TypedDict, non-Query-DTO stereotype, keep the tag (the `**Nested:**` sub-table is authoritative) and emit `WARNING: surface "<name>" endpoint "<HTTP> <PATH>" field "<field>" is backed by a nested sub-serializer but its command-parameter stereotype is <X> — verify <Type>Serializer.to_domain() returns the expected domain shape`.
+- If the commands-diagram parse cannot locate the Domain Ref method, emit `WARNING: surface "<name>" endpoint "<HTTP> <PATH>" Domain Ref "<ref>" not found on commands diagram — to_domain() cross-check skipped` and continue. Step 3.6's tagging is unaffected — it does not depend on the commands diagram.
+
+Do not abort in Step 3.6.
 
 ### Step 4 — Per-surface module emission
 
@@ -306,8 +332,8 @@ For each surface's module, render the file as the concatenation of, in order:
     <plural>_router = APIRouter(prefix="<router_prefix>", tags=["<Tag>"], route_class=MarkerRoute)
     ```
 6. Blank line.
-7. One endpoint function per Table 2 row in Table 2 order (kind = binary or plain).
-8. One endpoint function per Table 3 row in Table 3 order (kind = file-upload, nested-resource, command-action, or plain).
+7. One endpoint function per Table 2 row, ordered per [§ Route ordering](#route-ordering) (kind = binary or plain).
+8. One endpoint function per Table 3 row, ordered per [§ Route ordering](#route-ordering) (kind = file-upload, nested-resource, command-action, or plain).
 
 A blank line separates each endpoint function from the next. The file ends with a single trailing newline.
 
@@ -442,10 +468,23 @@ Three things to note across these excerpts: (1) `id` is positional, all other Ta
 
 ### `to_domain()` example for a command with a domain-TypedDict body field
 
-Spec excerpt for resource `CacheType`. Commands diagram declares `CacheTypeCommands.create(code: str, name: str, lookups: list[LookupArgumentData])`. Domain diagram marks `LookupArgumentData` as `<<Domain TypedDict>>`. Table 6 for the `create` endpoint:
+Spec excerpt for resource `CacheType`. Table 5 and Table 6 for the `create` endpoint:
 
 ```markdown
-**Endpoint:** `POST /` (create)
+**Endpoint:** `POST /` (create)   ← Table 5
+| Field Name | Type | Validation |
+| --- | --- | --- |
+| code | `str` | Required |
+| name | `str` | Required |
+| lookups | `list[LookupArgumentData]` | Required, non-empty list |
+
+**Nested:** `LookupArgumentData`
+| Field Name | Type | Validation |
+| --- | --- | --- |
+| code | `str` | Required |
+| name | `str` | Required |
+
+**Endpoint:** `POST /` (create)   ← Table 6
 | Command Parameter | Request Field / Path Param |
 | --- | --- |
 | `code` | Request body `code` |
@@ -454,7 +493,7 @@ Spec excerpt for resource `CacheType`. Commands diagram declares `CacheTypeComma
 | `tenant_id` | Auth context |
 ```
 
-Step 3.6 resolves `lookups`'s declared type `list[LookupArgumentData]` to `<<Domain TypedDict>>` and tags the row `requires_to_domain` (list form). The emitted endpoint:
+Step 3.6 sees `lookups`'s Table 5 Type is `list[LookupArgumentData]` — a PascalCase token with a matching `**Nested:** LookupArgumentData` sub-table — and tags the row `requires_to_domain` (list form). The emitted endpoint:
 
 ```python
 @cache_types_router.post(
@@ -480,6 +519,55 @@ def create(
 ```
 
 `code` and `name` are plain `str` → `request.<field>`. `lookups` is `list[<<Domain TypedDict>>]` → list comprehension over `request.lookups` calling each item's `to_domain()` (emitted by `@command-serializers-implementer` on `LookupArgumentDataSerializer`).
+
+### `to_domain()` example for a *scalar* nested body field
+
+The scalar case is the one most often missed — a single nested object, not a list. Spec excerpt for resource `Template`, surface `v1`:
+
+```markdown
+**Endpoint:** `POST /` (create)
+| Field Name | Type | Validation |
+| --- | --- | --- |
+| globals | `Globals` | Required |
+
+**Nested:** `Globals`
+| Field Name | Type | Validation |
+| --- | --- | --- |
+| timezone | `str` | Required |
+| locale | `str` | Required |
+
+### Table 6: Parameter Mapping
+**Endpoint:** `POST /` (create)
+| Command Parameter | Request Field / Path Param |
+| --- | --- |
+| `globals` | Request body `globals` |
+| `tenant_id` | Auth context |
+```
+
+Step 3.6 sees `globals`'s Table 5 Type is `Globals`, a PascalCase token with a `**Nested:** Globals` sub-table → tags the row `requires_to_domain` (scalar, no list flag). The emitted endpoint:
+
+```python
+@templates_router.post(
+    "/",
+    status_code=status.HTTP_201_CREATED,
+    openapi_extra={"visibility": Visibility.PUBLIC},
+    response_model=CreateResponse,
+)
+@inject
+def create(
+    request: CreateRequest,
+    tenant_id: str = Depends(get_tenant_id),
+    template_commands: TemplateCommands = Depends(Provide[Containers.template_commands]),
+):
+    return CreateResponse.from_domain(
+        template_commands.create(
+            globals=request.globals.to_domain(),
+            tenant_id=tenant_id,
+        ),
+    )
+```
+
+`request.globals` is a `GlobalsSerializer` Pydantic model — `globals=request.globals` (the raw form) would reach the domain layer as a serializer instead of the `Globals` TypedDict the command expects and fail at runtime. `.to_domain()` is **not optional** here; the pre-write self-check exists to catch exactly this omission.
 
 ---
 

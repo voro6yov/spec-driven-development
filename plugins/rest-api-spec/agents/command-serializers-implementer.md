@@ -24,7 +24,7 @@ It **does**:
 - Read Table 1 + every `## Surface:` section's Table 3 (Command Endpoints) and Table 5 (Request Fields, including any `**Nested:**` sub-blocks) from `<rest_api_spec_file>`.
 - Read the sibling commands diagram `<dir>/<stem>.commands.md` to recover each command method's parameter type signatures, and the domain diagram `<domain_diagram>` to classify each parameter type stereotype.
 - Emit `<api_pkg>/serializers/<surface>/<aggregate>/<operation>.py` per command endpoint.
-- Emit `to_domain(self) -> <TypedDict>` on every nested request sub-serializer whose corresponding application-service parameter type resolves on the domain diagram to a `<<Domain TypedDict>>` / `<<Query DTO>>`.
+- Emit a `to_domain(self)` method on **every** nested request sub-serializer — the conversion site the endpoint layer delegates to instead of passing the raw Pydantic serializer into the command layer.
 - (Re)write `<api_pkg>/serializers/<surface>/<aggregate>/__init__.py` as a star-aggregator over the operation modules in that aggregate.
 - Leave `<api_pkg>/serializers/<surface>/__init__.py` empty (it is intentionally not a star-aggregator over the per-aggregate sub-packages — see `rest-api-spec:naming-conventions`).
 - Leave `<api_pkg>/serializers/__init__.py` untouched (owned by `@serializers-copier`).
@@ -107,33 +107,46 @@ Always emit `<Operation>Response` per the `simple-command-response` skill — a 
 
 ### `to_domain()` emission on nested request sub-serializers
 
-When a command endpoint's application-service parameter is a domain TypedDict (`<<Domain TypedDict>>` / `<<Query DTO>>`) — directly, as a list (`list[T]`), or as a nullable variant (`T | None`, `list[T] | None`) — the nested request sub-serializer that mirrors that TypedDict's field shape must expose a `to_domain(self) -> <TypedDictName>` method. This method is the canonical request→domain conversion site; the endpoint layer delegates to it instead of using `model_dump()` (which is generic, untyped, and sensitive to Pydantic config).
+**Every** nested request sub-serializer emitted by this agent exposes a `to_domain(self)` method — no exceptions. It is the canonical request→domain conversion site: the endpoint layer (`@endpoints-implementer`) always calls `request.<field>.to_domain()` for a `**Nested:**`-backed body field, because passing a raw Pydantic serializer into the command layer is always a defect (the domain layer expects a `dict` or a constructed object, never a serializer, and rejects it at runtime). A sub-serializer without `to_domain()` would break that contract, so the method is never omitted.
 
-Resolution flow (one per endpoint, applied during Step 3.6):
+The `**Nested:** <Type>` header name *is* the domain type the method targets. The stereotype of `<Type>` (resolved via the commands + domain diagrams in Step 3d) determines only the **body form**, not whether the method exists:
+
+- **TypedDict body form** — `<Type>` resolves to `<<Domain TypedDict>>` or `<<Query DTO>>`. The method returns a plain `dict` typed as the TypedDict:
+    ```python
+    def to_domain(self) -> <Type>:
+        return {
+            "<field_1>": self.<field_1>,                                            # primitive
+            "<field_2>": self.<field_2>.to_domain(),                                # scalar nested sub-serializer
+            "<field_3>": [item.to_domain() for item in self.<field_3>],             # list of nested sub-serializers
+            "<field_4>": self.<field_4>.to_domain() if self.<field_4> else None,    # optional scalar
+            "<field_5>": [i.to_domain() for i in self.<field_5>] if self.<field_5> else None,  # optional list
+        }
+    ```
+- **Constructor body form** — `<Type>` resolves to any other stereotype (`<<Value Object>>`, `<<Entity>>`, `<<Aggregate Root>>`) or cannot be resolved at all (commands diagram missing the method, etc.). The method constructs the domain object by calling `<Type>(...)` with one keyword per field, using the same per-field discrimination:
+    ```python
+    def to_domain(self) -> <Type>:
+        return <Type>(  # TODO: verify <Type> constructor signature — value-object constructors may fold or rename arguments
+            <field_1>=self.<field_1>,
+            <field_2>=self.<field_2>.to_domain(),
+            ...
+        )
+    ```
+  The constructor form is a mechanical best-effort — it is still strictly better than the endpoint passing a raw serializer, and the `# TODO` flags it for developer review.
+
+`<Type>` is imported on the module header from `<pkg>.domain.<aggregate>` (fall through to `<pkg>.domain.shared` only when the operator annotates it as shared) for both body forms.
+
+Resolution flow (one per endpoint, applied during Step 3d):
 
 1. For each Table 5 sub-block of a command endpoint, recover the matching application-service method signature from `<dir>/<stem>.commands.md` (the commands Mermaid diagram). Bind `<method_params>` = ordered list of `(name, type_token)` from the method declaration.
-2. For each `**Nested:** \`<Type>\`` sub-table inside the endpoint's Table 5 block:
-    - Find the request field that references `<Type>` (either Type column == `<Type>`, `<Type> | None`, `list[<Type>]`, or `list[<Type>] | None`).
+2. For each `**Nested:** \`<Type>\`` sub-table inside the endpoint's Table 5 block, mark the nested sub-serializer `requires_to_domain` (always — the method is never omitted), then select its **body form**:
+    - Find the request field that references `<Type>` (Type column == `<Type>`, `<Type> | None`, `list[<Type>]`, or `list[<Type>] | None`).
     - Match that request field to a `<method_params>` entry by snake_case name equality.
-    - Resolve the matched parameter's `type_token` on `<domain_diagram>` — strip `list[]` and `| None` wrappers down to the base PascalCase identifier. Look up that identifier as a class on the domain diagram and record its stereotype.
-    - If the stereotype is `<<Domain TypedDict>>` or `<<Query DTO>>`, mark the nested sub-serializer as `requires_to_domain` with target TypedDict name `<TypedDictName>` (equal to the base identifier). Also record whether the *list* form applies — used downstream by `@endpoints-implementer` to emit a list comprehension.
-    - If the stereotype is anything else (`<<Value Object>>`, `<<Aggregate Root>>`, `<<Entity>>`, primitive, missing), do not mark — the nested sub-serializer renders without `to_domain()`. Aborting on missing types is **not** an error here; the conversion fallback (no `to_domain()`) is acceptable for non-TypedDict targets.
-3. The `<TypedDictName>` becomes an import on the module header (from `<pkg>.domain.<aggregate>` — fall through to `<pkg>.domain.shared` only if the TypedDict is declared on the domain diagram as belonging to a shared module; static check via reading the domain file is out of scope, defer to convention).
+    - Resolve the matched parameter's `type_token` on `<domain_diagram>` — strip `list[]` and `| None` wrappers to the base PascalCase identifier and record its stereotype.
+    - Stereotype `<<Domain TypedDict>>` / `<<Query DTO>>` → **TypedDict body form**.
+    - Any other stereotype, or the field / method / type cannot be resolved → **constructor body form**; emit a `WARNING: surface "<name>" endpoint "<HTTP> <PATH>" nested type "<Type>" is not a domain TypedDict (stereotype: <X>) — to_domain() uses the constructor body form; verify the constructor signature` so the operator reviews it.
+3. `<Type>` becomes a module-header import (per [§ Imports](#imports)).
 
-`to_domain()` body shape (per nested sub-serializer marked `requires_to_domain`):
-
-```python
-def to_domain(self) -> <TypedDictName>:
-    return {
-        "<field_1>": self.<field_1>,                                            # primitive
-        "<field_2>": self.<field_2>.to_domain(),                                # scalar nested TypedDict
-        "<field_3>": [item.to_domain() for item in self.<field_3>],             # list of nested TypedDicts
-        "<field_4>": self.<field_4>.to_domain() if self.<field_4> else None,    # optional scalar
-        "<field_5>": [i.to_domain() for i in self.<field_5>] if self.<field_5> else None,  # optional list
-    }
-```
-
-Field type discrimination uses the same Type-column inspection performed in Step 3.6 recursively against the nested sub-table's own `**Nested:**` children. A nested sub-serializer whose every field is primitive emits a flat dict-literal body. Field names use snake_case verbatim from the Table 5 sub-block — they must match the TypedDict's declared field names; if a mismatch is detected (the field exists on the serializer but not on the TypedDict, or vice versa), emit a `# TODO: field name mismatch — verify against <TypedDictName>` comment on the offending line but do not abort.
+Field type discrimination within the body uses the same Type-column inspection recursively against the nested sub-table's own `**Nested:**` children: a primitive field emits `self.<field>`, a nested-sub-serializer field emits `.to_domain()` (list-comprehension when `list[...]`, `if ... else None` guard when nullable). Field names use snake_case verbatim from the Table 5 sub-block — for the TypedDict body form they must match the TypedDict's declared field names; if a mismatch is detected, emit a `# TODO: field name mismatch — verify against <Type>` comment on the offending line but do not abort.
 
 ## Workflow
 
@@ -220,17 +233,17 @@ For each `(table3_row, table5_subblock)` pair, derive:
 - `<body_fields>` — list of `(name, type_str, validation_str)` from the fields table, or empty when `<has_body>` is false.
 - `<nested_types>` — ordered list of `(type_name, fields)` from each `**Nested:**` sub-table, in spec order, deduplicated by `type_name`. Common for commands taking domain TypedDicts as parameters.
 
-#### 3d. Cross-reference the commands diagram for `to_domain()` targets
+#### 3d. Cross-reference the commands diagram for the `to_domain()` body form
 
 Read `<dir>/<stem>.commands.md` once at the start of Step 3 (cache the parse). For each classified command endpoint, locate the matching `<Resource>Commands.<method>` declaration on the diagram by the endpoint's Domain Ref (Table 3 column 5, format `<Resource>Commands.<method>` — strip the class prefix). Bind `<method_params>` = ordered list of `(name, type_token)` from that method's declared signature.
 
 Read `<domain_diagram>` once at the start of Step 3 (cache the parse). Build a stereotype lookup `<stereotype_map>: PascalCase → stereotype` over every class declared on the domain diagram.
 
-For each `<nested_types>` entry of the current endpoint, apply the resolution flow in [§ `to_domain()` emission on nested request sub-serializers](#to_domain-emission-on-nested-request-sub-serializers) to determine whether the nested sub-serializer should receive a `to_domain()` method, and bind:
+For each `<nested_types>` entry of the current endpoint, apply the resolution flow in [§ `to_domain()` emission on nested request sub-serializers](#to_domain-emission-on-nested-request-sub-serializers). **Every** nested sub-serializer is marked `requires_to_domain` (the method is never omitted); the cross-reference only selects the body form. Bind:
 
-- `<nested_to_domain>: type_name → (required: bool, target_typeddict: str | None, target_module: str | None)`. `target_module` is `<pkg>.domain.<aggregate>` by default; it switches to `<pkg>.domain.shared` only when the operator has annotated the type as shared (this implementer does not perform that detection — the operator handles the import path manually if the default is wrong).
+- `<nested_body_form>: type_name → ("typeddict" | "constructor")`, plus `target_type` (the `**Nested:**` header name) and `target_module` (`<pkg>.domain.<aggregate>` by default; switches to `<pkg>.domain.shared` only when the operator has annotated the type as shared — this implementer does not perform that detection).
 
-If the commands-diagram parse cannot locate the Domain Ref method, emit a warning (`WARNING: surface "<name>" endpoint "<HTTP> <PATH>" Domain Ref "<ref>" not found on commands diagram — to_domain() emission skipped`) and continue without `to_domain()` for that endpoint's nested types. Do not abort.
+If the commands-diagram parse cannot locate the Domain Ref method, emit a warning (`WARNING: surface "<name>" endpoint "<HTTP> <PATH>" Domain Ref "<ref>" not found on commands diagram — to_domain() falls back to the constructor body form`) and select the **constructor body form** for that endpoint's nested types. Do not abort.
 
 ### Step 4 — Per-endpoint module emission
 
@@ -276,7 +289,7 @@ Render each per-endpoint module as the concatenation of, in order:
 
 1. **Module-level imports** (only those needed by the module body — see [§ Imports](#imports)).
 2. The `__all__` list. Order: all inline nested request sub-serializer classes in spec order, then `<Operation>Request` (if emitted), then `<Operation>Response`. Always render `__all__` as a Python **list** (`__all__ = ["X", "Y"]`) — the scaffolder-installed root modules use lists, and the aggregator concatenates with `+`, which fails on `list + tuple`.
-3. Each inline nested request sub-serializer class (in spec order, if any) — each with `to_domain()` appended when marked `requires_to_domain` (see [§ `to_domain()` emission on nested request sub-serializers](#to_domain-emission-on-nested-request-sub-serializers)).
+3. Each inline nested request sub-serializer class (in spec order, if any) — each with `to_domain()` appended (always, in the body form selected by `<nested_body_form>` — see [§ `to_domain()` emission on nested request sub-serializers](#to_domain-emission-on-nested-request-sub-serializers)).
 4. The `<Operation>Request` class (if emitted).
 5. The `<Operation>Response` class.
 
@@ -300,7 +313,7 @@ Agent-specific rules on top of the skill template:
 
 Render one inline class per entry in `<nested_types>` (in spec order), declared **above** `<Operation>Request`, extending `ConfiguredRequestSerializer`. Same field rules as the parent Request class. Common for command endpoints whose application-service parameters include domain TypedDicts (e.g., `list[LookupArgumentData]`).
 
-For each nested sub-serializer whose `type_name` appears in `<nested_to_domain>` with `required == true`, append a `to_domain(self) -> <target_typeddict>` method to the class body per the body shape documented in [§ `to_domain()` emission on nested request sub-serializers](#to_domain-emission-on-nested-request-sub-serializers). The method follows the class's field declarations, separated by a blank line. The target TypedDict name is added to the module-level domain import (per [§ Imports](#imports)).
+Append a `to_domain(self) -> <target_type>` method to **every** nested sub-serializer, rendered in the body form (TypedDict dict-literal or `<Type>(...)` constructor) selected for its `type_name` in `<nested_body_form>` — per [§ `to_domain()` emission on nested request sub-serializers](#to_domain-emission-on-nested-request-sub-serializers). The method follows the class's field declarations, separated by a blank line. `<target_type>` is added to the module-level domain import (per [§ Imports](#imports)).
 
 If a nested type referenced in a Type column has no matching `**Nested:**` sub-table inside the same endpoint group, abort with: `Error: surface "<name>" endpoint "<HTTP> <PATH>" references nested request type "<Type>" with no **Nested:** sub-table.`
 
@@ -602,7 +615,7 @@ class CreateResponse(ConfiguredResponseSerializer):
         return cls(id=cache_type.id)
 ```
 
-Note: the top-level `CreateRequest` has no `to_domain()` — the endpoint accesses `request.code` and `request.name` directly and converts `request.lookups` via `[lookup.to_domain() for lookup in request.lookups]`. Only nested sub-serializers whose target type is a domain TypedDict expose `to_domain()`.
+Note: the top-level `CreateRequest` has no `to_domain()` — it is consumed field-by-field by the endpoint (`request.code`, `request.name`, and `[lookup.to_domain() for lookup in request.lookups]`). Every *nested* sub-serializer (`ArgumentDataSerializer`, `ResponseDataSerializer`, `LookupArgumentDataSerializer`) exposes `to_domain()`; here all three target domain TypedDicts, so all three use the dict-literal body form. A nested type whose stereotype is a value object would instead receive the `<Type>(...)` constructor body form.
 
 ---
 
