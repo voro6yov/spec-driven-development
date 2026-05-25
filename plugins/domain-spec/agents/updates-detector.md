@@ -107,7 +107,12 @@ For each section name present in either version:
 
 A section that exists only in the working tree is reported with the entire body as the diff (`+` lines only) and a summary noting it is new. A section that exists only in HEAD is reported with the entire body as `-` lines and a summary noting it was removed.
 
-Record each prose section heading whose diff is non-empty. For each such heading, attempt to parse it as a class reference (forms: `ClassName`, `ClassName.method_name`, `ClassName.method_name(...)`). If it resolves to a class present in the working-tree class map (or HEAD class map for a removed class), tag the prose change with that class — Step 7 nests it under the class block in `## Per-Class Changes`. Otherwise tag it as orphan — Step 7 places it under `## Orphan Prose Changes`. The synthetic `Preamble` section is always orphan. Step 6 uses the per-class tagging when computing the affected-categories footer.
+Record each prose section heading whose diff is non-empty. For each such heading, attempt to parse it as a class reference using two passes in order:
+
+1. **Strict forms:** `ClassName`, `ClassName.method_name`, or `ClassName.method_name(...)`.
+2. **Topic-suffixed fallback:** if no strict match, split the heading at the first occurrence of any of ` — ` (em-dash with surrounding spaces), ` – ` (en-dash with surrounding spaces), ` - ` (hyphen with surrounding spaces), or `: ` (colon followed by a space), and retry the prefix against the strict forms. The trailing topic text is descriptive and does not need to resolve.
+
+If the resolved class is present in the working-tree class map (or HEAD class map for a removed class), tag the prose change with that class — Step 7 nests it under the class block in `## Per-Class Changes`. Otherwise tag it as orphan — Step 7 places it under `## Orphan Prose Changes`. The synthetic `Preamble` section is always orphan. The full original heading text — including any topic suffix — is preserved verbatim in the `**Prose — <heading>:**` sub-section label regardless of which form matched. Step 6 uses the per-class tagging when computing the affected-categories footer.
 
 ### Step 6 — Compute the affected-categories footer
 
