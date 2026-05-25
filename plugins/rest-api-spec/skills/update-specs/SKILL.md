@@ -83,9 +83,27 @@ Derive `<dir>` and `<stem>` from `$ARGUMENTS[0]` per `rest-api-spec:naming-conve
 
 Do not synthesize any of these files.
 
-#### 0g. Invoke the two app-service-axis detectors in parallel
+#### 0g. Invoke the two app-service-axis detectors in parallel (skipped when `--detectors-fresh` is set)
 
-After 0a–0d pass, fan out the two detectors in a single message so they run concurrently. Pass `$ARGUMENTS[0]` (the domain diagram path) as the prompt to each — the detectors derive their own sibling diagrams via `application-spec:naming-conventions`.
+**Cascade-mode shortcut.** If `$ARGUMENTS` contains the literal token `--detectors-fresh` (the domain `/update-specs` orchestrator passes it as the second positional arg in its Step-10 fan-out, after producing both reports once in its Step 9.5), the application-spec detector reports are already on disk and byte-stable. In that case:
+
+1. Verify presence with `Bash`:
+   ```
+   test -f "<dir>/<stem>.application/commands-updates.md" && test -f "<dir>/<stem>.application/queries-updates.md"
+   ```
+   If either file is missing, hard-fail:
+   ```
+   ERROR: --detectors-fresh was passed but <missing-report-path> does not exist. The caller is
+   contractually required to produce both <stem>.application/commands-updates.md and
+   <stem>.application/queries-updates.md before invoking /rest-api-spec:update-specs in cascade
+   mode. Drop the --detectors-fresh flag to let this skill produce the reports itself, or run
+   `/update-specs <domain_diagram>` (which produces them in its Step 9.5).
+   ```
+2. Skip the detector invocation below and proceed directly to Step 1.
+
+Standalone invocations (without `--detectors-fresh`) take the default path below.
+
+**Default path.** After 0a–0d pass, fan out the two detectors in a single message so they run concurrently. Pass `$ARGUMENTS[0]` (the domain diagram path) as the prompt to each — the detectors derive their own sibling diagrams via `application-spec:naming-conventions`.
 
 - `application-spec:commands-updates-detector` with prompt `$ARGUMENTS[0]`.
 - `application-spec:queries-updates-detector` with prompt `$ARGUMENTS[0]`.
@@ -95,8 +113,6 @@ Each detector writes its own report (`<dir>/<stem>.application/commands-updates.
 If either detector hard-fails, abort the orchestrator with that detector's `ERROR:` line repeated verbatim. The other detector's output (if it completed) is left on disk for the next run; no rollback is performed. The same `/rest-api-spec:generate-specs <domain_diagram>` recovery path the detectors themselves direct to applies here.
 
 Wait for both detectors to return successfully before proceeding to Step 1.
-
-This step **always runs**, including when the REST API skill is entered via the domain `/update-specs` cascade. The REST API skill owns its own detector lifecycle regardless of how it was entered — the cascade orchestrator stays domain-axis-scoped. (See the cascade-deduplication open question in `notes/commands-queries-integration-approach.md` — re-invocation by application-spec and messaging-spec consumers in the same cascade is byte-stable but wasteful; deferred follow-up.)
 
 ### Step 1 — Preflight (per-axis-scoped)
 
@@ -353,4 +369,4 @@ There are no sentinel comments. Unlike persistence-spec's `<!-- appended-from up
 - It does not track the Shared domain types registry (`Pagination`, `PaginatedResultMetadataInfo`, `ResultSetInfo`) — those are hard-coded in the table writers. Changes to them are plugin-source changes, not diagram changes; they never appear in any `updates.md` and are picked up only by re-running `/rest-api-spec:generate-specs` after a plugin upgrade.
 - It does not preserve hand-edits inside a regenerated table — the writer contract is that the spec is regenerated from the diagrams, not curated. The blast radius is bounded by which tables fire (a writer rewriting Table 4 leaves Tables 1, 2/3, 5, 6 byte-stable), but inside a regenerated table manual enrichments are wholesale replaced.
 - It does not auto-update generated REST API code (the per-surface serializer modules `api/serializers/<surface>/`, endpoint modules `api/endpoints/<surface>/`, the FastAPI app wiring `entrypoint.py` / `constants.py` / the aggregator `__init__.py` files / `api/auth.py`, the test fixtures `tests/conftest.py`, the integration tests) — that is the future `/rest-api-spec:update-code` skill, which consumes the `<stem>.rest-api/updates.md` this skill emits.
-- It is independently invocable, **and** is chained as **Step 12** of domain `/update-specs` — after the persistence Step 10 and application Step 11 chains, before the messaging Step 13 chain. A `spec.md`-missing hard-fail (Step 0b) when invoked from that chain aborts the rest of the cascade; run `/rest-api-spec:generate-specs` (and `/rest-api-spec:generate-code`) before relying on the domain-level cascade. The cascade orchestrator never invokes the app-service-axis detectors; Step 0g of this skill owns that responsibility regardless of entry point.
+- It is independently invocable, **and** is one of the four downstream skills fanned out in parallel by domain `/update-specs`'s Step 10. In that cascade mode the orchestrator passes `--detectors-fresh` as the second positional arg, signalling that it already produced the two app-service-axis detector reports in its Step 9.5; Step 0g of this skill takes the cascade-mode shortcut and skips its own detector invocation. A `spec.md`-missing hard-fail (Step 0b) when invoked from the cascade no longer aborts sibling Step-10 updaters — each runs to completion and prints its own report. Standalone invocation (without `--detectors-fresh`) follows the default Step-0g detector-invocation path.

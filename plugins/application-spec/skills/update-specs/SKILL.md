@@ -95,9 +95,27 @@ Derive `<dir>` and `<stem>` from `$ARGUMENTS[0]` per `application-spec:naming-co
 
 Do not synthesize any of these files.
 
-#### 0g. Invoke the two app-service-axis detectors in parallel
+#### 0g. Invoke the two app-service-axis detectors in parallel (skipped when `--detectors-fresh` is set)
 
-After 0a–0f pass, fan out the two detectors in a single message so they run concurrently. Pass `$ARGUMENTS[0]` (the domain diagram path) as the prompt to each — the detectors derive their own sibling diagrams via `application-spec:naming-conventions`.
+**Cascade-mode shortcut.** If `$ARGUMENTS` contains the literal token `--detectors-fresh` (the domain `/update-specs` orchestrator passes it as the second positional arg in its Step-10 fan-out, after producing both reports once in its Step 9.5), the application-spec detector reports are already on disk and byte-stable. In that case:
+
+1. Verify presence with `Bash`:
+   ```
+   test -f "<plugin_dir>/commands-updates.md" && test -f "<plugin_dir>/queries-updates.md"
+   ```
+   If either file is missing, hard-fail:
+   ```
+   ERROR: --detectors-fresh was passed but <missing-report-path> does not exist. The caller is
+   contractually required to produce both <plugin_dir>/commands-updates.md and
+   <plugin_dir>/queries-updates.md before invoking /application-spec:update-specs in cascade
+   mode. Drop the --detectors-fresh flag to let this skill produce the reports itself, or run
+   `/update-specs <domain_diagram>` (which produces them in its Step 9.5).
+   ```
+2. Skip the detector invocation below and proceed directly to Step 1.
+
+Standalone invocations (without `--detectors-fresh`) take the default path below.
+
+**Default path.** After 0a–0f pass, fan out the two detectors in a single message so they run concurrently. Pass `$ARGUMENTS[0]` (the domain diagram path) as the prompt to each — the detectors derive their own sibling diagrams via `application-spec:naming-conventions`.
 
 - `application-spec:commands-updates-detector` with prompt `$ARGUMENTS[0]`.
 - `application-spec:queries-updates-detector` with prompt `$ARGUMENTS[0]`.
@@ -107,8 +125,6 @@ Each detector writes its own report (`<plugin_dir>/commands-updates.md`, `<plugi
 If either detector hard-fails, abort the orchestrator with that detector's `ERROR:` line repeated verbatim. The other detector's output (if it completed) is left on disk for the next run; no rollback is performed. The same `/application-spec:generate-specs <domain_diagram>` recovery path the detectors themselves direct to applies here.
 
 Wait for both detectors to return successfully before proceeding to Step 1.
-
-This step **always runs**, including when the application skill is entered via the domain `/update-specs` cascade (Step 11). The application skill owns its own detector lifecycle regardless of how it was entered — the cascade orchestrator stays domain-axis-scoped.
 
 ### Step 1 — Preflight (per-axis-scoped)
 
@@ -355,4 +371,4 @@ There are no sentinel comments in `<plugin_dir>/updates.md` beyond those the wri
 - It does not pre-check the narrower abort conditions of the methods writers (a missing `save(...)` on the command repo, an aggregate-root method renamed under the application diagrams' canonical shape, a referenced `<<Service>>` removed, a query-repo finder rename that breaks a same-name match, an external-interface operation rename). The methods writers abort with their own one-sentence errors and the orchestrator surfaces them verbatim from Step 3.
 - It does not preserve hand-edits inside the spec — the writer/merger contract is that the spec is regenerated from the diagrams, not curated. The unaffected side's `<side>.specs.md` is preserved byte-identically (the chosen approach's main payoff); inside a regenerated side, manual edits are wholesale replaced.
 - It does not auto-update generated application code (`<aggregate>_commands.py`, `<aggregate>_queries.py`, infrastructure stubs, test fakes, DI providers, conftest fixtures, application exception classes appended to the domain aggregate's `exceptions.py`, integration tests) — that is the future `/application-spec:update-code` skill, which consumes the `<stem>.application/updates.md` this skill emits.
-- It is independently invocable, **and** is chained as **Step 11** of domain `/update-specs` — after the persistence Step 10 chain, before the rest-api Step 12 chain. A missing-spec-file hard-fail (Steps 0b–0f) when invoked from that chain aborts the rest of the cascade; run `/application-spec:generate-specs` (and `/application-spec:generate-code`) before relying on the domain-level cascade. The cascade orchestrator never invokes the app-service-axis detectors; Step 0g of this skill owns that responsibility regardless of entry point.
+- It is independently invocable, **and** is one of the four downstream skills fanned out in parallel by domain `/update-specs`'s Step 10. In that cascade mode the orchestrator passes `--detectors-fresh` as the second positional arg, signalling that it already produced the two app-service-axis detector reports in its Step 9.5; Step 0g of this skill takes the cascade-mode shortcut and skips its own detector invocation. A missing-spec-file hard-fail (Steps 0b–0f) when invoked from the cascade no longer aborts sibling Step-10 updaters — each runs to completion and prints its own report. Standalone invocation (without `--detectors-fresh`) follows the default Step-0g detector-invocation path.

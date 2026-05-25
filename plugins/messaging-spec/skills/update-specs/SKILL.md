@@ -73,15 +73,33 @@ Derive `<dir>` and `<stem>` from `$ARGUMENTS[0]` per `messaging-spec:naming-conv
 
 Do not synthesize any input file.
 
-#### 0d. Invoke the commands-diagram detector
+#### 0d. Invoke the commands-diagram detector (skipped when `--detectors-fresh` is set)
 
-After 0a–0c pass, invoke `application-spec:commands-updates-detector` with prompt `$ARGUMENTS[0]` (the domain diagram path — the detector derives the sibling commands diagram via `application-spec:naming-conventions`).
+**Cascade-mode shortcut.** If `$ARGUMENTS` contains the literal token `--detectors-fresh` (the domain `/update-specs` orchestrator passes it as the second positional arg in its Step-10 fan-out, after producing the commands-axis report once in its Step 9.5), the application-spec commands detector report is already on disk and byte-stable. In that case:
+
+1. Verify presence with `Bash`:
+   ```
+   test -f "<dir>/<stem>.application/commands-updates.md"
+   ```
+   If missing, hard-fail:
+   ```
+   ERROR: --detectors-fresh was passed but <dir>/<stem>.application/commands-updates.md does
+   not exist. The caller is contractually required to produce the commands-axis report before
+   invoking /messaging-spec:update-specs in cascade mode. Drop the --detectors-fresh flag to
+   let this skill produce the report itself, or run `/update-specs <domain_diagram>` (which
+   produces it in its Step 9.5).
+   ```
+2. Skip the detector invocation below and proceed directly to Step 1.
+
+(The queries-axis report — `<stem>.application/queries-updates.md` — is also produced by domain Step 9.5 alongside the commands report, but messaging never reads it, so its presence is not checked here.)
+
+Standalone invocations (without `--detectors-fresh`) take the default path below.
+
+**Default path.** After 0a–0c pass, invoke `application-spec:commands-updates-detector` with prompt `$ARGUMENTS[0]` (the domain diagram path — the detector derives the sibling commands diagram via `application-spec:naming-conventions`).
 
 The detector writes `<dir>/<stem>.application/commands-updates.md` or hard-fails with an `ERROR:` line. If it hard-fails, abort the orchestrator with that detector's `ERROR:` line repeated verbatim; the operator's recovery path (the message itself directs to `/application-spec:generate-specs <domain_diagram>`) applies here.
 
 Wait for the detector to return successfully before proceeding to Step 1.
-
-This step **always runs**, including when this skill is entered via the domain `/update-specs` cascade (Step 13). The skill owns its own detector lifecycle regardless of how it was entered — the cascade orchestrator stays domain-axis-scoped. The commands detector is byte-stable on stable inputs; triple invocation during a cascade (here + application-spec + rest-api-spec) is wasted CPU, not a correctness problem.
 
 Only the commands detector is invoked. The queries detector is irrelevant to messaging (no per-consumer subscription is driven by query-side operations) and would be wasted work.
 
@@ -347,4 +365,4 @@ There are no sentinel comments — every consumer-spec table is a snapshot; re-r
 - It does not silently prune a dangling internal subscription — a subscribed internal `<<Domain Event>>` removed/renamed leaves the commands-diagram `%% Messaging` marker (and the `on_<event>` handler) dangling, which only the operator can reconcile; the skill surfaces an abort-and-reconcile instruction (Step 3) and skips that consumer for this run. Exception: if the operator already removed the corresponding `%% Messaging` row from the commands diagram in the same edit, Step 3's deduction rule recognizes the reconciliation and the consumer regenerates cleanly.
 - It does not preserve hand-edits inside a consumer spec — touched consumers' Tables 2–3 are wholesale-replaced; the operator's contract is "the spec is regenerated from the diagrams, not curated". (`event-fields-writer` does re-derive its own italic low-confidence flags around Table 3 from scratch on each run; that is by design.) Untouched consumers' specs are preserved byte-identically.
 - It does not auto-update generated messaging code (`messaging/<consumer>/events.py`, `handlers.py`, `dispatcher.py`, the `containers.py` / `entrypoint.py` / `__main__.py` wiring, the `constants.py` constants, the handler integration tests) — that is the future `/messaging-spec:update-code` skill, which consumes the `<stem>.messaging/updates.md` this skill emits.
-- It is independently invocable, **and** is chained as **Step 13** of domain `/update-specs` — the last of the four downstream chain steps, after the persistence/application/rest-api chains. When `<stem>.messaging/` is absent or holds no consumer specs it prints a one-line "nothing to update" and exits cleanly, so a missing messaging layer never aborts the cascade (unlike the persistence/application/rest-api chain steps, whose missing-artifact hard-fail does). The cascade orchestrator never invokes the commands-diagram detector; Step 0d of this skill owns that responsibility regardless of entry point.
+- It is independently invocable, **and** is one of the four downstream skills fanned out in parallel by domain `/update-specs`'s Step 10. In that cascade mode the orchestrator passes `--detectors-fresh` as the second positional arg, signalling that it already produced the commands-axis report in its Step 9.5; Step 0d of this skill takes the cascade-mode shortcut and skips its own detector invocation. When `<stem>.messaging/` is absent or holds no consumer specs this skill still prints a one-line "nothing to update" and exits cleanly, so a missing messaging layer never aborts the cascade — and with parallel fan-out a messaging hard-fail no longer aborts sibling Step-10 updaters either; each runs to completion and prints its own report. Standalone invocation (without `--detectors-fresh`) follows the default Step-0d detector-invocation path.
