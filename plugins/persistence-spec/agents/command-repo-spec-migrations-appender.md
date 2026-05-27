@@ -113,9 +113,11 @@ Read `<domain_diagram>` (the working-tree version, not HEAD). Build a small in-m
 
 ### Step 6 — Apply the dispatch table
 
-Walk the `updates.md` model and emit `(table, changeset, pattern, destructive)` tuples. Preserve `updates.md`'s natural reading order (lifecycle blocks first, then per-class blocks alphabetically, then orphan-relationship bullets) so the resulting migration log is causally readable.
+Walk the `updates.md` model and emit `(table, changeset, pattern, destructive)` tuples. Preserve `updates.md`'s natural reading order (lifecycle blocks first, then per-class blocks alphabetically, then orphan-relationship bullets, finally the § 6.7 uniqueness-delta pass) so the resulting migration log is causally readable.
 
 The shared skill `persistence-spec:migration-vocabulary` defines the controlled Pattern list and the per-target Changeset shape. Refer to it for the exact text format of every row produced below.
+
+In addition to the `updates.md`-driven dispatch (§ 6.1 through § 6.5), § 6.7 reads the spec's own `### Unique Constraints` sub-section in working tree vs HEAD and emits uniqueness delta rows. The orchestrator runs `@command-repo-spec-pattern-selector` (Step 2 of `/persistence-spec:update-specs`) before invoking this agent, so by the time § 6.7 fires the working-tree `### Unique Constraints` already reflects the diagram's invariants.
 
 #### 6.0 Pre-scan: stereotype-change safety net, then cross-cutting shape flips
 
@@ -287,8 +289,30 @@ Emit nothing for any of the following, even when they appear in the report:
 - `<<TypedDict>>` lifecycle, member, or relationship changes.
 - Method added / removed / changed on root, entity, or service (covered in § 6.4 only for `<<Repository>>` methods).
 - Visibility-only attribute changes.
-- Any prose change (P1 / P2 / P3-non-title-rename / P4).
+- Any prose change (P1 / P2 / P3-non-title-rename / P4) **except** for uniqueness invariants — those reach this agent through the §2.UniqueConstraints diff in § 6.7, not through the prose-diff path.
 - Inheritance / realisation / dependency edges that are not the polymorphism flip handled in § 6.3.
+
+#### 6.7 Uniqueness deltas (from §2.UniqueConstraints diff)
+
+This sub-section runs **once per invocation**, after § 6.1–§ 6.5 have completed. It does not consume `updates.md` — instead it diffs the working-tree `### Unique Constraints` sub-section against the HEAD revision of the same spec.
+
+**Read working-tree §2.UniqueConstraints.** From `<spec_file>` (already in memory from Step 2), locate the `### Unique Constraints` sub-section inside `## 2. Pattern Selection`. The expected header is `| Constraint | Target | Kind |`. Parse every data row that survives the placeholder-detection rule (any cell containing `{` or `}` marks the row as placeholder; skip). Each survivor yields `(<constraint_name>, <target>, <kind>)` after stripping wrapping backticks; `<kind>` must be one of `Scalar` or `JSONB Expression` (anything else hard-fails per the table below). The literal body `_None_` (or zero non-placeholder data rows) means zero entries. Bind `<work_unique>` = ordered list of these tuples (declaration order preserved); `<work_set>` = `{<constraint_name>}` set.
+
+**Read HEAD §2.UniqueConstraints.** Recover the repo-relative path with `git ls-files --full-name -- "<spec_file>"`, then `git show "HEAD:<rel_path>"`. If the file is untracked at HEAD (empty stdout / `git show` non-zero with the standard "does not exist in 'HEAD'" signal), treat HEAD as empty — `<head_set>` = empty set. Otherwise parse the HEAD blob's `### Unique Constraints` sub-section using the same rule (the sub-section may be absent on a HEAD spec that predates this feature — also treat as empty). Bind `<head_unique>` = ordered list, `<head_set>` = `{<constraint_name>}` set.
+
+**Writer-baseline guard.** When `<head_set>` is empty (untracked spec at HEAD, or HEAD blob has no `### Unique Constraints` sub-section), check whether `@command-repo-spec-migrations-writer`'s aggregating uniqueness row already sits in working-tree §2.Migrations — i.e. whether any existing data row's Changeset cell text begins with `Unique Constraints for `. If such a row exists, treat the writer's aggregating row as the baseline: rebind `<head_set>` = `<work_set>` (everything currently in working-tree §2.UniqueConstraints is already covered by the writer's row). This prevents the appender from emitting per-target Add rows that duplicate the writer's baseline when an operator runs `/persistence-spec:generate-specs` followed by `/persistence-spec:update-specs` without committing in between. The guard is a no-op once the spec is committed (because then `<head_set>` is the committed snapshot, not empty).
+
+**Emit add/drop rows.** Compute the set differences:
+
+- **Added** = `<work_set> − <head_set>`. For each `<constraint_name>` in `<work_unique>` order that is in **Added**, look up its `(<target>, <kind>)`:
+  - `<kind>` = `Scalar` → row `` Add Unique Constraint `<target>` `` → `Add Unique Constraint`. The `<target>` cell is the working-tree value verbatim (already shaped as `` `<table>.<column>` `` by `@command-repo-spec-pattern-selector`).
+  - `<kind>` = `JSONB Expression` → row `` Add Unique Index `<constraint_name>` `` → `Add Unique Index`. The Changeset cell uses the constraint name (which already embeds the table + column / expression identifier) so the slug stays unambiguous.
+- **Removed** = `<head_set> − <work_set>`. For each `<constraint_name>` in `<head_unique>` order that is in **Removed**, emit one row: `` Drop Unique Constraint `<constraint_name>` `` → `Drop Unique Constraint`. The change is reversible (`Drop` is re-runnable and does not destroy data), so it carries no `⚠ ` marker.
+- **Unchanged** (`<work_set> ∩ <head_set>`) → emit nothing.
+
+**`<kind>` semantics flip.** When a `<constraint_name>` appears in both `<work_unique>` and `<head_unique>` but with a different `<kind>` (e.g. a scalar was promoted to a JSONB expression because the underlying field moved into a value object), treat it as a Drop followed by an Add: emit one `Drop Unique Constraint` row using the HEAD-side `<constraint_name>`, then the matching Add row using the working-tree tuple. This catches a recategorisation that would otherwise silently keep the wrong DB-side constraint.
+
+**Resolution failure.** If a `<work_unique>` row carries an unrecognised `<kind>` (anything other than `Scalar` or `JSONB Expression`), hard-fail per § Hard-fail conditions. (The pattern-selector is the canonical writer of this sub-section; an unknown Kind value points at a hand-edit or a spec generated by a future agent version.)
 
 ### Step 7 — De-duplicate against existing Changeset values
 
@@ -396,6 +420,7 @@ Each prints exactly one `Error: ...` line and exits non-zero. The agent does **n
 | §2.Migrations contains template placeholders | `Error: §2.Migrations contains template placeholder rows; run @command-repo-spec-migrations-writer <domain_diagram> first to fill the baseline.` | Run `@command-repo-spec-migrations-writer`. |
 | Unmappable Column Type | `Error: cannot map domain type '<token>' on '<class>.<field>' to a persistence-spec:table-definitions Column Type. Run /persistence-spec:generate-specs <domain_diagram> to rebuild.` | Run `/persistence-spec:generate-specs`. |
 | Repository finder signature unparseable | `Error: cannot extract lookup parameter from <<Repository>> finder '<method_name>' signature '<signature>' touched by updates.md; the appender expects '<name>: <Type>' parameter syntax with at least one non-tenant_id parameter. Run /persistence-spec:generate-specs <domain_diagram> to rebuild.` | Run `/persistence-spec:generate-specs`. |
+| §2.UniqueConstraints row has unrecognised Kind (§ 6.7) | `Error: §2.UniqueConstraints row '<constraint_name>' has Kind '<kind>'; expected 'Scalar' or 'JSONB Expression'. Run /persistence-spec:generate-specs <domain_diagram> to rebuild.` | Run `/persistence-spec:generate-specs`. |
 | HEAD diagram unreadable (a `<<Value Object>>` is listed under `→ Removed`, so owner resolution needs the HEAD diagram — see Step 5) | `Error: cannot read the HEAD revision of <domain_diagram> to resolve owner tables for value object(s) removed in updates.md. Run /persistence-spec:generate-specs <domain_diagram> to rebuild.` | Run `/persistence-spec:generate-specs`. |
 | Root class or `<<Repository>>` class appears under `## Class Lifecycle → Stereotype Changed` (§ 6.0 safety net) | `Error: a stereotype change on the aggregate root or a <<Repository>> class is present in updates.md; this should have been caught by the orchestrator preflight. Run /persistence-spec:generate-specs <domain_diagram>.` | Run `/persistence-spec:generate-specs`. (The orchestrator should not have invoked the appender in this state; the check is a safety net.) |
 

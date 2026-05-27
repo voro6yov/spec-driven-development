@@ -138,6 +138,8 @@ Render the body following the chosen template, but with the column list, types, 
 
 PK columns omit `nullable=...` (implicit). Non-PK columns always emit an explicit `nullable=...`.
 
+**UNIQUE token (independent of nullability).** A token equal to `unique` is recorded as a separate flag and rendered as `unique=True` on the `Column(...)` after the `nullable=...` kwarg. The unique kwarg is independent of nullability: a column can be `nullable=False, unique=True` (the common case for a uniqueness-on-required-field constraint) or `nullable=True, unique=True` (rarer). PK columns ignore the `unique` token — primary keys are unique by definition. JSONB expression uniqueness lives in the migration only (not on the SQLAlchemy column), so JSONB columns never carry a `unique` token in §3.
+
 **FK syntax (required for `Table with FK`).** Each FK column's Constraints cell must contain exactly one annotation of the form:
 
 ```

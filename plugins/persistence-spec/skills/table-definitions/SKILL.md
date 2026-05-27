@@ -99,6 +99,7 @@ Table(
 
 - `primary_key=True` for identity columns (can be multiple for composite PK).
 - `nullable=False` for required fields.
+- `unique=True` for scalar unique columns. Driven by a `UNIQUE` token in the §3 Constraints cell, which itself is sourced from a §2.UniqueConstraints row whose `Kind` is `Scalar`. The DB-level constraint name follows `uq_<table>_<column>` and is enforced via Liquibase `addUniqueConstraint` in the migration — the `unique=True` kwarg on `Column(...)` is the in-Python mirror. **JSONB Expression** uniqueness uses a unique expression index instead — declared in §3 Indexes (and emitted via `Add Unique Index` migration), **not** as a column kwarg.
 - `ForeignKeyConstraint` for composite foreign keys with `ondelete="CASCADE"`.
 
 ## Naming Conventions
@@ -106,6 +107,8 @@ Table(
 - Table name: snake_case, matches domain aggregate name.
 - Column names: snake_case, match domain attribute names.
 - FK constraint: `fk_{child_table}_{parent_table}`.
+- Unique constraint (scalar): `uq_{table}_{column}` — e.g. `uq_domain_types_code`.
+- Unique expression index (JSONB): `uq_{table}_{vo_column}_{inner_field}` — e.g. `uq_domain_types_details_name` for `(details->>'name')`.
 
 ## Testing guidance
 

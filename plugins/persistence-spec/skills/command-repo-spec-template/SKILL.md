@@ -41,6 +41,12 @@ disable-model-invocation: false
 | `\{table_name\}` | {Simple Table / Composite PK Table} | `persistence-spec:table-definitions` |
 | `\{child_table_name\}` | Table with FK | `persistence-spec:table-definitions` |
 
+### Unique Constraints
+
+| Constraint | Target | Kind |
+| --- | --- | --- |
+| `\{uq_constraint_name\}` | `\{table\}.\{column\}` | {Scalar / JSONB Expression} |
+
 ### Migrations
 
 | ID | Changeset | Pattern | Template |

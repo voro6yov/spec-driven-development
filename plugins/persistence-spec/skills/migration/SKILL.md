@@ -31,6 +31,9 @@ disable-model-invocation: false
 - **Add Foreign Key**: Use `addForeignKeyConstraint` with `onDelete` cascade option. Rollback uses `dropForeignKeyConstraint`.
 - **Add Not Null**: Use `addNotNullConstraint` to enforce non-null values. Rollback uses `dropNotNullConstraint`.
 - **Add JSONB Index**: Use raw SQL with `CREATE INDEX ... USING GIN` for JSONB column search optimization. Rollback uses `dropIndex`.
+- **Add Unique Constraint**: Use `addUniqueConstraint` for scalar single-column uniqueness. Rollback uses `dropUniqueConstraint`.
+- **Add Unique Index**: Use raw SQL with `CREATE UNIQUE INDEX ... ON ... ((<expression>))` for JSONB expression-based uniqueness — Liquibase has no native `addUniqueConstraint` variant for expression indexes. Rollback uses `dropIndex`.
+- **Drop Unique Constraint**: Use `dropUniqueConstraint` for scalar drops, or `dropIndex` for JSONB expression drops. Rollback recreates the constraint via the matching `Add ...` variant.
 
 ## Testing guidance
 
@@ -282,6 +285,42 @@ databaseChangeLog:
         tableName: {{ table_name }}
 ```
 
+### Add Unique Constraint (scalar)
+
+```yaml
+databaseChangeLog:
+- changeSet:
+    id: {{ change_set_id }}
+    author: {{ author_name }}
+    changes:
+    - addUniqueConstraint:
+        tableName: {{ table_name }}
+        columnNames: {{ column_name }}
+        constraintName: {{ constraint_name }}
+
+    rollback:
+    - dropUniqueConstraint:
+        tableName: {{ table_name }}
+        constraintName: {{ constraint_name }}
+```
+
+### Add Unique Index (JSONB expression)
+
+```yaml
+databaseChangeLog:
+- changeSet:
+    id: {{ change_set_id }}
+    author: {{ author_name }}
+    changes:
+    - sql:
+        sql: CREATE UNIQUE INDEX {{ index_name }} ON {{ table_name }} (({{ jsonb_expression }}))
+
+    rollback:
+    - dropIndex:
+        indexName: {{ index_name }}
+        tableName: {{ table_name }}
+```
+
 ## Placeholders
 
 | Placeholder | Description | Example |
@@ -305,5 +344,6 @@ databaseChangeLog:
 | `{{ base_column_name }}` | Foreign key column(s) | `order_id` or `order_id, tenant_id` |
 | `{{ referenced_table_name }}` | Parent table name | `order` |
 | `{{ referenced_column_name }}` | Referenced column(s) | `id` or `id, tenant_id` |
-| `{{ constraint_name }}` | Foreign key constraint name | `fk_order_item_order` |
+| `{{ constraint_name }}` | Constraint name (FK or unique) | `fk_order_item_order`, `uq_domain_types_code` |
 | `{{ on_delete }}` | On delete action | `CASCADE`, `RESTRICT`, `SET NULL` |
+| `{{ jsonb_expression }}` | JSONB path expression for a unique expression index | `details->>'name'` |

@@ -65,6 +65,18 @@ The report is **per-artifact**: a flat header (`## Summary`) anchors the run, se
   - Foreign keys added: `(<col>) → <table>(<col>)`
   - Foreign keys removed: `(<col>) → <table>(<col>)`
 
+## Unique Constraints Changes
+
+### Added
+- `<constraint_name>` — target: `<target>` — kind: `<Scalar|JSONB Expression>`
+
+### Removed
+- `<constraint_name>`
+
+### Modified
+- `<constraint_name>`
+  - Kind flipped: `<old_kind>` → `<new_kind>`
+
 ## Mappers Changes
 
 ### Added
@@ -154,25 +166,26 @@ The sentinel is the consumer's primary skip-on-replay signal: a downstream `/per
 
 ### Top-level sections
 
-All eight sections are **always emitted** with their headings, in this canonical order:
+All nine sections are **always emitted** with their headings, in this canonical order:
 
 1. `## Summary`
 2. `## Aggregate Analysis Changes`
 3. `## Tables Changes`
-4. `## Mappers Changes`
-5. `## Repository Changes`
-6. `## Migrations Changes`
-7. `## Context Integration Changes`
-8. `## Affected Artifacts`
+4. `## Unique Constraints Changes`
+5. `## Mappers Changes`
+6. `## Repository Changes`
+7. `## Migrations Changes`
+8. `## Context Integration Changes`
+9. `## Affected Artifacts`
 
 When a section other than `## Summary` and `## Affected Artifacts` has no content, render its body as the single literal line `_no changes_`. Do not omit the heading.
 
 ### Within-section ordering
 
-For sections with `### Added` / `### Removed` / `### Modified` sub-blocks (`Tables Changes`, `Mappers Changes`):
+For sections with `### Added` / `### Removed` / `### Modified` sub-blocks (`Tables Changes`, `Unique Constraints Changes`, `Mappers Changes`):
 
 - Sub-block order is fixed: `### Added`, `### Removed`, `### Modified`.
-- Within each sub-block, items are ordered alphabetically by name (table name, mapper name).
+- Within each sub-block, items are ordered alphabetically by name (table name, constraint name, mapper name).
 - Sub-blocks are individually omitted when empty (no heading, no `_None._` placeholder).
 - If all three sub-blocks are empty, the parent section's body is `_no changes_`.
 
@@ -207,6 +220,14 @@ If every flag is unchanged, the section is `_no changes_`.
 - Added rows include the full table shape: Pattern, Columns, PK, FK, Indexes. Each non-empty list renders inline; empty lists render as `_none_`.
 - Modified rows list only the deltas: pattern flips, column add/remove/alter/nullability flip, index add/remove, FK add/remove. Sub-bullets are individually omitted when empty (no `_none_` placeholder for the absent kind).
 - Removed rows list only the table name.
+
+### Section: Unique Constraints Changes
+
+- Added rows include `<target>` and `<kind>` on a single bullet line per the Schema block.
+- Removed rows list only the constraint name.
+- Modified rows are limited to a `<kind>` flip (Scalar ↔ JSONB Expression). A flip is rare — the pattern-selector regenerates the `<kind>` deterministically from the diagram model, so the kind only changes when the underlying field moves between a scalar attribute and a value-object embedded field.
+
+If all three sub-buckets are empty, the section is `_no changes_`.
 
 ### Section: Mappers Changes
 
@@ -260,23 +281,25 @@ The footer is a flat dispatch table. The code updater walks it top-to-bottom. Co
    - For each entry under `### Modified`: `tables/<table>.py | modify | Tables Changes (Modified)`.
    - If any of the three sub-buckets is non-empty, also emit `tables/__init__.py | modify | Tables Changes (any)`.
 
-2. **From Mappers Changes**: same shape as Tables, with `mappers/<x>_mapper.py` (where `<x>` is the snake_case form of the mapper's owning class) and `mappers/__init__.py`.
+2. **From Unique Constraints Changes**: every entry under any sub-bucket implies a migration delta — the appender already emits `Add Unique Constraint` / `Add Unique Index` / `Drop Unique Constraint` rows for the same set-diff, so the Migrations footer rows below already cover the YAML artifact. The Tables footer rows cover the `tables/<table>.py` re-render (because the column's `UNIQUE` token in §3 changed). No additional artifact is unique to this section.
 
-3. **From Repository Changes**: when the section is not `_no changes_`, emit:
+3. **From Mappers Changes**: same shape as Tables, with `mappers/<x>_mapper.py` (where `<x>` is the snake_case form of the mapper's owning class) and `mappers/__init__.py`.
+
+4. **From Repository Changes**: when the section is not `_no changes_`, emit:
    - `command_<aggregate>_repository.py | modify | Repository Changes`
    - `query_<aggregate>_repository.py | modify | Repository Changes`
 
-4. **From Migrations Changes**:
+5. **From Migrations Changes**:
    - For each appended row: `db/migrations/<id>_<slug>.yaml | add | Migrations Changes`.
    - When at least one row is appended, also emit `db/migrations/master.yaml | modify | Migrations Changes (any)`.
 
-5. **From Context Integration Changes**: when the section is not `_no changes_`, emit (in this order):
+6. **From Context Integration Changes**: when the section is not `_no changes_`, emit (in this order):
    - `<context>/unit_of_work/abstract.py | modify | Context Integration Changes`
    - `<context>/unit_of_work/sqlalchemy.py | modify | Context Integration Changes`
    - `<context>/query_context/abstract.py | modify | Context Integration Changes`
    - `<context>/query_context/sqlalchemy.py | modify | Context Integration Changes`
 
-6. **Test artifacts**: when **any** of Tables / Mappers / Repository sections is not `_no changes_`, emit:
+7. **Test artifacts**: when **any** of Tables / Unique Constraints / Mappers / Repository sections is not `_no changes_`, emit:
    - `tests/integration/conftest.py | modify | Tables/Mappers/Repository Changes`
    - `tests/integration/test_<aggregate>_repository.py | modify | Tables/Mappers/Repository Changes`
 
@@ -284,7 +307,7 @@ The table header (`| Path | Action | Driving section |` plus the divider row) is
 
 ### Row ordering
 
-Within the table, rows are emitted in the section-rule order above (Tables → Mappers → Repository → Migrations → Context Integration → Tests). Within each section's contribution, follow the within-section ordering of the source section (alphabetical by name; chronological by ID for Migrations).
+Within the table, rows are emitted in the section-rule order above (Tables → Mappers → Repository → Migrations → Context Integration → Tests; the Unique Constraints section emits no rows of its own — its impact lands on Tables and Migrations rows). Within each section's contribution, follow the within-section ordering of the source section (alphabetical by name; chronological by ID for Migrations).
 
 ### Action vocabulary
 

@@ -92,7 +92,14 @@ For each spec version, extract:
    ```
    The `pattern` field comes from §2.Tables. The `columns`, `pk`, `fks`, `indexes` fields come from §3 (cross-referenced by table name): walk every `### Table: \`<table_name>\`` block in §3 and extract the column rows + index rows + FK constraints.
 
-3. **§2 Mappers** — from the `### Mappers` sub-block, parse the 3-column table. Bind a dict keyed by mapper name:
+3. **§2 Unique Constraints** — from the `### Unique Constraints` sub-block, parse the 3-column table (header `| Constraint | Target | Kind |`). The literal body `_None_` or absence of the sub-block (legacy specs from before this feature) parses as the empty dict. Bind a dict keyed by constraint name:
+   ```
+   {
+     <constraint_name>: { "target": <target>, "kind": <Scalar|JSONB Expression> }
+   }
+   ```
+
+4. **§2 Mappers** — from the `### Mappers` sub-block, parse the 3-column table. Bind a dict keyed by mapper name:
    ```
    {
      <MapperName>: { "pattern": <variant>, "owning_class": <inferred>, "table": <inferred> }
@@ -100,7 +107,7 @@ For each spec version, extract:
    ```
    `owning_class` is inferred by stripping the `Mapper` suffix from the mapper name. `table` is derived by snake_case-ing the owning class.
 
-4. **§2 Repository** — from the `### Repository` sub-block, parse:
+5. **§2 Repository** — from the `### Repository` sub-block, parse:
    ```
    {
      "pattern": <Simple|With Children>,
@@ -109,9 +116,9 @@ For each spec version, extract:
    ```
    The bullet text is verbatim (e.g. `` `user_of_email(email: str)` ``).
 
-5. **§2 Migrations** — from the `### Migrations` sub-block, parse the 4-column table into an ordered list of rows, each with `(id, changeset, pattern)`. The id is the 4-digit zero-padded string (verbatim). Skip any row whose ID cell is malformed (warn but do not fail — the parser is tolerant on this section because the appender owns its shape). Sentinel HTML comments (`<!-- appended-from updates-hash:... -->`) are ignored by the parser; row order is preserved across sentinel boundaries.
+6. **§2 Migrations** — from the `### Migrations` sub-block, parse the 4-column table into an ordered list of rows, each with `(id, changeset, pattern)`. The id is the 4-digit zero-padded string (verbatim). Skip any row whose ID cell is malformed (warn but do not fail — the parser is tolerant on this section because the appender owns its shape). Sentinel HTML comments (`<!-- appended-from updates-hash:... -->`) are ignored by the parser; row order is preserved across sentinel boundaries.
 
-6. **§2 Context Integration** — from the `### Context Integration` sub-block, parse the 4-column table. Bind:
+7. **§2 Context Integration** — from the `### Context Integration` sub-block, parse the 4-column table. Bind:
    ```
    {
      "bounded_context": <inferred from class names>,
@@ -122,7 +129,7 @@ For each spec version, extract:
    ```
    `bounded_context` is the substring between `Abstract` and `UnitOfWork` in the abstract class name (lowercased; empty string if the class name is bare `AbstractUnitOfWork`). `wired_aggregates` is the list of attribute names from the `Attribute` cells (e.g. `orders` from `orders: CommandOrderRepository`).
 
-7. **§3 Schema Specification** — already cross-referenced into the §2 Tables structure (column lists, indexes, FKs). No standalone parse output.
+8. **§3 Schema Specification** — already cross-referenced into the §2 Tables structure (column lists, indexes, FKs). No standalone parse output.
 
 If the working-tree spec is so malformed that the parser cannot identify the H2 anchors `## 1. Aggregate Analysis` and `## 2. Pattern Selection`, hard-fail with: `ERROR: <spec_file> is malformed; cannot locate Section 1 or Section 2 headings. Run /persistence-spec:generate-specs <domain_diagram> to rebuild.`
 
@@ -130,7 +137,7 @@ The HEAD-side spec is parsed with the same parser. Tolerate missing sub-sections
 
 ### Step 4 — Compute snapshot-section deltas
 
-For each snapshot section (Aggregate Analysis, Tables, Mappers, Repository, Context Integration), derive a delta block that the renderer feeds into the schema templates of `persistence-spec:updates-report-template`.
+For each snapshot section (Aggregate Analysis, Tables, Unique Constraints, Mappers, Repository, Context Integration), derive a delta block that the renderer feeds into the schema templates of `persistence-spec:updates-report-template`.
 
 #### 4.1 Aggregate Analysis Changes
 
@@ -154,6 +161,15 @@ If every flag check yields no bullet, the section's body is `_no changes_`.
   - Indexes added / removed: set-diff by index name.
   - FKs added / removed: set-diff by `(local_cols, target_table, target_cols)` tuple.
   Omit any sub-bullet that has no entries.
+
+If the section has no Added, Removed, or Modified entries, the body is `_no changes_`.
+
+#### 4.2a Unique Constraints Changes
+
+- Set-diff constraint names between `<pre_spec>.unique_constraints` and `<post_spec>.unique_constraints` for Added/Removed/Both.
+- For each Added constraint, emit the bullet `` `<constraint_name>` — target: `<target>` — kind: `<Scalar|JSONB Expression>` ``.
+- For each Removed constraint, emit only the constraint name.
+- For each Both-constraint whose `kind` differs between pre and post, emit a Modified entry with `Kind flipped: <old_kind> → <new_kind>`. Pure target text changes (without a `kind` flip) do not produce a Modified entry — the pattern-selector regenerates the target deterministically from the diagram model, so a rewording without a kind flip indicates a no-op cosmetic change.
 
 If the section has no Added, Removed, or Modified entries, the body is `_no changes_`.
 

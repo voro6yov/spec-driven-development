@@ -50,6 +50,7 @@ Strip backticks and bind `<Aggregate>` to the PascalCase value. Derive `<aggrega
 In Section 2 (`## 2. Pattern Selection`) under `### Migrations`, walk every data row of the table whose header is `| ID | Changeset | Pattern | Template |`. For each row that survives the placeholder detection rule:
 
 - Read the `ID` cell but **do not use** it. The ID column on the spec is reserved for the future `@command-repo-spec-migrations-appender`; this agent ignores the value. Liquibase `changeSet.id` derivation in Step 4 stays filename-stem-based for backward compatibility.
+- Capture the **raw** `Changeset` cell text (after stripping leading/trailing whitespace, before slugification) as `<changeset_raw>`. Used by Step 4e to resolve per-target uniqueness rows.
 - Take the `Changeset` cell text and **slugify** it (same rule as `@migrations-scaffolder`):
   1. Strip Markdown backticks and `\{` / `\}` escape backslashes.
   2. Lowercase.
@@ -58,26 +59,38 @@ In Section 2 (`## 2. Pattern Selection`) under `### Migrations`, walk every data
 - Read the `Pattern` cell verbatim as `<Pattern>`. Strip surrounding whitespace.
 - Ignore the `Template` cell — `persistence-spec:migration` is autoloaded.
 
-`<Pattern>` must match exactly one of the five supported variants (no aliases, no fuzzy matching):
+`<Pattern>` must match exactly one of the eight supported variants (no aliases, no fuzzy matching):
 
 - `Create Table`
 - `Create Table (Composite PK)`
 - `Add Foreign Key`
 - `Add Index`
 - `Add JSONB Index`
+- `Add Unique Constraint`
+- `Add Unique Index`
+- `Drop Unique Constraint`
 
 Anything else fails with: `Error: Migrations row '<slug>' has unrecognized pattern '<Pattern>'; expected one of: <list>.`
 
 The skill `persistence-spec:migration` documents four additional evolution variants (`Add Column`, `Add Column with Default`, `Rename Column`, `Add Not Null Constraint`). They are intentionally rejected here: the spec template carries no per-changeset detail rows for column-level evolutions, and slug-based inference is too brittle to derive `(table, column, type, default, old_name)` reliably. Extend this agent only after the spec template grows the necessary structure.
 
-Build `<patterns>` = an ordered mapping `<slug> -> <Pattern>`. If two rows produce the same slug, keep only the first occurrence (matching `@migrations-scaffolder`).
+Build `<patterns>` = an ordered mapping `<slug> -> <Pattern>` and `<changesets>` = mapping `<slug> -> <changeset_raw>`. If two rows produce the same slug, keep only the first occurrence (matching `@migrations-scaffolder`).
 
-**Aggregating-pattern uniqueness contract.** `Add Foreign Key`, `Add Index`, and `Add JSONB Index` are *aggregating* patterns: each stub of these kinds receives every relevant Section 3 row (every FK annotation across the aggregate, or every index in the `### Indexes` table). To prevent duplicate changeSets across stubs:
+**Aggregating-pattern uniqueness contract.** `Add Foreign Key`, `Add Index`, and `Add JSONB Index` are *aggregating* patterns: each stub of these kinds receives every relevant Section 3 row across the aggregate. To prevent duplicate changeSets across stubs:
 
 - At most one row in Section 2 Migrations may carry pattern `Add Foreign Key`. More than one fails with: `Error: Section 2 Migrations has multiple 'Add Foreign Key' rows (<slugs>); collapse into one row — FK constraints are aggregated per stub.`
 - At most one row in Section 2 Migrations may carry a pattern in `\{Add Index, Add JSONB Index\}` (counted together, not separately). More than one fails with: `Error: Section 2 Migrations has multiple index rows (<slugs>); collapse into one row — indexes are aggregated per stub.`
 
-If the spec author needs finer-grained control later, the contract changes alongside a Section 3 grouping mechanism — out of scope for this agent.
+**Uniqueness rows: two shapes coexist.** `Add Unique Constraint` and `Add Unique Index` rows can appear in **two distinct shapes**, distinguished by their slug:
+
+- **Aggregating shape** — slug exactly `unique-constraints-for-<parent_table>`. Emitted by `@command-repo-spec-migrations-writer` on first run. At most one aggregating row may appear across §2.Migrations (subsequent runs of the writer would be idempotent re-fills, not duplicates). The stub walks every §2.UniqueConstraints row and emits one changeSet per row in a single YAML file.
+- **Per-target shape** — slug starts with `add-unique-constraint-` or `add-unique-index-`. Emitted by `@command-repo-spec-migrations-appender` on a delta update. One row per affected constraint; one YAML stub per row. The stub resolves the matching §2.UniqueConstraints row from the row's `<changeset_raw>` value.
+
+The two shapes coexist by construction: the writer's `unique-constraints-for-<parent>` row stamps the baseline; the appender's `add-unique-constraint-<table>-<column>` / `add-unique-index-<constraint_name>` rows append the delta. Both forms read the same §2.UniqueConstraints source of truth — the writer in batch, the appender per-row.
+
+`Drop Unique Constraint` rows are appender-only and per-target (one stub per drop). They are recognised by `@migrations-implementer` per Step 4e's drop branch.
+
+If the spec author needs finer-grained control later, the aggregating contract changes alongside a Section 3 grouping mechanism — out of scope for this agent.
 
 If `<patterns>` is empty after filtering, emit an empty bullet list (Step 5) and stop.
 
@@ -99,6 +112,20 @@ For every `<slug>` in `<patterns>`, the implementer will need data from Section 
   Bind `<indexes>` = the ordered list of these tuples. May be empty.
 
 `<column_type>` to SQL type mapping (used in Step 4): `String → VARCHAR`, `Integer → INTEGER`, `DateTime → TIMESTAMP WITH TIME ZONE`, `JSONB → JSONB`. Timestamps are always timezone-aware so tz-aware UTC values round-trip without losing tzinfo.
+
+#### 2d. Section 2 — Unique Constraints subsection
+
+In Section 2 (`## 2. Pattern Selection`) under `### Unique Constraints`, walk every data row whose header is `| Constraint | Target | Kind |`. Apply the placeholder detection rule first. For each surviving row, strip backticks from columns 1 and 2 and capture:
+
+- `<constraint_name>` (column 1, snake_case identifier)
+- `<target>` (column 2, free-form — `<table>.<column>` for Scalar; `<table>.(<expression>)` for JSONB Expression)
+- `<kind>` (column 3, one of: `Scalar`, `JSONB Expression`)
+
+For a `Scalar` row, parse `<target>` as `<table>.<column>`. The `<table>` must match an existing `### Table:` block in Section 3 and `<column>` must be a column on it; otherwise fail with: `Error: §2.UniqueConstraints row '<constraint_name>' targets '<target>' but no matching scalar column exists on the parent table.`
+
+For a `JSONB Expression` row, parse `<target>` as `<table>.(<expression>)` (strip the wrapping parens). The `<table>` must match an existing `### Table:` block. `<expression>` is consumed verbatim by the YAML emitter (Step 4f).
+
+Bind `<unique_constraints>` = ordered list of `(<constraint_name>, <table>, <target_column_or_expression>, <kind>)` tuples. May be empty when the body is `_None_`, when the table contains only placeholder rows, or when the entire `### Unique Constraints` sub-section is absent (legacy spec from before the feature). In all three cases, the empty list is the correct binding; the absence is not itself an error. **However**, if `<unique_constraints>` is empty and there is **any** `\{Add Unique Constraint, Add Unique Index\}` row in §2.Migrations, fail with: `Error: §2.Migrations carries a uniqueness row but §2.UniqueConstraints is empty or absent; spec is inconsistent. Re-run @command-repo-spec-pattern-selector.`
 
 ### Step 3 — Discover stub worklist and check drift
 
@@ -194,7 +221,38 @@ Emit one changeSet per index row, applying the changeSet `id` rule (single-index
   - `changes`: one raw `sql` change: `sql: CREATE INDEX <index_name> ON <table_name> USING GIN (<jsonb_column>)`.
   - `rollback`: one `dropIndex` with `indexName: <index_name>` and `tableName: <table_name>`.
 
-#### 4e. Output formatting
+#### 4e. `Add Unique Constraint`, `Add Unique Index`, and `Drop Unique Constraint`
+
+These patterns appear in **three slug shapes**; resolve which by matching `<slug>` against the prefixes below.
+
+**Aggregating shape — `<slug>` = `unique-constraints-for-<parent_table>`.** Emitted by the writer on first-run baseline. Walk **every** tuple in `<unique_constraints>` (Step 2d) in declaration order, 1-based as `i`, and emit one changeSet per row per the rules below. If `<unique_constraints>` is empty, fail: `Error: stub '<stub_path>' is the aggregating uniqueness row but §2.UniqueConstraints is empty or absent.`
+
+**Per-target Add shape — `<slug>` starts with `add-unique-constraint-` or `add-unique-index-`.** Emitted by the appender on a delta update. Resolve a **single** `<unique>` tuple by matching the row's `<changeset_raw>` against `<unique_constraints>`:
+
+- For Pattern `Add Unique Constraint`, parse `<changeset_raw>` as `` Add Unique Constraint \`<table>.<column>\` ``. The matching row has `<kind> = Scalar` and `<target>` = `<table>.<column>` (i.e. `<target_column_or_expression>` = `<column>`, `<table>` matches). If no row matches, fail: `Error: per-target uniqueness stub '<stub_path>' references '<table>.<column>' but no matching §2.UniqueConstraints row exists.`
+- For Pattern `Add Unique Index`, parse `<changeset_raw>` as `` Add Unique Index \`<constraint_name>\` ``. The matching row has `<constraint_name>` matching and `<kind> = JSONB Expression`. If no row matches, fail: `Error: per-target uniqueness stub '<stub_path>' references '<constraint_name>' but no matching §2.UniqueConstraints row exists.`
+
+Emit exactly one changeSet (apply the single-changeSet `id` rule → `<filename_stem>`).
+
+**Per-target Drop shape — `<slug>` starts with `drop-unique-constraint-`.** Emitted by the appender on a delta update (removal). Parse `<changeset_raw>` as `` Drop Unique Constraint \`<constraint_name>\` ``. Determine the original `<kind>` by looking up `<constraint_name>` in `<unique_constraints>`:
+
+- Row present with `<kind> = Scalar` → emit a single changeSet with `changes:` → `dropUniqueConstraint` (`tableName: <table>`, `constraintName: <constraint_name>`) and `rollback:` → `addUniqueConstraint` (`tableName: <table>`, `columnNames: <target_column_or_expression>`, `constraintName: <constraint_name>`).
+- Row present with `<kind> = JSONB Expression` → emit a single changeSet with `changes:` → `dropIndex` (`indexName: <constraint_name>`, `tableName: <table>`) and `rollback:` → raw `sql` `CREATE UNIQUE INDEX <constraint_name> ON <table> ((<target_column_or_expression>))`.
+- Row **absent** from `<unique_constraints>` (the drop refers to a constraint that has already been removed from the spec) → fail: `Error: 'Drop Unique Constraint' stub '<stub_path>' references constraint '<constraint_name>' which is no longer present in §2.UniqueConstraints; cannot reconstruct rollback shape. The working-tree spec must keep enough state to reverse a drop; if the constraint was deliberately removed, restore the §2.UniqueConstraints row temporarily, regenerate, then commit the drop migration alone.` (This is intentionally strict — Drop without rollback support is opaque to operators.)
+
+**Per-row emission rules** (apply to every shape above):
+
+- `author`: `system`
+- For a **Scalar** uniqueness row (`<target_column_or_expression>` is a plain column name):
+  - `changes`: one `addUniqueConstraint` with `tableName: <table>`, `columnNames: <target_column_or_expression>`, and `constraintName: <constraint_name>`.
+  - `rollback`: one `dropUniqueConstraint` with `tableName: <table>` and `constraintName: <constraint_name>`.
+- For a **JSONB Expression** uniqueness row (`<target_column_or_expression>` is a verbatim JSONB expression such as `details->>'name'`):
+  - `changes`: one raw `sql` change: `sql: CREATE UNIQUE INDEX <constraint_name> ON <table> ((<target_column_or_expression>))`. Wrap the expression in **double** parentheses so Postgres parses it as an indexed expression rather than a plain column list.
+  - `rollback`: one `dropIndex` with `indexName: <constraint_name>` and `tableName: <table>`.
+
+If the aggregating-shape stub emits at least one JSONB Expression changeSet alongside at least one Scalar changeSet, that is allowed — they coexist under a single `databaseChangeLog:` document with sequential `<filename_stem>-<i>` ids.
+
+#### 4f. Output formatting
 
 Render each stub as a single YAML document with this exact top-level shape:
 

@@ -30,7 +30,7 @@ If `<spec_file>` does not exist, stop and tell the user to run `@command-repo-sp
 - Read `<domain_diagram>` to extract the aggregate root, child entities, value objects, and the repository interface.
 - Read `<spec_file>`. You will replace the whole `## 3. Schema Specification` body in Step 5, so capture its **exact current text** (from the `## 3. Schema Specification` heading through the line immediately before the next `## ` heading, or through end-of-file if §3 is the last section) — whether that text is the scaffolded placeholders or a prior run's output. Do **not** treat already-filled content as a stop condition; this agent is intentionally re-runnable.
 - Read Section 1 to recover (a) the **Multi-tenant?** value (Yes / No) — this gates whether `tenant_id` columns appear at all — and (b) the bounded-context name (the `{Context}` value used in the UoW class names by the pattern-selector). Use the context name as the storage-model title; fall back to the aggregate name if Section 1 has no distinct context.
-- Read Section 2 to extract: every row of the **Tables** sub-table — both the snake_case `<table_name>` and its **Pattern** column (`Simple Table` / `Composite PK Table` / `Table with FK`); every row of the **Mappers** sub-table — the aggregate-mapper variant (`Full Aggregate Mapper`, `Minimal Aggregate Mapper`, or `Aggregate Mapper with Children`), every `Child Entity Mapper` row, and any `Polymorphic Mapper` row; and the **Alternative Lookups** bullets under **Repository** (the canonical index source).
+- Read Section 2 to extract: every row of the **Tables** sub-table — both the snake_case `<table_name>` and its **Pattern** column (`Simple Table` / `Composite PK Table` / `Table with FK`); every row of the **Unique Constraints** sub-table — `(<constraint_name>, <target>, <kind>)` tuples, where `<kind>` is `Scalar` or `JSONB Expression` (the body literal `_None_` means zero rows); every row of the **Mappers** sub-table — the aggregate-mapper variant (`Full Aggregate Mapper`, `Minimal Aggregate Mapper`, or `Aggregate Mapper with Children`), every `Child Entity Mapper` row, and any `Polymorphic Mapper` row; and the **Alternative Lookups** bullets under **Repository** (the canonical index source).
 - The `table-definitions` skill is auto-loaded; consult its Column Types table and Naming Conventions for the field-to-column mapping rules.
 
 ### Step 2 — Build the storage model
@@ -69,17 +69,22 @@ For each table named in Section 2:
 
 4. **Constraints** — mark columns `NOT NULL` unless the diagram shows the field as optional (`Field?`, `Optional[...]`, default `None`). JSONB columns for optional value objects are nullable. The `status_error` column is always nullable per the framework convention (whichever type — `String` or `JSONB` — sub-step 3 chose for it); the polymorphic `<attr>_kind` / `<attr>_data` pair is always nullable.
 
+   **Scalar UNIQUE annotation.** For every §2.UniqueConstraints row whose `<kind>` is `Scalar`, append the literal token `UNIQUE` to the matching column's Constraints cell (after any `NOT NULL`/`PK` token), separated by a single comma + space. Resolve the column by parsing `<target>` as `` `<table>.<column>` `` and matching `<column>` against the parent-table column list. If the parent-table column does not exist, hard-fail with: `Error: §2.UniqueConstraints row '<constraint_name>' targets '<target>' but no matching scalar column exists on the parent table.` Run `/persistence-spec:generate-specs` to rebuild. `JSONB Expression` rows are handled in Step 3 (Indexes), **not** here — they do not touch the Table block's Constraints cell.
+
 5. **Column order in the rendered `### Table:` block** — emit columns in this fixed order so reruns are byte-stable: (a) identity columns from sub-step 1 in the order listed there (parent FK → `id` → `tenant_id`); (b) plain non-JSONB, non-timestamp domain columns derived in sub-step 2 (scalars and enums) in diagram declaration order; (c) JSONB columns derived in sub-step 2 (composed `<<Value Object>>` fields and value-object collections) in diagram declaration order; (d) the framework `status` / `status_error` pair when sub-step 3 expanded a `status` VO; (e) the polymorphic `<attr>_kind` / `<attr>_data` pair when sub-step 3 expanded a polymorphic field; (f) timestamps `created_at`, `updated_at` when present on the diagram (always last). The same order flows verbatim into the ERD class body in Step 4.1.
 
 ### Step 3 — Derive indexes
 
-The **Alternative Lookups** bullets in Section 2 are the canonical list — produce one index row per bullet, not by re-parsing the repository interface:
+The **Alternative Lookups** bullets and the **Unique Constraints** sub-table in Section 2 are the two canonical sources — produce index rows in this order:
 
-- Lookup by scalar field → `idx_\{table\}_\{column\}` over `({column}, tenant_id)` when Multi-tenant? = Yes, else `({column})` alone.
-- Lookup via child entity → index on the child table's lookup column, plus `tenant_id` only if Multi-tenant? = Yes.
-- Lookup over a JSONB value-object field → GIN index named `idx_\{table\}_\{jsonb_column\}_gin`, purpose noting the JSONB path queried.
+1. **Alternative Lookup indexes** — one row per Alternative Lookups bullet:
+   - Lookup by scalar field → `idx_\{table\}_\{column\}` over `({column}, tenant_id)` when Multi-tenant? = Yes, else `({column})` alone.
+   - Lookup via child entity → index on the child table's lookup column, plus `tenant_id` only if Multi-tenant? = Yes.
+   - Lookup over a JSONB value-object field → GIN index named `idx_\{table\}_\{jsonb_column\}_gin`, purpose noting the JSONB path queried.
 
-If Section 2 records `_None_` under Alternative Lookups, replace the index table body with `| _None_ | — | No non-CRUD finders declared. |`.
+2. **Unique expression indexes** — one row per §2.UniqueConstraints row whose `<kind>` is `JSONB Expression`. Use `<constraint_name>` verbatim as the Index name (e.g. `uq_domain_types_details_name`). Columns cell renders the JSONB expression verbatim (e.g. `(details->>'name')`). Purpose cell reads `Unique expression index on <expression>`. `Scalar` rows do **not** appear in the Indexes table — they are enforced via the `UNIQUE` token on the column in the Table block (Step 2 sub-step 4) and an `addUniqueConstraint` migration row, not an index.
+
+If Section 2 records `_None_` under Alternative Lookups **and** Unique Constraints is also empty (or `_None_` / all-Scalar), replace the index table body with `| _None_ | — | No non-CRUD finders declared. |`. Otherwise emit only the rows derived above (omit the `_None_` placeholder).
 
 ### Step 4 — Build the §3 body
 

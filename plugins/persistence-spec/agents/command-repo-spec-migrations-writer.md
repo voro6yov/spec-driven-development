@@ -44,6 +44,7 @@ Pattern-selector has already chosen the table names, multi-tenancy posture, and 
 | `<spec_file>` §2 Tables | `<parent_table>` | The single row whose `Pattern` is `Simple Table` or `Composite PK Table`. Strip backticks. |
 | `<spec_file>` §2 Tables | `<child_table>` list (`K` entries, in declaration order) | Every row whose `Pattern` is `Table with FK`. Strip backticks. May be empty (`K = 0`). |
 | `<spec_file>` §2 Repository → **Alternative Lookups** | Indexed-finder count | One bullet per non-`*_of_id` finder. The literal value `_None_` means zero finders need indexing. The count drives whether to emit the K+3 Indexes row in Step 3 (≥ 1 → emit; `_None_` → skip). |
+| `<spec_file>` §2 Unique Constraints | Uniqueness row presence + flavour | Walk the `### Unique Constraints` 3-column table. The literal body `_None_` (or zero non-placeholder data rows) means no uniqueness migration row to emit. Otherwise capture the **Kind** column of every row; the K+4 Unique Constraints row's Pattern label is `Add Unique Constraint` when **any** Kind is `Scalar`, else `Add Unique Index` (every row is `JSONB Expression`). |
 | `<domain_diagram>` | Index-target column type | For each Alternative Lookup bullet, walk the diagram to classify the underlying column as **scalar** (plain `str` / `int` / `bool` / enum field, or a scalar column on a child table) or **JSONB** (a `<<Value Object>>` field composed inline on the parent). Consumed only by Step 3 to pick the Indexes-row Pattern label. |
 
 If §2.Tables exposes no row whose `Pattern` is `Simple Table` or `Composite PK Table`, treat the spec as malformed and stop with an error directing the user to re-run `@command-repo-spec-pattern-selector`.
@@ -58,14 +59,15 @@ Apply this dispatch in emission order. Omit a row entirely when no instance appl
 | 2..K+1 | `Create Table` (one per child) | `` Create `<child_table>` `` | one per child entity table from §2.Tables |
 | K+2 | `Add Foreign Key` | `` Add Foreign Keys for `<parent_table>` `` | only if K ≥ 1 (any child entities) |
 | K+3 | `Add Index` if **any** index target is scalar, else `Add JSONB Index` (every target is JSONB) | `` Indexes for `<parent_table>` `` | only if §2 Repository's Alternative Lookups has at least one bullet (`_None_` → skip) |
+| K+4 | `Add Unique Constraint` if **any** §2.UniqueConstraints row has Kind `Scalar`, else `Add Unique Index` (every row is `JSONB Expression`) | `` Unique Constraints for `<parent_table>` `` | only if §2 Unique Constraints has at least one row (`_None_` / empty → skip) |
 
 Templates always render as `` `persistence-spec:migration` ``.
 
-The K+3 row's Pattern label is informational — `@migrations-implementer` Step 4d decides plain-vs-JSONB per index from the §3 column type, not from this label. Picking `Add Index` whenever any scalar target exists keeps the label aligned with the dominant case.
+The K+3 row's Pattern label is informational — `@migrations-implementer` Step 4d decides plain-vs-JSONB per index from the §3 column type, not from this label. Picking `Add Index` whenever any scalar target exists keeps the label aligned with the dominant case. The K+4 row's Pattern label is similarly informational — `@migrations-implementer` picks `addUniqueConstraint` vs raw `CREATE UNIQUE INDEX` per §2.UniqueConstraints row's `Kind` cell.
 
-The qualified Changeset shape (`Add Foreign Keys for ...`, `Indexes for ...`) makes downstream slugs globally unique on disk: `add-foreign-keys-for-<parent_table>`, `indexes-for-<parent_table>`. This mirrors the child-table-naming rule already in `implementation-roadmap` — every Changeset that aggregates content across an aggregate carries the parent table name so two aggregates cannot collide on the same migration filename.
+The qualified Changeset shape (`Add Foreign Keys for ...`, `Indexes for ...`, `Unique Constraints for ...`) makes downstream slugs globally unique on disk: `add-foreign-keys-for-<parent_table>`, `indexes-for-<parent_table>`, `unique-constraints-for-<parent_table>`. This mirrors the child-table-naming rule already in `implementation-roadmap` — every Changeset that aggregates content across an aggregate carries the parent table name so two aggregates cannot collide on the same migration filename.
 
-Aggregating-pattern uniqueness is preserved by construction: at most one `Add Foreign Key` row, at most one `Add Index` / `Add JSONB Index` row — matching the contract `@migrations-implementer` enforces.
+Aggregating-pattern uniqueness is preserved by construction: at most one `Add Foreign Key` row, at most one `Add Index` / `Add JSONB Index` row, at most one `Add Unique Constraint` / `Add Unique Index` row — matching the contract `@migrations-implementer` enforces.
 
 ### Step 4 — Allocate IDs
 

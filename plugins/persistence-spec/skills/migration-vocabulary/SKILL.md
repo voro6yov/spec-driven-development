@@ -40,15 +40,20 @@ Every row in the `### Migrations` sub-table has exactly four columns:
 | `Add Foreign Key`             | additive                                 | writer, appender  |
 | `Add Index`                   | additive                                 | writer, appender  |
 | `Add JSONB Index`             | additive                                 | writer, appender  |
+| `Add Unique Constraint`       | additive (data-sensitive)                | writer, appender  |
+| `Add Unique Index`            | additive (data-sensitive)                | writer, appender  |
 | `Add Column`                  | additive                                 | appender only     |
 | `Add Not Null Constraint`     | additive (data-sensitive)                | appender only     |
 | `Drop Not Null Constraint`    | additive (re-runnable)                   | appender only     |
 | `Drop Column`                 | **destructive**                          | appender only     |
 | `Drop Index`                  | additive (re-runnable; loses index)      | appender only     |
+| `Drop Unique Constraint`      | additive (re-runnable; loses constraint) | appender only     |
 | `Drop Table`                  | **destructive**                          | appender only     |
 | `Alter Column Type`           | **destructive** (most type changes lose data) | appender only |
 
-**Strict matching.** A consumer that parses the Pattern column must require an exact match against this list (no aliases, no fuzzy matching). The existing `migrations-implementer` agent recognises only the first five patterns today (the writer's output set); the column-evolution and destructive patterns are implementer-side TODO and produced solely by the appender. See `notes/spec-updater-approaches.md` § "Open questions" for the implementer-immutability follow-up.
+**Uniqueness is two patterns, not one.** `Add Unique Constraint` is used for **scalar** unique constraints (single SQL column); it slugifies to `add-unique-constraint-<table>-<column>` and renders as Liquibase `addUniqueConstraint`. `Add Unique Index` is used for **JSONB expression** unique constraints (`(details->>'name')`); it slugifies to `add-unique-index-<index_name>` and renders as raw SQL `CREATE UNIQUE INDEX ... ON ... ((details->>'name'))`. Liquibase has no native `addUniqueConstraint` variant for expression indexes, so the split is load-bearing. `Drop Unique Constraint` handles both directions — for a `Drop` of a scalar constraint the implementer emits `dropUniqueConstraint`; for a `Drop` of a JSONB expression constraint the implementer emits `dropIndex` (the scalar-vs-expression flavour is recoverable from the constraint name's prefix or the prior §2.UniqueConstraints row's `Kind` cell).
+
+**Strict matching.** A consumer that parses the Pattern column must require an exact match against this list (no aliases, no fuzzy matching). The `migrations-implementer` agent recognises the writer-emitted patterns (first five, plus the uniqueness pair when §2.UniqueConstraints is non-empty); the column-evolution patterns are implementer-side TODO and produced solely by the appender. See `notes/spec-updater-approaches.md` § "Open questions" for the implementer-immutability follow-up.
 
 ---
 
@@ -97,6 +102,7 @@ The writer emits at most one row per Pattern variant per aggregate. To prevent c
 | `Create Table` (child)        | `` Create `<child_table>` ``                   | `create-users-addresses`              |
 | `Add Foreign Key`             | `` Add Foreign Keys for `<parent_table>` ``   | `add-foreign-keys-for-users`          |
 | `Add Index` / `Add JSONB Index` | `` Indexes for `<parent_table>` ``           | `indexes-for-users`                   |
+| `Add Unique Constraint` / `Add Unique Index` | `` Unique Constraints for `<parent_table>` `` | `unique-constraints-for-users` |
 
 ### Appender — per-target slugs (per-delta updates)
 
@@ -112,6 +118,9 @@ The appender emits one row per individual delta (one column added, one finder ch
 | `Add Index`              | `` Add Index `<index_name>` ``                           | `add-index-idx-users-email`           |
 | `Add JSONB Index`        | `` Add JSONB Index `<index_name>` ``                     | `add-jsonb-index-idx-users-metadata-gin` |
 | `Drop Index`             | `` Drop Index `<index_name>` ``                          | `drop-index-idx-users-email`          |
+| `Add Unique Constraint`  | `` Add Unique Constraint `<table>.<column>` ``           | `add-unique-constraint-users-email`   |
+| `Add Unique Index`       | `` Add Unique Index `<index_name>` ``                    | `add-unique-index-uq-users-details-name` |
+| `Drop Unique Constraint` | `` Drop Unique Constraint `<constraint_name>` ``         | `drop-unique-constraint-uq-users-email` |
 | `Add Foreign Key` (cascade row) | `` Add Foreign Key `<child_table>.<column>` ``    | `add-foreign-key-users-addresses-user-id` |
 | `Create Table` (new child) | `` Create `<child_table>` ``                           | `create-users-addresses`              |
 | `⚠ Drop Table`           | `` ⚠ Drop Table `<table>` ``                            | `drop-table-users-archive`            |
