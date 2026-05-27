@@ -347,7 +347,7 @@ Apply these conventions consistently:
   ```python
   return self._query_context.<plural>.<finder>(<args>)
   ```
-- **Repository load + raise + return.** When three adjacent flow steps describe (a) loading via a finder, (b) raising `<X>NotFoundError` if the result is `None`, and (c) returning the result, emit:
+- **Repository load + raise + return.** When three adjacent flow steps describe (a) loading via a finder, (b) raising `<X>NotFound` if the result is `None`, and (c) returning the result, emit:
   ```python
   if (<bound_var> := self._query_context.<plural>.<finder>(<args>)) is None:
       raise <NotFoundClass>(<args>)
@@ -472,7 +472,7 @@ Flow:
 
 ```
 1. Call `query_repository.find_file(id, tenant_id, include)` to retrieve the file data
-2. If the result is `None`, raise `FileNotFoundError`
+2. If the result is `None`, raise `FileNotFound`
 3. Return the result
 ```
 
@@ -482,7 +482,7 @@ Emitted:
 self._logger.info("Finding file: id - %s, tenant id - %s, include - %s...", id, tenant_id, include)
 
 if (file := self._query_context.files.find_file(id, tenant_id, include)) is None:
-    raise FileNotFoundError(id, tenant_id, include)
+    raise FileNotFound(id, tenant_id, include)
 
 return file
 ```
@@ -553,7 +553,7 @@ Flow:
 
 ```
 1. Call `query_repository.find_file_path(id, tenant_id)` to resolve the original storage path
-2. If the result is `None`, raise `FileNotFoundError`
+2. If the result is `None`, raise `FileNotFound`
 3. Derive `redacted_path` from the original path by inserting `-redacted` before the file extension
 4. Call `file_storage.download(redacted_path)` to retrieve the binary content
 5. Return the result
@@ -565,7 +565,7 @@ Emitted (bound var = `path`, derived from the external call's argument; transfor
 self._logger.info("Finding file: id - %s, tenant id - %s...", id, tenant_id)
 
 if (path := self._query_context.files.find_file_path(id, tenant_id)) is None:
-    raise FileNotFoundError(id, tenant_id)
+    raise FileNotFound(id, tenant_id)
 # TODO: Derive `redacted_path` from the original path by inserting `-redacted` before the file extension
 
 return self._file_storage.download(redacted_path)
@@ -577,7 +577,7 @@ Flow:
 
 ```
 1. Call `query_repository.find_file_path(id, tenant_id)` to resolve the storage path
-2. If the result is `None`, raise `FileNotFoundError`
+2. If the result is `None`, raise `FileNotFound`
 3. Call `file_storage.download(path)` to retrieve the binary content
 4. Return the result
 ```
@@ -588,7 +588,7 @@ Emitted (bound var = `path`, the only token in the external call's args that's n
 self._logger.info("Finding file: id - %s, tenant id - %s...", id, tenant_id)
 
 if (path := self._query_context.files.find_file_path(id, tenant_id)) is None:
-    raise FileNotFoundError(id, tenant_id)
+    raise FileNotFound(id, tenant_id)
 
 return self._file_storage.download(path)
 ```

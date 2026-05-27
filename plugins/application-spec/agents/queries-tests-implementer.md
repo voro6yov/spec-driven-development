@@ -394,7 +394,7 @@ If a method falls through (shape unset, params missing), output `ERROR: cannot d
   - exactly one match → derive the dotted module from its path under `<repo_root>/src/<pkg>/domain/...` using the same convention as `@queries-implementer` Step 4 (collapse to `<pkg>.domain.<aggregate>`); add `from <module> import <X>`, grouping siblings sharing the module.
   - zero matches or 2+ → emit `# TODO: import <X>` in the import block. Do not guess.
 
-  **Convention-derived NotFound fallback.** When `<X>` was synthesized only by the load+raise capture and the spec text says (e.g.) `<Aggregate>NotFoundError`, retry the grep with `<Aggregate>NotFound` (no `Error` suffix) before falling through to the TODO branch. Update `pytest.raises(<X>)` and the test body to use whichever class actually exists. If neither exists, leave the bare reference and emit `# TODO: import <X>` — the test will `NameError` until the user resolves it.
+  **Convention-derived NotFound fallback.** When `<X>` was synthesized only by the load+raise capture, the convention is `<Aggregate>NotFound` (no `Error` suffix). For backwards compatibility, if the grep for the captured token misses, retry it with the suffix-less form before falling through to the TODO branch. Update `pytest.raises(<X>)` and the test body to use whichever class actually exists. If neither exists, leave the bare reference and emit `# TODO: import <X>` — the test will `NameError` until the user resolves it.
 
 When appending to an existing file, do not re-emit imports — assume the prior run already recorded them. If a newly added scenario references an exception class that the existing import block does not import, append a single `from <module> import <X>` line immediately after the last existing `from `/`import ` statement; if that exception cannot be uniquely resolved, emit `# TODO: import <X>` on its own line in the same position.
 
@@ -460,7 +460,7 @@ These warnings are non-fatal — the agent still writes the file.
 - Public attributes only on fixture access; DTO access uses dictionary-key syntax (`result["id"]`).
 - Never modify `<tests_dir>/conftest.py` or `<tests_dir>/integration/conftest.py`.
 - Method dispatch is signature- and flow-driven; do not infer scenarios from method names alone.
-- Skip raised-exception scenarios other than `<Aggregate>NotFoundError` (or the explicit class captured from the load+raise pair) — the user writes domain-error tests by hand because invalid-state fixtures are project-specific.
+- Skip raised-exception scenarios other than `<Aggregate>NotFound` (or the explicit class captured from the load+raise pair) — the user writes domain-error tests by hand because invalid-state fixtures are project-specific.
 - Skip empty-list paginated scenarios — the user adds those by hand if the project's DTO surface justifies a separate test.
 
 ## Failure modes summary
@@ -494,5 +494,5 @@ These warnings are non-fatal — the agent still writes the file.
 | Canonical / not_found_raises `__success` `<return_type>` is not DTO-shaped (fails the return-shape gate) | Emit `# TODO: assert <fix>'s key fields appear in result`; no `assert result["id"] == ...` line; one WARNING line in Step 11 |
 | Canonical / not_found_raises `__success` is DTO-shaped but no param resolves to `<fix>.id` | Emit `# TODO: assert <fix>'s key fields appear in result`; one WARNING line in Step 11 |
 | External-interface `__success` rendered | Always emits `# TODO: configure fake_<attr>.<op> response`; counted in Outstanding TODOs |
-| Exception class (`<NotFoundError>`) not uniquely resolvable under `domain/` | Emit `# TODO: import <X>` in the import block; the test body still references `<X>` as a bare name (raises `NameError` until the user resolves the import) |
+| Exception class (`<NotFound>`) not uniquely resolvable under `domain/` | Emit `# TODO: import <X>` in the import block; the test body still references `<X>` as a bare name (raises `NameError` until the user resolves the import) |
 | Flow step references an `<attr>.<op>(...)` not in External Interfaces / Domain Services / `query_repository` / `<aggregate>` / `self` | One WARNING line per unknown attr in Step 11; no test code generated for it |

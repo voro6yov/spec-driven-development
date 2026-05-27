@@ -245,7 +245,7 @@ The probe-by-probe rules:
 
 - **Application Exceptions Added/Removed** — probe in this order:
   1. **App-service axis match**: look up the exception name in `commands.exceptions` (and `queries.exceptions` if the entry's `Side(s)` includes queries). If present with matching bucket, build `[commands-diagram] raised-exceptions: <ExceptionName> added/removed (raised by <method_signature>)`. When both sides match, prefer commands-side.
-  2. **Domain axis match**: the exception's pair-derived constructor mirrors a repository finder. Strip the `Error` / `NotFoundError` / `AlreadyExistsError` suffix from the exception name to derive the implied entity, then probe `Command<AggregateRoot>Repository` for finder-add/remove entries whose param signatures match; build `[domain] repositories-services: <RepositoryClass> finder <finder_name> added/removed`.
+  2. **Domain axis match**: the exception's pair-derived constructor mirrors a repository finder. Strip the `NotFound` / `AlreadyExists` / `Conflict` / `Forbidden` / `Unauthorized` suffix from the exception name to derive the implied entity, then probe `Command<AggregateRoot>Repository` for finder-add/remove entries whose param signatures match; build `[domain] repositories-services: <RepositoryClass> finder <finder_name> added/removed`.
   3. Fallback to `(unknown source)`.
 
 - **Application Exceptions Modified** — Constructor-line drift typically follows a repository-finder signature change.

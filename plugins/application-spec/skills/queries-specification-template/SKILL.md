@@ -229,7 +229,7 @@ class ICanQuery{Aggregates}(Protocol):
 
 **Error Handling**:
 
-- If entity not found: raise `{Aggregate}NotFoundError`
+- If entity not found: raise `{Aggregate}NotFound`
 - Infrastructure errors propagated to caller
 
 ---

@@ -111,7 +111,7 @@ class FakeTextRetriever(ITextRetriever):
     def get_text(self, file_id: str, tenant_id: str) -> Text:
         key = (file_id, tenant_id)
         if self._should_raise.get(key):
-            raise TextNotFoundError(file_id=file_id, tenant_id=tenant_id)
+            raise TextNotFound(file_id=file_id, tenant_id=tenant_id)
         return self._texts.get(key)
 
     # Configuration methods

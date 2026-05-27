@@ -52,11 +52,11 @@ If both sides are skipped, stop with one sentence: "No application exceptions to
 
 Each side is processed independently — there is no cross-side merging. For each processable side, scan two sources:
 
-**Source A — `.methods.md` flow steps.** Parse the file as a sequence of `### Method:` blocks. Within each block, for every line matching ``raise `?(\w+Error)`?``, record:
-- `exception_name`: the captured `\w+Error` token (without backticks)
+**Source A — `.methods.md` flow steps.** Parse the file as a sequence of `### Method:` blocks. Within each block, for every line matching ``raise `?([A-Z]\w*)`?``, record. The captured token is any PascalCase exception class name — domain exceptions in this codebase do not use an `Error` suffix (e.g. `FileNotFound`, `ProfileTypeAlreadyExists`):
+- `exception_name`: the captured PascalCase token (without backticks)
 - `trigger`: extracted from the same flow step:
-  - **Preferred:** if the step matches the shape `If <condition>, raise <X>Error` (after stripping the leading list-marker like `2. ` and any surrounding backticks), take `<condition>` verbatim, preserving original casing.
-  - **Fallback:** strip the leading list marker (`<digits>. ` or `- `), wrapping backticks, the trailing `raise <X>Error` token, and trailing punctuation. Trim whitespace.
+  - **Preferred:** if the step matches the shape `If <condition>, raise <ExceptionName>` (after stripping the leading list-marker like `2. ` and any surrounding backticks), take `<condition>` verbatim, preserving original casing.
+  - **Fallback:** strip the leading list marker (`<digits>. ` or `- `), wrapping backticks, the trailing `raise <ExceptionName>` token, and trailing punctuation. Trim whitespace.
 - `raising_method`: the method signature parsed from the enclosing `### Method:` heading. The heading shape is `### Method: <name>(<params>) <return_type>`; capture the full parameter list.
 - `pair_args`: the verbatim comma-separated args from the **immediately preceding** flow step when that step matches `Call\s+\`?command(?:_[a-z_]+)?_repository\.[a-z_]+\((?P<args>[^)]+)\)\`?\s+to\s+(retrieve|load|check)\b` (covers both the load+raise pair and the existence-check + already-exists pair). Strip backticks and outer whitespace from each token. If the preceding step does not match (e.g. the raise stands alone, or the preceding step is a non-repo call), set to `None`.
 
@@ -84,10 +84,10 @@ The two side-maps are kept separate; an exception present in both files is proce
 
 Apply the following rules in order (first match wins). Match against the joined trigger string (lowercased):
 
-1. Name ends with `NotFound` **or** `NotFoundError` **or** trigger contains "not found", "does not exist" → base: `NotFound`
-2. Name ends with `AlreadyExists` **or** `AlreadyExistsError` **or** trigger contains "already exists", "duplicate" → base: `AlreadyExists`
-3. Name ends with `Unauthorized` **or** `UnauthorizedError` **or** trigger contains "unauthorized", "authentication required" → base: `Unauthorized`
-4. Name ends with `Forbidden` **or** `ForbiddenError` **or** trigger contains "forbidden", "permission denied" → base: `Forbidden`
+1. Name ends with `NotFound` **or** trigger contains "not found", "does not exist" → base: `NotFound`
+2. Name ends with `AlreadyExists` **or** trigger contains "already exists", "duplicate" → base: `AlreadyExists`
+3. Name ends with `Unauthorized` **or** trigger contains "unauthorized", "authentication required" → base: `Unauthorized`
+4. Name ends with `Forbidden` **or** trigger contains "forbidden", "permission denied" → base: `Forbidden`
 5. Name contains `Conflict`, `Violation`, `Invalid`, `ShouldNot`, `Cannot`, `Must` **or** trigger contains "business rule", "violation", "invalid", "cannot", "must not", "should not" → base: `Conflict`
 6. None of the above → base: `DomainException`
 
@@ -114,9 +114,9 @@ When the exception is raised inside a load+raise or existence-check pair (i.e. `
 2. For each token, look up its declared type in `raising_method`'s parameter list. If found, use the declared type. If not (the token is a literal or doesn't match any param), default the type to `str`.
 3. Constructor params = those `(token, type)` pairs in original order.
 
-Example — flow `Call command_domain_type_repository.has_domain_type_with_name(name) to check…` followed by `raise DomainTypeAlreadyExistsError` raised inside `create(name: str, description: str)`: `pair_args = "name"`, the raising method declares `name: str`, so the ctor is `(name: str)`. The implementer will then emit `raise DomainTypeAlreadyExistsError(name)`, which now matches.
+Example — flow `Call command_domain_type_repository.has_domain_type_with_name(name) to check…` followed by `raise DomainTypeAlreadyExists` raised inside `create(name: str, description: str)`: `pair_args = "name"`, the raising method declares `name: str`, so the ctor is `(name: str)`. The implementer will then emit `raise DomainTypeAlreadyExists(name)`, which now matches.
 
-Example — flow `Call command_repository.profile_type_of_id(id, tenant_id) to retrieve…` followed by `raise ProfileTypeNotFoundError` inside `update_details(id: str, tenant_id: str, …)`: `pair_args = "id, tenant_id"`, ctor is `(id: str, tenant_id: str)`.
+Example — flow `Call command_repository.profile_type_of_id(id, tenant_id) to retrieve…` followed by `raise ProfileTypeNotFound` inside `update_details(id: str, tenant_id: str, …)`: `pair_args = "id, tenant_id"`, ctor is `(id: str, tenant_id: str)`.
 
 #### 5b. Identity-extraction fallback (when `pair_args` is `None` but `raising_method` is set)
 
@@ -124,11 +124,11 @@ Parse the parameter list of the raising method. Extract parameters that are iden
 
 #### 5c. Name-based inference (when `raising_method` is `None`, or 5b yielded no params)
 
-Strip known base-class suffixes (`NotFoundError`, `AlreadyExistsError`, `ConflictError`, `ForbiddenError`, `UnauthorizedError`, `Error`, `NotFound`, `AlreadyExists`, `Conflict`, `Forbidden`, `Unauthorized`) from the exception name to obtain the implied entity name (e.g., `OrderNotFoundError` → `Order`). Convert to snake_case to form `<entity>_id: str`.
+Strip known base-class suffixes (`NotFound`, `AlreadyExists`, `Conflict`, `Forbidden`, `Unauthorized`) from the exception name to obtain the implied entity name (e.g., `OrderNotFound` → `Order`). Convert to snake_case to form `<entity>_id: str`.
 
 The constructor is `(<entity>_id: str)`. If `<has_tenant>` is `True` for this side, append `, tenant_id: str` to give `(<entity>_id: str, tenant_id: str)`. **Never** synthesize `tenant_id` when `<has_tenant>` is `False`.
 
-If suffix stripping yields an empty entity name (the exception is literally named `Error`, `NotFound`, etc.), fall through to 5d.
+If suffix stripping yields an empty entity name (the exception is literally named `NotFound`, `AlreadyExists`, etc.), fall through to 5d.
 
 #### 5d. Default fallback
 
@@ -150,7 +150,7 @@ For each unique exception, produce a spec block in this exact format:
 Rules for each field:
 
 - **Base**: the base class inferred in Step 4.
-- **Code**: convert the exception class name from PascalCase to snake_case, dropping the trailing `_error` if the name ends with `Error` (e.g., `OrderNotFoundError` → `order_not_found`, `OrderConflict` → `order_conflict`).
+- **Code**: convert the exception class name from PascalCase to snake_case (e.g., `OrderNotFound` → `order_not_found`, `OrderConflict` → `order_conflict`). Application exceptions follow the `domain-spec` convention of no `Error` suffix.
 - **Pattern**: always `domain-spec:domain-exceptions` — application exceptions reuse the domain exceptions skill for codegen.
 - **Constructor**: the parameter list inferred in Step 5, formatted as a Python signature string.
 - **Message**: an f-string including **all** constructor parameters as a natural human-readable sentence. Compose deterministically from the inferred ctor params (Step 5) so the message matches whatever shape the param list took:

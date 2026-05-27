@@ -43,13 +43,13 @@ Used when the absence of a record is an error condition. Adds an explicit raise 
 **Method Flow**:
 
 1. Call `query_repository.<lookup_method>(<params>)` to retrieve the read model
-2. If the result is `None`, raise `<Aggregate>NotFoundError`
+2. If the result is `None`, raise `<Aggregate>NotFound`
 3. Return the result
 
 **Returns**:
 
 - [DTO shape]
-- Raises `<Aggregate>NotFoundError` when no record exists for the given key
+- Raises `<Aggregate>NotFound` when no record exists for the given key
 ```
 
 ---
@@ -82,7 +82,7 @@ Used when the method combines a repository lookup with a call to an injected ext
 **Method Flow**:
 
 1. Call `query_repository.<resolve_method>(<params>)` to resolve the path / key
-2. If the result is `None`, raise `<Aggregate>NotFoundError`
+2. If the result is `None`, raise `<Aggregate>NotFound`
 3. (Optional) Transform the resolved path / key
    (e.g. derive a redacted variant from the original path)
 4. Call `<external_interface>.<operation>(<resolved_or_transformed>)` to retrieve the payload
@@ -91,7 +91,7 @@ Used when the method combines a repository lookup with a call to an injected ext
 **Returns**:
 
 - [Payload type, e.g. `bytes`]
-- Raises `<Aggregate>NotFoundError` when no record exists for the given key
+- Raises `<Aggregate>NotFound` when no record exists for the given key
 - Infrastructure errors from the external interface propagated to the caller
 ```
 
@@ -112,7 +112,7 @@ The four examples below cover the canonical shape and each deviation. Each examp
 
 ```
 1. Call `query_repository.find_file(id, tenant_id, include)` to retrieve the file data
-2. If the result is `None`, raise `FileNotFoundError`
+2. If the result is `None`, raise `FileNotFound`
 3. Return the `FileInfo` result
 ```
 
@@ -129,7 +129,7 @@ The four examples below cover the canonical shape and each deviation. Each examp
 
 ```
 1. Call `query_repository.find_file_path(id, tenant_id)` to resolve the original storage path
-2. If the result is `None`, raise `FileNotFoundError`
+2. If the result is `None`, raise `FileNotFound`
 3. Derive `redacted_path` from the original path by inserting `-redacted` before the file extension
    (e.g. `s3://bucket/docs/file.pdf` → `s3://bucket/docs/file-redacted.pdf`)
 4. Call `file_storage.download(redacted_path)` to retrieve the binary content

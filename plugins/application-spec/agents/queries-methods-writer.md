@@ -56,7 +56,7 @@ Also retain the surrounding prose of each file (everything outside the Mermaid f
 
 In the queries diagram, find the class whose name matches `<AggregateRoot>Queries` (suffix `Queries`). There must be exactly one. Record:
 
-- `<AggregateRoot>` — the class name with the `Queries` suffix removed (PascalCase). Used to form the conventional `<AggregateRoot>NotFoundError` exception name (e.g. `MediaAsset` → `MediaAssetNotFoundError`, `File` → `FileNotFoundError`).
+- `<AggregateRoot>` — the class name with the `Queries` suffix removed (PascalCase). Used to form the conventional `<AggregateRoot>NotFound` exception name (e.g. `MediaAsset` → `MediaAssetNotFound`, `File` → `FileNotFound`). Domain exceptions follow the `domain-spec` convention of no `Error` suffix.
 - The ordered list of **public methods** declared inside the class block. A method is public when its line either starts with `+` or has no visibility prefix at all. Lines beginning with `-` (private) or `#` (protected) are not public and must be skipped. Preserve declaration order — methods will appear in the output in this order.
 
 Each method line is parsed in Mermaid's class-method syntax: `[+|-|#|~]?<name>(<param1>: <type1>, <param2>: <type2>, ...) <return_type>` — the return type follows the closing `)` separated by whitespace. When splitting parameters, respect bracket nesting so commas inside generics (`dict[str, Any]`, `list[Brief<X>Info]`) are not mistaken for parameter separators — split on commas only at bracket depth zero. Record the parameter list verbatim and the return type verbatim. Do **not** validate or normalise the return type's content — pass it through unchanged.
@@ -182,7 +182,7 @@ A method block lacking the load-finder line **or** the external-call line is not
 
 #### Returns
 
-The standard Returns bullets — the shape line, `<Aggregate>NotFoundError` raise line, paginated empty-list line, and the External-Interface infrastructure-errors line — are defined by the chosen shape's template in `queries-methods-template`. Emit them as the skill prescribes. The agent contributes only:
+The standard Returns bullets — the shape line, `<Aggregate>NotFound` raise line, paginated empty-list line, and the External-Interface infrastructure-errors line — are defined by the chosen shape's template in `queries-methods-template`. Emit them as the skill prescribes. The agent contributes only:
 
 - **Shape-line refinement** — when the return type is a DTO/TypedDict name, optionally append a brief shape hint inferred from the domain diagram (e.g. `<Aggregate>Info` → `TypedDict with the entity's fields`); for primitives (e.g. `bytes` → `Raw payload (bytes)`). For Optional returns, add a clarifying `None when ...` clause sourced from prose if available; otherwise fall back to a generic `None when no record matches the given key`.
 - **Description-derived addenda** — scan the description blocks (queries and domain) for any prose adjacent to or labelled for this method that describes additional return semantics (cardinality, ordering guarantees, infrastructure error variants beyond the skill's default line). Add each as its own bullet, phrased in present tense.
@@ -197,12 +197,12 @@ Render methods in the **declaration order from Step 2** (preserve Mermaid order)
 
 ### Step 8 — Extract Application Exceptions
 
-Scan the rendered method-flow content from Step 7 for the regex `` raise `?(\w+Error)`? `` (case-sensitive; backticks around the exception name are optional, since rendered output typically code-spans the name). For each match:
+Scan the rendered method-flow content from Step 7 for the regex `` raise `?([A-Z]\w*)`? `` (case-sensitive; backticks around the exception name are optional, since rendered output typically code-spans the name). The capture matches any PascalCase exception class name — domain exceptions in this codebase do not use an `Error` suffix (e.g. `FileNotFound`, `ProfileTypeAlreadyExists`). For each match:
 
-1. **Exception name** — the captured `\w+Error` token (without backticks).
+1. **Exception name** — the captured PascalCase token (without backticks).
 2. **Trigger condition** — extracted from the same flow step:
-   - **Preferred:** if the step matches the shape `If <condition>, raise <X>Error` (after stripping the leading list-marker like `2. ` and any surrounding backticks), take `<condition>` verbatim, preserving original casing.
-   - **Fallback:** if the step does not match that shape, take the full step text and strip: the leading list marker (`<digits>. ` or `- `), any wrapping backticks, the trailing `raise <X>Error` token (with optional surrounding backticks), and any trailing punctuation. Trim whitespace.
+   - **Preferred:** if the step matches the shape `If <condition>, raise <ExceptionName>` (after stripping the leading list-marker like `2. ` and any surrounding backticks), take `<condition>` verbatim, preserving original casing.
+   - **Fallback:** if the step does not match that shape, take the full step text and strip: the leading list marker (`<digits>. ` or `- `), any wrapping backticks, the trailing `raise <ExceptionName>` token (with optional surrounding backticks), and any trailing punctuation. Trim whitespace.
 
 Deduplicate by exception name. When the same name appears with different trigger conditions across methods, list the exception once and join distinct conditions with ` / `, preserving first-seen order. Identical trigger strings collapse to one.
 

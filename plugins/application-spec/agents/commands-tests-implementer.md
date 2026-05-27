@@ -210,7 +210,7 @@ If matched, bind `load_pair = (<f>, <args>)`. Then look at step `N+1` and try to
 (?i)^if no\b.*\braise\s+`?(?P<x>[A-Z][A-Za-z0-9_]*)`?
 ```
 
-If matched, bind `raised_not_found = <x>` and consume step `N+1`. Otherwise, default `raised_not_found = <Aggregate>NotFoundError` — Step 11's import resolver will then locate the class under `<repo_root>/src/*/domain/`. (If neither `<Aggregate>NotFoundError` nor `<Aggregate>NotFound` exists in the domain package, the import resolver falls through to its TODO behavior.)
+If matched, bind `raised_not_found = <x>` and consume step `N+1`. Otherwise, default `raised_not_found = <Aggregate>NotFound` — Step 11's import resolver will then locate the class under `<repo_root>/src/*/domain/`. (If `<Aggregate>NotFound` does not exist in the domain package, the import resolver falls through to its TODO behavior.)
 
 Either way, consume step `N` (the load) from the external-call scan in 7d.
 
@@ -225,7 +225,7 @@ command(?:_<aggregate>)?_repository\.(?P<f>[a-z_]+)\((?P<args>[^)]*)\)\s+to chec
 AND step `N+1` matches:
 
 ```
-(?i)^if a matching\b.*\braise\s+`?(?P<x>[A-Z][A-Za-z0-9_]*AlreadyExistsError)`?
+(?i)^if a matching\b.*\braise\s+`?(?P<x>[A-Z][A-Za-z0-9_]*AlreadyExists)`?
 ```
 
 Bind `existence_pair = (<f>, <args>)` and `raised_already_exists = <x>`.
@@ -384,7 +384,7 @@ def test_<method>__success(<aggregate>_commands, unit_of_work, <fix>{, fake_<att
 def test_<method>__already_exists(<aggregate>_commands, <fix>, add_<plural>):
     # GIVEN <aggregate> with the same key already exists in DB
     # WHEN creating with the same args
-    # THEN <Aggregate>AlreadyExistsError is raised
+    # THEN <Aggregate>AlreadyExists is raised
     with pytest.raises(<raised_already_exists>):
         <aggregate>_commands.<method>(<args>)
 ```
@@ -423,7 +423,7 @@ If `external_calls` is empty for a non-mutating method, the body collapses to a 
 def test_<method>__not_found(<aggregate>_commands, <fix>):
     # GIVEN <aggregate> does NOT exist in DB
     # WHEN calling <method>
-    # THEN <Aggregate>NotFoundError is raised
+    # THEN <Aggregate>NotFound is raised
     with pytest.raises(<raised_not_found>):
         <aggregate>_commands.<method>(<args>)
 ```
@@ -474,7 +474,7 @@ Custom-fake call-recording assumes the `application-spec:fake-implementations` c
   - exactly one match → derive the dotted module from its path under `<repo_root>/src/<pkg>/domain/...` using the same convention as `@commands-implementer` Step 4 (collapse to `<pkg>.domain.<aggregate>`); add `from <module> import <X>`, grouping siblings sharing the module.
   - zero matches or 2+ → emit `# TODO: import <X>` in the import block. Do not guess.
 
-  **Convention-derived NotFound fallback.** When `<X>` was synthesized from the convention `<Aggregate>NotFoundError` (i.e. step 7b matched the load step but the spec did not provide an explicit `raise <X>`), retry the grep with `<Aggregate>NotFound` (no `Error` suffix) before falling through to the TODO branch. Update `pytest.raises(<X>)` and the test name to use whichever class actually exists. If neither exists, leave the bare `<Aggregate>NotFoundError` reference and emit `# TODO: import <Aggregate>NotFoundError` — the test will `NameError` until the user resolves it.
+  **Convention-derived NotFound fallback.** When `<X>` was synthesized from the convention `<Aggregate>NotFound` (i.e. step 7b matched the load step but the spec did not provide an explicit `raise <X>`), the suffix-less form is the canonical name. If the grep misses, leave the bare reference and emit `# TODO: import <X>` — the test will `NameError` until the user resolves it.
 
 When appending to an existing file, do not re-emit imports — assume the prior run already recorded them. If a newly added scenario references an exception class that the existing import block does not import, append a single `from <module> import <X>` line immediately after the last existing `from `/`import ` statement; if that exception cannot be uniquely resolved, emit `# TODO: import <X>` on its own line in the same position.
 
@@ -527,7 +527,7 @@ These are warnings, not errors — the agent still writes the file.
 - Never modify `<tests_dir>/conftest.py` or `<tests_dir>/integration/conftest.py`.
 - Method dispatch is signature- and flow-driven; do not infer scenarios from method names alone.
 - Skip event-publishing assertions — verification of `domain_event_publisher.publish` is intentionally outside this agent's scope (the user adds those by hand).
-- Skip raised-exception scenarios other than `<Aggregate>NotFoundError` / `<Aggregate>AlreadyExistsError` — the user writes domain-error tests by hand because invalid-state fixtures are project-specific.
+- Skip raised-exception scenarios other than `<Aggregate>NotFound` / `<Aggregate>AlreadyExists` — the user writes domain-error tests by hand because invalid-state fixtures are project-specific.
 
 ## Failure modes summary
 
@@ -555,4 +555,4 @@ These are warnings, not errors — the agent still writes the file.
 | Condition | Behavior |
 |---|---|
 | External call argument does not resolve via the resolver | Emit `# TODO: assert fake_<attr>.<op>_calls[0] == (...)` in place of the equality line; the count assertion is still emitted. |
-| Exception class (`<NotFoundError>` / `<AlreadyExistsError>`) not uniquely resolvable under `domain/` | Emit `# TODO: import <X>` in the import block; the test body still references `<X>` as a bare name (raises `NameError` until the user resolves the import). |
+| Exception class (`<NotFound>` / `<AlreadyExists>`) not uniquely resolvable under `domain/` | Emit `# TODO: import <X>` in the import block; the test body still references `<X>` as a bare name (raises `NameError` until the user resolves the import). |

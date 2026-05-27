@@ -105,7 +105,7 @@ def test_on_document_created__text_not_found(
     
     # WHEN processing document
     # THEN error is raised
-    with pytest.raises(TextNotFoundError):
+    with pytest.raises(TextNotFound):
         document_commands.on_document_created(document_1.id, document_1.tenant_id)
 ```
 
@@ -350,8 +350,8 @@ def test_{service_method}__not_found(
 ):
     # GIVEN aggregate does NOT exist in DB
     # WHEN calling service method
-    # THEN NotFoundError is raised
-    with pytest.raises({Aggregate}NotFoundError) as exc_info:
+    # THEN NotFound is raised
+    with pytest.raises({Aggregate}NotFound) as exc_info:
         {service}_commands.{method}({aggregate}_fixture.id, ...)
     
     assert exc_info.value.{aggregate}_id == {aggregate}_fixture.id

@@ -72,7 +72,7 @@ Used when no aggregate is loaded (creation path). Steps 1-3 differ; the tail of 
 **Method Flow**:
 
 1. (Optional) Call `command_repository.<existence_check>(<natural_key>, tenant_id)` to check for conflicts
-2. (Optional) If a matching aggregate exists, raise `<Aggregate>AlreadyExistsError`
+2. (Optional) If a matching aggregate exists, raise `<Aggregate>AlreadyExists`
 3. Call `<Aggregate>.new(<params>)` to construct a new aggregate
 4. Call `command_repository.save(<aggregate>)` to persist the new aggregate
 5. Extract events from the aggregate and publish via `event_publisher`
@@ -144,7 +144,7 @@ The three examples below cover the canonical shape, the factory deviation, and a
 
 1. If `subject_kind` is not provided, default to `"CustomEntity"`
 2. Call `command_repository.profile_type_of_name(name, tenant_id)` to check whether a ProfileType with the same name already exists
-3. If a matching ProfileType exists, raise `ProfileTypeAlreadyExistsError`
+3. If a matching ProfileType exists, raise `ProfileTypeAlreadyExists`
 4. Call `ProfileType.new(tenant_id, name, description, subject_kind)` to construct a new aggregate
 5. Call `command_repository.save(profile_type)` to persist the new aggregate
 6. Extract events from the aggregate and publish via `event_publisher`

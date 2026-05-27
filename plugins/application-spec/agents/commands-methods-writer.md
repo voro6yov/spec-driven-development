@@ -106,7 +106,7 @@ Match conditions (both must hold):
 When matched, render the **Factory / Create** deviation flow from the `commands-methods-template` skill. Decisions specific to this agent:
 
 - **Parameter-defaulting step** — prepend `If <param> is not provided, default to "<x>"` only when the description blocks mention a default; otherwise omit.
-- **Existence check** — include the optional finder + `<Aggregate>AlreadyExistsError` steps only when the repository declares an existence/lookup finder keyed on a natural key that appears as a method parameter (e.g. `<aggregate>_of_name(name, tenant_id)`). When no such finder exists, omit both steps without warning.
+- **Existence check** — include the optional finder + `<Aggregate>AlreadyExists` steps only when the repository declares an existence/lookup finder keyed on a natural key that appears as a method parameter (e.g. `<aggregate>_of_name(name, tenant_id)`). When no such finder exists, omit both steps without warning.
 - **Constructor args** — pass the method's parameters to `<AggregateRoot>.new(...)` in declaration order, excluding any values consumed by the defaulting step.
 
 #### 5b. Collaborator-call shape
@@ -123,7 +123,7 @@ If none of the sub-conditions holds, do not pick this shape; fall through to 5c 
 
 When matched, render the **Collaborator Call** deviation flow from the `commands-methods-template` skill. Decisions specific to this agent:
 
-- **Load step** — pick the finder per Step 5d and follow with `If no <AggregateRoot> is found, raise <AggregateRoot>NotFoundError`.
+- **Load step** — pick the finder per Step 5d and follow with `If no <AggregateRoot> is found, raise <AggregateRoot>NotFound`.
 - **Domain service variant** — the service mutates the aggregate in place; pass `<aggregate_var>` and skip the explicit `<aggregate_var>.<method>(...)` step.
 - **External interface variant** — capture the collaborator result and pass it to a same-named or matching aggregate method in the next step.
 - **Multi-mutation** — if multiple aggregate mutations are needed (e.g. `clear` then `add_subject`), list them as adjacent numbered steps or as sibling lines under one step.
@@ -132,7 +132,7 @@ When matched, render the **Collaborator Call** deviation flow from the `commands
 
 Default match — used when neither 5a nor 5b applies. Render the **Canonical Method Shape** from the `commands-methods-template` skill. Decisions specific to this agent:
 
-- **Load step** — pick the finder per Step 5d and follow with `If no <AggregateRoot> is found, raise <AggregateRoot>NotFoundError`.
+- **Load step** — pick the finder per Step 5d and follow with `If no <AggregateRoot> is found, raise <AggregateRoot>NotFound`.
 - **Aggregate call mapping** — `<aggregate_var>.<method_name>(<args>)` where `<method_name>` matches the command method name and `<args>` are the command method's params **excluding** identity (`id`, `<aggregate>_id`) and tenant (`tenant_id`) params. The aggregate root in the domain diagram **must** declare a public method with the same name as the command method. If no matching method exists, abort with: `Command method <name> on <AggregateRoot>Commands has no same-named public method on <AggregateRoot>, and did not match factory (5a) or collaborator-call (5b) shapes — check method naming or add a collaborator hint in the description.`
 
 #### 5d. Choosing the repository finder
@@ -210,12 +210,12 @@ Render methods in the **declaration order from Step 2** (preserve Mermaid order)
 
 ### Step 8 — Extract Application Exceptions
 
-Run the regex `` raise `?(\w+Error)`? `` against the in-memory rendered methods string produced by Step 7 (before writing it to disk). The match is case-sensitive; backticks around the exception name are optional, since rendered output typically code-spans the name. For each match:
+Run the regex `` raise `?([A-Z]\w*)`? `` against the in-memory rendered methods string produced by Step 7 (before writing it to disk). The match is case-sensitive; backticks around the exception name are optional, since rendered output typically code-spans the name. The capture matches any PascalCase exception class name — domain exceptions in this codebase do not use an `Error` suffix (e.g. `<Aggregate>NotFound`, `<Aggregate>AlreadyExists`). For each match:
 
-1. **Exception name** — the captured `\w+Error` token (without backticks).
+1. **Exception name** — the captured PascalCase token (without backticks).
 2. **Trigger condition** — extracted from the same flow step:
-   - **Preferred:** if the step matches the shape `If <condition>, raise <X>Error` (after stripping the leading list-marker like `2. ` and any surrounding backticks), take `<condition>` verbatim, preserving original casing.
-   - **Fallback:** if the step does not match that shape, take the full step text and strip: the leading list marker (`<digits>. ` or `- `), any wrapping backticks, the trailing `raise <X>Error` token (with optional surrounding backticks), and any trailing punctuation. Trim whitespace.
+   - **Preferred:** if the step matches the shape `If <condition>, raise <ExceptionName>` (after stripping the leading list-marker like `2. ` and any surrounding backticks), take `<condition>` verbatim, preserving original casing.
+   - **Fallback:** if the step does not match that shape, take the full step text and strip: the leading list marker (`<digits>. ` or `- `), any wrapping backticks, the trailing `raise <ExceptionName>` token (with optional surrounding backticks), and any trailing punctuation. Trim whitespace.
 
 Deduplicate by exception name. When the same name appears with different trigger conditions across methods, list the exception once and join distinct conditions with ` / `, preserving first-seen order. Identical trigger strings collapse to one.
 

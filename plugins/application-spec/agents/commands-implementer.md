@@ -241,7 +241,7 @@ grep -RIl --include='*.py' -E '^class <ExceptionClass>(\(|:)' <pkg_root>/src/<pk
 
 Record the resolution in `<exception_imports>`. Exactly-one match → bind to its dotted module. Zero or 2+ → mark unresolved (the import block emits a TODO; method bodies still emit the verbatim `raise <X>(...)` from flow text).
 
-Bind `<not_found_class>` to the unique exception name in the union whose pattern matches `<Aggregate>NotFound(?:Error)?`. If both `<Aggregate>NotFound` and `<Aggregate>NotFoundError` are observed across flow text, abort with `inconsistent NotFound class names in flow text`. If the union contains no NotFound-shaped class but at least one method's flow describes a load-then-raise sequence, abort with `flow text references a load-then-raise but no <Aggregate>NotFound* raise — spec is inconsistent`.
+Bind `<not_found_class>` to the unique exception name in the union whose pattern matches `<Aggregate>NotFound`. If the union contains no NotFound-shaped class but at least one method's flow describes a load-then-raise sequence, abort with `flow text references a load-then-raise but no <Aggregate>NotFound raise — spec is inconsistent`.
 
 #### 6e. AGGREGATE_DESTINATION constant
 
@@ -682,8 +682,7 @@ def on_domain_type_added(self, id: str, domain_type: DomainTypeData) -> Conversi
 | `retry_on_transaction_error` not found / multi-match | naming the issue |
 | Unique `class Containers(containers.DeclarativeContainer):` not found | abort |
 | Any dep provider missing from `containers.py` | listing missing attrs |
-| Both `<Aggregate>NotFound` and `<Aggregate>NotFoundError` observed in flow text | `inconsistent NotFound class names in flow text` |
-| Flow describes a load-then-raise but no `<Aggregate>NotFound*` raise present | `flow text references a load-then-raise but no <Aggregate>NotFound* raise — spec is inconsistent` |
+| Flow describes a load-then-raise but no `<Aggregate>NotFound` raise present | `flow text references a load-then-raise but no <Aggregate>NotFound raise — spec is inconsistent` |
 
 ### Continues with TODO
 
