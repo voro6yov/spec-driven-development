@@ -7,7 +7,7 @@ allowed-tools: Read, Bash, Agent, AskUserQuestion
 
 You are a cross-layer **code-update orchestrator**. After `/update-specs` has refreshed every per-layer spec sibling, this skill drives the three-agent flow per layer (`gather → implement → review`) and applies edits to on-disk code.
 
-This is the execution analog of `/update-specs`. Where `/update-specs` propagates spec deltas through five spec layers, this skill propagates them to source files. The orchestrator itself **never reads a spec sibling and never edits source code** — those responsibilities live entirely in the per-plugin `code-brief-writer`, `code-change-writer`, and `code-review-writer` agents.
+This is the execution analog of `/update-specs`. Where `/update-specs` propagates spec deltas through five spec layers, this skill propagates them to source files. The orchestrator itself **never reads a spec sibling and never edits source code** — those responsibilities live entirely in the per-plugin `code-brief-writer`, `code-change-writer`, `code-review-writer`, and the persistence-side `query-code-change-writer` agents.
 
 ## Inputs
 
@@ -23,7 +23,10 @@ Each per-layer agent writes its own sibling artifact:
 |---|---|---|
 | 1 (gather) | `<dir>/<stem>.<layer>/code-brief.md` | `@<plugin>:code-brief-writer` |
 | 2 (implement) | `<dir>/<stem>.<layer>/code-changes.md` + source edits | `@<plugin>:code-change-writer` |
+| 2.5 (implement, query-side) | `<dir>/<stem>.persistence/query-code-changes.md` + source edits | `@persistence-spec:query-code-change-writer` |
 | 3 (review) | `<dir>/<stem>.<layer>/code-review.md` | `@<plugin>:code-review-writer` |
+
+Phase 2.5 is **persistence-only** and **runs only when** the domain `updates.md` carries at least one `### \`Query<X>Repository\` \`<<Repository>>\`` block. Its agent reads `<stem>.domain/updates.md` directly — query-side behavior (default filters, soft-delete exclusion) is expressed as prose invariants in the domain diagram, **not** in any spec sibling, so the standard brief / change-writer chain has no input signal for it.
 
 The orchestrator itself writes nothing to disk — its only emission is the final summary table to chat.
 
@@ -61,13 +64,19 @@ Bind `<active_layers>` to the ordered list of active layers in canonical order: 
 
 ### Step 3 — No-op early exit
 
-For each active layer, parse its `updates.md` and check whether its body sections all read `_no changes_` AND its `## Affected Artifacts` table is empty or absent. (Refer to each plugin's `updates-report-template` skill for the exact body markers.) If **all** active layers are no-ops, print:
+For each active layer, parse its `updates.md` and check whether its body sections all read `_no changes_` AND its `## Affected Artifacts` table is empty or absent. (Refer to each plugin's `updates-report-template` skill for the exact body markers.) Bind `<all_layers_noop>` to that result.
+
+In parallel, grep `<dir>/<stem>.domain/updates.md` for any `### \`Query[A-Z][A-Za-z0-9]*Repository\` \`<<Repository>>\`` heading. Bind `<query_signal>` to `true` iff at least one such heading is present. (This signal drives Phase 2.5; it is independent of per-layer no-op state because query-side invariants can land alongside otherwise-no-op layers.)
+
+If `<all_layers_noop>` is true **and** `<query_signal>` is false, print:
 
 ```
 No code updates required across active layers.
 ```
 
 and exit cleanly without spawning any agents.
+
+Otherwise proceed to Step 4. Note `<query_signal>` for Step 7.5 — when `true`, Phase 2.5 runs; when `false`, Phase 2.5 is skipped entirely.
 
 ### Step 4 — Find target locations (parallel)
 
@@ -162,6 +171,23 @@ Wait for both to complete.
 
 When the orchestrator aborts a downstream wave, surface the one `ERROR:` line and skip directly to Step 9 (summary). Briefs and any successfully-written change logs remain on disk.
 
+### Step 7.5 — Phase 2.5: implement (query-side)
+
+If `<query_signal>` is `false` (per Step 3), skip this step entirely. The `query-code-changes.md` artifact is not written.
+
+Otherwise, spawn `@persistence-spec:query-code-change-writer` in its own message after all three Phase 2 waves have settled. Prompt:
+
+```
+$DIAGRAM
+<locations_report_persistence>
+```
+
+(The agent needs the persistence layer's locations report — it resolves the query repository directory from the `Repository` row. If `persistence` is **not** in `<active_layers>`, hard-fail with: `ERROR: query-side invariant changes detected in <stem>.domain/updates.md, but persistence layer is not active. Run /persistence-spec:generate-specs <domain_diagram> first so the persistence locations are resolvable.`)
+
+Phase 2.5 runs strictly after Wave C — when persistence is active, Wave B's `@persistence-spec:code-change-writer` may have touched the same `SqlAlchemyQuery<X>Repository` file (alt-lookup adds/removes, signature changes), and the query-code-change-writer must see that settled state before layering its own surgical patches.
+
+The agent reads `<dir>/<stem>.domain/updates.md` directly (not any persistence spec or brief) and writes `<dir>/<stem>.persistence/query-code-changes.md`. Per-patch failures are recorded in that log as `Status: failed: <reason>` and **do not** abort the orchestrator. Only an agent-level hard-fail (the agent prints `ERROR:`) is terminal — surface its line and skip to Step 8.
+
 ### Step 8 — Phase 3: review (opt-in)
 
 If `RUN_REVIEW == false`, skip to Step 9.
@@ -181,27 +207,30 @@ If any reviewer hard-fails, surface its `ERROR:` line. The other reviewers' repo
 
 ### Step 9 — Summary
 
-Print one summary block:
+Print one summary block. When Phase 2.5 ran, an extra `persistence (query)` row sits directly beneath the `persistence` row:
 
 ```
 /update-code complete.
 
-Layer        | Briefed | Edits  | Failures | Risky | Reviewed | Verdict
--------------|---------|--------|----------|-------|----------|---------------
-domain       | <n>     | <n>    | <n>      | <n>   | yes/no   | clean/issues/—
-persistence  | ...
-application  | ...
-rest-api     | ...
-messaging    | ...
+Layer                | Briefed | Edits  | Failures | Risky | Reviewed | Verdict
+---------------------|---------|--------|----------|-------|----------|---------------
+domain               | <n>     | <n>    | <n>      | <n>   | yes/no   | clean/issues/—
+persistence          | <n>     | <n>    | <n>      | <n>   | yes/no   | clean/issues/—
+persistence (query)  | —       | <n>    | <n>      | —     | yes/no   | clean/issues/—
+application          | ...
+rest-api             | ...
+messaging            | ...
 
 Artifacts (per active layer):
-- <dir>/<stem>.<layer>/code-brief.md   (Phase 1)
-- <dir>/<stem>.<layer>/code-changes.md (Phase 2)
-- <dir>/<stem>.<layer>/code-review.md  (Phase 3, only when --review)
+- <dir>/<stem>.<layer>/code-brief.md         (Phase 1)
+- <dir>/<stem>.<layer>/code-changes.md       (Phase 2)
+- <dir>/<stem>.persistence/query-code-changes.md (Phase 2.5, only when Phase 2.5 ran)
+- <dir>/<stem>.<layer>/code-review.md        (Phase 3, only when --review)
 ```
 
 Source the row counts from each on-disk artifact:
 
+Per-layer rows (`domain`, `persistence`, `application`, `rest-api`, `messaging`):
 - `Briefed` — total rows in `code-brief.md`.
 - `Edits` — rows in `code-changes.md` with `Status: applied`.
 - `Failures` — rows with `Status: failed`.
@@ -209,12 +238,20 @@ Source the row counts from each on-disk artifact:
 - `Reviewed` — `yes` if `code-review.md` exists (only when `--review` was passed and Phase 3 ran for that layer), else `no`.
 - `Verdict` — `clean` / `issues` from `code-review.md`'s top-level verdict, or `—` when not reviewed.
 
-Inactive layers do not appear in the table.
+`persistence (query)` row (only emitted when Phase 2.5 ran):
+- `Briefed` — `—` (Phase 2.5 has no brief; it reads `<stem>.domain/updates.md` directly).
+- `Edits` — rows in `query-code-changes.md` with `Status: applied`.
+- `Failures` — rows with `Status: failed`.
+- `Risky` — `—` (Phase 2.5 has no risk-tagging; controlled-phrasing recognition is deterministic by design).
+- `Reviewed` / `Verdict` — mirror the `persistence` row (Phase 3 reviews the aggregate persistence file set, including the query repo).
+
+Inactive layers do not appear in the table. The `persistence (query)` row is omitted when Phase 2.5 was skipped (Step 3 found no `### Query<X>Repository` block in domain `updates.md`).
 
 ## Failure semantics
 
 - Every step that aborts the orchestrator emits exactly one `ERROR:` line and stops at that point. Subsequent steps are skipped, but the summary block (Step 9) still prints, reflecting whatever artifacts exist on disk.
-- Per-row failures inside a Phase 2 agent are recorded with `Status: failed: <reason>` in `code-changes.md` and do **not** abort the orchestrator. Only an agent-level hard-fail does.
+- Per-row / per-patch failures inside a Phase 2 / Phase 2.5 agent are recorded with `Status: failed: <reason>` in `code-changes.md` / `query-code-changes.md` and do **not** abort the orchestrator. Only an agent-level hard-fail does.
+- Phase 2.5 is independent of Phase 2's outcome: a Phase 2 persistence hard-fail still allows Phase 2.5 to run (the orchestrator surfaces both lines), and vice versa. The two share the `SqlAlchemyQuery<X>Repository` file but operate on non-overlapping concerns (structural vs invariant); the ordering (Phase 2 before Phase 2.5) is the load-bearing safety.
 - Each phase is idempotent on stable inputs. Re-running `/update-code` re-derives the briefs (writers overwrite), re-applies the edits (writers overwrite), and (when `--review`) re-derives the review reports. The brief/change/review siblings survive every abort path.
 - A no-op early exit (Step 3) is a success — exit cleanly, no agents spawned, no plan-mode prompt.
 
