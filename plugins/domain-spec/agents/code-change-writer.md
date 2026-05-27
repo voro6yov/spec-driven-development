@@ -28,7 +28,7 @@ You **do not** re-derive the artifact set, **do not** re-classify risk, and **do
 |---|---|---|
 | `<dir>/<stem>.domain/code-brief.md` | Yes | The Phase 1 brief. The full work list. |
 | `<dir>/<stem>.domain/specs.md` | Yes | Canonical class specs. Read on demand per row to extract class-block body + method specs. |
-| `<dir>/<stem>.domain/test-plan.md` | If exists | Source for newly-added-class test functions / fixtures when a `test-impl` row is in play. |
+| `<dir>/<stem>.domain/test-plan.md` | If exists | Source for test functions and fixtures the writer appends when a `test-impl` row is in play. |
 | `<aggregate_pkg_dir>/*.py` | If exists | Read on demand for per-member Edit surgery, init-py diff patches, and exceptions.py diff patches. |
 | `<tests_dir>/conftest.py`, `<tests_dir>/unit/test_<aggregate_snake>.py` | If exists | Read on demand for append-only test-row patches. |
 
@@ -43,7 +43,7 @@ You **never** read the diagram itself, the diagram's prose, the `updates.md` rep
 | `<aggregate_pkg_dir>/__init__.py` | Diff-driven minimal patch when adds/removes occurred. |
 | `<aggregate_pkg_dir>/exceptions.py` | Diff-driven minimal patch when a touched class has `▪ Raises:` bullets. |
 | `<shared_pkg_dir>/<class_snake>.py`, `<shared_pkg_dir>/__init__.py` | When the brief locates a class under the shared package. |
-| `<tests_dir>/unit/test_<aggregate_snake>.py`, `<tests_dir>/conftest.py` | Append-only patches when the aggregate's lifecycle Added set is non-empty. |
+| `<tests_dir>/unit/test_<aggregate_snake>.py`, `<tests_dir>/conftest.py` | Append-only patches: tests/fixtures from the test plan that are not yet present on disk. |
 
 ## Workflow
 
@@ -99,6 +99,17 @@ For every row with a non-empty `Class`, resolve the on-disk path by probing the 
 - `remove` action, no candidate exists → status = `skipped-no-op: already removed`, continue.
 - `modify` action, no candidate exists → status = `failed: target file missing on disk`, continue.
 
+#### 3a-bis. Class docstring scope (applies to 3c and 3d)
+
+When synthesizing a class's docstring during `class-impl` (3c) or `whole-module-impl` (3d), include **only**:
+
+1. A one-sentence description of the class's purpose.
+2. A `Patterns:` line listing the patterns applied to this class, semicolon-separated.
+
+Do **not** mirror spec sections into the docstring — no `Invariants / Constraints`, no `Flow`, no `Postconditions`, no `Responsibilities`, no `Raises`. The spec at `<dir>/<stem>.domain/specs.md` is the source of truth for those; duplicating them into the docstring causes drift on every regen. Method-level docstrings follow the same rule: one-line summary only.
+
+This is the docstring shape that `@code-implementer` emits during `/generate-code` (Step 5 there); `whole-module-impl` rewrites must produce the same shape so the on-disk module is byte-stable across the two entry points.
+
 #### 3b. `kind = remove` (action = remove)
 
 1. Resolve the path per Step 3a. If skipped/failed there, continue.
@@ -123,7 +134,7 @@ For every row with a non-empty `Class`, resolve the on-disk path by probing the 
    ```
    Take the first match's line number as the block start; find the next `^\\*\\*\\`...\\`\\*\\*` line (or end of file) as the block end. Read only that range from `specs.md`.
 3. **Load named pattern skills.** For each name in the row's `Patterns:` field, call `Skill` with that exact name. Skills are loaded lazily — only for the row that needs them, in the order the brief listed them. Duplicate loads across rows are harmless (the tool tracks state).
-4. **Synthesize the module body** per the loaded skill bodies + the class spec block. The synthesis itself is governed by the skills; this agent does not encode the per-pattern shape contract. Typical contents: module docstring header, imports, the class definition (constructor, methods, attributes), `__all__`.
+4. **Synthesize the module body** per the loaded skill bodies + the class spec block. The synthesis itself is governed by the skills; this agent does not encode the per-pattern shape contract. Typical contents: module docstring header, imports, the class definition (constructor, methods, attributes), `__all__`. The class docstring shape is constrained per Step 3a-bis — Description + `Patterns:` line only.
 5. `Write` the new file.
 6. Status = `applied`, note = `created <path>; patterns: <comma-joined names>`.
 
@@ -131,7 +142,7 @@ If the class block is **not found** in `specs.md` for an `add` row, status = `fa
 
 #### 3d. `kind = whole-module-impl` (action = modify, class non-empty)
 
-Identical to Step 3c except the target file already exists. The `Write` is a full overwrite — there is no preservation of operator hand-edits. Phase 1 already flagged any spec/docstring pattern-list drift as risky; the operator has signed off via the Phase 1.5 gate.
+Identical to Step 3c except the target file already exists. The `Write` is a full overwrite — there is no preservation of operator hand-edits. Phase 1 already flagged any spec/docstring pattern-list drift as risky; the operator has signed off via the Phase 1.5 gate. The class docstring shape is constrained per Step 3a-bis — Description + `Patterns:` line only.
 
 Status = `applied`, note = `rewrote <path>; patterns: <comma-joined names>`.
 
@@ -185,18 +196,22 @@ Status (modify case) = `applied`, note = `appended <count> new exceptions to <pa
 
 #### 3h. Collateral — `test-impl` rows (path ends with `test_<aggregate_snake>.py` or `conftest.py`, class empty)
 
-**Append-only inline.** New tests / fixtures only for classes in the brief's lifecycle Added set; existing tests are not modified for signature changes on existing classes (those are surfaced by Phase 3 for manual reconciliation).
+**Append-only inline.** Add tests and fixtures that the test plan now lists but the on-disk file does not yet contain — regardless of whether their subject class is newly-added or pre-existing-with-new-spec. Existing tests/fixtures are never modified or removed; their bodies are not reconciled against spec drift (Phase 3 review surfaces that).
 
-1. Identify the lifecycle-added class set: walk the working artifact list (Step 0.6's parsed brief) for rows with `action = add` and `kind = class-impl`, collect their `Class` names. If this set is empty, status = `skipped-no-op: no new classes`, continue.
-2. Load `domain-spec:aggregate-unit-tests` (for `test_<aggregate_snake>.py` rows) or `domain-spec:aggregate-fixtures` (for `conftest.py` rows) — load lazily per row.
-3. Read `<dir>/<stem>.domain/test-plan.md` if it exists. If it doesn't, status = `failed: test-plan.md missing; run @aggregate-tests-planner before retry`, continue.
-4. Filter test-plan.md to rows whose subject class is in the lifecycle-added set:
-   - For a `conftest.py` row: for each newly-added class, synthesize the per-class fixture(s) from its State Keys entries (one fixture per state key) per `domain-spec:aggregate-fixtures`. Append at end of file — preserve existing fixtures byte-identical.
-   - For a `test_<aggregate_snake>.py` row: for **every** row in the Tests table whose subject class is in the added set, synthesize one test function per `domain-spec:aggregate-unit-tests`. (A single added class typically expands to multiple test rows / multiple functions.) Append.
-5. `Edit` to append (locate the last `def ` block in the file as the anchor for the new content) or `Write` if the file is missing.
-6. Status = `applied`, note = `appended tests/fixtures for <count> new classes: <comma-joined names>`.
+1. Load `domain-spec:aggregate-unit-tests` (for `test_<aggregate_snake>.py` rows) or `domain-spec:aggregate-fixtures` (for `conftest.py` rows) — load lazily per row.
+2. Read `<dir>/<stem>.domain/test-plan.md` if it exists. If it doesn't, status = `failed: test-plan.md missing; run @aggregate-tests-planner before retry`, continue.
+3. **Determine what is already on disk.** Read the target file from Step 3a path resolution. If missing, treat the on-disk name set as empty.
+   - For `test_<aggregate_snake>.py` rows: collect the set of existing test function names by matching `^def (test_\w+)\(` at module scope.
+   - For `conftest.py` rows: collect the set of existing fixture names by matching `^def (\w+)\(` on lines that follow a `@pytest.fixture` / `@<alias>.fixture` decorator.
+4. **For each test-plan row, derive its target function or fixture name** per the loaded skill's naming convention (`domain-spec:aggregate-unit-tests` for tests, `domain-spec:aggregate-fixtures` for fixtures). Filter the test-plan to rows whose derived name is **not** in the on-disk set from step 3.
+5. If the filtered set is empty, status = `skipped-no-op: all test-plan rows already present on disk`, continue.
+6. Synthesize the missing tests / fixtures per the loaded skill body and the filtered test-plan rows.
+   - For `conftest.py`: build one fixture per filtered State Keys entry per `domain-spec:aggregate-fixtures`.
+   - For `test_<aggregate_snake>.py`: build one test function per filtered Tests-table row per `domain-spec:aggregate-unit-tests`.
+7. `Edit` to append (locate the last `def ` block in the file as the anchor for the new content) or `Write` if the file is missing.
+8. Status = `applied`, note = `appended <count> new tests/fixtures: <comma-joined names>`.
 
-Tests for **modified** classes (signature changes on a method that already exists) are intentionally out of scope for this agent — append-only by design. Phase 3 review flags the divergence between modified class signatures and unchanged tests.
+The append-only contract is preserved: a test-plan row whose target name is already on disk is skipped, regardless of whether the on-disk body still matches the latest spec. Hand-edited or stale tests are not reconciled — Phase 3 review surfaces signature drift between modified class methods and unchanged tests.
 
 ### Step 4 — Write the change log
 
@@ -269,7 +284,7 @@ Rendering rules:
 - It does not call `@scaffold-builder`, `@code-implementer`, `@exceptions-implementer`, `@aggregate-tests-implementator`, or `@aggregate-fixtures-writer`. Their pattern skills are the contract; this agent loads those skills inline.
 - It does not detect or preserve operator hand-edits. The spec is the source of truth; `whole-module-impl` rewrites overwrite the whole module, and `per-member-edit` rewrites overwrite each targeted member. Phase 1's drift check (Step 4 of `@code-brief-writer`) is the only hand-edit signal in the pipeline.
 - It does not retry Edit collisions. One Edit attempt per `Members` bullet; if `old_string` is non-unique or missing, the whole row fails and Phase 3 surfaces it.
-- It does not modify tests for changed-but-not-added classes. Append-only by design — Phase 3 flags the divergence.
+- It does not modify or remove existing tests or fixtures. Append-only by design — it only adds tests/fixtures from the test plan whose target name is not yet present on disk; signature drift in already-present tests is surfaced by Phase 3 review.
 - It does not auto-fix residual references after a `remove`. References are reported in the change-log note; the operator (or Phase 3) decides what to do.
 - It does not regenerate the domain-root `__init__.py` at `<src>/<pkg>/domain/__init__.py` — that file is owned by `/init-domain` and `/generate-code`, not per-aggregate `/update-code`.
 - It does not run any tests, type-checks, or linters. Phase 3 review is the verification step.

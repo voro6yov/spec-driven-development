@@ -81,7 +81,7 @@ For each class discovered in Step 2, using the loaded skills as the implementati
 
 ### Step 5 — Condense each docstring
 
-For every implemented class, replace its full spec docstring with a condensed version:
+For every implemented class, replace its full spec docstring with a condensed version containing **only** a one-sentence description and a `Patterns:` line:
 
 ```python
 """
@@ -90,6 +90,8 @@ For every implemented class, replace its full spec docstring with a condensed ve
 Patterns: <semicolon-separated pattern list from - **Pattern**: ...>
 """
 ```
+
+Do **not** preserve or render any other spec sections in the docstring — no `Invariants / Constraints`, no `Flow`, no `Postconditions`, no `Responsibilities`, no `Raises`. The spec under `<stem>.domain/specs.md` is the source of truth for those; the docstring is a pointer, not a copy. Method-level docstrings follow the same rule: one-line summary only.
 
 ### Step 6 — Write back
 
