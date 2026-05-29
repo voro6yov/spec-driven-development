@@ -9,7 +9,7 @@ You are a DDD spec **update** orchestrator. Given a diagram whose working-tree d
 
 This skill is the surgical analog of `/generate-specs`. It implements **Approach B** from `notes/spec-updater-approach-b.md`: pre-prune what was removed, fan out per-category regen, splice into the live spec, then refresh exceptions and conditionally replan tests.
 
-After the domain-side update completes successfully — and **only** then; a no-op early-exit (Step 1d) or any hard-fail/abort `return`s before the cascade — this skill produces the shared application-spec detector reports once (Step 9.5, two detectors in parallel) and then **fans out all four downstream spec updaters in parallel** (Step 10): `/persistence-spec:update-specs`, `/application-spec:update-specs`, `/rest-api-spec:update-specs`, `/messaging-spec:update-specs`. A single `/update-specs` thereby propagates one domain diagram change through every spec layer with minimum wallclock. Each downstream updater consumes the `<stem>.domain/updates.md` this skill just wrote in Step 0; the application / rest-api / messaging updaters additionally consume the `<stem>.application/commands-updates.md` / `queries-updates.md` reports produced by Step 9.5 and skip their own internal Step-0 detector invocation when invoked with the `--detectors-fresh` flag. The cascade **assumes those layers have already been generated**: a downstream updater whose spec artifact is missing hard-fails (`ERROR:`), but unlike the previous sequential cascade that ERROR no longer aborts sibling updaters — all four run to completion and each prints its own report. There is no opt-out flag — the cascade is always attempted on the success path. This orchestrator emits no consolidated cascade summary.
+After the domain-side update completes successfully — and **only** then; a no-op early-exit (Step 1d) or any hard-fail/abort `return`s before the cascade — this skill **fans out two downstream spec updaters in parallel** (Step 10): `/persistence-spec:update-specs` and `/application-spec:update-specs`. Persistence is domain-driven. The application updater additionally **owns the app-service-axis subtree**: it produces the shared `<stem>.application/commands-updates.md` / `queries-updates.md` detector reports itself (at its own Step 0) and, after refreshing its own specs, re-cascades to `/rest-api-spec:update-specs` and `/messaging-spec:update-specs`. A single `/update-specs` thereby propagates one domain diagram change through every spec layer — domain → {persistence, application → {rest-api, messaging}}. Each downstream updater consumes the `<stem>.domain/updates.md` this skill just wrote in Step 0. The cascade **assumes those layers have already been generated**: a downstream updater whose spec artifact is missing hard-fails (`ERROR:`), but that ERROR does not abort its sibling — persistence and application run to completion independently and each prints its own report. There is no opt-out flag — the cascade is always attempted on the success path. This orchestrator emits no consolidated cascade summary.
 
 ## Output path convention
 
@@ -24,7 +24,7 @@ Given `<domain_diagram>` at `<dir>/<stem>.md`, the orchestrator reads and writes
 
 All agents derive `<stem>` by stripping the `.md` suffix from `<domain_diagram>`. Per-category regen scratch lives at `<dir>/<stem>.domain/.specs-tmp/<category>.md`; the orchestrator owns its lifecycle and removes it on success. See `domain-spec:naming-conventions` for the canonical layout.
 
-Step 9.5 writes `<dir>/<stem>.application/commands-updates.md` and `<dir>/<stem>.application/queries-updates.md` via the two `application-spec` detectors. Step 10 additionally writes the downstream per-plugin folders — `<dir>/<stem>.persistence/`, `<dir>/<stem>.application/`, `<dir>/<stem>.rest-api/`, `<dir>/<stem>.messaging/` — and their `updates.md` reports. Those writes are owned entirely by the chained `/…-spec:update-specs` skills; see each one's own path-convention section for the per-file detail. This orchestrator invokes them with `$ARGUMENTS[0]` (plus the literal `--detectors-fresh` token for application / rest-api / messaging) and surfaces every `ERROR:` line that returns.
+Step 10 writes the downstream per-plugin folders — `<dir>/<stem>.persistence/` and `<dir>/<stem>.application/` (and, via the application updater's own re-cascade, `<dir>/<stem>.rest-api/` and `<dir>/<stem>.messaging/`) — and their `updates.md` reports. The `<dir>/<stem>.application/commands-updates.md` / `queries-updates.md` detector reports are produced by the application updater at its own Step 0, **not here**. All those writes are owned entirely by the chained `/…-spec:update-specs` skills; see each one's own path-convention section for the per-file detail. This orchestrator invokes the two downstream updaters with `$ARGUMENTS[0]` (no flag) and surfaces every `ERROR:` line that returns.
 
 ## Category → Stereotype mapping
 
@@ -218,45 +218,26 @@ Where:
 
 Do not emit additional commentary. Each invoked agent already prints its own per-step report.
 
-Steps 9.5–10 (pre-cascade detector run and the parallel downstream cascade) run after this. Their per-skill reports follow Step 9's summary line; this orchestrator adds nothing more.
-
-### Step 9.5 — Produce shared app-service detector reports (parallel)
-
-This step is reached **only on the success path**. Step 1d's no-op early-exit and every Step 1a–1c / mid-pipeline hard-fail `return` before this point, so Step 9.5 runs exactly when the domain-side specs were (re)generated — never on a no-op and never on an abort.
-
-Three of the four downstream `/…-spec:update-specs` skills (`application`, `rest-api`, `messaging`) each invoke `application-spec:commands-updates-detector` at their own Step 0, and two of them (`application`, `rest-api`) additionally invoke `application-spec:queries-updates-detector`. If Step 10 ran them in parallel without this pre-step, two or three concurrent writers would race on the same `<dir>/<stem>.application/{commands,queries}-updates.md` paths. Hoisting the detector invocation here — producing each report exactly once before the fan-out — lets the four downstream skills run in parallel without contention. Each downstream skill is taught (via the `--detectors-fresh` flag this orchestrator passes in Step 10) to skip its own internal detector invocation when invoked from the cascade.
-
-In a single message, invoke both detectors in parallel:
-
-- `application-spec:commands-updates-detector` with prompt `$ARGUMENTS[0]`.
-- `application-spec:queries-updates-detector` with prompt `$ARGUMENTS[0]`.
-
-These agents write `<dir>/<stem>.application/commands-updates.md` and `<dir>/<stem>.application/queries-updates.md` respectively. They are byte-stable on stable inputs and use `mkdir -p` idempotently — running them in parallel against the same `<dir>/<stem>.application/` folder is safe (they write disjoint paths).
-
-Wait for both detectors to return before proceeding to Step 10.
-
-If either detector hard-fails with an `ERROR:` line (anchor missing/renamed, multi-anchor, stereotype change inside the commands/queries diagram, missing sibling commands/queries diagram), surface that line and **abort the cascade** — do not run Step 10. The domain-side update (Steps 0–9) is already complete and was reported by Step 9; the cascade abort does not retroactively fail it. The other detector's output (if it completed) is left on disk for the next run; no rollback. The same `/application-spec:generate-specs <domain_diagram>` recovery path the detector messages themselves direct to applies here.
-
-A detector `_warning:` for degraded baseline is **not** an abort — it is forwarded inside the report and each downstream skill's per-axis preflight handles it (typically by disabling that one axis with a WARNING).
-
-If the application-spec plugin is not installed in this marketplace, the two detector agents are unavailable; the invocation fails with the standard "agent not found" error and the cascade aborts. This is the same condition that would block any per-downstream-skill detector invocation today.
+Step 10 (the parallel downstream cascade) runs after this. Its per-skill reports follow Step 9's summary line; this orchestrator adds nothing more.
 
 ### Step 10 — Cascade downstream spec updaters (parallel)
 
-This step is reached only on the success path of Step 9.5. In a single message, invoke all four downstream `/…-spec:update-specs` skills in parallel:
+This step is reached **only on the success path**. Step 1d's no-op early-exit and every Step 1a–1c / mid-pipeline hard-fail `return` before this point, so Step 10 runs exactly when the domain-side specs were (re)generated — never on a no-op and never on an abort.
+
+In a single message, invoke the two downstream `/…-spec:update-specs` skills in parallel:
 
 - `persistence-spec:update-specs` with args `$ARGUMENTS[0]`
-- `application-spec:update-specs` with args `$ARGUMENTS[0] --detectors-fresh`
-- `rest-api-spec:update-specs` with args `$ARGUMENTS[0] --detectors-fresh`
-- `messaging-spec:update-specs` with args `$ARGUMENTS[0] --detectors-fresh`
+- `application-spec:update-specs` with args `$ARGUMENTS[0]`
 
-The literal `--detectors-fresh` token (passed as a second positional arg) tells the application / rest-api / messaging updaters that the application-spec detector reports are already on disk and byte-stable from Step 9.5; they skip their own internal Step-0 detector invocation. Persistence does not invoke any detector and receives no flag.
+Neither receives a flag. Persistence is domain-driven and invokes no app-service detector. The application updater **owns the app-service-axis subtree**: at its own Step 0 it produces the shared `<dir>/<stem>.application/commands-updates.md` / `queries-updates.md` detector reports, and after refreshing its own specs it re-cascades in parallel to `/rest-api-spec:update-specs` and `/messaging-spec:update-specs` (handing them `--detectors-fresh` so they reuse the reports it just produced). This orchestrator does **not** invoke rest-api or messaging directly, and no longer pre-produces the detector reports — there is no contention to hoist away, because application is the single producer feeding the two read-only consumers in its own subtree.
 
-Wait for all four to complete. Each prints its own report.
+Wait for both to complete. Each prints its own report (and the application updater's report is followed by the rest-api / messaging reports from its re-cascade).
 
-Unlike the previous sequential cascade (one ERROR aborted the rest), with parallel fan-out **no skill aborts the others** — each runs to completion regardless of sibling outcomes. Surface each skill's `ERROR:` line as it returns; do not halt the fan-out. The four downstream skills have disjoint reads (each consumes the shared `<stem>.domain/updates.md` + the shared `<stem>.application/{commands,queries}-updates.md` from Step 9.5 + its own per-plugin folder), so a failure in one does not poison the inputs of another.
+**No skill aborts the other** — persistence and application run independently regardless of sibling outcome. Surface each skill's `ERROR:` line as it returns; do not halt the fan-out. The two have disjoint reads (persistence consumes `<stem>.domain/updates.md` + its own per-plugin folder; application consumes `<stem>.domain/updates.md` + the app-service diagrams + its own folder), so a failure in one does not poison the other.
 
-After all four return, the workflow is done. Do not print a consolidated cascade summary — each chained skill already printed its own outcome line.
+Note: because the rest-api / messaging updaters are now nested inside the application updater's tail (not siblings here), an application-side hard-fail aborts before that re-cascade — rest-api and messaging are then **not** run. This is the accepted coupling of routing the app-service-axis subtree through application; re-run `/update-specs` (or `/application-spec:update-specs`) after reconciling the application-side trigger to propagate to rest-api / messaging. See the application updater's own failure semantics for detail.
+
+After both return, the workflow is done. Do not print a consolidated cascade summary — each chained skill already printed its own outcome line.
 
 ## Failure semantics
 
@@ -269,11 +250,9 @@ After all four return, the workflow is done. Do not print a consolidated cascade
   - **Step 6** (`exceptions-specifier`) is pure derivation from the spec.
   - **Step 7** (`aggregate-tests-planner`) overwrites `<stem>.domain/test-plan.md` from scratch.
   - **Step 8** (cleanup) is destructive but only runs after a clean Step 7 / skipped-Step-7 success path.
-  - **Step 9.5** (the two `application-spec` detectors) re-derives both reports from HEAD-vs-working-tree on every call; outputs are byte-stable on stable inputs modulo LLM drift in prose summaries.
-  - **Step 10** (the parallel downstream `/…-spec:update-specs` cascade) is composed of four independently idempotent skills — re-running re-derives every downstream report from disk + git. A downstream `ERROR:` does **not** abort sibling updaters (they all run to completion) and does not retroactively fail the domain-side update (Steps 0–9 already completed and were reported by Step 9). Re-running `/update-specs` after fixing the downstream trigger re-runs Steps 0–9 (byte-stable modulo LLM drift) plus Step 9.5 and then re-fans-out Step 10 from scratch.
-- The only failures `/update-specs` cannot retry through are degraded-baseline (1a) and stereotype-change (1b) conditions — both gates will fire again on re-run. The error messages explicitly direct the operator to `/generate-specs <domain_diagram>` for those cases. (Note: a degraded baseline or stereotype change hard-fails *before* Step 9.5, so neither the shared detectors nor the downstream updaters — which would each independently hard-fail on the same condition — are reached.)
-- A downstream Step-10 skill that hard-fails because its spec layer was never generated (e.g. `<stem>.persistence/command-repo-spec.md` missing) is the operator's signal to run that layer's `/…-spec:generate-specs` first. The cascade assumes all four downstream layers exist; run `/update-specs` only once the full spec set (and code) has been generated for the aggregate.
-- A Step 9.5 detector hard-fail aborts the cascade entirely — Step 10 is not reached. Operator recovery is the same as today: run `/application-spec:generate-specs <domain_diagram>` (or restore the missing sibling commands/queries diagram) and re-run `/update-specs`.
+  - **Step 10** (the parallel downstream `/…-spec:update-specs` cascade) fans out two independently idempotent skills — `persistence-spec:update-specs` and `application-spec:update-specs` (the latter produces the app-service detector reports at its own Step 0 and re-cascades to rest-api / messaging from its own tail). Re-running re-derives every downstream report from disk + git. A downstream `ERROR:` does **not** abort the sibling (persistence and application run to completion) and does not retroactively fail the domain-side update (Steps 0–9 already completed and were reported by Step 9). Re-running `/update-specs` after fixing the downstream trigger re-runs Steps 0–9 (byte-stable modulo LLM drift) and then re-fans-out Step 10 from scratch.
+- The only failures `/update-specs` cannot retry through are degraded-baseline (1a) and stereotype-change (1b) conditions — both gates will fire again on re-run. The error messages explicitly direct the operator to `/generate-specs <domain_diagram>` for those cases. (Note: a degraded baseline or stereotype change hard-fails *before* Step 10, so the downstream updaters — which would each independently hard-fail on the same condition — are never reached.)
+- A downstream Step-10 skill that hard-fails because its spec layer was never generated (e.g. `<stem>.persistence/command-repo-spec.md` missing) is the operator's signal to run that layer's `/…-spec:generate-specs` first. The cascade assumes the downstream layers exist; run `/update-specs` only once the full spec set (and code) has been generated for the aggregate. (rest-api / messaging are reached transitively through the application updater's re-cascade — a missing `<stem>.rest-api/spec.md` surfaces there, not here.)
 
 ## What this skill deliberately does not do
 
@@ -282,6 +261,7 @@ After all four return, the workflow is done. Do not print a consolidated cascade
 - It does not preserve manual edits inside a touched class block in `<stem>.domain/specs.md`. Untouched class blocks survive byte-identical (the splicer's load-bearing invariant); touched blocks are wholesale-replaced.
 - It does not handle stereotype changes or degraded baselines — those route to a `/generate-specs` re-run via the operator-instruction failures in Steps 1a / 1b.
 - It does not handle aggregate-root removals — those are a malformed-report condition (1c).
-- It does not auto-update generated code or test bodies in any layer — the domain code-side updater (Approach C, see `notes/code-updater-approach-c.md`) and the per-plugin `…-spec:update-code` skills are separate concerns. Steps 9.5–10 cascade only the downstream **spec** updates, never their code.
-- It does not run the cascade (Steps 9.5–10) on a no-op early-exit (Step 1d) or after any hard-fail/abort — only a successful domain-side regen, reaching the end of Step 9, triggers Step 9.5 and the Step-10 fan-out.
-- It has no flag to suppress the cascade — the four downstream updaters are always attempted on the success path, run in parallel (one Step-10 batch). To refresh only the domain side, invoke the underlying domain agents (`@updates-detector`, `@spec-splicer`, …) directly; "domain-only `/update-specs`" is not a supported mode.
+- It does not auto-update generated code or test bodies in any layer — the domain code-side updater (Approach C, see `notes/code-updater-approach-c.md`) and the per-plugin `…-spec:update-code` skills are separate concerns. Step 10 cascades only the downstream **spec** updates, never their code.
+- It does not run the cascade (Step 10) on a no-op early-exit (Step 1d) or after any hard-fail/abort — only a successful domain-side regen, reaching the end of Step 9, triggers the Step-10 fan-out.
+- It does not invoke `/rest-api-spec:update-specs` or `/messaging-spec:update-specs` directly, and it no longer produces the `<stem>.application/{commands,queries}-updates.md` detector reports — both responsibilities now belong to the `/application-spec:update-specs` subtree it fans out in Step 10.
+- It has no flag to suppress the cascade — the two downstream updaters are always attempted on the success path, run in parallel (one Step-10 batch). To refresh only the domain side, invoke the underlying domain agents (`@updates-detector`, `@spec-splicer`, …) directly; "domain-only `/update-specs`" is not a supported mode.
