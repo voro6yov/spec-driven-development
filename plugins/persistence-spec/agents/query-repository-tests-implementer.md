@@ -25,6 +25,8 @@ The agent is **append-only and idempotent**: existing test functions are preserv
 
 The directory is created if missing, with an empty `__init__.py`. The command-side `test_<aggregate>_repository.py` (owned by `@command-repository-tests-implementer`) lives next to it; the two files are independent.
 
+**Path invariant.** The parent directory is *exactly* `<tests_dir>/integration/<aggregate>/` — one `<aggregate>` segment directly under `integration/`. Do **not** insert any intermediate segment (e.g. `repositories/`, `query/`, or a mirror of the `infrastructure/repositories/<aggregate>/` code layout). The command-side and query-side test files **must** be siblings in this same directory; if they land in different parents the generate-code run has diverged.
+
 ## Workflow
 
 ### Step 1 — Verify preconditions
@@ -286,7 +288,14 @@ Filtering, sorting, and per-page-pagination scenarios are **not** synthesized. A
 
 **Output path**: `<tests_dir>/integration/<aggregate>/test_query_<aggregate>_repository.py`.
 
-**Directory setup**: if `<tests_dir>/integration/<aggregate>/` does not exist, create it and write an empty `__init__.py` inside it.
+**Directory setup**: create the parent deterministically and add its package marker — never improvise the path:
+
+```bash
+mkdir -p "<tests_dir>/integration/<aggregate>"
+[ -f "<tests_dir>/integration/<aggregate>/__init__.py" ] || touch "<tests_dir>/integration/<aggregate>/__init__.py"
+```
+
+The path is `<tests_dir>/integration/<aggregate>/` verbatim — no intermediate segment (see the **Path invariant** above).
 
 **Append-only mode**: if the test file already exists, read it and collect all existing `def test_...` function names. Skip any scenario whose name already appears. Otherwise create the file fresh.
 

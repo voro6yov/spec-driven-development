@@ -130,7 +130,7 @@ After every row has been visited, run these checks against the parsed brief + ch
   - If absent, emit `aggregator <expected_path> not refreshed despite added/removed modules`.
 
 - **(iii) Alt-lookup ↔ test pairing.** For every `kind: repository-impl` row whose `updates.md → ## Repository Changes → ### Modified` block contains an `alt lookups added: <sigs>` sub-bullet:
-  - The brief must contain a `kind: test-impl` row whose `path` is the aggregate's `tests/integration/test_<aggregate>_repository.py` (or equivalent) and whose summary indicates new tests were appended.
+  - The brief must contain a `kind: test-impl` row whose `path` is the aggregate's `tests/integration/<aggregate>/test_<aggregate>_repository.py` (or equivalent) and whose summary indicates new tests were appended.
   - If absent, emit `repository <path> gained alt-lookup methods <sigs> without a paired test-impl row`.
 
 - **(iv) UoW ↔ Query-context pairing.** For every aggregate listed under `updates.md → ## Context Integration Changes → New aggregate wired in:`:

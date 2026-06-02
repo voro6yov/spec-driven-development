@@ -86,7 +86,7 @@ For each footer row, classify by path shape using this dispatch table verbatim:
 | `tests/integration/conftest.py` | `test-impl` | `@unit-of-work-fixtures-preparer`, `@integration-fixtures-writer` | `persistence-spec:cleanup-fixtures`, `persistence-spec:persistence-fixtures`, `persistence-spec:collection-fixtures` |
 | `tests/integration/test_<aggregate>_repository.py` | `test-impl` | `@command-repository-tests-implementer`, `@query-repository-tests-implementer` | `persistence-spec:repository-test-rules` |
 
-> **Path-pattern note.** The footer-emitted paths are surface-relative — they omit the per-aggregate `<aggregate>/` subdirectory that the on-disk layout uses for tables (`tables/<aggregate>/<table>.py`), mappers (`<aggregate>/mappers/<x>_mapper.py`), and repositories (`<aggregate>/command_<aggregate>_repository.py`). The rebase from footer-path to repo-root-relative brief-heading-path injects that segment — see *Path resolution* below.
+> **Path-pattern note.** The footer-emitted paths are surface-relative — they omit the per-aggregate `<aggregate>/` subdirectory that the on-disk layout uses for tables (`tables/<aggregate>/<table>.py`), mappers (`<aggregate>/mappers/<x>_mapper.py`), repositories (`<aggregate>/command_<aggregate>_repository.py`), and repository tests (`integration/<aggregate>/test_<aggregate>_repository.py`). The rebase from footer-path to repo-root-relative brief-heading-path injects that segment — see *Path resolution* below. The shared `integration/conftest.py` is **not** per-aggregate and stays flat.
 
 An unknown path shape is a hard-fail:
 ```
@@ -266,7 +266,8 @@ All structured signal lives inside the YAML block; no free-text addendum follows
 | `master-yaml` | `db/migrations/master.yaml` | `<migrations_dir>/master.yaml` |
 | `uow-integrate` | `<context>/unit_of_work/{abstract,sqlalchemy}.py` | `<ctx_dir>/{abstract,sqlalchemy}.py` (the `unit_of_work/` segment is already the tail of `<ctx_dir>`) |
 | `query-context-integrate` | `<context>/query_context/{abstract,sqlalchemy}.py` | `<ctx_dir>/../query_context/{abstract,sqlalchemy}.py` |
-| `test-impl` | `tests/integration/...` | `<tests_dir>/integration/...` |
+| `test-impl` (conftest) | `tests/integration/conftest.py` | `<tests_dir>/integration/conftest.py` (shared — stays flat) |
+| `test-impl` (repo tests) | `tests/integration/test_<aggregate>_repository.py` | `<tests_dir>/integration/<aggregate>/test_<aggregate>_repository.py` (inject `<aggregate>/`) |
 
 - The `<context>` prefix in UoW / query-context paths may be empty when the spec's UoW class names carry no `<Context>` segment. In that case the footer collapses to `unit_of_work/abstract.py` etc. — do not synthesise a leading `/`.
 - All rebased paths are then normalised to be relative to `<repo_path>` (strip the leading `<repo_path>/` prefix) before being emitted in the brief heading. Use `pwd` to resolve `<repo_path>` if needed.

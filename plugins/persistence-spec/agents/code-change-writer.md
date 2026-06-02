@@ -287,7 +287,7 @@ Append-only — never edit or delete existing fixtures or tests, even when an ag
 - **`tests/integration/conftest.py`**:
   - For each newly added aggregate (from `updates.md → ## Aggregate Analysis Changes` or by inference from new `command_<aggregate>_repository.py` files in this run): append fixtures per `persistence-spec:cleanup-fixtures`, `persistence-spec:persistence-fixtures`, and `persistence-spec:collection-fixtures` skill bodies. Use `Edit` with append-anchored `old_string`s (the last fixture in the file).
   - For pre-existing aggregates whose `Tables Changes`, `Mappers Changes`, or `Repository Changes` blocks fired: leave existing fixtures untouched. **When the delta added a column (especially a NOT NULL one) to an existing table, append a `Warnings:` entry `existing fixtures for <aggregate> may need manual update for new column(s): <cols>`** — append-only mode cannot back-fill the new field into a fixture's constructor call, and tests will fail until the operator updates them.
-- **`tests/integration/test_<aggregate>_repository.py`**:
+- **`tests/integration/<aggregate>/test_<aggregate>_repository.py`** (per-aggregate subdirectory — sibling of `test_query_<aggregate>_repository.py`):
   - For each newly added repository method (alt-lookup add, or new aggregate): append a test function per `persistence-spec:repository-test-rules` skill body. Use `Edit` with append-anchored `old_string`s.
   - Removed methods → leave their stale tests in place. Append the row Note `stale tests may exist for removed methods — manual cleanup required`.
 
