@@ -119,6 +119,29 @@ Print one summary line:
 - If `orphan_prose` is true: `No structural updates required. Orphan prose changes detected — review <stem>.domain/updates.md.`
 - Otherwise: `No structural updates required.`
 
+#### 1e. Hard-fail: incomplete footer (footer ⊉ body)
+
+Reached only when `affected_categories` is non-empty (1d did not fire). This gate is a safety net against a detector that emits a `## Affected Categories` footer missing a category its own body implies — `updates-detector` now computes the footer deterministically (its Step 7b), so in normal operation this gate never fires; it exists to convert any regression or hand-edit into a loud failure instead of a silent splice skip. (The orchestrator dispatches both the Step 3 fan-out and the splice off the footer, so a class whose category is absent from the footer is silently dropped even though its `## Per-Class Changes` block exists — exactly the corruption this gate guards.)
+
+Recompute the **implied category set** from the report body, independently of the footer, using the inverse of the Category → Stereotype mapping table above:
+
+- For every bullet under `## Class Lifecycle → Added` and `→ Removed`, map its inline `<<Stereotype>>` to a category.
+- For every `### \`ClassName\` \`<<Stereotype>>\`` heading under `## Per-Class Changes`, map its stereotype to a category.
+
+(Stereotype-changed classes are already rejected by 1b; orphan-relationship contributions are not re-derived here — this gate is a per-class/lifecycle completeness net, not a full footer recomputation, so it never over-fires on footer entries it cannot see.)
+
+If `implied_categories ⊄ affected_categories`, hard-fail:
+
+```
+ERROR: <stem>.domain/updates.md has an incomplete `## Affected Categories` footer — categories
+<missing> are implied by `## Per-Class Changes` / `## Class Lifecycle` but absent from the footer.
+The surgical updater dispatches fan-out and splice off the footer, so an incomplete footer would
+silently skip those classes. Re-run `@updates-detector <domain_diagram>` to regenerate the report
+(its footer is computed deterministically), then retry `/update-specs`.
+```
+
+Surface every missing category. Do not invoke any downstream agent.
+
 ### Step 2 — Prune removed classes
 
 Invoke `domain-spec:spec-pruner` with prompt `$ARGUMENTS`. Wait for completion.

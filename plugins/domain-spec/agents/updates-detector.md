@@ -116,20 +116,138 @@ If the resolved class is present in the working-tree class map (or HEAD class ma
 
 ### Step 6 — Compute the affected-categories footer
 
-Apply the **`## Affected Categories` computation** rules in the `updates-report-template` skill. Inputs you supply to that procedure:
+**Do not compute this footer by reasoning.** The footer is a pure function of the structural change sets, and a hand-reasoned footer that drops a category silently corrupts the downstream splice (the `update-specs` orchestrator fans out specifiers and the `spec-splicer` reads temp files **only** for footer categories — a class whose category is missing from the footer is silently skipped even though its `## Per-Class Changes` block exists). Render the footer with a provisional `_None._` body in Step 7, then **overwrite it deterministically** with the Step 7b script.
 
-- The class-level changes from Step 4 (added / removed / stereotype-changed sets), including the relevant pre- and post-change stereotypes.
-- The member-level change set keyed by class.
-- The relationship-level change set, including the source class for each entry.
-- The non-empty prose section headings recorded in Step 5.
-- The working-tree class map from Step 3 (used to resolve stereotypes for prose-heading-derived class names and for relationship sources).
-- The HEAD class map from Step 3 (used to resolve stereotypes for removed classes and for source classes in removed-only relationships).
+The `## Affected Categories` computation rules in the `updates-report-template` skill remain the authoritative specification; the Step 7b script is their mechanical implementation. It derives every input from the rendered report body plus the working-tree diagram:
+
+- The class-level changes from `## Class Lifecycle` (added / removed / stereotype-changed bullets, each carrying its stereotype inline).
+- The per-class change set from the `### \`ClassName\` \`<<Stereotype>>\`` headings under `## Per-Class Changes` (covers member, relationship, and prose changes keyed to a class — every such block contributes its category).
+- The orphan relationship change set from `## Orphan Relationship Changes`, resolving each entry's source stereotype against the working-tree diagram, falling back to the `: emits` inference rules.
+- Orphan prose changes (including `Preamble`) do not contribute — the script ignores `## Orphan Prose Changes` by design.
 
 ### Step 7 — Render `<stem>.domain/updates.md`
 
 Render the report using the schema and rendering rules in the `updates-report-template` skill — that skill is the single source of truth for the output format. Always write the file, even when no changes are detected. When substituting placeholders: `<domain_diagram>` → the path passed in by the caller, `<N>` → the count, `<section heading>` → the verbatim prose heading text.
 
+Render the `## Affected Categories` section with the placeholder body `_None._`. Step 7b overwrites it deterministically — do not attempt to populate it here.
+
 Before writing, run `mkdir -p "<dir>/<stem>.domain"` to ensure the per-plugin folder exists.
+
+### Step 7b — Deterministically recompute the `## Affected Categories` footer
+
+After the report is on disk, run the canonical script below. It re-reads the written report plus the working-tree diagram, computes the footer mechanically, and rewrites only the `## Affected Categories` section — every other section is preserved byte-identical. This step is the load-bearing guarantee that the footer covers every category implied by the report body.
+
+Invoke from `Bash`, passing the diagram path; the script body is fed via a **quoted** heredoc (`<<'PY'`) so backticks, `$`, and `*` are passed through literally:
+
+```bash
+python3 - "/abs/path/to/<dir>/<stem>.md" <<'PY'
+import pathlib, re, sys
+
+diagram_path = pathlib.Path(sys.argv[1])
+stem = diagram_path.name[:-3] if diagram_path.name.endswith(".md") else diagram_path.stem
+report_path = diagram_path.parent / f"{stem}.domain" / "updates.md"
+
+STEREOTYPE_TO_CATEGORY = {
+    "<<TypedDict>>": "data-structures",
+    "<<Value Object>>": "value-objects",
+    "<<Event>>": "domain-events",
+    "<<Command>>": "commands",
+    "<<Aggregate Root>>": "aggregates",
+    "<<Entity>>": "aggregates",
+    "<<Repository>>": "repositories-services",
+    "<<Service>>": "repositories-services",
+}
+CANON = ["data-structures", "value-objects", "domain-events",
+         "commands", "aggregates", "repositories-services"]
+
+lines = report_path.read_text().splitlines()
+
+def h2_body(name):
+    start = next((i for i, l in enumerate(lines) if l.strip() == name), None)
+    if start is None:
+        return None, None, []
+    end = len(lines)
+    for j in range(start + 1, len(lines)):
+        if re.match(r"^## (?!#)", lines[j]):
+            end = j
+            break
+    return start, end, lines[start + 1:end]
+
+cats = set()
+
+# --- Class Lifecycle: Added / Removed (inline stereotype) + Stereotype Changed (both)
+_, _, lc = h2_body("## Class Lifecycle")
+cur = None
+for l in lc:
+    s = l.strip()
+    if s == "### Added": cur = "add"
+    elif s == "### Removed": cur = "rem"
+    elif s == "### Stereotype Changed": cur = "ster"
+    elif s.startswith("### "): cur = None
+    elif s.startswith("- ") and cur in ("add", "rem"):
+        m = re.match(r"^- `[^`]+` `(<<[^>]+>>)`", s)
+        if m and m.group(1) in STEREOTYPE_TO_CATEGORY:
+            cats.add(STEREOTYPE_TO_CATEGORY[m.group(1)])
+    elif s.startswith("- ") and cur == "ster":
+        m = re.match(r"^- `[^`]+`: `(<<[^>]+>>)` . `(<<[^>]+>>)`", s)
+        if m:
+            for g in (m.group(1), m.group(2)):
+                if g in STEREOTYPE_TO_CATEGORY:
+                    cats.add(STEREOTYPE_TO_CATEGORY[g])
+
+# --- Per-Class Changes: every `### `Name` `<<Stereotype>>`` heading contributes
+_, _, pcc = h2_body("## Per-Class Changes")
+for l in pcc:
+    m = re.match(r"^### `[^`]+` `(<<[^>]+>>)`", l.strip())
+    if m and m.group(1) in STEREOTYPE_TO_CATEGORY:
+        cats.add(STEREOTYPE_TO_CATEGORY[m.group(1)])
+
+# --- Orphan Relationship Changes: resolve source via working-tree diagram, else emits-infer
+_, _, orph = h2_body("## Orphan Relationship Changes")
+if any(l.strip().startswith("- ") for l in orph):
+    # `class …` / `Name : <<Stereotype>>` declarations only occur inside the
+    # Mermaid block, so scanning the whole diagram text is equivalent to
+    # isolating the fence — and avoids a literal triple-backtick in this script.
+    body = diagram_path.read_text()
+    c2s = {}
+    for m in re.finditer(r"([A-Za-z_][A-Za-z0-9_]*)\s*:\s*<<([^>]+)>>", body):
+        c2s[m.group(1)] = f"<<{m.group(2)}>>"
+    for m in re.finditer(r"\bclass\s+([A-Za-z_][A-Za-z0-9_]*)\s*\{[^}]*<<([^>]+)>>", body, re.S):
+        c2s[m.group(1)] = f"<<{m.group(2)}>>"
+    for l in orph:
+        s = l.strip()
+        if not s.startswith("- "):
+            continue
+        rm = re.search(r"`([A-Za-z_][A-Za-z0-9_]*)\s*(\*--|-->|--\(\)|<\|--)", s)
+        if rm and rm.group(1) in c2s and c2s[rm.group(1)] in STEREOTYPE_TO_CATEGORY:
+            cats.add(STEREOTYPE_TO_CATEGORY[c2s[rm.group(1)]])
+        elif "emits" in s:
+            if "--()" in s: cats.add("commands")
+            elif "-->" in s: cats.add("domain-events")
+
+# --- Render and splice the footer in canonical order
+ordered = [c for c in CANON if c in cats]
+new_body = [f"- `{c}`" for c in ordered] if ordered else ["_None._"]
+
+start, end, _ = h2_body("## Affected Categories")
+block = ["## Affected Categories", ""] + new_body
+if start is None:
+    if lines and lines[-1].strip() != "":
+        lines.append("")
+    lines.extend(block)
+else:
+    tail = [""] if end < len(lines) else []
+    lines[start:end] = block + tail
+
+out = "\n".join(lines)
+if not out.endswith("\n"):
+    out += "\n"
+report_path.write_text(out)
+print(f"Affected Categories: {', '.join(ordered) if ordered else '(none)'}")
+PY
+```
+
+If the script exits non-zero, fail with a clear error and do not claim success — the report's footer would be left at the `_None._` placeholder, which the orchestrator would treat as a no-op.
 
 ### Step 8 — Confirm
 

@@ -59,10 +59,12 @@ Partition commands and queries methods by surface per the **surface-markers pars
 
 Preserve declaration order within each surface. Record name, parameter list (name + type), and return type.
 
-**Composite-key detection.** If **no** method on `<AggregateRoot>Commands` or `<AggregateRoot>Queries` declares an aggregate-id parameter — `id`, or the alias `<resource_singular>_id` — the aggregate has a *composite key*. Compute the **composite-key set** of parameter names:
+**Composite-key detection.** Consider **only endpoint-generating methods** — exclude every method whose name starts with `on_` before running this detection. Message handlers (`on_*`) never become REST endpoints (they are dropped by `endpoint-tables-writer` Step 4 and skipped by Step 3 below), so a handler's aggregate-id-shaped parameter — e.g. `on_ruleset_creation_completed(project_id: str, …)` — must **not** flip aggregate-id detection or shrink the composite-key set. Including it would spuriously demote a composite-key aggregate to single-id and reroute its key parameters from the query string into the request body.
 
-- If `<AggregateRoot>Commands` has ≥2 methods: the set of parameter names present in *every* commands-method signature, excluding `tenant_id`.
-- If it has exactly one method: that method's parameters, excluding `tenant_id` and excluding any parameter whose name equals the method's `noun_tail` (the method name with the leading verb token removed, remaining tokens joined by `_`).
+If **no** endpoint-generating method on `<AggregateRoot>Commands` or `<AggregateRoot>Queries` declares an aggregate-id parameter — `id`, or the alias `<resource_singular>_id` — the aggregate has a *composite key*. Compute the **composite-key set** of parameter names over endpoint-generating commands methods only:
+
+- If `<AggregateRoot>Commands` has ≥2 endpoint-generating methods: the set of parameter names present in *every* such commands-method signature, excluding `tenant_id`.
+- If it has exactly one endpoint-generating method: that method's parameters, excluding `tenant_id` and excluding any parameter whose name equals the method's `noun_tail` (the method name with the leading verb token removed, remaining tokens joined by `_`).
 
 When the aggregate has an aggregate id, the composite-key set is empty. The set is used by Step 3a rule 4 to route a command endpoint's key parameters to the query string.
 
@@ -162,6 +164,7 @@ Print a one-line summary listing per-surface counts:
 - Two columns exactly. Left column is `Command Parameter` for command endpoints and `Query Parameter` for query endpoints.
 - Right column draws from the canonical vocabulary only: `Path param \`{...}\`` / `Auth context` / `Request body \`<field>\`` / `Query param \`<name>\`` / `` Constructed from query params `<a>`, `<b>` → `<Type>` ``.
 - `tenant_id` is sourced from `Auth context` exclusively — never from body or query.
+- Composite-key detection (Step 2) ignores `on_*` message-handler methods — adding a handler with an aggregate-id-shaped parameter must not change how a composite-key aggregate's endpoints route their key parameters.
 - Every parameter of every Domain Ref method (resolved within its surface) must appear as a row.
 - Path placeholders for nested ids are matched in camelCase (`document_type_id` ↔ `{documentTypeId}`). When the placeholder is present in the row's path, the nested-id parameter must be sourced from it. When the row's path has no `{id}` and no nested-id placeholders (composite-key / collection-level rows), nested-id-shaped parameters fall through to body/query-string classification — this is not an abort condition.
 - Never overwrite Tables 1–5 in any Surface section.
