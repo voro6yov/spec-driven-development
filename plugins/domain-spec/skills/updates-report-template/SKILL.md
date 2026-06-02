@@ -178,13 +178,16 @@ When listing categories anywhere in the report, use this sequence — it matches
 | `<<TypedDict>>` | `data-structures` |
 | `<<Value Object>>` | `value-objects` |
 | `<<Event>>` | `domain-events` |
+| `<<Domain Event>>` | `domain-events` |
 | `<<Command>>` | `commands` |
 | `<<Aggregate Root>>` | `aggregates` |
 | `<<Entity>>` | `aggregates` |
 | `<<Repository>>` | `repositories-services` |
 | `<<Service>>` | `repositories-services` |
 
-A class with no explicit stereotype contributes a category only if a stereotype-inference rule (below) applies; otherwise it is skipped from category dispatch (the class still appears in the structural sections, just not in the footer).
+`<<Domain Event>>` is an accepted **alias** of `<<Event>>`: a diagram may declare either literal, both map to `domain-events`, and the rendered spec heading normalizes to the canonical `<<Event>>`. Every deterministic stereotype→category map in this pipeline must carry both keys.
+
+A class with no explicit stereotype contributes a category only if a stereotype-inference rule (below) applies; otherwise it is skipped from category dispatch (the class still appears in the structural sections, just not in the footer). A class **with** an explicit `<<...>>` stereotype that is absent from this table is a hard error in `updates-detector` Step 7b (it would otherwise be silently dropped from the footer) — not a silent skip.
 
 ---
 

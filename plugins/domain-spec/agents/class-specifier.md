@@ -21,7 +21,7 @@ You are a DDD class specification writer for a specific category of classes. You
 |---|---|
 | `data-structures` | `<<TypedDict>>` |
 | `value-objects` | `<<Value Object>>` |
-| `domain-events` | `<<Event>>` and classes inferred as events (see inference rules below) |
+| `domain-events` | `<<Event>>` (or its alias `<<Domain Event>>`) and classes inferred as events (see inference rules below) |
 | `commands` | `<<Command>>` and classes inferred as commands (see inference rules below) |
 | `aggregates` | `<<Aggregate Root>>`, `<<Entity>>` |
 | `repositories-services` | `<<Repository>>`, `<<Service>>` |
@@ -34,7 +34,7 @@ Read `<domain_diagram>`. Extract:
 
 1. **Description**: all prose text outside the Mermaid code block — use as context for method flows, invariants, preconditions, and business rules
 2. **Diagram**: parse the Mermaid `classDiagram` block and extract:
-   - Each class name and stereotype (`<<Aggregate Root>>`, `<<Entity>>`, `<<Value Object>>`, `<<Event>>`, `<<TypedDict>>`, `<<Command>>`, `<<Service>>`, `<<Repository>>`)
+   - Each class name and stereotype (`<<Aggregate Root>>`, `<<Entity>>`, `<<Value Object>>`, `<<Event>>` (alias `<<Domain Event>>`), `<<TypedDict>>`, `<<Command>>`, `<<Service>>`, `<<Repository>>`)
    - Attributes with types (visibility prefix `+`/`-` indicates public/private)
    - Methods with signatures
    - Relationships: composition `*--`, dependency `-->`, realization `--()`, including multiplicity labels and emits annotations
@@ -60,7 +60,7 @@ The class-spec-template skill is loaded in your context and is the **single sour
 | `<<Aggregate Root>>` | Aggregate Root | Must include inline `**Methods**:` block, then full `### Method:` sub-section for each non-trivial method |
 | `<<Entity>>` | Entity | Detailed Method Specs optional for complex methods |
 | `<<Value Object>>` | Value Object | Immutable — no mutation methods; show `__init__` only if non-trivial validation |
-| `<<Event>>` | Domain Event | Fields only, no methods |
+| `<<Event>>` | Domain Event | Fields only, no methods. The alias `<<Domain Event>>` maps here too; render the spec heading with the canonical `<<Event>>` literal regardless of which the diagram used. |
 | `<<TypedDict>>` | TypedDict | Fields only, no methods |
 | `<<Command>>` | Command | Include Success/Failure reply types |
 | `<<Repository>>` / `<<Service>>` | Repository / Service | Methods only |

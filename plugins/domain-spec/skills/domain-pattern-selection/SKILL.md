@@ -36,6 +36,7 @@ For each class in the specification:
 | `<<Entity>>` | Entity | `domain-spec:entity` |
 | `<<Value Object>>` | Value Object | `domain-spec:value-object` |
 | `<<Event>>` | Domain Event | `domain-spec:domain-events` |
+| `<<Domain Event>>` | Domain Event (alias of `<<Event>>`) | `domain-spec:domain-events` |
 | `<<Command>>` | Commands | `domain-spec:commands` |
 | `<<Repository>>` | Repository | `domain-spec:repositories` |
 | `<<Service>>` | Domain Service | `domain-spec:domain-services` |

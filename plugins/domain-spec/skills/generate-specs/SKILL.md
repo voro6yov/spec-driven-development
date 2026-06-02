@@ -27,7 +27,7 @@ All agents derive `<stem>` by stripping the `.md` suffix from `<domain_diagram>`
 |---|---|
 | `data-structures` | `<<TypedDict>>` |
 | `value-objects` | `<<Value Object>>` |
-| `domain-events` | `<<Event>>` or inferred events (`-->` with `: emits`) |
+| `domain-events` | `<<Event>>` / `<<Domain Event>>` (alias) or inferred events (`-->` with `: emits`) |
 | `commands` | `<<Command>>` or inferred commands (`--()` with `: emits`) |
 | `aggregates` | `<<Aggregate Root>>`, `<<Entity>>` |
 | `repositories-services` | `<<Repository>>`, `<<Service>>` |

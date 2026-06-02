@@ -38,7 +38,7 @@ For each class block in the file (identified by a `**ClassName** <<Stereotype>>`
    - `<<Aggregate Root>>` → `domain-spec:aggregate-root`
    - `<<Entity>>` → `domain-spec:entity`
    - `<<Value Object>>` → `domain-spec:value-object`
-   - `<<Event>>` → `domain-spec:domain-events`
+   - `<<Event>>` (or its alias `<<Domain Event>>`) → `domain-spec:domain-events`
    - `<<Command>>` → `domain-spec:commands`
    - `<<Repository>>` → `domain-spec:repositories`
    - `<<Service>>` → `domain-spec:domain-services`

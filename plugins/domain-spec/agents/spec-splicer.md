@@ -304,6 +304,7 @@ STEREOTYPE_TO_CATEGORY = {
     "<<TypedDict>>": "data-structures",
     "<<Value Object>>": "value-objects",
     "<<Event>>": "domain-events",
+    "<<Domain Event>>": "domain-events",  # accepted alias of <<Event>> (diagram may declare either)
     "<<Command>>": "commands",
     "<<Aggregate Root>>": "aggregates",
     "<<Entity>>": "aggregates",

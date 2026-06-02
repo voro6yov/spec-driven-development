@@ -151,6 +151,7 @@ STEREOTYPE_TO_CATEGORY = {
     "<<TypedDict>>": "data-structures",
     "<<Value Object>>": "value-objects",
     "<<Event>>": "domain-events",
+    "<<Domain Event>>": "domain-events",  # accepted alias of <<Event>>; specs normalize it to <<Event>> on output
     "<<Command>>": "commands",
     "<<Aggregate Root>>": "aggregates",
     "<<Entity>>": "aggregates",
@@ -174,6 +175,7 @@ def h2_body(name):
     return start, end, lines[start + 1:end]
 
 cats = set()
+unknown = set()  # explicit stereotypes present in the body but absent from the map
 
 # --- Class Lifecycle: Added / Removed (inline stereotype) + Stereotype Changed (both)
 _, _, lc = h2_body("## Class Lifecycle")
@@ -186,21 +188,30 @@ for l in lc:
     elif s.startswith("### "): cur = None
     elif s.startswith("- ") and cur in ("add", "rem"):
         m = re.match(r"^- `[^`]+` `(<<[^>]+>>)`", s)
-        if m and m.group(1) in STEREOTYPE_TO_CATEGORY:
-            cats.add(STEREOTYPE_TO_CATEGORY[m.group(1)])
+        if m:
+            if m.group(1) in STEREOTYPE_TO_CATEGORY:
+                cats.add(STEREOTYPE_TO_CATEGORY[m.group(1)])
+            else:
+                unknown.add(m.group(1))
     elif s.startswith("- ") and cur == "ster":
         m = re.match(r"^- `[^`]+`: `(<<[^>]+>>)` . `(<<[^>]+>>)`", s)
         if m:
             for g in (m.group(1), m.group(2)):
                 if g in STEREOTYPE_TO_CATEGORY:
                     cats.add(STEREOTYPE_TO_CATEGORY[g])
+            # An unknown literal in a Stereotype-Changed bullet is NOT collected
+            # into `unknown`: update-specs gate 1b hard-fails on any stereotype
+            # change before a splice can run, so it cannot cause a silent drop.
 
 # --- Per-Class Changes: every `### `Name` `<<Stereotype>>`` heading contributes
 _, _, pcc = h2_body("## Per-Class Changes")
 for l in pcc:
     m = re.match(r"^### `[^`]+` `(<<[^>]+>>)`", l.strip())
-    if m and m.group(1) in STEREOTYPE_TO_CATEGORY:
-        cats.add(STEREOTYPE_TO_CATEGORY[m.group(1)])
+    if m:
+        if m.group(1) in STEREOTYPE_TO_CATEGORY:
+            cats.add(STEREOTYPE_TO_CATEGORY[m.group(1)])
+        else:
+            unknown.add(m.group(1))
 
 # --- Orphan Relationship Changes: resolve source via working-tree diagram, else emits-infer
 _, _, orph = h2_body("## Orphan Relationship Changes")
@@ -224,6 +235,25 @@ if any(l.strip().startswith("- ") for l in orph):
         elif "emits" in s:
             if "--()" in s: cats.add("commands")
             elif "-->" in s: cats.add("domain-events")
+
+# --- Fail loud on an explicit stereotype the map does not recognize.
+# An explicit `<<...>>` on an Added/Removed lifecycle bullet or a Per-Class
+# heading that is absent from STEREOTYPE_TO_CATEGORY would otherwise be silently
+# skipped — dropping its category from the footer and the class from the
+# downstream splice (the exact corruption that hid a `<<Domain Event>>` typo /
+# unmapped alias for a full release). Convert that into a hard error so an
+# unknown literal surfaces at Step 0 instead of as a missing spec block.
+if unknown:
+    names = ", ".join(sorted(unknown))
+    print(
+        f"ERROR: unrecognized explicit stereotype(s) {names} in the report body. "
+        f"Each is on an Added/Removed lifecycle bullet or a Per-Class heading and "
+        f"would be silently dropped from the footer. Add it to STEREOTYPE_TO_CATEGORY "
+        f"(as a canonical entry or an accepted alias) in updates-detector Step 7b, or "
+        f"correct the stereotype in the diagram, then re-run the detector.",
+        file=sys.stderr,
+    )
+    sys.exit(2)
 
 # --- Render and splice the footer in canonical order
 ordered = [c for c in CANON if c in cats]

@@ -34,7 +34,7 @@ Same as `/generate-specs`. Used when iterating affected categories in canonical 
 |---|---|
 | `data-structures` | `<<TypedDict>>` |
 | `value-objects` | `<<Value Object>>` |
-| `domain-events` | `<<Event>>` or inferred events (`-->` with `: emits`) |
+| `domain-events` | `<<Event>>` / `<<Domain Event>>` (alias) or inferred events (`-->` with `: emits`) |
 | `commands` | `<<Command>>` or inferred commands (`--()` with `: emits`) |
 | `aggregates` | `<<Aggregate Root>>`, `<<Entity>>` |
 | `repositories-services` | `<<Repository>>`, `<<Service>>` |

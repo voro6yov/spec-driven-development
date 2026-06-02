@@ -62,7 +62,7 @@ For each non-exception class, write `<output_dir>/<snake_case(class_name)>.py`:
 1. *Shared base class import* — derived from stereotype:
    - `<<Aggregate Root>>` or `<<Entity>>` → `from {dots}shared import Entity`
    - `<<Value Object>>` → `from {dots}shared import ValueObject`
-   - `<<Event>>` → `from {dots}shared import Event`
+   - `<<Event>>` (or its alias `<<Domain Event>>`) → `from {dots}shared import Event`
    - `<<Command>>` → `from {dots}shared import Command`
    - `<<Repository>>` or `<<Service>>` → `from abc import ABC`
    - `<<TypedDict>>` → `from typing import TypedDict`
