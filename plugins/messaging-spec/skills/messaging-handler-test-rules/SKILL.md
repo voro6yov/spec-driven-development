@@ -25,6 +25,7 @@ For the fixture definitions referenced throughout this skill, see `messaging-spe
 - **Construct Events/Commands in Test** — Build `DomainEventEnvelope` / `CommandMessage` directly in test body (GIVEN phase)
 - **No Mocking Application Layer** — Test full integration through handler → service → persistence → events
 - **Use `add_*` Fixtures for Preconditions** — When handler needs existing aggregates in DB
+- **Arm Configurable Fakes Before Acting** — When the handler routes through a configurable-seed domain-service fake, call `fake_x.set_<m>_return(...)` in the GIVEN phase before invoking the handler; the autouse override fixtures reset fakes between tests
 - **Verify Like Application Service** — Assert state + persistence + events (command handlers also verify replies)
 </aside>
 
@@ -113,6 +114,40 @@ def test_files_status_updated_handler__updates_profile(
 ```
 
 The envelope is always constructed via the `make_event_envelope` helper fixture from `messaging-spec:messaging-handler-fixtures` — never inline `DomainEventEnvelope(...)`. The helper synthesizes a real `Message` payload, an `event_id` (UUID), and sensible defaults for `aggregate_type` / `aggregate_id`; tests that need to pin a specific aggregate identity pass it explicitly via the keyword-only kwargs.
+
+### Arming Configurable Fakes
+
+When a handler's `<AggregateRoot>Commands` service depends on a **configurable-seed** domain-service fake (one that `raise NotImplementedError` until `set_<m>_return(...)` is called — see `application-spec:fake-implementations`), the test MUST arm it in the GIVEN phase, before the handler call. The autouse override fixtures (`application-spec:fake-override-fixtures`) reset every fake to its unconfigured state between tests, so arming cannot be inherited from another test.
+
+```python
+def test_source_dms_file_added_handler__success(
+    make_event_envelope,
+    source_dms_file_added_handler,
+    conversion_2,
+    add_conversions,
+    fake_decision_maker,
+):
+    # GIVEN conversion exists in DB
+    envelope = make_event_envelope(
+        SourceDmsFileAdded(id=conversion_2.id, file_type="csv"),
+    )
+
+    # GIVEN the decision maker returns a default decision
+    fake_decision_maker.set_assess_return(
+        RulesetCreationDecision.new(is_ready=False, description="Not enough files")
+    )
+
+    source_dms_file_added_handler(envelope)
+```
+
+Use the **benign / no-op** outcome as the default (`is_ready=False` here) so the handler completes without cascading into further unmet preconditions. Tests that assert the positive branch override the arm with the outcome they need.
+
+### Synthesizing Valid Event Payloads
+
+The `__success` contract is "the handler does not raise", so the constructed event must carry **domain-valid** values, not merely type-valid ones:
+
+- **Never forward a nullable aggregate attribute.** An optional Guard (constructor param typed `T | None`) may be `None` in the chosen fixture; sourcing `event.x = fixture.x` then trips a domain `NoneCheck`. Source such a field from a concrete fixture literal or a non-null stub instead.
+- **Prefer fixture literals for constrained vocabularies.** File types, stages, statuses, and version strings are validated against closed vocabularies — a generic `"test"` string raises (e.g. `NoCategoryFoundForFileType`). Reuse a literal a fixture author already wrote (`file_type="csv"`) rather than a placeholder.
 
 ---
 
