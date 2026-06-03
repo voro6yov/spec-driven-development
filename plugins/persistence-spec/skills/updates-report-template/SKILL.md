@@ -145,7 +145,7 @@ _(always empty — migrations log is append-only)_
 | `<context>/query_context/abstract.py` | modify | Context Integration Changes |
 | `<context>/query_context/sqlalchemy.py` | modify | Context Integration Changes |
 | `tests/integration/conftest.py` | modify | Tables/Mappers/Repository Changes |
-| `tests/integration/test_<aggregate>_repository.py` | modify | Tables/Mappers/Repository Changes |
+| `tests/integration/<aggregate>/test_<aggregate>_repository.py` | modify | Tables/Mappers/Repository Changes |
 ````
 
 ---
@@ -233,6 +233,7 @@ If all three sub-buckets are empty, the section is `_no changes_`.
 
 - Added rows list variant + table + owning class on a single bullet line per the Schema block.
 - Modified rows list variant flips (with reason), payload-column changes, and (for polymorphic mappers only) discriminator + subtypes. Sub-bullets are individually omitted when empty.
+- A `Payload columns changed:` sub-bullet is emitted whenever a column was added to / removed from / altered on the mapper's backing table — **propagated from Tables Changes (Modified)**, not declared in §2.Mappers. The writer resolves the owning mapper of each modified table (canonical `snake(owning class) == table` join, with an §3-Description fallback for non-canonical table names); a table whose mapper cannot be resolved produces a Summary warning instead of a silent omission. A mapper may therefore appear under `### Modified` even when its §2.Mappers variant did not flip. See `command-repo-spec-updates-writer` §4.3 for the resolution rules and the JSONB-value-object exclusion.
 - Removed rows list only the mapper name.
 
 ### Section: Repository Changes
@@ -279,11 +280,16 @@ The footer is a flat dispatch table. The code updater walks it top-to-bottom. Co
    - For each entry under `### Added`: `tables/<table>.py | add | Tables Changes (Added)`.
    - For each entry under `### Removed`: `tables/<table>.py | remove | Tables Changes (Removed)`.
    - For each entry under `### Modified`: `tables/<table>.py | modify | Tables Changes (Modified)`.
-   - If any of the three sub-buckets is non-empty, also emit `tables/__init__.py | modify | Tables Changes (any)`.
+   - If `### Added` or `### Removed` is non-empty, also emit `tables/__init__.py | modify | Tables Changes (any)`. A `### Modified`-only change (a column added inside an existing table module) does **not** add or remove a table module, so it leaves the aggregator unchanged — do not emit the `__init__.py` row for it.
 
 2. **From Unique Constraints Changes**: every entry under any sub-bucket implies a migration delta — the appender already emits `Add Unique Constraint` / `Add Unique Index` / `Drop Unique Constraint` rows for the same set-diff, so the Migrations footer rows below already cover the YAML artifact. The Tables footer rows cover the `tables/<table>.py` re-render (because the column's `UNIQUE` token in §3 changed). No additional artifact is unique to this section.
 
-3. **From Mappers Changes**: same shape as Tables, with `mappers/<x>_mapper.py` (where `<x>` is the snake_case form of the mapper's owning class) and `mappers/__init__.py`.
+3. **From Mappers Changes**: same shape as Tables, with mapper modules:
+   - For each entry under `### Added`: `mappers/<x>_mapper.py | add | Mappers Changes (Added)`.
+   - For each entry under `### Removed`: `mappers/<x>_mapper.py | remove | Mappers Changes (Removed)`.
+   - For each entry under `### Modified` (including the payload-column entries propagated from Tables Changes per §4.3): `mappers/<x>_mapper.py | modify | Mappers Changes (Modified)`.
+   - If `### Added` or `### Removed` is non-empty, also emit `mappers/__init__.py | modify | Mappers Changes (any)`. A `### Modified`-only change does not add or remove a mapper module, so it leaves the aggregator unchanged — do not emit the `__init__.py` row for it.
+   - **`<x>` basename.** `<x>_mapper.py` is the on-disk mapper file name: the snake_case form of the **mapper class name itself** (`SourceDMSMapper → source_dmsmapper.py`, `OrderMapper → order_mapper.py`), matching the stub `@mappers-scaffolder` / `@mappers-implementer` produce. For acronym-free mapper names this equals `snake(owning class) + "_mapper"`; for acronym names (e.g. `DMS`) prefer `snake(mapper class)` so the path resolves to the real file.
 
 4. **From Repository Changes**: when the section is not `_no changes_`, emit:
    - `command_<aggregate>_repository.py | modify | Repository Changes`
@@ -300,8 +306,8 @@ The footer is a flat dispatch table. The code updater walks it top-to-bottom. Co
    - `<context>/query_context/sqlalchemy.py | modify | Context Integration Changes`
 
 7. **Test artifacts**: when **any** of Tables / Unique Constraints / Mappers / Repository sections is not `_no changes_`, emit:
-   - `tests/integration/conftest.py | modify | Tables/Mappers/Repository Changes`
-   - `tests/integration/test_<aggregate>_repository.py | modify | Tables/Mappers/Repository Changes`
+   - `tests/integration/conftest.py | modify | Tables/Mappers/Repository Changes` (shared collection/cleanup fixtures — **flat**, not per-aggregate)
+   - `tests/integration/<aggregate>/test_<aggregate>_repository.py | modify | Tables/Mappers/Repository Changes` (the repo test lives under the per-aggregate subdirectory — emit the `<aggregate>/` segment directly so downstream agents never have to re-inject it)
 
 The table header (`| Path | Action | Driving section |` plus the divider row) is always emitted. When every section above is `_no changes_`, the table has no data rows.
 

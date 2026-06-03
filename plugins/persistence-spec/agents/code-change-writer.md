@@ -127,7 +127,7 @@ The full `command-repo-spec.md` and `updates.md` are already in context from Ste
 | `table-impl` | `modify` | `updates.md → ## Tables Changes → ### Modified` block for this table (sub-bullets: columns added/removed/nullability flipped/indexes added). §3 Schema for column types only when columns were added. |
 | `table-impl` | `remove` | None (Bash rm only). |
 | `mapper-impl` | `add` | §2.Mappers row matching `<X>Mapper` (Pattern cell — variant family). Domain class file referenced by the mapper for field list. |
-| `mapper-impl` | `modify` | `updates.md → ## Mappers Changes → ### Modified` block for this mapper. If a `Variant flipped:` sub-bullet is present, also re-read §2.Mappers Pattern cell to confirm the new variant. |
+| `mapper-impl` | `modify` | `updates.md → ## Mappers Changes → ### Modified` block for this mapper. If a `Variant flipped:` sub-bullet is present, also re-read §2.Mappers Pattern cell to confirm the new variant. For a `Payload columns changed:` sub-bullet, also read §3 Schema for each new column's type and the mapper's domain class file for the matching attribute name. |
 | `mapper-impl` | `remove` | None. |
 | `repository-impl` | `modify` | `updates.md → ## Repository Changes → ### Modified` block. If a `Pattern flip:` sub-bullet is present, also re-read §2.Repository Pattern cell. Alt-lookup sub-bullets carry their own signatures inline. |
 | `migration-yaml` | `add` | §2.Migrations row matching the `<id>` segment (Pattern + Changeset + Template cells). §3 Schema for column types when the changeset adds columns/tables. |
@@ -213,7 +213,10 @@ Each handler runs inside Step 2's per-row loop with the row's `path`, `action`, 
 - **`modify`** —
   - If the matching `### Modified` block contains `Variant flipped: <old> → <new>`: **full regen.** Read the domain class file again, render the mapper module per the new variant family, and apply the full-file `Write` rule from the protocol. Append a Notes entry `variant flip — file regenerated`.
   - Otherwise: **surgical Edit per sub-bullet** (protocol applies per step).
-    - `payload columns changed: <cols>` — Edit the `to_jsonb` / `from_jsonb` / `from_row` body to update the column projection.
+    - `payload columns changed: <cols>` — Edit the mapper's column-projection methods to add / remove / retype each named column, choosing the method set by mapper family:
+      - **Aggregate Mapper / Aggregate Mapper with Children / Child Entity Mapper** (the common case): `to_dict` (the dict the repository inserts/upserts) **and** `from_row` / `from_rows` (reconstitution). An added column must appear in *both* directions — added to the `to_dict` payload reading `obj.<attr>` and passed back through the constructor in `from_row` / `from_rows` — or the value is silently dropped on save or never read back. Consult §3 Schema for the new column's type and the domain class for the attribute name (snake-cased column ↔ attribute).
+      - **Value Object Mapper**: `to_jsonb` / `from_jsonb`.
+      Use one protocol-guarded Edit per method per column; a column that is only added to one direction is a bug, so verify both directions are present before rolling the row up to `applied`.
     - `discriminator column: <col>` — Edit the discriminator literal / column reference.
 - **`remove`** — Pre-check existence with `Bash test -f -- <abs_path>`. If absent → `no-op (already absent)`. If present → `Bash rm -- <abs_path>` and record `deleted: [<path>]`.
 
@@ -283,6 +286,8 @@ Surgical patch (never full-regen, to preserve any hand-curated ordering or impor
 ### `test-impl`
 
 Append-only — never edit or delete existing fixtures or tests, even when an aggregate or method has been removed. Each Edit step follows the protocol (skip if the new fixture / test already exists in the file).
+
+**Nothing-to-append is a no-op, not a failure.** First compute the set of fixtures / tests this row would append (new aggregates from §Aggregate Analysis or new `command_<aggregate>_repository.py` files; new repository methods from `## Repository Changes → ### Modified` alt-lookup adds). If that set is empty — the common case when a column changed on an existing table but **no new aggregate and no new repository method** were introduced (`## Repository Changes` is `_no changes_`) — record `status: no-op` with `Reason: nothing to append (no new aggregate or repository method)`. A missing target test file is **only** a `failed` when the append set is non-empty and the file cannot be created at its resolved path; when there is nothing to append, the file's absence is irrelevant. Do not report `failed` merely because `test_<aggregate>_repository.py` was not found.
 
 - **`tests/integration/conftest.py`**:
   - For each newly added aggregate (from `updates.md → ## Aggregate Analysis Changes` or by inference from new `command_<aggregate>_repository.py` files in this run): append fixtures per `persistence-spec:cleanup-fixtures`, `persistence-spec:persistence-fixtures`, and `persistence-spec:collection-fixtures` skill bodies. Use `Edit` with append-anchored `old_string`s (the last fixture in the file).
