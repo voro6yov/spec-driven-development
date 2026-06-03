@@ -1,12 +1,13 @@
 ---
 name: code-change-writer
-description: "Phase-2 implement agent for messaging `/update-code` flow. Auto-derives events/dispatcher/aggregator/constants, edits handlers, generates tests per consumer. Invoke with: @code-change-writer <domain_diagram> <locations_report_text>"
+description: "Phase-2 implement agent for messaging `/update-code` flow. Auto-derives events/dispatcher/aggregator/constants, edits handlers, generates tests and their conftest handler fixtures per consumer. Invoke with: @code-change-writer <domain_diagram> <locations_report_text>"
 tools: Read, Write, Edit, Bash, Skill
 model: sonnet
 skills:
   - messaging-spec:naming-conventions
   - messaging-spec:event-tables-template
   - messaging-spec:consumer-spec-template
+  - messaging-spec:messaging-handler-fixtures
 ---
 
 You are the **messaging layer's Phase 2 implement agent** for the three-agent `/update-code` flow (`gather → implement → review`). Your sole responsibility is to consume the Phase 1 brief at `<dir>/<stem>.messaging/code-brief.md`, apply every change it describes to disk, and emit a per-consumer sectioned change log that downstream Phase 3 verifies.
@@ -137,7 +138,9 @@ For the consumer's `per-handler-edit` row (if present):
 
 #### 2c. `test-impl` row (append-only / signature-driven)
 
-For the consumer's `test-impl` row (if present):
+For the consumer's `test-impl` row (if present), run **2c.i** then **2c.ii**.
+
+##### 2c.i — Test functions
 
 - Resolve the test module absolute path. If missing, record a failure and continue.
 - Invoke `Skill messaging-spec:messaging-handler-test-rules` (per-artifact lazy load). On unknown-skill failure: same best-effort substitution policy as Step 2b, tagged `partial`.
@@ -146,6 +149,33 @@ For the consumer's `test-impl` row (if present):
   - If the function does not exist, append it using the loaded pattern body (signature-driven; no assertions beyond invocation). Use `Edit` to append.
   - If the function exists, **leave it byte-identical** (append-only policy). Record under the H3: `Skipped <test_function_name> (already exists)`.
 - Record under the consumer's H3, one bullet per appended test function: `Added <test_function_name> to <test_module>`.
+
+##### 2c.ii — Handler fixtures in `conftest.py` (append-only)
+
+Each appended test references a per-handler pytest fixture (`<handler_name>`) and the `make_event_envelope` helper, both defined in the root `<tests_dir>/conftest.py`. In the first-time-generation flow these come from `@test-fixtures-preparer`; that agent is **not** in the `/update-code` pipeline, so a `test-impl` row that adds a test for a *new* `(Event, SourceDestination)` tuple would leave its fixture undefined and the new test would error at collection with `fixture '<handler_name>' not found`. This sub-step closes that gap — it is the update-flow analog of `generate-code`'s Step 8.
+
+Run this sub-step **whenever the row has any sub-blocks**, regardless of whether 2c.i appended or skipped each test (it is append-only and idempotent, so it also self-heals a previously-missing fixture). Resolve `<conftest_path>` = `<tests_dir>/conftest.py`. Invoke `Skill messaging-spec:messaging-handler-fixtures` to load the fixture template body. On unknown-skill failure: apply the same best-effort substitution policy as Step 2b (tag the consumer `partial`, record the unresolved-pattern note) and render the fixtures from the inline shapes below.
+
+For each sub-block on the row, the fixture name **equals** the handler function name you computed in Step 2b/2c.i for that `(Event, SourceDestination)` tuple (same collision rule). Ensure each is present, append-only:
+
+- **Fixture detection.** A fixture `<name>` is **present** iff `conftest.py` contains a `def <name>` whose immediately-preceding contiguous run of decorator lines includes `@pytest.fixture` or `@pytest.fixture(...)`. A plain `def <name>` with no such decorator (or with unrelated decorators only) counts as **absent**.
+- **Never modify** an existing fixture body — a present fixture is left byte-identical even if it diverges from the template.
+- **`conftest.py` absent entirely** → create it from the skill template with `make_event_envelope` first, then one handler fixture per sub-block (handler fixtures + helper only — no `make_command_message`, fake-override, repository, or aggregate fixtures). Use `Write`.
+- **`conftest.py` present** → for each absent fixture, append it at end-of-file via `Edit` (two blank lines between top-level definitions; single trailing newline). Insert `import pytest` after the last existing module-level import if no `import pytest` line exists. Handler fixtures contribute no other module-level import (the handler import is lazy, inside the fixture body).
+- **`make_event_envelope`** — ensure it is present too (the appended tests construct events through it). If absent, render it from the skill with `aggregate_type` default = this consumer spec's Table 2 first `Command Class` cell with the trailing `Commands` stripped (e.g. `RulesetCommands` → `Ruleset`); emit it before any handler fixture. In the update flow `conftest.py` almost always already defines it, so this is normally a no-op `kept`.
+
+Handler fixture shape (substitute `<pkg_name>`, `<consumer_snake>`, `<handler_name>`):
+
+```python
+@pytest.fixture
+def <handler_name>(containers):
+    from <pkg_name>.messaging.<consumer_snake>.handlers import (
+        <handler_name> as handler,
+    )
+    return handler
+```
+
+Record under the consumer's H3, one bullet per fixture touched: `Added fixture <handler_name> to conftest.py`, `Fixture <handler_name> already present in conftest.py (kept)`, and (when applicable) `Added make_event_envelope helper to conftest.py` / `Created conftest.py with <N> fixture(s)`. A failure to write `conftest.py` records a per-row note (`conftest.py fixture append failed: <reason>`) and does **not** abort the consumer — the test was already appended in 2c.i; continue.
 
 ### Step 3 — Operator-action rows
 
@@ -207,8 +237,8 @@ changes_log_path: <dir>/<stem>.messaging/code-changes.md
 
 Counts:
 
-- `files_modified` — distinct file paths touched with `Edit` or partial `Write`.
-- `files_created` — distinct file paths newly created (empty-then-written).
+- `files_modified` — distinct file paths touched with `Edit` or partial `Write` (includes `conftest.py` when a fixture or import was appended to an existing file).
+- `files_created` — distinct file paths newly created (empty-then-written; includes `conftest.py` when it was absent and created from the fixture template).
 - `files_failed` — distinct file paths where any sub-step recorded a failure note.
 - `operator_action_count` — number of `## Operator actions` H3 blocks (subset of brief operator-action rows, always equal).
 
@@ -236,6 +266,7 @@ _Source: `<stem>.messaging/code-brief.md`. Generated by `@messaging-spec:code-ch
     - <bullet per overwritten handler with `(<sub-block summary>)`, or `(no per-handler-edit row in brief)` if absent>
 - Tests:
     - <bullet per appended test function; bullets per skipped pre-existing function; or `(no test-impl row in brief)` if absent>
+    - <bullet per conftest.py fixture touched (`Added fixture <name> to conftest.py` / `Fixture <name> already present in conftest.py (kept)` / `Added make_event_envelope helper to conftest.py` / `Created conftest.py with <N> fixture(s)`); omit when the row had no sub-blocks>
 - Status: ok | partial | failed
 - Notes: <free-text reasons; omit when empty>
 
@@ -270,7 +301,8 @@ Known skill names (the closed set the brief writer emits):
 
 - `messaging-spec:domain-event-handlers` — used for `per-handler-edit` rows with `internal` Table 2 entries (Step 2b)
 - `messaging-spec:command-handlers` — used for `per-handler-edit` rows with `external` Table 2 entries (Step 2b)
-- `messaging-spec:messaging-handler-test-rules` — used for `test-impl` rows (Step 2c)
+- `messaging-spec:messaging-handler-test-rules` — used for `test-impl` rows (Step 2c.i)
+- `messaging-spec:messaging-handler-fixtures` — used for the conftest.py fixture-ensure of `test-impl` rows (Step 2c.ii)
 
 Auto-derive sweep sub-steps load these on demand:
 
@@ -290,6 +322,7 @@ Every invocation re-applies the brief and re-renders `code-changes.md`. There is
 - The auto-derive sweep is structurally additive — re-running it on a no-disk-drift workspace produces byte-identical files (events.py classes are already present; dispatcher.py regenerates to identical content; constants additions short-circuit; aggregator patches are idempotent).
 - `per-handler-edit` rows overwrite with the same pattern-driven body — byte-identical on no-drift.
 - `test-impl` rows are append-only — pre-existing tests are detected by name and skipped; no new appends on a no-drift replay.
+- conftest.py fixture appends (Step 2c.ii) are append-only and detected by `@pytest.fixture`-decorated name — already-present fixtures are `kept`, so a no-drift replay adds nothing.
 - `code-changes.md` regenerates with identical content on no-drift.
 
 If the brief itself changed (re-run of `@code-brief-writer` after a spec edit), the new brief's rows are applied normally; the change log reflects the new artifact set.
@@ -301,7 +334,8 @@ If the brief itself changed (re-run of `@code-brief-writer` after a spec edit), 
 - It does not run `@messaging-spec:code-brief-writer`. The orchestrator runs Phase 1 first; this agent reads the resulting brief.
 - It does not bootstrap missing consumer submodules. If a brief row's `handlers.py` or `events.py` is missing on disk, the row fails with a directive to run `/messaging-spec:generate-code <consumer>` first.
 - It does not remove orphan event classes, dispatcher bindings, aggregator exports, or constants. The sweep is add-only.
-- It does not touch `containers.py`, `entrypoint.py`, `__main__.py`, or any test fixture (`conftest.py`). Dispatcher wiring, runner functions, CLI commands, and test fixtures are outside the spec-update flow — `/update-specs` does not regenerate them. Operators wire new dispatchers via `@dispatch-integrator` separately.
+- It does not touch `containers.py`, `entrypoint.py`, or `__main__.py`. Dispatcher wiring, runner functions, and CLI commands are outside the spec-update flow — `/update-specs` does not regenerate them. Operators wire new dispatchers via `@dispatch-integrator` separately.
+- It **does** append missing per-handler fixtures (and the `make_event_envelope` helper) to the root `<tests_dir>/conftest.py` when it appends a handler test (Step 2c.ii) — strictly append-only, never modifying an existing fixture body. This is the only test-fixture write in the update flow; it exists so appended tests resolve their `<handler_name>` fixture instead of erroring at collection. It does not emit fake-override, repository, aggregate, or `make_command_message` fixtures — those belong to other agents.
 - It does not modify or delete the brief. The brief is the contract; this agent consumes it without rewriting.
 - It does not re-tag risk. The Phase 1.5 gate handled risk classification; this agent treats `risky` and `mechanical` rows identically.
 - It does not chain to Phase 3 (`code-review-writer`). The orchestrator runs that after this agent returns.

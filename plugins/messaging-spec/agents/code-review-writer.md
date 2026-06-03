@@ -26,7 +26,7 @@ You **never** independently re-read the consumer specs, `updates.md`, or the com
 | `<dir>/<stem>.messaging/code-changes.md` | **Yes** | Phase 2 change log; per-consumer declared actions and self-reported `ok / partial / failed` status. |
 | Every file path the change log declares modified/created | **Yes** (each) | Ground truth for structural verification. Read once per check. |
 
-You **never** read: `<dir>/<stem>.messaging/updates.md`, `<dir>/<stem>.messaging/<consumer>.md`, `<dir>/<stem>.commands.md`, `<dir>/<stem>.md`, the domain `specs.md`, the queries diagram, `containers.py`, `entrypoint.py`, `__main__.py`, any test fixture (`conftest.py`), or any other layer's sibling artifacts.
+You **never** read: `<dir>/<stem>.messaging/updates.md`, `<dir>/<stem>.messaging/<consumer>.md`, `<dir>/<stem>.commands.md`, `<dir>/<stem>.md`, the domain `specs.md`, the queries diagram, `containers.py`, `entrypoint.py`, `__main__.py`, or any other layer's sibling artifacts. The **one** exception is the root `<tests_dir>/conftest.py`, read **only** in Step 2d to verify each checked test's per-handler fixture is defined (Phase 2 appends these fixtures append-only; an absent one is the regression this check guards). You never write it.
 
 ## Output
 
@@ -157,6 +157,13 @@ For the consumer's `test-impl` brief row (if present):
   - Check the function is defined in the test module → else `{ kind: "missing-symbol", note: "test <test_function_name> expected per sub-block but not defined" }`.
   - Check the function body is non-trivial (not just `pass`, not empty) → else `{ kind: "empty-test", note: "test <test_function_name> has an empty body" }`.
   - Check the function invokes the corresponding handler (any call expression naming `<handler_name>` in the body) → else `{ kind: "missing-invocation", note: "test <test_function_name> does not call <handler_name>" }`.
+
+After the per-sub-block test checks, verify the **fixtures these tests depend on are defined** in the root `<tests_dir>/conftest.py` (Phase 2's Step 2c.ii appends them append-only; this check guards against an absent fixture that would error the test at collection — the failure mode Phase 3 otherwise cannot see because it does not run tests):
+
+- Resolve `<conftest_path>` = `<tests_dir>/conftest.py`. Read it once. If missing, record `{ path: <conftest_path>, kind: "file-missing", note: "conftest.py absent; handler fixtures undefined" }` and skip the remaining fixture checks for this consumer.
+- A fixture `<name>` is **present** iff `conftest.py` contains a `def <name>` whose immediately-preceding contiguous decorator run includes `@pytest.fixture` or `@pytest.fixture(...)` (same detection rule Phase 2 uses).
+- For each sub-block's `<handler_name>` (the fixture name equals the handler function name — same collision rule used for the test name): if the fixture is absent → `{ path: <conftest_path>, kind: "missing-fixture", note: "test <test_function_name> requires fixture <handler_name> but conftest.py does not define it" }`.
+- If any checked test body references `make_event_envelope` and that helper fixture is absent → `{ path: <conftest_path>, kind: "missing-fixture", note: "tests use make_event_envelope but conftest.py does not define it" }` (record at most once per consumer).
 
 The pattern body's `messaging-spec:messaging-handler-test-rules` is the source of truth for what counts as a non-trivial test body (e.g., whether `make_event_envelope` must appear, whether assertion-less invocation is permitted). Apply the pattern body's shape verbatim.
 
@@ -295,7 +302,7 @@ _Source: `<stem>.messaging/code-brief.md` + `<stem>.messaging/code-changes.md`. 
 
 ### `<consumer_name>` — <verdict>
 
-- Checks run: events.py <N> classes; dispatcher.py <ok|skipped>; handlers.py <N> handlers; tests <N> functions; aggregator <ok|skipped>; constants <N>
+- Checks run: events.py <N> classes; dispatcher.py <ok|skipped>; handlers.py <N> handlers; tests <N> functions; fixtures <ok|N missing>; aggregator <ok|skipped>; constants <N>
 - Issues:
     - `<path>` — <kind> — <note>
     - `<path>` — <kind> — <note>
