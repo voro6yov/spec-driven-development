@@ -157,6 +157,7 @@ from deps_pubsub.events.subscriber.domain_event_envelope import DomainEventEnvel
 
 from my_project.application import DocumentCommands
 from my_project.containers import Containers
+from my_project.domain.shared.exceptions import DomainException
 from .events import FileClassificationSucceeded
 
 logger = logging.getLogger(__name__)
@@ -173,6 +174,8 @@ def file_classification_succeeded_handler(
             tenant_id=event.tenant_id,
             document_types=event.document_types,
         )
+    except DomainException as e:
+        logger.info(f"Skipping FileClassificationSucceeded event: {e}.")
     except Exception as e:
         logger.error(f"Error processing FileClassificationSucceeded event: {e}.", exc_info=True)
         raise

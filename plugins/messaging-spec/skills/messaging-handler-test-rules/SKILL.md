@@ -35,7 +35,7 @@ For the fixture definitions referenced throughout this skill, see `messaging-spe
 
 | Handler Type | Input | Output | Error Handling |
 | --- | --- | --- | --- |
-| **Event Handler** | `DomainEventEnvelope[EventType]` | `None` | Log + re-raise |
+| **Event Handler** | `DomainEventEnvelope[EventType]` | `None` | `DomainException` → log + ack (no re-raise); other → log + re-raise |
 | **Command Handler** | `CommandMessage[CommandType]` | `List[CommandHandlerReplyBuilder]` | Construct failure reply |
 
 ---
@@ -49,7 +49,7 @@ For the fixture definitions referenced throughout this skill, see `messaging-spe
 | Handler success | Construct envelope → call | `{aggregate}_n`, `add_{aggregates}`, `unit_of_work`, `domain_event_publisher_mock`, `{handler}` | State + Persistence + Events |
 | Handler creates new aggregate | Construct envelope → call | `unit_of_work`, `domain_event_publisher_mock`, `{handler}` | Aggregate created + Persistence + Events |
 | Handler idempotency | Construct envelope → call twice | `{aggregate}_n`, `add_{aggregates}`, `unit_of_work`, `domain_event_publisher_mock`, `{handler}` | No duplicate side effects |
-| Invalid state error | Construct envelope → call with wrong-state aggregate | `{aggregate}_{wrong_state}`, `add_{aggregates}`, `{handler}` | Domain exception raised |
+| Invalid state error | Construct envelope → call with wrong-state aggregate | `{aggregate}_{wrong_state}`, `add_{aggregates}`, `{handler}` | Logged + swallowed — handler returns `None`, no state change/events (a `DomainException` is non-retryable, so the handler acks rather than re-raises) |
 
 ### Example: Event Handler Success
 

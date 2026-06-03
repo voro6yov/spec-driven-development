@@ -153,7 +153,7 @@ For each entry `i` in `<rows>`, render exactly one handler block per the auto-lo
 
   Indented 12 spaces, no trailing comma. The agent emits a structurally valid empty-args call (Python permits this) and records `<EventName>` in `<sparse_events>` for the Step 10 warning.
 
-**Block shape.** The full rendered block — header decorator, def line, signature, body — comes from the skill's `## Template` section verbatim with the substitutions above. Two adjacent handler blocks are separated by exactly two blank lines (PEP 8 — top-level definitions follow). Each rendered block ends just before its trailing two blank lines (Step 9 owns inter-block separation).
+**Block shape.** The full rendered block — header decorator, def line, signature, body — comes from the skill's `## Template` section verbatim with the substitutions above. The body's `try` carries **two** `except` clauses from the template: `except DomainException as e:` (logs at INFO via `logger.info(f"Skipping <EventName> event: {e}.")`, no re-raise — the message is acked) **before** `except Exception as e:` (logs at ERROR with `exc_info=True`, then `raise` — the message is redelivered). The `DomainException` clause must come first because it subclasses `Exception`. Two adjacent handler blocks are separated by exactly two blank lines (PEP 8 — top-level definitions follow). Each rendered block ends just before its trailing two blank lines (Step 9 owns inter-block separation).
 
 **Imports needed for the file.** Across all entries, accumulate the union of imports the rendered file requires:
 
@@ -162,8 +162,9 @@ For each entry `i` in `<rows>`, render exactly one handler block per the auto-lo
 3. Always `from deps_pubsub.events.subscriber.domain_event_envelope import DomainEventEnvelope`.
 4. `from <pkg>.application import <CommandClass>` — one line per **distinct** `<CommandClass>` across `<rows>`, sorted alphabetically by class name.
 5. `from <pkg>.containers import Containers` — single line, always emitted.
-6. For every `external` row: `from .events import <EventName>` — one line per **distinct** `<EventName>` across `external` rows, sorted alphabetically.
-7. For every `internal` row: `from <pkg>.domain.<source_snake> import <EventName>` — one line per **distinct** `(<source_snake>, <EventName>)` pair across `internal` rows, sorted by `(<source_snake>, <EventName>)`.
+6. Always `from <pkg>.domain.shared.exceptions import DomainException` — single line, always emitted. Each rendered handler catches `DomainException` (logged + acked, non-retryable) before the generic `Exception` (logged + re-raised, retryable), so the base is always imported. The path is project-invariant: the shared base lives at `src/<pkg>/domain/shared/exceptions.py`, copied there by `/init-domain`.
+7. For every `external` row: `from .events import <EventName>` — one line per **distinct** `<EventName>` across `external` rows, sorted alphabetically.
+8. For every `internal` row: `from <pkg>.domain.<source_snake> import <EventName>` — one line per **distinct** `(<source_snake>, <EventName>)` pair across `internal` rows, sorted by `(<source_snake>, <EventName>)`.
 
 No grouped imports — one type per `from ... import ...` line, matching `@external-events-implementer`'s convention so subsequent reruns are trivially additive.
 
@@ -200,7 +201,7 @@ The file segments are:
 **No-op short-circuit.** Skip the write and proceed straight to Step 10's report (recording 0 added, 0 upgraded, n_skipped) iff **all** of the following hold:
 
 1. Every action is `SKIP` (no new handlers to add, no stubs to upgrade).
-2. The existing header contains exact-line matches for every required import enumerated in Step 8 (rules 1–7).
+2. The existing header contains exact-line matches for every required import enumerated in Step 8 (rules 1–8).
 3. The existing header contains the exact line `logger = logging.getLogger(__name__)`.
 
 If any of (1)-(3) fails, fall through to the regenerate-the-file branch below.
@@ -218,8 +219,8 @@ If any of (1)-(3) fails, fall through to the regenerate-the-file branch below.
    1. Module-level docstring (if any).
    2. The fixed stdlib import: `import logging`. Emitted unconditionally; if the existing header already contained it verbatim, the existing copy is NOT also emitted (dedup by exact-line match).
    3. The fixed third-party imports: `from dependency_injector.wiring import Provide, inject`, then `from deps_pubsub.events.subscriber.domain_event_envelope import DomainEventEnvelope` (one line each, separated from group 2 by one blank line). Same dedup rule.
-   4. The local-project imports computed in Step 8 rules 4–7, sorted in the order: all `<pkg>.application` lines (alphabetical by class), then the `<pkg>.containers` line, then all `<pkg>.domain.<source_snake>` lines (sorted by `(<source_snake>, <EventName>)`). Separated from group 3 by one blank line. Same dedup rule.
-   5. The local relative imports from Step 8 rule 6: `from .events import <EventName>` (one line per external event, alphabetical). Separated from group 4 by one blank line. Same dedup rule. Group 5 is omitted entirely if the consumer has zero `external` rows.
+   4. The local-project imports computed in Step 8 rules 4, 5, 6, and 8, sorted in the order: all `<pkg>.application` lines (alphabetical by class), then the `<pkg>.containers` line, then the `from <pkg>.domain.shared.exceptions import DomainException` line, then all `<pkg>.domain.<source_snake>` lines (sorted by `(<source_snake>, <EventName>)`). Separated from group 3 by one blank line. Same dedup rule.
+   5. The local relative imports from Step 8 rule 7: `from .events import <EventName>` (one line per external event, alphabetical). Separated from group 4 by one blank line. Same dedup rule. Group 5 is omitted entirely if the consumer has zero `external` rows.
    6. **Existing imports preserved**, in their original relative order, **excluding** any line that exactly matches a line emitted in groups 2–5. These are imports the user added by hand (e.g. for a custom IMPLEMENTED handler) and must round-trip. Separated from the prior emitted group by one blank line.
    7. The logger line: `logger = logging.getLogger(__name__)`.
 
@@ -268,6 +269,7 @@ If the no-op short-circuit fired in Step 9, print instead:
 - Hardcode the DI container class name as `Containers` and derive the container property name as the snake_case form of `<CommandClass>` (e.g. `ProfileCommands` → `profile_commands`). Both are project-wide invariants; downstream callers that need a different shape must rename their containers.py manually after generation.
 - Internal-event imports are per-aggregate: `from <pkg>.domain.<source_snake> import <EventName>`, where `<source_snake>` is the snake_case form of the Source Destination (the publisher's aggregate in this service), NOT the Command Class. A `Document` Source Destination consumed by `ProfileCommands` resolves to `<pkg>.domain.document`, not `<pkg>.domain.profile`.
 - External-event imports are local: `from .events import <EventName>` — the events live in the consumer's own `events.py`, written by `@external-events-implementer`. The agent does not check whether `events.py` exists or contains the named class — that contract is enforced upstream.
+- The `DomainException` catch is non-negotiable and always rendered: domain exceptions are deterministic, so re-raising them would only burn pubsub retries before dead-lettering a message that can never succeed. The handler logs at INFO and acks (no re-raise) for `DomainException`, and re-raises every other exception (transient infra errors) so the pubsub layer redelivers. `from <pkg>.domain.shared.exceptions import DomainException` is therefore always emitted (Step 8 rule 6), even though an entirely hand-`IMPLEMENTED` `handlers.py` that never references it would leave the import unused — those blocks are preserved byte-identical and the user owns the cleanup. Catching the whole `DomainException` base treats every domain error as permanent; consumers that need an out-of-order/not-found event to be retried must catch and re-raise that narrower case inside a hand-`IMPLEMENTED` handler.
 - Never emit grouped imports (`from X import A, B`) — one `from <module> import <Type>` per token, ordered by `(<module>, <Type>)`. This makes the import block trivially additive on subsequent runs.
 - `<pkg>` is mechanically derived from the locations report's absolute paths — do not infer it from `<consumer_spec_file>`'s containing directory or from any heuristic on the project name. The locations report is the source of truth.
 - File ordering: import groups in fixed canonical order, `logger = ...`, then handler blocks in `<rows>` source order. The order is intentionally mechanical so reruns produce byte-identical output (modulo `IMPLEMENTED`-block content, which is the user's responsibility).
