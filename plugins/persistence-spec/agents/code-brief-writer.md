@@ -116,7 +116,7 @@ Locate the delta block named by `driving` and emit a one-liner:
 - `mapper-impl, add` → `"Add <variant> mapper for <DomainClass>"`.
 - `mapper-impl, modify` → `"variant flipped: <old> → <new>"` when present, else list `payload columns changed` / `discriminator column` sub-bullets that fired.
 - `mapper-impl, remove` → `"Remove mapper"`.
-- `repository-impl, modify` (Command) → `"Pattern flip: <old> → <new>"` and/or `"alt lookups added: <sigs>; removed: <sigs>; signature changed: <sigs>"`. Omit clauses whose sub-bullet is absent.
+- `repository-impl, modify` (Command) → `"Pattern flip: <old> → <new>"` and/or `"alt lookups added: <sigs>; removed: <sigs>; signature changed: <sigs>"` and/or `"projection columns changed: <T>: <cols>"`. Omit clauses whose sub-bullet is absent.
 - `repository-impl, modify` (Query) → mirror the command form; sourced from the same Repository Changes section.
 - `migration-yaml, add` → `"<id> <changeset_text> (pattern: <pattern>)"` (verbatim from the `### Appended` row). Preserve the leading `⚠ ` marker on destructive rows.
 - `master-yaml, modify` → `"Refresh changelog registration for N appended changesets"`.
@@ -193,10 +193,11 @@ Apply in order. **First match sets `risk = risky`, but every applicable reason a
 2. `kind = table-impl`, `action = modify`, **and** `driving` is `Tables Changes (Modified)` → `risky`. *Reason note:* `"modified table"`.
 3. `kind = mapper-impl`, `action = modify`, **and** the matching `## Mappers Changes → ### Modified` block contains a `Variant flipped:` sub-bullet → `risky`. *Reason note:* `"mapper variant flipped"`.
    - Same row with a `Payload columns changed:` sub-bullet (column add/remove/alter propagated from a table change) → `risky`. *Reason note:* `"mapper payload columns changed — verify to_dict and from_row/from_rows both updated"`. A column updated in only one direction is a silent persistence data-loss bug, so this row warrants the operator checkpoint.
+   - `kind = repository-impl`, `action = modify`, **and** the matching `## Repository Changes` block contains a `Projection columns changed:` bullet (column add/remove propagated from a table change) → `risky`. *Reason note:* `"repository projection columns changed — verify the <x>_columns projection selects the same columns the mapper's from_row/from_rows reads"`. The command repository projects each table via `select(*self.<x>_columns)`; a column added to the table and mapper but not to the projection raises `NoSuchColumnError` on load, so this row warrants the operator checkpoint.
 4. Any `notes` already appended by Step 3 (missing §2 row) or Step 4 (family drift / multi-tenant flip without migration) → keep `risky`. *Reason note already attached.*
 5. Otherwise → `mechanical`.
 
-Repository changes (pattern flip or alt-lookup add/remove), alternative-lookup signature changes, and `add`-action table/mapper rows are **not** risky by themselves.
+Repository changes that touch only the contract (pattern flip, alt-lookup add/remove, signature change) and `add`-action table/mapper rows are **not** risky by themselves. A `Projection columns changed:` propagation, by contrast, **is** risky per rule 3 — it is the repository-side twin of the mapper payload-column data-loss case.
 
 ### Step 6 — Write the brief
 

@@ -129,7 +129,7 @@ The full `command-repo-spec.md` and `updates.md` are already in context from Ste
 | `mapper-impl` | `add` | §2.Mappers row matching `<X>Mapper` (Pattern cell — variant family). Domain class file referenced by the mapper for field list. |
 | `mapper-impl` | `modify` | `updates.md → ## Mappers Changes → ### Modified` block for this mapper. If a `Variant flipped:` sub-bullet is present, also re-read §2.Mappers Pattern cell to confirm the new variant. For a `Payload columns changed:` sub-bullet, also read §3 Schema for each new column's type and the mapper's domain class file for the matching attribute name. |
 | `mapper-impl` | `remove` | None. |
-| `repository-impl` | `modify` | `updates.md → ## Repository Changes → ### Modified` block. If a `Pattern flip:` sub-bullet is present, also re-read §2.Repository Pattern cell. Alt-lookup sub-bullets carry their own signatures inline. |
+| `repository-impl` | `modify` | `updates.md → ## Repository Changes` block. If a `Pattern flip:` sub-bullet is present, also re-read §2.Repository Pattern cell. Alt-lookup sub-bullets carry their own signatures inline. For a `Projection columns changed:` sub-bullet, read the repository module to locate the `<x>_columns` projection property that selects from `<T>` (matched by its `<T>_table.c.*` references). |
 | `migration-yaml` | `add` | §2.Migrations row matching the `<id>` segment (Pattern + Changeset + Template cells). §3 Schema for column types when the changeset adds columns/tables. |
 | `migration-yaml` | `remove` | None. |
 | `master-yaml` | `modify` | `updates.md → ## Summary → ### Appended` table for the new IDs. Existing `master.yaml` for current registration order. |
@@ -232,6 +232,12 @@ Always surgical — never a full class regen, even on pattern flip. The brief ha
   - `alt lookups added: <sigs>` — for each signature, surgically insert a new abstract-conformant method delegating to `session.execute(select(...))` per the skill's alt-lookup template. Anchor the insert on the closing line of the immediately preceding method.
   - `alt lookups removed: <sigs>` — for each signature, surgically delete the method block (anchor on `def <name>(...)` through the closing dedent).
   - `signature changed: <sigs>` — for each signature, surgically rewrite the `def` line and any body references to the changed parameters.
+  - `Projection columns changed: \`<T>\` — <cols>` — the command repository projects each table through an explicit `select(*self.<x>_columns)` list, so a column added to / removed from `<T>` must be added to / removed from the matching projection or the load breaks. For each named column:
+    - **Locate the projection property by table reference, not by name.** Read the repository module and find the `@property` whose returned list references `<T>_table.c.*` (the generated names are table-derived and not predictable — e.g. `projects_source_dmses_columns` for table `projects_source_dmses`, `project_columns` for `projects`). Do **not** guess the property name from the aggregate.
+    - **added** → protocol-guarded Edit inserting `<T>_table.c.<col>,` into that list, anchored on an existing `<T>_table.c.*` line.
+    - **removed** → protocol-guarded Edit deleting the `<T>_table.c.<col>,` line.
+    - **Consistency with the mapper is load-bearing.** The projection must select exactly the columns the owning mapper's `from_row` / `from_rows` reads. A column added to the mapper (the `mapper-impl` row in the same run) but not to the projection raises `NoSuchColumnError` at load; the reverse silently discards the selected value. Verify the column is present in the projection before rolling the row up to `applied`.
+    - **No explicit projection found** → the repository reads `<T>` via whole-table `select(<T>_table)` rather than an explicit column list; no projection edit is needed. Record the step `no-op` and append a `Warnings:` entry `no explicit <T> projection found — verify the repository selects the new column(s): <cols>`.
 - For query repository paths the same dispatch applies but uses the `persistence-spec:query-repository` skill body.
 
 ### `migration-yaml`

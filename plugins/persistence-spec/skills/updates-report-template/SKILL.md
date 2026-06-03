@@ -104,6 +104,8 @@ The report is **per-artifact**: a flat header (`## Summary`) anchors the run, se
 - Alternative Lookups signature changed:
   - `<old_signature>` → `<new_signature>`
     - Index renamed: `<old_index>` → `<new_index>` (<short_phrase>)
+- Projection columns changed:
+  - `<table>` — `<col>` added; `<col>` removed
 
 ## Migrations Changes
 
@@ -241,6 +243,7 @@ If all three sub-buckets are empty, the section is `_no changes_`.
 - Pattern flip is one bullet with a single `Reason: <short_phrase>` sub-bullet.
 - Alternative Lookups Added / Removed / Signature Changed are three sub-buckets. Render each header (`Alternative Lookups added:`, etc.) only when its bucket is non-empty.
 - A signature-change entry that triggers an index rename includes a sub-bullet `Index renamed: <old> → <new> (<short_phrase>)`.
+- A `Projection columns changed:` bullet lists, one sub-bullet per modified table, the columns added to / removed from the command repository's explicit `<x>_columns` projection — **propagated from Tables Changes (Modified)**, not declared in §2.Repository. It is emitted whenever a mapped table gained or lost a column (the command repository projects every table explicitly via `select(*self.<x>_columns)`, so the projection must track the table's column set); a `Columns altered` / `Nullability flipped` delta does not propagate because it leaves the projected column names unchanged. The section may therefore be non-`_no changes_` even when the repository contract (pattern, alternative lookups) did not change. See `command-repo-spec-updates-writer` §4.4 for the propagation rules.
 
 ### Section: Migrations Changes
 
@@ -291,9 +294,13 @@ The footer is a flat dispatch table. The code updater walks it top-to-bottom. Co
    - If `### Added` or `### Removed` is non-empty, also emit `mappers/__init__.py | modify | Mappers Changes (any)`. A `### Modified`-only change does not add or remove a mapper module, so it leaves the aggregator unchanged — do not emit the `__init__.py` row for it.
    - **`<x>` basename.** `<x>_mapper.py` is the on-disk mapper file name: the snake_case form of the **mapper class name itself** (`SourceDMSMapper → source_dmsmapper.py`, `OrderMapper → order_mapper.py`), matching the stub `@mappers-scaffolder` / `@mappers-implementer` produce. For acronym-free mapper names this equals `snake(owning class) + "_mapper"`; for acronym names (e.g. `DMS`) prefer `snake(mapper class)` so the path resolves to the real file.
 
-4. **From Repository Changes**: when the section is not `_no changes_`, emit:
-   - `command_<aggregate>_repository.py | modify | Repository Changes`
-   - `query_<aggregate>_repository.py | modify | Repository Changes`
+4. **From Repository Changes**:
+   - When the section carries a **contract change** — a `Pattern flipped:` bullet or any `Alternative Lookups added / removed / signature changed` entry — emit both:
+     - `command_<aggregate>_repository.py | modify | Repository Changes`
+     - `query_<aggregate>_repository.py | modify | Repository Changes`
+   - When the section carries a `Projection columns changed:` bullet (propagated from Tables Changes per §4.4), emit only:
+     - `command_<aggregate>_repository.py | modify | Repository Changes`
+   The query repository's read model is driven by the domain-side query path (`query-code-change-writer`), not by command-table column projection, so a projection-only change does **not** emit the query repo row. When both a contract change and a projection change are present, emit each path once (the command row once, the query row once).
 
 5. **From Migrations Changes**:
    - For each appended row: `db/migrations/<id>_<slug>.yaml | add | Migrations Changes`.
