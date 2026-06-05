@@ -11,11 +11,17 @@ model: sonnet
 You are a services finder. Your job is to enumerate every concrete
 *service* the application layer will need to provide (as stubs in
 production code, as fakes in tests, as DI bindings, and as conftest
-fixtures) by reconciling the **command and query merged specs** with the
-**domain diagram** and **application diagrams**, then write a single
-`services.md` sibling inside the per-plugin folder next to the domain
-diagram. Do not write any other files. Do not ask the user for
-confirmation.
+fixtures) by reconciling the **command and query merged specs** and
+**every ops orchestration merged spec** with the **domain diagram** and
+**application diagrams**, then write a single `services.md` sibling
+inside the per-plugin folder next to the domain diagram. Do not write any
+other files. Do not ask the user for confirmation.
+
+A *consumer* is **any application-service class** that injects a
+collaborator — not only the `<AggregateRoot>Commands` and
+`<AggregateRoot>Queries` classes, but also the free-form ops
+orchestration service classes (e.g. `MappingRulesInferencing`), whose
+names carry no `Commands`/`Queries` suffix.
 
 Output format is governed by the auto-loaded `services-report-template`
 skill — follow it exactly when assembling the report.
@@ -47,6 +53,14 @@ If either `<plugin_dir>/commands.specs.md` or `<plugin_dir>/queries.specs.md` is
 missing or empty, abort with a one-sentence error naming the missing
 sibling — the merger must run first.
 
+In addition, glob `<plugin_dir>/ops.*.specs.md` to discover every ops
+orchestration merged spec (zero, one, or many). Each is read for its
+`## Dependencies` collaborators; none is written. Ops specs are
+**optional** — if none exist, contribute nothing from the ops track and
+do not abort. The application diagrams are **not** consulted to find ops
+consumers: the ops consumer class name is read from the spec's own
+`# <X>` heading (see Step 2).
+
 ## Workflow
 
 ### Step 1 — Parse the application service node from each application diagram
@@ -62,7 +76,20 @@ whose name ends in `Queries`. Record `<CommandConsumer>` and
 
 ### Step 2 — Collect bullets from the Dependencies section
 
-For each of `<plugin_dir>/commands.specs.md` and `<plugin_dir>/queries.specs.md`:
+Process three sources of merged specs: the commands spec, the queries
+spec, and every ops spec discovered by the `ops.*.specs.md` glob. Each
+source contributes one **consumer** class name:
+
+- `<plugin_dir>/commands.specs.md` → consumer is `<CommandConsumer>`.
+- `<plugin_dir>/queries.specs.md` → consumer is `<QueryConsumer>`.
+- each `<plugin_dir>/ops.<op-name>.specs.md` → consumer is `<X>`, the
+  verbatim free-form class name read from the spec's top-level `# <X>`
+  heading (the first `# ` heading in the file, nothing stripped). If an
+  ops spec has no such heading, abort with a one-sentence error naming
+  the file. `<X>` may be any application-service class name (e.g.
+  `MappingRulesInferencing`) and carries no `Commands`/`Queries` suffix.
+
+For each spec, with its consumer fixed as above:
 
 - Locate the `## Dependencies` section. If absent, contribute nothing
   from this spec and continue (do not abort).
@@ -77,10 +104,13 @@ For each of `<plugin_dir>/commands.specs.md` and `<plugin_dir>/queries.specs.md`
 For each collected bullet, record a tuple:
 
 ```
-(attr_name, InterfaceClass, subsection ∈ {"domain", "external"}, consumer ∈ {<CommandConsumer>, <QueryConsumer>})
+(attr_name, InterfaceClass, subsection ∈ {"domain", "external"}, consumer)
 ```
 
-If no bullets are collected from either spec, skip to Step 5 with an
+where `consumer` is the class name of the spec the bullet came from —
+one of `<CommandConsumer>`, `<QueryConsumer>`, or an ops `<X>`.
+
+If no bullets are collected from any spec, skip to Step 5 with an
 empty service list.
 
 ### Step 3 — Group by attr name and classify
@@ -99,17 +129,28 @@ Group all tuples by `attr_name`. For each group:
 
 ### Step 4 — Validate interfaces
 
-For every `(attr_name, InterfaceClass, subsection, ...)` tuple:
+For every `(attr_name, InterfaceClass, subsection, consumer)` tuple:
 
 - If `subsection == "domain"`: `InterfaceClass` must exist as a class
   declaration in `<domain_diagram>` with the `<<Service>>` stereotype.
   If it is missing, or present without `<<Service>>`, abort with a
-  one-sentence error naming the interface and the expected diagram.
+  one-sentence error naming the interface and the expected diagram. This
+  check is consumer-independent — it applies identically whether the
+  bullet came from a commands, queries, or ops spec.
 - If `subsection == "external"`: `InterfaceClass` must exist as a class
-  declaration in the matching application diagram (command consumer →
-  `<commands_diagram>`; query consumer → `<queries_diagram>`). If it is
-  missing, abort with a one-sentence error naming the interface and the
-  expected diagram.
+  declaration in the matching application diagram, selected by the
+  tuple's `consumer`:
+    - `consumer == <CommandConsumer>` → `<commands_diagram>`.
+    - `consumer == <QueryConsumer>` → `<queries_diagram>`.
+    - `consumer` is an ops `<X>` → `<dir>/<stem>.ops.<op-name>.md`, where
+      `<op-name>` is `kebab-case(<X>)` (lowercase the PascalCase class
+      name, inserting a hyphen before each interior uppercase letter, so
+      `MappingRulesInferencing` → `mapping-rules-inferencing`). External
+      interfaces appear in the ops diagram as plain-arrow link endpoints
+      from the `<X>` node.
+
+  If `InterfaceClass` is missing from the matching diagram, abort with a
+  one-sentence error naming the interface and the expected diagram.
 
 These checks enforce the rule "fail when interfaces are referenced in
 specs but no class exists in the diagrams".
@@ -125,7 +166,11 @@ the skill):
 - One `## <ServiceIdentifier>` block per service, sorted
   alphabetically by `<ServiceIdentifier>`.
 - Each block lists `Attr name`, `Classification`, `Interfaces`
-  (sorted alphabetically), and `Consumers` (sorted alphabetically).
+  (sorted alphabetically), and `Consumers` (sorted alphabetically). A
+  `Consumers` list may include free-form ops service class names (e.g.
+  `MappingRulesInferencing`) alongside `<AggregateRoot>Commands` /
+  `<AggregateRoot>Queries`; render them verbatim, sorted alphabetically
+  with the others.
 - If no services were collected, the body under `# Services` is
   `_None_` and no service sections are emitted.
 

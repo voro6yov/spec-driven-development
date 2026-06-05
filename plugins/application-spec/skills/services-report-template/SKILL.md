@@ -68,9 +68,11 @@ Within a service:
 
 - `Interfaces` lists every interface class contributed by this attr name
   across all specs, deduped, sorted alphabetically.
-- `Consumers` lists every application service class
-  (`<AggregateRoot>Commands` / `<AggregateRoot>Queries`) that injects
-  this attr name, deduped, sorted alphabetically.
+- `Consumers` lists every application service class that injects
+  this attr name, deduped, sorted alphabetically. A consumer is any
+  application-service class — `<AggregateRoot>Commands`,
+  `<AggregateRoot>Queries`, or a free-form ops orchestration class
+  (e.g. `MappingRulesInferencing`).
 
 If no services are found, write only:
 

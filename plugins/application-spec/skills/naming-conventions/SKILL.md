@@ -39,6 +39,9 @@ For an aggregate stem `<stem>`, the three Mermaid class diagrams have fixed name
 | Domain | `<dir>/<stem>.md` | hand-authored input |
 | Commands application service | `<dir>/<stem>.commands.md` | hand-authored input |
 | Queries application service | `<dir>/<stem>.queries.md` | hand-authored input |
+| Ops application service | `<dir>/<stem>.ops.<op-name>.md` | hand-authored input |
+
+`<op-name>` is a kebab-case discriminator matching `^[a-z][a-z0-9-]*$` and equals the kebab-case of the ops service class name (the unique braced class in the diagram), so `<dir>/order.ops.subject-tagging.md` declares `class SubjectTagging`. An aggregate may have any number of ops diagrams (zero, one, or many), each becoming one free-form orchestration application service. Both `<stem>` and `<op-name>` are dot-free, so the literal `.ops.` separator is unambiguous.
 
 Examples for `<stem> = order`:
 
@@ -47,6 +50,7 @@ specs/
   order.md
   order.commands.md
   order.queries.md
+  order.ops.subject-tagging.md
 ```
 
 A plugin that needs a non-domain diagram (e.g. application-spec, messaging-spec) receives that path as an argument; it must not infer it by appending suffixes to the domain path.
@@ -96,8 +100,14 @@ A plugin must never write outside its own folder. The only exceptions are:
 | `commands.methods.md` | `commands-methods-writer` | Transient — deleted by `specs-merger` |
 | `queries.deps.md` | `queries-deps-writer` | Transient — deleted by `specs-merger` |
 | `queries.methods.md` | `queries-methods-writer` | Transient — deleted by `specs-merger` |
+| `ops.<op-name>.specs.md` | `specs-merger` (ops side) | Merged ops spec (final) — one per ops diagram |
+| `ops.<op-name>.exceptions.md` | `ops-methods-writer` (stub) → `application-exceptions-specifier` | Application exceptions raised by this ops service's methods |
+| `ops.<op-name>.deps.md` | `ops-deps-writer` | Transient — deleted by `specs-merger` |
+| `ops.<op-name>.methods.md` | `ops-methods-writer` | Transient — deleted by `specs-merger` |
 
-The per-side fragments (`commands.deps.md`, `commands.methods.md`, `queries.deps.md`, `queries.methods.md`) exist only between writer and merger. After a successful pipeline run, only `commands.specs.md`, `commands.exceptions.md`, `queries.specs.md`, `queries.exceptions.md`, and `services.md` remain.
+The per-side fragments (`commands.deps.md`, `commands.methods.md`, `queries.deps.md`, `queries.methods.md`, and each `ops.<op-name>.{deps,methods}.md`) exist only between writer and merger. After a successful pipeline run, only `commands.specs.md`, `commands.exceptions.md`, `queries.specs.md`, `queries.exceptions.md`, `services.md`, and each ops service's `ops.<op-name>.specs.md` / `ops.<op-name>.exceptions.md` remain.
+
+`<op-name>` matches `^[a-z][a-z0-9-]*$` and equals the kebab-case of the ops service class. One pair of `ops.<op-name>.specs.md` / `ops.<op-name>.exceptions.md` per ops diagram; multiple ops services share the one flat `<stem>.application/` folder (no sub-folder), exactly as `commands`/`queries` artifacts do.
 
 ### `<stem>.persistence/` (persistence-spec)
 
@@ -121,13 +131,14 @@ The per-side fragments (`commands.deps.md`, `commands.methods.md`, `queries.deps
 
 ## Worked example
 
-For aggregate stem `order` with two messaging consumers `inventory-sync` and `shipping-events`, after running every pipeline:
+For aggregate stem `order` with two messaging consumers `inventory-sync` and `shipping-events`, plus one ops service `subject-tagging` (declaring `class SubjectTagging`), after running every pipeline:
 
 ```
 specs/
   order.md
   order.commands.md
   order.queries.md
+  order.ops.subject-tagging.md
 
   order.domain/
     specs.md
@@ -140,6 +151,8 @@ specs/
     commands.exceptions.md
     queries.specs.md
     queries.exceptions.md
+    ops.subject-tagging.specs.md
+    ops.subject-tagging.exceptions.md
     services.md
     updates.md
 
@@ -167,6 +180,7 @@ Every agent and orchestrator receives a path argument and must derive sibling pa
 | `<domain_diagram>` = `<dir>/<stem>.md` | `<dir>` = directory of input; `<stem>` = basename with `.md` stripped |
 | `<commands_diagram>` = `<dir>/<stem>.commands.md` | `<dir>` = directory of input; `<stem>` = basename with `.commands.md` stripped |
 | `<queries_diagram>` = `<dir>/<stem>.queries.md` | `<dir>` = directory of input; `<stem>` = basename with `.queries.md` stripped |
+| `<ops_diagram>` = `<dir>/<stem>.ops.<op-name>.md` | `<dir>` = directory of input; split the basename (with `.md` stripped) on the literal `.ops.` — both `<stem>` and `<op-name>` are dot-free kebab, so the split is unambiguous: the left part is `<stem>`, the right part is `<op-name>` |
 | `<spec_file>` inside `<dir>/<stem>.<plugin>/...` | walk up two segments: the parent's parent is `<dir>`; the parent's basename minus `.<plugin>` is `<stem>` |
 
 `<stem>` must satisfy `^[a-z][a-z0-9-]*$`. If the recovered stem fails this regex, abort with a one-sentence error rather than silently producing nonsense paths.
@@ -180,6 +194,7 @@ Once `<dir>` and `<stem>` are recovered, every other artifact path is built from
 | Domain diagram | `<dir>/<stem>.md` |
 | Commands diagram | `<dir>/<stem>.commands.md` |
 | Queries diagram | `<dir>/<stem>.queries.md` |
+| Ops diagram | `<dir>/<stem>.ops.<op-name>.md` |
 | Domain merged spec | `<dir>/<stem>.domain/specs.md` |
 | Domain exceptions | `<dir>/<stem>.domain/exceptions.md` |
 | Domain test plan | `<dir>/<stem>.domain/test-plan.md` |
@@ -188,17 +203,19 @@ Once `<dir>` and `<stem>` are recovered, every other artifact path is built from
 | Application commands exceptions | `<dir>/<stem>.application/commands.exceptions.md` |
 | Application queries spec | `<dir>/<stem>.application/queries.specs.md` |
 | Application queries exceptions | `<dir>/<stem>.application/queries.exceptions.md` |
+| Application ops spec | `<dir>/<stem>.application/ops.<op-name>.specs.md` |
+| Application ops exceptions | `<dir>/<stem>.application/ops.<op-name>.exceptions.md` |
 | Application services report | `<dir>/<stem>.application/services.md` |
 | Application updates report | `<dir>/<stem>.application/updates.md` |
 | Persistence command-repo spec | `<dir>/<stem>.persistence/command-repo-spec.md` |
 | REST API resource spec | `<dir>/<stem>.rest-api/spec.md` |
 | Messaging consumer spec | `<dir>/<stem>.messaging/<consumer_name>.md` |
 
-The messaging consumer spec is the only path that requires an additional discriminator (`<consumer_name>`); every other artifact is fully determined by `<stem>` plus the plugin's identity.
+The messaging consumer spec (`<consumer_name>`) and the ops artifacts (ops diagram, ops spec, ops exceptions — all keyed on `<op-name>`) are the only paths that require an additional discriminator; every other artifact is fully determined by `<stem>` plus the plugin's identity.
 
 ### Caller responsibilities
 
-- **User-facing orchestrator skills** accept exactly `<domain_diagram>` plus non-derivable extras (`<consumer_name>`, `<service_identifier>`, `<tests_dir>`, free-text notes). They never require the caller to pre-resolve commands/queries diagrams or sibling spec files — derivation happens inside the orchestrator using the tables above.
+- **User-facing orchestrator skills** accept exactly `<domain_diagram>` plus non-derivable extras (`<consumer_name>`, `<op-name>`, `<service_identifier>`, `<tests_dir>`, free-text notes). They never require the caller to pre-resolve commands/queries/ops diagrams or sibling spec files — derivation happens inside the orchestrator using the tables above.
 - **Per-plugin agents** accept exactly the diagram they primarily read — `<domain_diagram>` for `domain-spec`, `application-spec`, `persistence-spec`, and `rest-api-spec`; `<commands_diagram>` for `messaging-spec` — plus non-derivable extras. Sibling spec files inside the agent's own plugin folder are derived internally.
 - **Reconstruction by string substitution is forbidden** (e.g. `path.replace('.md', '.specs.md')`). Always recover `<stem>` and `<dir>` per the recovery table first, then build new paths from the artifact table.
 
