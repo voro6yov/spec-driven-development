@@ -120,7 +120,7 @@ Only the commands detector is invoked. The queries detector is irrelevant to mes
 - **`domain.affected_categories`** — bullets under `## Affected Categories`, in the order they appear (a `_None._` body means empty); used only to colour the no-op message.
 - **`domain.orphan_prose`** — whether `## Orphan Prose Changes` is present with a non-empty body (the synthetic `### Preamble` block counts); used only to colour the no-op message.
 
-**Commands-diagram axis** (from `<stem>.application/commands-updates.md`; the exact bullet formats are owned by `application-spec:application-service-updates-report-template`):
+**Commands-diagram axis** (from `<stem>.application/commands-updates.md`; the exact bullet formats are owned by `application-spec:application-updates-report-template`):
 
 - **`commands.degraded_baseline`** — whether the `## Summary` block contains a line beginning `_warning: HEAD `.
 - **`commands.affected_categories`** — bullets under `## Affected Categories`, in the order they appear. The literal body `_None._` means empty.
@@ -250,7 +250,7 @@ commands_affected = ∅ if commands_axis_disabled else (
 affected = domain_affected ∪ commands_affected
 ```
 
-Notes on the per-category mapping (cross-reference `application-spec:notes/commands-queries-update-types.md` § "Mapping `## Affected Categories` → consumer impact"):
+Notes on the per-category mapping (`## Affected Categories` → consumer impact):
 
 - **`messaging-markers` X1 (consumer added)** — never enters `affected`; surfaced as a Step 7 WARNING (the consumer-spec init route is `/messaging-spec:generate-code`).
 - **`messaging-markers` X2 (consumer removed)** — never enters `affected`; surfaced as a Step 7 WARNING (the operator deletes the orphaned consumer-spec file).

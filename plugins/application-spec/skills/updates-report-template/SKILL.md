@@ -9,7 +9,7 @@ disable-model-invocation: false
 
 > **Consumers:**
 > - `application-updates-writer` agent — renders the report; uses these rules to compute the per-section delta blocks and the `## Affected Artifacts` footer.
-> - `/application-spec:update-code` skill (future) — parses the report to dispatch per-artifact code edits.
+> - `/update-code` skill (`domain-spec:update-code`) — parses the report to dispatch per-artifact code edits.
 
 > **Scope of this skill:** output format only. Workflow (loading the three specs from working tree + git HEAD, parsing each version, computing deltas, rendering) lives in the `application-updates-writer` agent body.
 
@@ -165,7 +165,7 @@ The first three lines of the file are HTML comments recording the SHA256 of each
 
 When the corresponding upstream report does not exist on disk, render `<sha256>` as `(none)`. The three sentinel lines are always emitted on lines 1–3 (in this order; no blanks between them), followed by one blank line, then the `# Application Updates Report` heading.
 
-The sentinels are the consumer's primary skip-on-replay signal: a downstream `/application-spec:update-code` run that already applied a report carrying the same three `*-updates-hash` values may early-exit. Splitting attribution per axis means a domain-only edit that leaves the commands and queries diagrams untouched will only change `domain-updates-hash` — the consumer can tell what changed without re-parsing the body.
+The sentinels are the consumer's primary skip-on-replay signal: a downstream `/update-code` run that already applied a report carrying the same three `*-updates-hash` values may early-exit. Splitting attribution per axis means a domain-only edit that leaves the commands and queries diagrams untouched will only change `domain-updates-hash` — the consumer can tell what changed without re-parsing the body.
 
 ### Top-level sections
 

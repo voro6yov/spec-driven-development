@@ -100,7 +100,7 @@ Only when `consumers_on_disk` is empty **and** (either `commands_updates_present
 
   Notes on parsing:
 
-  - The `## Messaging Markers` H2 is **optional** — the commands detector omits it when its content is empty (per `application-spec:application-service-updates-report-template`'s empty-section rule). When absent, bind `consumers_added_by_cmd = consumers_removed_by_cmd = consumers_changed_by_cmd = ∅` and `messaging_marker_rows = {}`. **Do not** warn — the absent section is a valid no-op signal (the operator made commands-diagram edits that touched no `%% Messaging` markers).
+  - The `## Messaging Markers` H2 is **optional** — the commands detector omits it when its content is empty (per `application-spec:application-updates-report-template`'s empty-section rule). When absent, bind `consumers_added_by_cmd = consumers_removed_by_cmd = consumers_changed_by_cmd = ∅` and `messaging_marker_rows = {}`. **Do not** warn — the absent section is a valid no-op signal (the operator made commands-diagram edits that touched no `%% Messaging` markers).
   - The `## External Domain Events` H2 is likewise optional; bind `external_event_attr_deltas = {}` when absent. No warning.
   - All other H2 sections of `commands-updates.md` (`## Class Lifecycle`, `## Dependencies`, `## Per-Method Changes`, `## External Interfaces`, `## Surface Markers`, `## Raised Exceptions`, `## Application Class Relationships`, `## Orphan Prose Changes`, `## Affected Categories`) are **ignored** by this writer — they drive application-spec, rest-api-spec, and other consumers; the messaging axis only consumes the two sections above.
 

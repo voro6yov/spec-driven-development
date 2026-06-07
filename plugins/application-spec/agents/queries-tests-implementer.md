@@ -231,7 +231,7 @@ If exactly one match, read the file and scan for field declarations shaped `^\s*
 
 1. Exactly one `list[...]` field → override items key with `<key>`.
 2. Multiple `list[...]` fields → prefer `<plural>` if present, then `items` if present, else leave default `<plural>` and append a warning (`paginated DTO '<return_type>' has multiple list[...] fields; defaulted items-list key to '<plural>'`).
-3. Zero `list[...]` fields → fall back to `items` (the queries-specification-template's default key); append a warning (`paginated DTO '<return_type>' has no list[...] field; defaulted items-list key to 'items'`).
+3. Zero `list[...]` fields → fall back to `items` (the conventional default items-list key); append a warning (`paginated DTO '<return_type>' has no list[...] field; defaulted items-list key to 'items'`).
 
 If the return type matches the pre-gate but the grep yields zero or 2+ files, leave the default `<plural>` and append a warning (`paginated DTO '<return_type>' not uniquely locatable; defaulted items-list key to '<plural>'`).
 
@@ -322,7 +322,7 @@ When the gate passes, `{id_assertions}` is built from the param list:
 - If any param's resolver maps to `<fix>.tenant_id`, emit `    assert result["tenant_id"] == <fix>.tenant_id`.
 - If neither maps (the DTO is shaped right but no method param identifies it), emit `    # TODO: assert <fix>'s key fields appear in result` and append a warning.
 
-The id-assertion DTO key is `"id"` literally (matches the `Brief<Aggregate>Info` template in `application-spec:queries-specification-template`). If a project uses a different key, the user adapts by hand.
+The id-assertion DTO key is `"id"` literally (the conventional identifier key for `Brief<Aggregate>Info` DTOs). If a project uses a different key, the user adapts by hand.
 
 ##### Paginated `__success`
 

@@ -44,7 +44,7 @@ The brief uses **flat per-artifact sections** (one `### \`<path>\`` block per ro
    ```
    ERROR: <stem>.application/updates.md not found. Run /application-spec:update-specs <domain_diagram> before gather.
    ```
-4. Parse the `## Summary` → `Warnings:` sub-bullet list. Record but **do not hard-fail** on degraded-axis warnings — those propagate into the brief's own `Warnings:` list. (Unlike domain's `_warning: HEAD ...`, application's degraded-axis is a soft warning, not a fatal baseline issue.) The top-of-file `<!-- *-updates-hash: ... -->` sentinels are read by `/application-spec:update-code`'s replay-skip check, not by this agent — ignore them here.
+4. Parse the `## Summary` → `Warnings:` sub-bullet list. Record but **do not hard-fail** on degraded-axis warnings — those propagate into the brief's own `Warnings:` list. (Unlike domain's `_warning: HEAD ...`, application's degraded-axis is a soft warning, not a fatal baseline issue.) The top-of-file `<!-- *-updates-hash: ... -->` sentinels are read by `/update-code`'s replay-skip check, not by this agent — ignore them here.
 5. Parse `<locations_report_text>` for the five rows; bind:
    - `<domain_pkg_dir>` — absolute path from the **Domain Package** row.
    - `<app_pkg_dir>` — absolute path from the **Application Package** row.

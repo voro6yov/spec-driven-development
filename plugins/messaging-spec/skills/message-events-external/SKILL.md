@@ -17,7 +17,7 @@ Category: Event Pattern
 
 ## Distinction from Internal Domain Events
 
-This pattern is for **external** events — messages consumed FROM other services. For events **produced** by your service, see the [Internal Domain Events](internal-domain-events.md) pattern.
+This pattern is for **external** events — messages consumed FROM other services, as opposed to domain events **produced** by your own service.
 
 | Aspect | External Message Events | Internal Domain Events |
 | --- | --- | --- |

@@ -109,7 +109,7 @@ For each resolved type, `Read` its source and classify it:
 
 - **TypedDict** — class body inherits from `TypedDict` (directly or transitively via another TypedDict on disk). Capture its declared keys as `(<key>, <type_annotation>)` pairs in declaration order. Bind `<typed_dict_keys[<TypeName>]>` = that ordered list. The type-annotation text is preserved verbatim and is used by the column-expression resolver in Step 5c to decide whether a JSONB sub-field projection takes `.astext` (primitive value) or stays as raw JSON (nested `dict`/`list`/TypedDict).
 - **Enum** — class body inherits from `Enum` / `IntEnum` / `StrEnum`. Capture its members (`<MEMBER> = …` lines). Bind `<enum_members[<TypeName>]>`.
-- **`Pagination`** — recognized by name. No introspection needed; assumed to have `page` and `per_page` keys per the persistence-dtos pattern. Its file path and dotted module are still captured (per the rule above) so the import in Step 9 references the right module.
+- **`Pagination`** — recognized by name. No introspection needed; assumed to have `page` and `per_page` keys. Its file path and dotted module are still captured (per the rule above) so the import in Step 9 references the right module.
 
 If a type resolves to neither, leave it as `<Unknown>` — only the dispatch rules that consume it will fail.
 

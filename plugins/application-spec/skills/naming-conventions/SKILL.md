@@ -95,7 +95,7 @@ A plugin must never write outside its own folder. The only exceptions are:
 | `queries.specs.md` | `specs-merger` (queries side) | Merged queries spec (final) |
 | `queries.exceptions.md` | `queries-methods-writer` (stub) → `application-exceptions-specifier` | Application exceptions raised by queries |
 | `services.md` | `services-finder` | Reconciled list of services the application layer must implement |
-| `updates.md` | `application-updates-writer` | Structured diff report (input to future `/application-spec:update-code`) |
+| `updates.md` | `application-updates-writer` | Structured diff report (input to `/update-code`) |
 | `commands.deps.md` | `commands-deps-writer` | Transient — deleted by `specs-merger` |
 | `commands.methods.md` | `commands-methods-writer` | Transient — deleted by `specs-merger` |
 | `queries.deps.md` | `queries-deps-writer` | Transient — deleted by `specs-merger` |
