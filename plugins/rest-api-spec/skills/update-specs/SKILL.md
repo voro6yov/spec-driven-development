@@ -19,13 +19,13 @@ The orchestrator never re-diffs any diagram itself.
 
 ## Output path convention
 
-Per `rest-api-spec:naming-conventions`, given `<domain_diagram>` at `<dir>/<stem>.md`:
+Per `spec-core:naming-conventions`, given `<domain_diagram>` at `<dir>/<stem>.md`:
 
 - `<dir>` = directory containing the diagrams.
 - `<stem>` = the canonical aggregate stem (domain filename with `.md` stripped); must satisfy `^[a-z][a-z0-9-]*$`.
 - `<plugin_dir>` = `<dir>/<stem>.rest-api` — the per-plugin folder for rest-api-spec.
 
-The two app-service-axis detector reports live under `<dir>/<stem>.application/` (the application-spec plugin's per-aggregate folder). This cross-plugin path is intentional — the reports are owned by application-spec and shared across the application-spec, rest-api-spec, and messaging-spec consumers. See `rest-api-spec:naming-conventions` and `notes/commands-queries-integration-approach.md` for the convention.
+The two app-service-axis detector reports live under `<dir>/<stem>.application/` (the application-spec plugin's per-aggregate folder). This cross-plugin path is intentional — the reports are owned by application-spec and shared across the application-spec, rest-api-spec, and messaging-spec consumers. See `spec-core:naming-conventions` and `notes/commands-queries-integration-approach.md` for the convention.
 
 | File | Role | Touched by |
 |---|---|---|
@@ -37,7 +37,7 @@ The two app-service-axis detector reports live under `<dir>/<stem>.application/`
 | `<plugin_dir>/spec.md` | the resource spec being updated (must already exist) | `resource-spec-initializer` (Table 1) / `endpoint-tables-writer` (Tables 2/3) / `response-fields-writer` (Table 4) / `request-fields-writer` (Table 5) / `parameter-mapping-writer` (Table 6) — only the dirty one(s) |
 | `<plugin_dir>/updates.md` | output — REST API delta report | `rest-api-updates-writer` |
 
-`<domain_diagram>`, `<commands_diagram>`, and `<queries_diagram>` are read by the invoked agents; this orchestrator never modifies them. Every agent derives `<dir>` / `<stem>` from `$ARGUMENTS[0]` per `rest-api-spec:naming-conventions` — pass `$ARGUMENTS[0]` verbatim as the prompt to each.
+`<domain_diagram>`, `<commands_diagram>`, and `<queries_diagram>` are read by the invoked agents; this orchestrator never modifies them. Every agent derives `<dir>` / `<stem>` from `$ARGUMENTS[0]` per `spec-core:naming-conventions` — pass `$ARGUMENTS[0]` verbatim as the prompt to each.
 
 This skill keeps no runtime state between agents. The updates writer recovers the pre-update spec via `git show HEAD:<spec_file>`, so there is nothing for the orchestrator to capture or hand along.
 
@@ -45,7 +45,7 @@ This skill keeps no runtime state between agents. The updates writer recovers th
 
 ### Step 0 — Verify inputs and produce the app-service-axis reports
 
-Derive `<dir>` and `<stem>` from `$ARGUMENTS[0]` per `rest-api-spec:naming-conventions`. `<stem>` must satisfy `^[a-z][a-z0-9-]*$`. Using `Bash` (`test -f`), verify the input files in this order:
+Derive `<dir>` and `<stem>` from `$ARGUMENTS[0]` per `spec-core:naming-conventions`. `<stem>` must satisfy `^[a-z][a-z0-9-]*$`. Using `Bash` (`test -f`), verify the input files in this order:
 
 - **0a.** If `<dir>/<stem>.domain/updates.md` is missing → hard-fail:
 
@@ -104,7 +104,7 @@ Do not synthesize any of these files.
 
 Standalone invocations (without `--detectors-fresh`) take the default path below.
 
-**Default path.** After 0a–0d pass, fan out the two detectors in a single message so they run concurrently. Pass `$ARGUMENTS[0]` (the domain diagram path) as the prompt to each — the detectors derive their own sibling diagrams via `application-spec:naming-conventions`.
+**Default path.** After 0a–0d pass, fan out the two detectors in a single message so they run concurrently. Pass `$ARGUMENTS[0]` (the domain diagram path) as the prompt to each — the detectors derive their own sibling diagrams via `spec-core:naming-conventions`.
 
 - `application-spec:commands-updates-detector` with prompt `$ARGUMENTS[0]`.
 - `application-spec:queries-updates-detector` with prompt `$ARGUMENTS[0]`.

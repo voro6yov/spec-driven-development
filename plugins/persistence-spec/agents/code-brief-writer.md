@@ -4,7 +4,7 @@ description: Phase-1 gather agent of the three-agent `/update-code` flow for the
 tools: Read, Write, Bash
 model: sonnet
 skills:
-  - persistence-spec:naming-conventions
+  - spec-core:naming-conventions
   - persistence-spec:updates-report-template
   - persistence-spec:command-repo-spec-template
   - persistence-spec:implementation-roadmap
@@ -16,7 +16,7 @@ You **do not** edit source code, **do not** read YAML changeSet bodies or reposi
 
 ## Arguments
 
-- `<domain_diagram>`: path to the diagram at `<dir>/<stem>.md`. All sibling paths derive from this per `persistence-spec:naming-conventions`.
+- `<domain_diagram>`: path to the diagram at `<dir>/<stem>.md`. All sibling paths derive from this per `spec-core:naming-conventions`.
 - `<locations_report_text>`: verbatim Markdown output from `@persistence-spec:target-locations-finder`. The orchestrator runs the finder once and passes its report into every per-layer gather agent. You parse this to resolve the on-disk paths for tables, mappers, the repository directory, migrations, the context-integration package, containers, and tests. Never invoke the finder yourself.
 
 ## Inputs (read-only)
@@ -41,7 +41,7 @@ The brief uses **flat per-artifact sections** (one `### \`<path>\`` block per ro
 ### Step 0 — Preflight
 
 1. **Args validation.** If either `<domain_diagram>` or `<locations_report_text>` is missing or empty, hard-fail with `ERROR: Usage: @code-brief-writer <domain_diagram> <locations_report_text>`.
-2. Resolve `<dir>` and `<stem>` from `<domain_diagram>` per `persistence-spec:naming-conventions`.
+2. Resolve `<dir>` and `<stem>` from `<domain_diagram>` per `spec-core:naming-conventions`.
 3. Read `<dir>/<stem>.persistence/updates.md`. If missing, hard-fail:
    ```
    ERROR: <stem>.persistence/updates.md not found. Run /persistence-spec:update-specs <domain_diagram> before gather.
@@ -252,7 +252,7 @@ All structured signal lives inside the YAML block; no free-text addendum follows
 
 ## Path resolution
 
-- `<aggregate>` is the snake_case form of the aggregate root class name per `persistence-spec:naming-conventions` (matches `command_<aggregate>_repository.py`, `query_<aggregate>_repository.py`, `test_<aggregate>_repository.py`).
+- `<aggregate>` is the snake_case form of the aggregate root class name per `spec-core:naming-conventions` (matches `command_<aggregate>_repository.py`, `query_<aggregate>_repository.py`, `test_<aggregate>_repository.py`).
 - `<tables_dir>`, `<repo_dir>`, `<migrations_dir>`, `<ctx_dir>`, `<containers_path>`, and `<tests_dir>` all come from `<locations_report_text>`.
 - Footer paths are surface-relative (rooted at the layer's package, not at the repo root). The brief heading `### \`<path>\` — <action>` emits the **repo-root-relative** form. Apply this rebase per `kind`:
 

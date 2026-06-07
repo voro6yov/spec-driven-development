@@ -42,7 +42,7 @@ Before creating anything:
    Error: <domain_dir>/shared is missing. Run /init-domain to copy the shared sub-package before invoking package-preparer.
    ```
 
-3. **Path hygiene rule 2 of `domain-spec:naming-conventions`** — every segment of `<package_path>` must satisfy `^[a-z][a-z0-9_]*$`. If any segment contains `-` or otherwise fails the regex, abort with:
+3. **Path hygiene rule 2 of `spec-core:naming-conventions`** — every segment of `<package_path>` must satisfy `^[a-z][a-z0-9_]*$`. If any segment contains `-` or otherwise fails the regex, abort with:
 
    ```
    Error: <package_path> contains an invalid Python package segment: '<bad-segment>'. Python packages must be snake_case (^[a-z][a-z0-9_]*$). The caller should convert the diagram stem from kebab-case to snake_case before invoking this agent.

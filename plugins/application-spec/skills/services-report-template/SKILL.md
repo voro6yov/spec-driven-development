@@ -12,7 +12,7 @@ layer must wire up beyond repositories and message publishers. It is the
 single source of truth consumed by downstream stub implementers, fake
 implementers, DI container wirers, and conftest fixture writers.
 
-Per `application-spec:naming-conventions`, the report is written to
+Per `spec-core:naming-conventions`, the report is written to
 `<stem>.application/services.md` — inside the per-plugin folder next to
 the **domain diagram**, not as a flat sibling.
 

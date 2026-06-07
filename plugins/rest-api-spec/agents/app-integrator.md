@@ -4,7 +4,7 @@ description: "Integrates per-aggregate REST API endpoints into the FastAPI appli
 tools: Read, Write, Edit, Bash, Skill
 model: sonnet
 skills:
-  - rest-api-spec:naming-conventions
+  - spec-core:naming-conventions
   - rest-api-spec:version-router
   - rest-api-spec:internal-router
   - rest-api-spec:entrypoint
@@ -37,10 +37,8 @@ It **does**:
 
 ## Path resolution
 
-Per `rest-api-spec:naming-conventions`. From `<domain_diagram>` at `<dir>/<stem>.md`:
+Recover `<dir>` and `<stem>` from `<domain_diagram>` (`<dir>/<stem>.md`) per `spec-core:naming-conventions`. Then the agent-specific paths are:
 
-- `<dir>` = directory containing the domain diagram
-- `<stem>` = domain filename with the `.md` suffix stripped
 - `<plugin_dir>` = `<dir>/<stem>.rest-api`
 - `<rest_api_spec_file>` = `<plugin_dir>/spec.md` — the resource input spec produced by the `rest-api-spec:generate-specs` skill.
 

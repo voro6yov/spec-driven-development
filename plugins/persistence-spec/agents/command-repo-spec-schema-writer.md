@@ -3,7 +3,7 @@ name: command-repo-spec-schema-writer
 description: "Fills Section 3 (Schema Specification) by projecting aggregate fields onto SQL tables, columns, and indexes. Invoke with: @command-repo-spec-schema-writer <domain_diagram>"
 tools: Read, Edit, Skill
 skills:
-  - persistence-spec:naming-conventions
+  - spec-core:naming-conventions
   - persistence-spec:table-definitions
 model: sonnet
 ---
@@ -17,7 +17,7 @@ This agent is **safe to re-run on an already-filled spec** (the persistence-spec
 - `<domain_diagram>` (first argument) — the source Mermaid class diagram. Contains aggregate fields, value-object/entity composition, and repository method signatures.
 - `<dir>` = directory containing `<domain_diagram>`.
 - `<stem>` = filename of `<domain_diagram>` without the `.md` suffix.
-- `<spec_file>` = `<dir>/<stem>.persistence/command-repo-spec.md` (must already exist; produced by `@command-repo-spec-scaffolder` and filled through Section 2 by `@command-repo-spec-pattern-selector`). Path derivation follows `persistence-spec:naming-conventions`.
+- `<spec_file>` = `<dir>/<stem>.persistence/command-repo-spec.md` (must already exist; produced by `@command-repo-spec-scaffolder` and filled through Section 2 by `@command-repo-spec-pattern-selector`). Path derivation follows `spec-core:naming-conventions`.
 
 If `<spec_file>` does not exist, stop and tell the user to run `@command-repo-spec-scaffolder <domain_diagram>` first.
 

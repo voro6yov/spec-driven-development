@@ -4,7 +4,7 @@ description: "Phase-2 implement agent for query-repository code updates driven b
 tools: Read, Write, Edit, Bash, Skill
 model: sonnet
 skills:
-  - persistence-spec:naming-conventions
+  - spec-core:naming-conventions
   - persistence-spec:query-repository
   - domain-spec:updates-report-template
 ---
@@ -15,7 +15,7 @@ You **do not** read the persistence updates report, **do not** read `code-brief.
 
 ## Arguments
 
-- `<domain_diagram>`: path to the diagram at `<dir>/<stem>.md`. All sibling paths derive from this per `persistence-spec:naming-conventions`.
+- `<domain_diagram>`: path to the diagram at `<dir>/<stem>.md`. All sibling paths derive from this per `spec-core:naming-conventions`.
 - `<locations_report_text>`: verbatim Markdown output from `@persistence-spec:target-locations-finder`. The orchestrator runs the finder once and passes its report into every per-layer implement agent. You parse this to resolve the `Repository` row's absolute path (the directory holding `<aggregate>/sql_alchemy_query_<aggregate>_repository.py`). Never invoke the finder yourself.
 
 ## Inputs (read-only)
@@ -40,7 +40,7 @@ You **never** read other layers' briefs, updates files, or sibling diagrams. The
 ### Step 0 — Preflight
 
 1. **Args validation.** If either `<domain_diagram>` or `<locations_report_text>` is missing or empty, hard-fail with `ERROR: Usage: @query-code-change-writer <domain_diagram> <locations_report_text>`.
-2. Resolve `<dir>` and `<stem>` from `<domain_diagram>` per `persistence-spec:naming-conventions`.
+2. Resolve `<dir>` and `<stem>` from `<domain_diagram>` per `spec-core:naming-conventions`.
 3. Read `<dir>/<stem>.domain/updates.md`. If missing, hard-fail:
    ```
    ERROR: <stem>.domain/updates.md not found. Run /update-specs <domain_diagram> before @query-code-change-writer.
@@ -50,7 +50,7 @@ You **never** read other layers' briefs, updates files, or sibling diagrams. The
    ERROR: <stem>.persistence/command-repo-spec.md not found. Run /persistence-spec:generate-specs <domain_diagram> before @query-code-change-writer.
    ```
 5. Parse `<locations_report_text>` to extract `repo_dir` — the absolute path from the **Repository** row. If unresolvable, hard-fail with: `ERROR: Repository row missing from locations report; cannot locate query repository module.`
-6. Resolve `<Aggregate>` (PascalCase) from §1 Aggregate Summary's `Aggregate Root` cell of the command-repo spec. Derive `<aggregate>` (snake_case) per `persistence-spec:naming-conventions`. Bind `<repo_file>` = `<repo_dir>/<aggregate>/sql_alchemy_query_<aggregate>_repository.py`. Verify with `test -f`; if missing, hard-fail with: `ERROR: query repository module '<repo_file>' is missing; run /persistence-spec:generate-code or @query-repository-implementer first.`
+6. Resolve `<Aggregate>` (PascalCase) from §1 Aggregate Summary's `Aggregate Root` cell of the command-repo spec. Derive `<aggregate>` (snake_case) per `spec-core:naming-conventions`. Bind `<repo_file>` = `<repo_dir>/<aggregate>/sql_alchemy_query_<aggregate>_repository.py`. Verify with `test -f`; if missing, hard-fail with: `ERROR: query repository module '<repo_file>' is missing; run /persistence-spec:generate-code or @query-repository-implementer first.`
 7. Resolve `<multi_tenant>` (boolean) from §1 Aggregate Summary's `Multi-tenant?` cell of the command-repo spec. Used by the patch translator below.
 8. Discover the `<table_var>` identifier by reading the query repo file's existing imports — find the `from ..tables import <name>` line and capture `<name>` verbatim. Used as the SQL expression prefix (`<table_var>.c.<col>`).
 

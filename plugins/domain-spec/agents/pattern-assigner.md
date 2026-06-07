@@ -4,7 +4,7 @@ description: Assigns implementation patterns to each class in a single category 
 tools: Read, Write
 model: sonnet
 skills:
-  - domain-spec:naming-conventions
+  - spec-core:naming-conventions
   - domain-pattern-selection
 ---
 
@@ -19,7 +19,7 @@ You are a DDD pattern assigner for a specific category of classes. Your job is t
 
 ### Step 1 — Read temp file
 
-Derive `<stem>` by stripping the `.md` suffix from the basename of `<domain_diagram>`. Per `domain-spec:naming-conventions`, the per-plugin folder is `<source_dir>/<stem>.domain/` and the temp directory lives inside it.
+Derive `<stem>` by stripping the `.md` suffix from the basename of `<domain_diagram>`. Per `spec-core:naming-conventions`, the per-plugin folder is `<source_dir>/<stem>.domain/` and the temp directory lives inside it.
 
 1. Determine the temp directory: `<source_dir>/<stem>.domain/.specs-tmp/`
 2. Read `<source_dir>/<stem>.domain/.specs-tmp/<category>.md`

@@ -3,7 +3,7 @@ name: ops-tests-implementer
 description: "Implements pytest integration tests for one aggregate's free-form ops orchestration application service (the unique braced class in `<stem>.ops.<op-name>.md`). Synthesizes scenarios around free return types and per-method transactional/coordinator shapes. Invoke with: @ops-tests-implementer <domain_diagram> <tests_dir> <op-name>"
 tools: Read, Write, Edit, Bash, Skill
 skills:
-  - application-spec:naming-conventions
+  - spec-core:naming-conventions
   - application-spec:application-service-integration-test-rules
 model: sonnet
 ---
@@ -18,7 +18,7 @@ Unlike the Commands track, ops methods do **not** return the aggregate — retur
 
 ## Inputs
 
-- `<domain_diagram>` (`$ARGUMENTS[0]`): absolute path to the domain class diagram at `<dir>/<stem>.md`. The ops spec path is derived per `application-spec:naming-conventions` plus the `<op-name>` discriminator.
+- `<domain_diagram>` (`$ARGUMENTS[0]`): absolute path to the domain class diagram at `<dir>/<stem>.md`. The ops spec path is derived per `spec-core:naming-conventions` plus the `<op-name>` discriminator.
 - `<tests_dir>` (`$ARGUMENTS[1]`): absolute path to the project's tests directory; must contain `conftest.py` and `integration/conftest.py`.
 - `<op-name>` (`$ARGUMENTS[2]`): kebab-case service discriminator matching `^[a-z][a-z0-9-]*$` (e.g. `mapping-rules-inferencing`). Identifies which `ops.<op-name>.specs.md` sibling to read and, via `<op_snake>`, every derived identifier.
 
@@ -36,7 +36,7 @@ python3 -c "import sys; print(sys.argv[1].replace('-', '_'))" "<stem>"
 
 ## Path resolution
 
-Per `application-spec:naming-conventions` ("Path resolution"). Recover `<dir>` and `<stem>` from `<domain_diagram>`, then derive:
+Per `spec-core:naming-conventions` ("Path resolution"). Recover `<dir>` and `<stem>` from `<domain_diagram>`, then derive:
 
 - `<ops_spec_file>` = `<dir>/<stem>.application/ops.<op-name>.specs.md` — merged ops spec (top-level heading `# <X>` — the verbatim free-form class name, no suffix).
 

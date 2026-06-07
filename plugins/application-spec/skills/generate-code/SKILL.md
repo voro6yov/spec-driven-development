@@ -5,7 +5,7 @@ argument-hint: <domain_diagram>
 allowed-tools: Bash, Agent, Skill
 ---
 
-You are an application implementation orchestrator. Implement the application layer for the aggregate described by `$ARGUMENTS[0]` (the domain diagram). The skill consumes the merged sibling artifacts that `/application-spec:generate-specs` produces — it does not regenerate them. Sibling diagrams (`<commands_diagram>`, `<queries_diagram>`) and spec files are derived internally per `application-spec:naming-conventions`; downstream agents accept only `<domain_diagram>` plus non-derivable extras and derive the rest themselves.
+You are an application implementation orchestrator. Implement the application layer for the aggregate described by `$ARGUMENTS[0]` (the domain diagram). The skill consumes the merged sibling artifacts that `/application-spec:generate-specs` produces — it does not regenerate them. Sibling diagrams (`<commands_diagram>`, `<queries_diagram>`) and spec files are derived internally per `spec-core:naming-conventions`; downstream agents accept only `<domain_diagram>` plus non-derivable extras and derive the rest themselves.
 
 ## Precondition
 
@@ -13,7 +13,7 @@ Project-wide application-layer scaffolding (`application/`, `infrastructure/`, `
 
 ## Sibling file convention
 
-Per `application-spec:naming-conventions`. From `$ARGUMENTS[0]` (the domain diagram) at `<dir>/<stem>.md`:
+Per `spec-core:naming-conventions`. From `$ARGUMENTS[0]` (the domain diagram) at `<dir>/<stem>.md`:
 
 - `<dir>` = directory containing the diagrams
 - `<stem>` = the canonical aggregate stem (domain filename with `.md` stripped)
@@ -46,7 +46,7 @@ Then discover the per-aggregate ops orchestration services (the `ops` track) by 
 ls "<plugin_dir>"/ops.*.specs.md 2>/dev/null
 ```
 
-For each matching path `<plugin_dir>/ops.<op-name>.specs.md`, derive `<op-name>` by stripping the `ops.` prefix and the `.specs.md` suffix from the basename (both `<stem>` and `<op-name>` are dot-free kebab, so the split is unambiguous per `application-spec:naming-conventions`). Bind the list (preserving glob order) to `<ops_services>`.
+For each matching path `<plugin_dir>/ops.<op-name>.specs.md`, derive `<op-name>` by stripping the `ops.` prefix and the `.specs.md` suffix from the basename (both `<stem>` and `<op-name>` are dot-free kebab, so the split is unambiguous per `spec-core:naming-conventions`). Bind the list (preserving glob order) to `<ops_services>`.
 
 If the glob matches no files, bind `<ops_services>` to the empty list. The entire ops track is then a no-op: skip the ops implementer step (after Step 6) and the ops test implementers in Step 7, and emit no **Ops Services** bullet group in Step 8. An aggregate with no `ops.*.specs.md` behaves exactly as before this step existed.
 

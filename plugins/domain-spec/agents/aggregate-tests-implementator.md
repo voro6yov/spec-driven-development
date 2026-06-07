@@ -4,7 +4,7 @@ description: Implements pytest test functions for <<Aggregate Root>> classes fro
 tools: Read, Write, Skill
 model: sonnet
 skills:
-  - domain-spec:naming-conventions
+  - spec-core:naming-conventions
   - domain-spec:aggregate-unit-tests
 ---
 
@@ -20,7 +20,7 @@ You are a DDD aggregate test implementor. Read the `# Test Plan` from `<stem>.do
 
 ## Path convention
 
-Per `domain-spec:naming-conventions`, given `<domain_diagram>` at `<dir>/<stem>.md`:
+Per `spec-core:naming-conventions`, given `<domain_diagram>` at `<dir>/<stem>.md`:
 - `<stem>` = basename of `<domain_diagram>` with `.md` suffix stripped
 - Test plan: `<dir>/<stem>.domain/test-plan.md` (read)
 - Specs: `<dir>/<stem>.domain/specs.md` (read)

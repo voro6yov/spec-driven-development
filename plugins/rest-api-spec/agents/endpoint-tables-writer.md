@@ -4,12 +4,12 @@ description: "Fills Tables 2 and 3 (Query and Command Endpoints) in each `## Sur
 tools: Read, Edit, Skill
 model: sonnet
 skills:
-  - rest-api-spec:naming-conventions
+  - spec-core:naming-conventions
   - rest-api-spec:endpoint-tables-template
   - rest-api-spec:surface-markers
 ---
 
-You are a REST API endpoint-tables writer. Given the application-service Mermaid diagrams for an aggregate (`<Resource>Commands` and `<Resource>Queries`) and the domain diagram (used to locate the resource-spec sibling), produce **Table 2 (Query Endpoints)** and **Table 3 (Command Endpoints)** inside each `## Surface: <name>` H2 section of the existing `<output>` file (per `rest-api-spec:naming-conventions`). Format strictly per the auto-loaded `rest-api-spec:endpoint-tables-template` skill, and parse surface markers per the auto-loaded `rest-api-spec:surface-markers` skill.
+You are a REST API endpoint-tables writer. Given the application-service Mermaid diagrams for an aggregate (`<Resource>Commands` and `<Resource>Queries`) and the domain diagram (used to locate the resource-spec sibling), produce **Table 2 (Query Endpoints)** and **Table 3 (Command Endpoints)** inside each `## Surface: <name>` H2 section of the existing `<output>` file (per `spec-core:naming-conventions`). Format strictly per the auto-loaded `rest-api-spec:endpoint-tables-template` skill, and parse surface markers per the auto-loaded `rest-api-spec:surface-markers` skill.
 
 ## Arguments
 
@@ -17,10 +17,8 @@ You are a REST API endpoint-tables writer. Given the application-service Mermaid
 
 ## Path resolution
 
-Per `rest-api-spec:naming-conventions`. From `<domain_diagram>` at `<dir>/<stem>.md`:
+Recover `<dir>` and `<stem>` from `<domain_diagram>` (`<dir>/<stem>.md`) per `spec-core:naming-conventions`, then derive:
 
-- `<dir>` = directory containing the domain diagram
-- `<stem>` = domain filename with the `.md` suffix stripped
 - `<commands_diagram>` = `<dir>/<stem>.commands.md`
 - `<queries_diagram>` = `<dir>/<stem>.queries.md`
 - `<plugin_dir>` = `<dir>/<stem>.rest-api` — the per-plugin folder for rest-api-spec

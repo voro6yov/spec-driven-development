@@ -9,7 +9,7 @@ You are a DDD implementation orchestrator. Implement the aggregate described in 
 
 ## Spec-input layout
 
-This orchestrator chains agents (`scaffold-builder`, `aggregate-fixtures-writer`, `aggregate-tests-implementator`) that consume spec sibling artifacts produced by `/generate-specs`. Those artifacts live at `<dir>/<stem>.domain/specs.md`, `<dir>/<stem>.domain/exceptions.md`, and `<dir>/<stem>.domain/test-plan.md`. See `domain-spec:naming-conventions` for the canonical layout. This skill does not read those paths directly — every chained agent derives them from `$ARGUMENTS`.
+This orchestrator chains agents (`scaffold-builder`, `aggregate-fixtures-writer`, `aggregate-tests-implementator`) that consume spec sibling artifacts produced by `/generate-specs`. Those artifacts live at `<dir>/<stem>.domain/specs.md`, `<dir>/<stem>.domain/exceptions.md`, and `<dir>/<stem>.domain/test-plan.md`. See `spec-core:naming-conventions` for the canonical layout. This skill does not read those paths directly — every chained agent derives them from `$ARGUMENTS`.
 
 ## Workflow
 
@@ -50,7 +50,7 @@ ls -1 "<aggregate_pkg_dir>"/*.py | grep -v '__init__\.py' | grep -v 'exceptions\
 
 Because the glob is anchored at `<aggregate_pkg_dir>` (which is itself absolute per Step 1), every returned line is already an absolute path inside the aggregate package directory.
 
-**Sanity check (Path hygiene rule 5 of `domain-spec:naming-conventions`)** — before fanning out, verify every returned line:
+**Sanity check (Path hygiene rule 5 of `spec-core:naming-conventions`)** — before fanning out, verify every returned line:
 
 - begins with `<aggregate_pkg_dir>/` (the file lives inside the expected ancestor), and
 - ends in `.py`.

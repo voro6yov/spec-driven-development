@@ -3,7 +3,7 @@ name: command-repo-spec-updates-writer
 description: "Emits the per-update persistence report at `<dir>/<stem>.persistence/updates.md` by diffing the spec's working tree against `git HEAD`. Invoke with: @command-repo-spec-updates-writer <domain_diagram>"
 tools: Read, Write, Bash, Skill
 skills:
-  - persistence-spec:naming-conventions
+  - spec-core:naming-conventions
   - persistence-spec:updates-report-template
   - persistence-spec:migration-vocabulary
 model: sonnet
@@ -21,7 +21,7 @@ The `persistence-spec:updates-report-template` skill is loaded in your context a
 
 ## Output path convention
 
-Path derivation follows `persistence-spec:naming-conventions` exactly. Given `<domain_diagram>` at `<dir>/<stem>.md`:
+Path derivation follows `spec-core:naming-conventions` exactly. Given `<domain_diagram>` at `<dir>/<stem>.md`:
 
 - `<spec_file>` = `<dir>/<stem>.persistence/command-repo-spec.md`
 - `<domain_updates_file>` = `<dir>/<stem>.domain/updates.md` (sibling reference; missing is non-fatal)
@@ -35,7 +35,7 @@ The agent **owns** writing `<output_file>`. Before writing, ensure the parent fo
 
 ### Step 1 — Resolve paths and validate inputs
 
-Recover `<dir>` and `<stem>` from `<domain_diagram>` per `persistence-spec:naming-conventions`. Stem must satisfy `^[a-z][a-z0-9-]*$`; otherwise hard-fail.
+Recover `<dir>` and `<stem>` from `<domain_diagram>` per `spec-core:naming-conventions`. `<stem>` must satisfy the aggregate-stem regex (per `spec-core:naming-conventions`); otherwise hard-fail.
 
 Verify with `test -f`:
 
@@ -305,7 +305,7 @@ Each prints exactly one `ERROR: ...` line and exits non-zero. The agent does **n
 
 | Condition | Error template | Recovery |
 |---|---|---|
-| `<domain_diagram>` path produces an invalid `<stem>` | `ERROR: <domain_diagram> path does not yield a valid aggregate stem (must match ^[a-z][a-z0-9-]*$).` | Pass a path that follows `persistence-spec:naming-conventions`. |
+| `<domain_diagram>` path produces an invalid `<stem>` | `ERROR: <domain_diagram> path does not yield a valid aggregate stem (must match ^[a-z][a-z0-9-]*$).` | Pass a path that follows `spec-core:naming-conventions`. |
 | `<spec_file>` missing on disk | `ERROR: <spec_file> not found. The updates writer is not the first-run pipeline; run /persistence-spec:generate-specs <domain_diagram> first.` | Run `/persistence-spec:generate-specs`. |
 | Working tree spec missing both `## 1. Aggregate Analysis` and `## 2. Pattern Selection` H2 anchors | `ERROR: <spec_file> is malformed; cannot locate Section 1 or Section 2 headings. Run /persistence-spec:generate-specs <domain_diagram> to rebuild.` | Run `/persistence-spec:generate-specs`. |
 | `git ls-files --full-name` non-zero exit (not first-run; e.g. not a repo, ambiguous path) | `ERROR: cannot resolve <spec_file> against the git working tree.` | Verify the working directory is a git repo and the spec path is unambiguous. |

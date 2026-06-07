@@ -5,13 +5,13 @@ argument-hint: <domain_diagram> <consumer_name>
 allowed-tools: Bash, Agent
 ---
 
-You are a messaging implementation orchestrator. Implement the messaging code AND its handler integration tests for the consumer named `$ARGUMENTS[1]` (`<consumer_name>`), scoped to the aggregate whose domain diagram is `$ARGUMENTS[0]`. Sibling diagram and spec paths (`<commands_diagram>`, `<consumer_spec_file>`) are derived internally per `messaging-spec:naming-conventions`; downstream agents accept only `<commands_diagram>` (or `<consumer_name>`) plus non-derivable extras and derive the rest themselves.
+You are a messaging implementation orchestrator. Implement the messaging code AND its handler integration tests for the consumer named `$ARGUMENTS[1]` (`<consumer_name>`), scoped to the aggregate whose domain diagram is `$ARGUMENTS[0]`. Sibling diagram and spec paths (`<commands_diagram>`, `<consumer_spec_file>`) are derived internally per `spec-core:naming-conventions`; downstream agents accept only `<commands_diagram>` (or `<consumer_name>`) plus non-derivable extras and derive the rest themselves.
 
 The skill consumes the consumer spec — it does not regenerate it. If the spec is missing required tables (Table 1 / Table 2 / Table 3) or the path shape is malformed, downstream agents abort with their own one-sentence errors — this orchestrator does not pre-validate.
 
 ## Sibling file convention
 
-Per `messaging-spec:naming-conventions`. From `$ARGUMENTS[0]` (the domain diagram) at `<dir>/<stem>.md` and `$ARGUMENTS[1]` (the consumer name, kebab-case matching `^[a-z][a-z0-9-]*$`):
+Per `spec-core:naming-conventions`. From `$ARGUMENTS[0]` (the domain diagram) at `<dir>/<stem>.md` and `$ARGUMENTS[1]` (the consumer name, kebab-case matching `^[a-z][a-z0-9-]*$`):
 
 - `<dir>` = directory containing the diagrams
 - `<stem>` = the canonical aggregate stem (domain filename with `.md` stripped)

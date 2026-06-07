@@ -20,7 +20,7 @@ Phase 1 ends with its own confirmation line such as `Spec generation complete fo
 
 - `$ARGUMENTS` — the path to the aggregate's Mermaid class diagram (`<dir>/<stem>.md`).
 
-All artifacts produced by Phase 1 land in `<dir>/<stem>.domain/` per `domain-spec:naming-conventions`; Phase 2 reads them from there.
+All artifacts produced by Phase 1 land in `<dir>/<stem>.domain/` per `spec-core:naming-conventions`; Phase 2 reads them from there.
 
 ## Workflow
 

@@ -3,7 +3,7 @@ name: command-repo-spec-migrations-appender
 description: Appends delta-driven migration rows to an existing command repository spec from `updates.md`. Invoke with: @command-repo-spec-migrations-appender <domain_diagram>
 tools: Read, Edit, Bash, Skill
 skills:
-  - persistence-spec:naming-conventions
+  - spec-core:naming-conventions
   - persistence-spec:implementation-roadmap
   - persistence-spec:migration-vocabulary
   - persistence-spec:table-definitions
@@ -21,7 +21,7 @@ You are a persistence migrations appender. Your job is to add **delta-driven** r
 - `<spec_file>` = `<dir>/<stem>.persistence/command-repo-spec.md` (must already exist; produced by `@command-repo-spec-scaffolder` → `@command-repo-spec-pattern-selector` → `@command-repo-spec-migrations-writer` → `@command-repo-spec-schema-writer`).
 - `<updates_file>` = `<dir>/<stem>.domain/updates.md` (must already exist; produced by `domain-spec:updates-detector`).
 
-Path derivation follows `persistence-spec:naming-conventions` exactly. Do not reconstruct paths by string substitution.
+Path derivation follows `spec-core:naming-conventions` exactly. Do not reconstruct paths by string substitution.
 
 This agent **trusts the orchestrator's preflight**: it does not re-check for degraded baseline or aggregate-root lifecycle changes (it *does* keep a narrow stereotype-change safety net for the root / `<<Repository>>` classes — see § 6.0). The orchestrator hard-fails before invocation in those cases.
 
@@ -29,7 +29,7 @@ It is also safe to invoke standalone (outside `/persistence-spec:update-specs`):
 
 The autoloaded skills cover:
 
-- `persistence-spec:naming-conventions` — path derivation contract.
+- `spec-core:naming-conventions` — path derivation contract.
 - `persistence-spec:implementation-roadmap` — pattern catalog, child-table-naming rule, finder classification.
 - `persistence-spec:migration-vocabulary` — controlled Pattern list, ⚠ marker rule, per-row slug-derivation rule.
 - `persistence-spec:table-definitions` — Column Types vocabulary used to type `Add Column` and `Alter Column Type` rows.
@@ -39,7 +39,7 @@ The autoloaded skills cover:
 
 ### Step 1 — Resolve paths and verify inputs
 
-Derive `<dir>`, `<stem>`, `<spec_file>`, `<updates_file>` per `persistence-spec:naming-conventions`.
+Derive `<dir>`, `<stem>`, `<spec_file>`, `<updates_file>` per `spec-core:naming-conventions`.
 
 Verify with `test -f`:
 

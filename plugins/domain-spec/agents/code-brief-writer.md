@@ -4,7 +4,7 @@ description: "Phase-1 gather agent for `/update-code` flow. Derives per-artifact
 tools: Read, Write, Bash
 model: sonnet
 skills:
-  - domain-spec:naming-conventions
+  - spec-core:naming-conventions
   - domain-spec:updates-report-template
   - domain-spec:class-spec-template
 ---
@@ -15,7 +15,7 @@ You **do not** edit source code, **do not** read method bodies, and **do not** i
 
 ## Arguments
 
-- `<domain_diagram>`: path to the diagram at `<dir>/<stem>.md`. All sibling paths derive from this per `domain-spec:naming-conventions`.
+- `<domain_diagram>`: path to the diagram at `<dir>/<stem>.md`. All sibling paths derive from this per `spec-core:naming-conventions`.
 - `<locations_report_text>`: verbatim Markdown output from `@domain-spec:target-locations-finder`. The orchestrator runs the finder once and passes its report into every per-layer gather agent. You parse this to resolve the on-disk paths for the aggregate package, the source root, and the tests directory. Never invoke the finder yourself.
 
 ## Inputs (read-only)
@@ -40,7 +40,7 @@ The brief uses **flat per-artifact sections** (one `### \`<path>\`` block per ro
 ### Step 0 — Preflight
 
 1. **Args validation.** If either `<domain_diagram>` or `<locations_report_text>` is missing or empty, hard-fail with `ERROR: Usage: @code-brief-writer <domain_diagram> <locations_report_text>`.
-2. Resolve `<dir>` and `<stem>` from `<domain_diagram>` per `domain-spec:naming-conventions`.
+2. Resolve `<dir>` and `<stem>` from `<domain_diagram>` per `spec-core:naming-conventions`.
 3. Read `<dir>/<stem>.domain/updates.md`. If missing, hard-fail:
    ```
    ERROR: <stem>.domain/updates.md not found. Run /update-specs <domain_diagram> before gather.
@@ -206,7 +206,7 @@ brief_path: null
 
 ## Path resolution
 
-- `<aggregate_snake>` is the lower-snake form of the diagram's `<stem>` per `domain-spec:naming-conventions` (the kebab-case stem with `-` → `_`).
+- `<aggregate_snake>` is the lower-snake form of the diagram's `<stem>` per `spec-core:naming-conventions` (the kebab-case stem with `-` → `_`).
 - `<class_snake>` is the lower-snake form of the class name (e.g. `OrderLine` → `order_line`).
 - Aggregate package directory `<aggregate_pkg_dir>`, shared package directory `<shared_pkg_dir>`, and tests directory `<tests_dir>` all come from `<locations_report_text>`. Unit tests sit at `<tests_dir>/unit/`; conftest at `<tests_dir>/conftest.py`.
 - Class-file path is resolved by candidate-probe; see Step 4.1 for the probe order.

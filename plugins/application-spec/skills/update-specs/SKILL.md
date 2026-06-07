@@ -21,7 +21,7 @@ This skill is also the **owner of the app-service-axis cascade**. After refreshi
 
 ## Output path convention
 
-Per `application-spec:naming-conventions`, given `<domain_diagram>` at `<dir>/<stem>.md`:
+Per `spec-core:naming-conventions`, given `<domain_diagram>` at `<dir>/<stem>.md`:
 
 - `<dir>` = directory containing the diagrams.
 - `<stem>` = the canonical aggregate stem (domain filename with `.md` stripped).
@@ -39,7 +39,7 @@ Per `application-spec:naming-conventions`, given `<domain_diagram>` at `<dir>/<s
 | `<plugin_dir>/services.md` | spec being updated (must already exist) | `services-finder` (when at least one side was dirty) |
 | `<plugin_dir>/updates.md` | output — application delta report | `application-updates-writer` |
 
-`<domain_diagram>`, `<commands_diagram>`, and `<queries_diagram>` are read by the invoked agents; this orchestrator never modifies them. Every agent derives `<dir>` / `<stem>` from `$ARGUMENTS[0]` per `application-spec:naming-conventions` — pass `$ARGUMENTS[0]` verbatim as the prompt to each.
+`<domain_diagram>`, `<commands_diagram>`, and `<queries_diagram>` are read by the invoked agents; this orchestrator never modifies them. Every agent derives `<dir>` / `<stem>` from `$ARGUMENTS[0]` per `spec-core:naming-conventions` — pass `$ARGUMENTS[0]` verbatim as the prompt to each.
 
 This skill keeps no runtime state between agents. The updates writer recovers the pre-update specs via `git show HEAD:<spec_file>` for each of the three spec files and reads the three on-disk delta reports for axis-tagged source attribution, so there is nothing for the orchestrator to capture or hand along.
 
@@ -49,7 +49,7 @@ The Step-9 re-cascade additionally writes the downstream `<dir>/<stem>.rest-api/
 
 ### Step 0 — Verify inputs and produce the app-service-axis reports
 
-Derive `<dir>` and `<stem>` from `$ARGUMENTS[0]` per `application-spec:naming-conventions`. `<stem>` must satisfy `^[a-z][a-z0-9-]*$`. Using `Bash` (`test -f`), verify the input files in this order:
+Derive `<dir>` and `<stem>` from `$ARGUMENTS[0]` per `spec-core:naming-conventions`. `<stem>` must satisfy `^[a-z][a-z0-9-]*$`. Using `Bash` (`test -f`), verify the input files in this order:
 
 - **0a.** If `<dir>/<stem>.domain/updates.md` is missing → **do not hard-fail**. The domain report is an **optional** input: set `domain_report_absent = true`, emit the `WARNING` below, and continue with the commands/queries-diagram axes only. This skill never produces the domain report itself (it does not invoke `domain-spec:updates-detector`), so absence is handled by **suppressing the domain axis**, not by synthesizing the file:
 
@@ -103,7 +103,7 @@ Do not synthesize any of these files.
 
 #### 0g. Invoke the two app-service-axis detectors in parallel
 
-After 0a–0f run (0a never aborts — it only records `domain_report_absent`; 0b–0f hard-fail on a missing input), fan out the two detectors in a single message so they run concurrently. Pass `$ARGUMENTS[0]` (the domain diagram path) as the prompt to each — the detectors derive their own sibling diagrams via `application-spec:naming-conventions`.
+After 0a–0f run (0a never aborts — it only records `domain_report_absent`; 0b–0f hard-fail on a missing input), fan out the two detectors in a single message so they run concurrently. Pass `$ARGUMENTS[0]` (the domain diagram path) as the prompt to each — the detectors derive their own sibling diagrams via `spec-core:naming-conventions`.
 
 - `application-spec:commands-updates-detector` with prompt `$ARGUMENTS[0]`.
 - `application-spec:queries-updates-detector` with prompt `$ARGUMENTS[0]`.
@@ -236,7 +236,7 @@ If at least one flag is true, proceed to Step 3.
 
 ### Step 3 — Per-side regen (parallel where both sides fire)
 
-For each dirty side, fan out the writer agents in parallel. **Emit all selected agent calls in a single message** so they run concurrently. Pass `$ARGUMENTS[0]` (the domain diagram path) as the prompt to each — the writers derive their own sibling diagrams via `application-spec:naming-conventions`.
+For each dirty side, fan out the writer agents in parallel. **Emit all selected agent calls in a single message** so they run concurrently. Pass `$ARGUMENTS[0]` (the domain diagram path) as the prompt to each — the writers derive their own sibling diagrams via `spec-core:naming-conventions`.
 
 If `commands_dirty`:
 

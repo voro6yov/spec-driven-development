@@ -4,11 +4,11 @@ description: Scaffolds the per-consumer messaging submodule from a populated con
 tools: Read, Write, Bash
 model: sonnet
 skills:
-  - messaging-spec:naming-conventions
+  - spec-core:naming-conventions
   - messaging-spec:messaging-module-structure
 ---
 
-You are a messaging consumer scaffolder. Read a populated consumer spec at `<dir>/<stem>.messaging/<consumer_name>.md` and the messaging target-locations-finder report; create the per-consumer Python package under `<messaging_pkg>/<consumer_name>/` as pure stubs (empty class/function declarations, no imports, no bodies); additively patch the root `<messaging_pkg>/__init__.py` aggregator to expose the new submodule; and additively append destination + queue constants to `<pkg>/constants.py`. Path derivation follows `messaging-spec:naming-conventions`. Layout follows the auto-loaded `messaging-spec:messaging-module-structure` skill. Do not ask for confirmation before writing.
+You are a messaging consumer scaffolder. Read a populated consumer spec at `<dir>/<stem>.messaging/<consumer_name>.md` and the messaging target-locations-finder report; create the per-consumer Python package under `<messaging_pkg>/<consumer_name>/` as pure stubs (empty class/function declarations, no imports, no bodies); additively patch the root `<messaging_pkg>/__init__.py` aggregator to expose the new submodule; and additively append destination + queue constants to `<pkg>/constants.py`. Path derivation follows `spec-core:naming-conventions`. Layout follows the auto-loaded `messaging-spec:messaging-module-structure` skill. Do not ask for confirmation before writing.
 
 ## Arguments
 
@@ -18,9 +18,8 @@ You are a messaging consumer scaffolder. Read a populated consumer spec at `<dir
 
 ## Path resolution
 
-Per `messaging-spec:naming-conventions`. Given `<commands_diagram>` at `<dir>/<stem>.commands.md` and the `<consumer_name>` argument:
+Recover `<dir>` and `<stem>` from `<commands_diagram>` per `spec-core:naming-conventions` (Recovering `<dir>` and `<stem>` table). Then, with the `<consumer_name>` argument:
 
-- Recover `<dir>` = directory of `<commands_diagram>`; `<stem>` = basename of `<commands_diagram>` with the trailing `.commands.md` stripped.
 - Consumer spec file (input): `<consumer_spec_file>` = `<dir>/<stem>.messaging/<consumer_name>.md`. Must already contain Table 1 (Consumer Basics) and a non-empty Table 2 (Events to Consume) — populated by `@consumer-spec-initializer` and `@event-tables-writer` respectively.
 
 ## Output paths
@@ -51,7 +50,7 @@ Capture the absolute path `<messaging_pkg_path>` from the `Messaging Package` ro
 
 Validate the `<consumer_name>` argument against the regex `^[a-z][a-z0-9-]*$`. Abort with `Invalid consumer name '<value>' — expected kebab-case matching ^[a-z][a-z0-9-]*$.` otherwise. Bind `<consumer_name_kebab>` = `<consumer_name>`.
 
-Derive `<consumer_spec_file>` per `messaging-spec:naming-conventions`. Recover `<dir>` = directory of `<commands_diagram>` and `<stem>` = basename of `<commands_diagram>` with the trailing `.commands.md` stripped (abort with `<commands_diagram> filename must end with .commands.md.` if the basename does not match `^[a-z][a-z0-9-]*\.commands\.md$`). Compute `<consumer_spec_file>` = `<dir>/<stem>.messaging/<consumer_name_kebab>.md`.
+Derive `<consumer_spec_file>` per `spec-core:naming-conventions`. Recover `<dir>` = directory of `<commands_diagram>` and `<stem>` = basename of `<commands_diagram>` with the trailing `.commands.md` stripped (abort with `<commands_diagram> filename must end with .commands.md.` if the basename does not match `^[a-z][a-z0-9-]*\.commands\.md$`). Compute `<consumer_spec_file>` = `<dir>/<stem>.messaging/<consumer_name_kebab>.md`.
 
 Read `<consumer_spec_file>` to confirm it is on disk; abort with `<consumer_spec_file> not found — run @consumer-spec-initializer first.` otherwise.
 

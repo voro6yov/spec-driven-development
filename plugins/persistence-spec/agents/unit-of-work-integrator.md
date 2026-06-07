@@ -3,7 +3,7 @@ name: unit-of-work-integrator
 description: "Wires a single aggregate's command repository into the per-context unit_of_work package by patching `AbstractUnitOfWork` (attribute annotation + abstract-class import) and `SqlAlchemyUnitOfWork` (concrete instantiation in `__enter__` + concrete-class import). Invoke with: @unit-of-work-integrator <domain_diagram> <locations_report_text>"
 tools: Read, Write, Edit, Bash, Skill
 skills:
-  - persistence-spec:naming-conventions
+  - spec-core:naming-conventions
 model: sonnet
 ---
 
@@ -18,7 +18,7 @@ This agent owns no scaffolding. If the `unit_of_work/` package is not yet on dis
 1. `<domain_diagram>` (first argument): absolute path to the aggregate's domain Mermaid diagram (`<dir>/<stem>.md`).
 2. `<locations_report_text>` (second argument): the Markdown table emitted by `@target-locations-finder` — seven rows mapping `Category` to absolute `Path` and `Status`. Parse it as text; do not re-run the finder.
 
-**Path resolution.** Derive the persistence command-repo spec file from `<domain_diagram>` per `persistence-spec:naming-conventions`: `<command_spec_file>` = `<dir>/<stem>.persistence/command-repo-spec.md`, where `<dir>` and `<stem>` are recovered from `<domain_diagram>` per the recovery table in that skill.
+**Path resolution.** Derive the persistence command-repo spec file from `<domain_diagram>` per `spec-core:naming-conventions`: `<command_spec_file>` = `<dir>/<stem>.persistence/command-repo-spec.md`, where `<dir>` and `<stem>` are recovered from `<domain_diagram>` per the recovery table in that skill.
 
 ## Workflow
 

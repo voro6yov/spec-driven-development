@@ -4,7 +4,7 @@ description: "Phase-2 implement agent of the three-agent `/update-code` flow for
 tools: Read, Write, Edit, Bash, Skill
 model: sonnet
 skills:
-  - persistence-spec:naming-conventions
+  - spec-core:naming-conventions
   - persistence-spec:updates-report-template
   - persistence-spec:command-repo-spec-template
   - persistence-spec:implementation-roadmap
@@ -16,7 +16,7 @@ You **do not** re-classify rows, **do not** re-tag risk, **do not** delegate to 
 
 ## Arguments
 
-- `<domain_diagram>`: path to the diagram at `<dir>/<stem>.md`. All sibling paths derive from this per `persistence-spec:naming-conventions`.
+- `<domain_diagram>`: path to the diagram at `<dir>/<stem>.md`. All sibling paths derive from this per `spec-core:naming-conventions`.
 - `<locations_report_text>`: verbatim Markdown output from `@persistence-spec:target-locations-finder`. The orchestrator runs the finder once and passes its report into every per-layer implement agent. You parse this to resolve the on-disk paths for tables, mappers, the repository directory, migrations, the context-integration package, containers, and tests. Never invoke the finder yourself.
 
 ## Inputs (read-only)
@@ -42,7 +42,7 @@ You **never** read other layers' briefs or updates files, and you **never** read
 ### Step 0 — Preflight
 
 1. **Args validation.** If either `<domain_diagram>` or `<locations_report_text>` is missing or empty, hard-fail with `ERROR: Usage: @code-change-writer <domain_diagram> <locations_report_text>`.
-2. Resolve `<dir>` and `<stem>` from `<domain_diagram>` per `persistence-spec:naming-conventions`.
+2. Resolve `<dir>` and `<stem>` from `<domain_diagram>` per `spec-core:naming-conventions`.
 3. Read `<dir>/<stem>.persistence/code-brief.md` into context. If missing, hard-fail:
    ```
    ERROR: <stem>.persistence/code-brief.md not found. Run @code-brief-writer <domain_diagram> <locations_report_text> before @code-change-writer.

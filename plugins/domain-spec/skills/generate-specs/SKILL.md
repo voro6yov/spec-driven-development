@@ -9,7 +9,7 @@ You are a DDD spec generation orchestrator. Generate class specifications for al
 
 ## Output path convention
 
-Given `<domain_diagram>` at `<dir>/<stem>.md`, spec outputs are written into the per-plugin folder defined by `domain-spec:naming-conventions`:
+Given `<domain_diagram>` at `<dir>/<stem>.md`, spec outputs are written into the per-plugin folder defined by `spec-core:naming-conventions`:
 
 | File | Written by | Content |
 |---|---|---|
@@ -19,7 +19,7 @@ Given `<domain_diagram>` at `<dir>/<stem>.md`, spec outputs are written into the
 
 The diagram file itself is updated with an **Artifacts** index linking the artifacts in `<stem>.domain/`. (The skill explicitly permits appending to the diagram's `## Artifacts` index.)
 
-All agents derive `<stem>` by stripping the `.md` suffix from `<domain_diagram>`. See `domain-spec:naming-conventions` for the canonical layout.
+All agents derive `<stem>` by stripping the `.md` suffix from `<domain_diagram>`. See `spec-core:naming-conventions` for the canonical layout.
 
 ## Category → Stereotype Mapping
 

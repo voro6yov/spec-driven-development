@@ -4,7 +4,7 @@ description: "Phase-1 gather agent of the three-agent `/update-code` flow for th
 tools: Read, Write, Bash
 model: sonnet
 skills:
-  - messaging-spec:naming-conventions
+  - spec-core:naming-conventions
   - messaging-spec:updates-report-template
   - messaging-spec:consumer-spec-template
   - messaging-spec:event-tables-template
@@ -16,7 +16,7 @@ You **do not** edit source code, **do not** read handler function bodies, and **
 
 ## Arguments
 
-- `<domain_diagram>`: path to the diagram at `<dir>/<stem>.md`. All messaging sibling paths derive from this per `messaging-spec:naming-conventions`.
+- `<domain_diagram>`: path to the diagram at `<dir>/<stem>.md`. All messaging sibling paths derive from this per `spec-core:naming-conventions`.
 - `<locations_report_text>`: verbatim Markdown output from `@messaging-spec:target-locations-finder`. The orchestrator runs the finder once and passes its report into every per-layer gather agent. You parse this to resolve the on-disk paths for the messaging package directory and the tests directory. Never invoke the finder yourself.
 
 ## Inputs (read-only)
@@ -41,7 +41,7 @@ The brief uses **flat per-artifact sections** (one `### \`<path>\`` block per ro
 ### Step 0 — Preflight
 
 1. **Args validation.** If either `<domain_diagram>` or `<locations_report_text>` is missing or empty, hard-fail with `ERROR: Usage: @code-brief-writer <domain_diagram> <locations_report_text>`.
-2. Resolve `<dir>` and `<stem>` from `<domain_diagram>` per `messaging-spec:naming-conventions`.
+2. Resolve `<dir>` and `<stem>` from `<domain_diagram>` per `spec-core:naming-conventions`.
 3. Read `<dir>/<stem>.messaging/updates.md`. If missing, hard-fail:
    ```
    ERROR: <stem>.messaging/updates.md not found. Run /update-specs <domain_diagram> before gather.

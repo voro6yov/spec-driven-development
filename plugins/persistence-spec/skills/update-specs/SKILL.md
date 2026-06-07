@@ -13,7 +13,7 @@ This skill **does not** detect domain-level deltas — it consumes the `<dir>/<s
 
 ## Output path convention
 
-Per `persistence-spec:naming-conventions`, given `<domain_diagram>` at `<dir>/<stem>.md`:
+Per `spec-core:naming-conventions`, given `<domain_diagram>` at `<dir>/<stem>.md`:
 
 | File | Role | Touched by |
 |---|---|---|
@@ -21,7 +21,7 @@ Per `persistence-spec:naming-conventions`, given `<domain_diagram>` at `<dir>/<s
 | `<dir>/<stem>.persistence/command-repo-spec.md` | the spec being updated (must already exist) | `command-repo-spec-pattern-selector` (§1 + §2 snapshot sub-sections), `command-repo-spec-schema-writer` (§3), `command-repo-spec-migrations-appender` (§2.Migrations rows) |
 | `<dir>/<stem>.persistence/updates.md` | output — persistence delta report | `command-repo-spec-updates-writer` |
 
-`<domain_diagram>` itself is read only by the invoked agents (for shape/type resolution) and is never modified. Every agent derives `<dir>` / `<stem>` from `$ARGUMENTS` per `persistence-spec:naming-conventions` — pass `$ARGUMENTS` verbatim as the prompt to each.
+`<domain_diagram>` itself is read only by the invoked agents (for shape/type resolution) and is never modified. Every agent derives `<dir>` / `<stem>` from `$ARGUMENTS` per `spec-core:naming-conventions` — pass `$ARGUMENTS` verbatim as the prompt to each.
 
 This skill keeps no runtime state between agents. The updates-writer recovers the pre-update spec via `git show HEAD:<spec_file>` and the appended-row set via §2.Migrations row-ID set-difference, so there is nothing for the orchestrator to capture or hand along.
 
@@ -29,7 +29,7 @@ This skill keeps no runtime state between agents. The updates-writer recovers th
 
 ### Step 0 — Verify inputs
 
-Derive `<dir>` and `<stem>` from `$ARGUMENTS` per `persistence-spec:naming-conventions`. Using `Bash` (`test -f`):
+Derive `<dir>` and `<stem>` from `$ARGUMENTS` per `spec-core:naming-conventions`. Using `Bash` (`test -f`):
 
 - **0a.** If `<dir>/<stem>.domain/updates.md` is missing → hard-fail:
 

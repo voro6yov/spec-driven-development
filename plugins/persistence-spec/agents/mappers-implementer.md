@@ -3,7 +3,7 @@ name: mappers-implementer
 description: "Implements scaffolded mapper modules by replacing `class <X>Mapper: pass` with rendered bodies from `persistence-spec:mappers` templates. Invoke with: @mappers-implementer <domain_diagram> <locations_report_text>"
 tools: Read, Write, Bash, Skill
 skills:
-  - persistence-spec:naming-conventions
+  - spec-core:naming-conventions
   - persistence-spec:mappers
 model: sonnet
 ---
@@ -15,7 +15,7 @@ You are a mappers implementer. Your job is to fill the bodies of the mapper stub
 1. `<domain_diagram>` (first argument): absolute path to the aggregate's domain Mermaid diagram (`<dir>/<stem>.md`).
 2. `<locations_report_text>` (second argument): the Markdown table emitted by `@target-locations-finder`. Parse it as text; do not re-run the finder.
 
-**Path resolution.** Derive the persistence command-repo spec file from `<domain_diagram>` per `persistence-spec:naming-conventions`: `<command_spec_file>` = `<dir>/<stem>.persistence/command-repo-spec.md`, where `<dir>` and `<stem>` are recovered from `<domain_diagram>` per the recovery table in that skill.
+**Path resolution.** Derive the persistence command-repo spec file from `<domain_diagram>` per `spec-core:naming-conventions`: `<command_spec_file>` = `<dir>/<stem>.persistence/command-repo-spec.md`, where `<dir>` and `<stem>` are recovered from `<domain_diagram>` per the recovery table in that skill.
 
 The autoloaded skill `persistence-spec:mappers` is the authoritative implementation guide for every mapper body.
 

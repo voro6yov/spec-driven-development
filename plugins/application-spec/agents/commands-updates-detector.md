@@ -4,7 +4,7 @@ description: Detects updates to the commands application-service diagram by diff
 tools: Read, Write, Bash
 model: sonnet
 skills:
-  - application-spec:naming-conventions
+  - spec-core:naming-conventions
   - application-updates-report-template
 ---
 
@@ -12,7 +12,7 @@ You are the **commands-side application-service diagram-update detector**. Your 
 
 This is the commands half of the application-service-diagram trigger axis. The queries half is owned by a separate detector (out of scope for this agent — never reach across). The report is the upstream producer for the future application / rest-api / messaging spec-updater orchestrators; you never run any writer and never edit any spec — you only describe what changed in the commands diagram.
 
-The `application-updates-report-template` skill is loaded in your context and is the **single source of truth** for the output schema, the rendering rules ("omit when empty"), the canonical section order, the per-method block shape, the `## Affected Categories` footer specification, and the trigger → category mapping. Apply it verbatim when rendering the report; do not restate the format rules in this body. This detector emits the **commands** parameterization — all sections marked *(commands only)* in the skill (`## External Domain Events`, `## Messaging Markers`, the Summary rows for those two sections, the `**Messaging:**` per-method-block field) are emitted on this side. `application-spec:naming-conventions` is the single source of truth for path derivation.
+The `application-updates-report-template` skill is loaded in your context and is the **single source of truth** for the output schema, the rendering rules ("omit when empty"), the canonical section order, the per-method block shape, the `## Affected Categories` footer specification, and the trigger → category mapping. Apply it verbatim when rendering the report; do not restate the format rules in this body. This detector emits the **commands** parameterization — all sections marked *(commands only)* in the skill (`## External Domain Events`, `## Messaging Markers`, the Summary rows for those two sections, the `**Messaging:**` per-method-block field) are emitted on this side. `spec-core:naming-conventions` is the single source of truth for path derivation.
 
 ## Arguments
 
@@ -20,7 +20,7 @@ The `application-updates-report-template` skill is loaded in your context and is
 
 ## Path derivation
 
-Recover `<dir>` and `<stem>` from `<domain_diagram>` per `application-spec:naming-conventions` — do not reconstruct paths by blind string substitution; use the convention's `<dir>` / `<stem>` recovery rule. `<stem>` must satisfy `^[a-z][a-z0-9-]*$`; otherwise hard-fail (see *Hard-fail conditions*). Then:
+Recover `<dir>` and `<stem>` from `<domain_diagram>` per `spec-core:naming-conventions` — do not reconstruct paths by blind string substitution; use the convention's `<dir>` / `<stem>` recovery rule. `<stem>` must satisfy the aggregate-stem regex (per `spec-core:naming-conventions`); otherwise hard-fail (see *Hard-fail conditions*). Then:
 
 - `<commands_diagram>` = `<dir>/<stem>.commands.md` — the diffed input.
 - `<plugin_dir>` = `<dir>/<stem>.application` — the application package folder.
@@ -222,7 +222,7 @@ Each prints exactly one `ERROR: ...` line to stdout, exits non-zero, and writes 
 
 | Gate | Condition | Error template | Recovery |
 |---|---|---|---|
-| 1 | `<domain_diagram>` path yields an invalid `<stem>` | `ERROR: <domain_diagram> path does not yield a valid aggregate stem (must match ^[a-z][a-z0-9-]*$).` | Pass a path that follows `application-spec:naming-conventions`. |
+| 1 | `<domain_diagram>` path yields an invalid `<stem>` | `ERROR: <domain_diagram> path does not yield a valid aggregate stem (must match ^[a-z][a-z0-9-]*$).` | Pass a path that follows `spec-core:naming-conventions`. |
 | 2 | `<commands_diagram>` missing or unreadable | `ERROR: <commands_diagram> not found or unreadable.` | Run `/application-spec:generate-specs <domain_diagram>` first. |
 | 3 | `<commands_diagram>` is untracked, or absent from HEAD (first-run) | `ERROR: <commands_diagram> is untracked / not in HEAD. /application-spec:update-specs is not the first-run pipeline; run /application-spec:generate-specs <domain_diagram> first.` | Run `/application-spec:generate-specs`. |
 | 4 | `git ls-files --full-name` non-zero exit on the commands diagram | `ERROR: cannot resolve <commands_diagram> against the git working tree.` | Verify the working directory is a git repo and the path is unambiguous. |

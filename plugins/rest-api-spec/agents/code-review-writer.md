@@ -4,7 +4,7 @@ description: "Phase-3 reviewer agent of the three-agent `/update-code` flow. Inv
 tools: Read, Write, Bash, Skill
 model: sonnet
 skills:
-  - rest-api-spec:naming-conventions
+  - spec-core:naming-conventions
   - rest-api-spec:updates-report-template
   - rest-api-spec:resource-spec-template
   - rest-api-spec:endpoint-tables-template
@@ -18,7 +18,7 @@ You **do** read the brief, the change log, every source module the change log re
 
 ## Arguments
 
-- `<domain_diagram>`: path to the diagram at `<dir>/<stem>.md`. All sibling paths derive from this per `rest-api-spec:naming-conventions`.
+- `<domain_diagram>`: path to the diagram at `<dir>/<stem>.md`. All sibling paths derive from this per `spec-core:naming-conventions`.
 - `<locations_report_text>`: verbatim Markdown output from `@rest-api-spec:target-locations-finder`. The orchestrator runs the finder once and passes its report into every per-layer Phase-3 agent. Parse it for `<api_pkg>`, `<pkg>`, `<tests_dir>`, and the absolute paths to `containers.py`, `entrypoint.py`, `constants.py`. Never invoke the finder yourself.
 
 ## Inputs (read-only)
@@ -45,10 +45,10 @@ On a no-op exit (brief absent, or change log absent, or change log empty), write
 
 1. **Args validation.** If either `<domain_diagram>` or `<locations_report_text>` is missing or empty, hard-fail with `ERROR: Usage: @code-review-writer <domain_diagram> <locations_report_text>`.
 2. Auto-load the foundational skills via `Skill` (always, before any path resolution):
-   - `rest-api-spec:naming-conventions` — for `<dir>` / `<stem>` derivation and sibling-path conventions used to resolve `abs_path` in Step 2.
+   - `spec-core:naming-conventions` — for `<dir>` / `<stem>` derivation and sibling-path conventions used to resolve `abs_path` in Step 2.
    - `rest-api-spec:api-endpoint-test-rules` — for the test-naming-convention check in Step 5d.
    - `rest-api-spec:updates-report-template`, `rest-api-spec:resource-spec-template`, `rest-api-spec:endpoint-tables-template`, `rest-api-spec:endpoint-io-template` — defensively pre-loaded so that any check that has to disambiguate a brief reference back to a spec.md table or `updates.md` bullet has the canonical vocabulary in context. None of the current Step 5 checks reads these templates' bodies; they exist to keep this agent's vocabulary aligned with `code-brief-writer.md` and `code-change-writer.md` for future check additions.
-3. Resolve `<dir>` and `<stem>` from `<domain_diagram>` per the just-loaded `rest-api-spec:naming-conventions`. Read the brief at `<dir>/<stem>.rest-api/code-brief.md`. If missing — which means Phase 1 produced no work for this layer — set `no_op = true, reason = brief-absent` and skip directly to Step 7 (emit the no-op confirm payload, write no report). Do not hard-fail.
+3. Resolve `<dir>` and `<stem>` from `<domain_diagram>` per the just-loaded `spec-core:naming-conventions`. Read the brief at `<dir>/<stem>.rest-api/code-brief.md`. If missing — which means Phase 1 produced no work for this layer — set `no_op = true, reason = brief-absent` and skip directly to Step 7 (emit the no-op confirm payload, write no report). Do not hard-fail.
 4. Read the change log at `<dir>/<stem>.rest-api/code-changes.md`. If missing — which means Phase 2 did not run — set `no_op = true, reason = change-log-absent` and skip directly to Step 7. Do not hard-fail.
 5. Parse `<locations_report_text>`. Extract:
    - `<api_pkg>` — from the `API Package` row.

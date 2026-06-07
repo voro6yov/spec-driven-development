@@ -3,7 +3,7 @@ name: messaging-updates-writer
 description: "Emits the per-update messaging report by diffing working-tree consumer specs against git HEAD and cross-referencing domain and commands-diagram updates. Invoke with: @messaging-updates-writer <domain_diagram>"
 tools: Read, Write, Bash, Skill
 skills:
-  - messaging-spec:naming-conventions
+  - spec-core:naming-conventions
   - messaging-spec:updates-report-template
   - messaging-spec:event-tables-template
   - messaging-spec:event-fields-template
@@ -24,7 +24,7 @@ There is no second argument. When this agent is invoked standalone (not via the 
 
 ## Path derivation
 
-Path derivation follows `messaging-spec:naming-conventions` exactly. Given `<domain_diagram>` at `<dir>/<stem>.md`:
+Path derivation follows `spec-core:naming-conventions` exactly. Given `<domain_diagram>` at `<dir>/<stem>.md`:
 
 - `<messaging_dir>` = `<dir>/<stem>.messaging`
 - `<commands_diagram>` = `<dir>/<stem>.commands.md` (path only — referenced in `aborted` reconcile instructions; not read or parsed)
@@ -45,7 +45,7 @@ For a consumer spec file `<messaging_dir>/<C>.md`, the **consumer name** `<C>` i
 
 ### Step 1 — Resolve paths and validate inputs
 
-Recover `<dir>` and `<stem>` from `<domain_diagram>` per `messaging-spec:naming-conventions`. `<stem>` must satisfy `^[a-z][a-z0-9-]*$`; otherwise hard-fail with: `ERROR: <domain_diagram> path does not yield a valid aggregate stem (must match ^[a-z][a-z0-9-]*$).`
+Recover `<dir>` and `<stem>` from `<domain_diagram>` per `spec-core:naming-conventions`. `<stem>` must satisfy the aggregate-stem regex (per `spec-core:naming-conventions`); otherwise hard-fail with: `ERROR: <domain_diagram> path does not yield a valid aggregate stem (must match ^[a-z][a-z0-9-]*$).`
 
 `<domain_diagram>` itself is **not** required to exist — the agent uses its path only for `<dir>` / `<stem>` recovery. Do not error on a missing diagram.
 
@@ -293,7 +293,7 @@ Each prints exactly one `ERROR: ...` line and exits non-zero. The agent does **n
 
 | Condition | Error template | Recovery |
 |---|---|---|
-| `<domain_diagram>` path produces an invalid `<stem>` | `ERROR: <domain_diagram> path does not yield a valid aggregate stem (must match ^[a-z][a-z0-9-]*$).` | Pass a path that follows `messaging-spec:naming-conventions`. |
+| `<domain_diagram>` path produces an invalid `<stem>` | `ERROR: <domain_diagram> path does not yield a valid aggregate stem (must match ^[a-z][a-z0-9-]*$).` | Pass a path that follows `spec-core:naming-conventions`. |
 | `<domain_updates_file>` present but missing all expected headings | `ERROR: <domain_updates_file> is malformed; cannot locate expected headings. Re-run /update-specs <domain_diagram> to rebuild it.` | Re-run `/update-specs`. |
 | `<commands_updates_file>` present but missing all recognisable H2 sections | `ERROR: <commands_updates_file> is malformed; cannot locate expected headings. Re-run /application-spec:commands-updates-detector <domain_diagram> to rebuild it.` | Re-run `/application-spec:commands-updates-detector`. |
 | Aggregate root removed / stereotype-demoted in `<domain_updates_file>` | `ERROR: the aggregate root was removed or re-stereotyped in <domain_updates_file>; the whole diagram set (and every consumer under <messaging_dir>/) is invalid. Reconcile the diagrams, then re-run /messaging-spec:generate-code per consumer.` | Reconcile the diagrams; re-run `/messaging-spec:generate-code` per consumer. |

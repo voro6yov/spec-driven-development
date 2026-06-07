@@ -3,7 +3,7 @@ name: commands-implementer
 description: "Implements the `<Aggregate>Commands` application service end-to-end. Invoke with: @commands-implementer <domain_diagram> <locations_report_text>"
 tools: Read, Write, Edit, Bash, Skill
 skills:
-  - application-spec:naming-conventions
+  - spec-core:naming-conventions
   - application-spec:commands
   - application-spec:retry-transaction
   - application-spec:dependency-injection-patterns
@@ -24,14 +24,14 @@ You are a commands implementer. Your job is to wire one aggregate's `<Aggregate>
 
 Two positional arguments:
 
-1. `<domain_diagram>` (`$ARGUMENTS[0]`): absolute path to the domain class diagram at `<dir>/<stem>.md`. The merged commands spec path is derived per `application-spec:naming-conventions`.
+1. `<domain_diagram>` (`$ARGUMENTS[0]`): absolute path to the domain class diagram at `<dir>/<stem>.md`. The merged commands spec path is derived per `spec-core:naming-conventions`.
 2. `<locations_report_text>` (`$ARGUMENTS[1]`): the Markdown table emitted by `@target-locations-finder` (Domain Package, Application Package, Infrastructure Package, Containers, Tests). Parse as text; do not re-run the finder.
 
 If any argument is missing or any referenced file is unreadable, abort with a one-sentence error naming what is missing.
 
 ## Path resolution
 
-Per `application-spec:naming-conventions` ("Path resolution"). Recover `<dir>` and `<stem>` from `<domain_diagram>`, then derive:
+Per `spec-core:naming-conventions` ("Path resolution"). Recover `<dir>` and `<stem>` from `<domain_diagram>`, then derive:
 
 - `<commands_spec_file>` = `<dir>/<stem>.application/commands.specs.md` — merged commands spec produced by `@specs-merger` (top-level heading `# <AggregateRoot>Commands`).
 

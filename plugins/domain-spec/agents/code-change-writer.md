@@ -4,7 +4,7 @@ description: "Phase-2 implement agent of the three-agent `/update-code` flow. In
 tools: Read, Write, Edit, Bash, Skill
 model: sonnet
 skills:
-  - domain-spec:naming-conventions
+  - spec-core:naming-conventions
   - domain-spec:package-layout
   - domain-spec:class-spec-template
   - domain-spec:updates-report-template
@@ -19,7 +19,7 @@ You **do not** re-derive the artifact set, **do not** re-classify risk, and **do
 
 ## Arguments
 
-- `<domain_diagram>`: path to the diagram at `<dir>/<stem>.md`. All sibling paths derive from this per `domain-spec:naming-conventions`.
+- `<domain_diagram>`: path to the diagram at `<dir>/<stem>.md`. All sibling paths derive from this per `spec-core:naming-conventions`.
 - `<locations_report_text>`: verbatim Markdown output from `@domain-spec:target-locations-finder`. The orchestrator runs the finder once per `/update-code` invocation and passes its report into every per-layer agent. You parse this to resolve `aggregate_pkg_dir`, `shared_pkg_dir`, and `tests_dir`. Never invoke the finder yourself.
 
 ## Inputs (read-only)
@@ -50,7 +50,7 @@ You **never** read the diagram itself, the diagram's prose, the `updates.md` rep
 ### Step 0 — Preflight
 
 1. **Args validation.** If either `<domain_diagram>` or `<locations_report_text>` is missing or empty, hard-fail with `ERROR: Usage: @code-change-writer <domain_diagram> <locations_report_text>`.
-2. Resolve `<dir>` and `<stem>` from `<domain_diagram>` per `domain-spec:naming-conventions`.
+2. Resolve `<dir>` and `<stem>` from `<domain_diagram>` per `spec-core:naming-conventions`.
 3. Read `<dir>/<stem>.domain/code-brief.md`. If missing, hard-fail:
    ```
    ERROR: <stem>.domain/code-brief.md not found. Run @code-brief-writer <domain_diagram> <locations_report_text> before implement.
@@ -238,7 +238,7 @@ log_path: <dir>/<stem>.domain/code-changes.md
 
 ## Path resolution
 
-- `<aggregate_snake>`, `<class_snake>` derive per `domain-spec:naming-conventions`.
+- `<aggregate_snake>`, `<class_snake>` derive per `spec-core:naming-conventions`.
 - `<aggregate_pkg_dir>`, `<shared_pkg_dir>`, `<tests_dir>` come from `<locations_report_text>` parsing in Step 0.5. Never re-invoke `@target-locations-finder`.
 - Class-file path probe order is documented in Step 3a; the same probe is used by `@code-brief-writer` Step 4.1, so the two agents resolve consistently.
 

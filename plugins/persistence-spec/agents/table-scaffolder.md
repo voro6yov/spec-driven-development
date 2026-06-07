@@ -3,7 +3,7 @@ name: table-scaffolder
 description: "Scaffolds the per-aggregate table modules and the surrounding `__init__.py` aggregators from a command-repo-spec file and a target-locations-finder report. Invoke with: @table-scaffolder <domain_diagram> <locations_report_text>"
 tools: Read, Write, Bash, Skill
 skills:
-  - persistence-spec:naming-conventions
+  - spec-core:naming-conventions
 model: sonnet
 ---
 
@@ -19,7 +19,7 @@ You are a table modules scaffolder. Your job is to create the `tables/<aggregate
 1. `<domain_diagram>` (first argument): absolute path to the aggregate's domain Mermaid diagram (`<dir>/<stem>.md`).
 2. `<locations_report_text>` (second argument): the Markdown table emitted by `@target-locations-finder`. Parse it as text; do not re-run the finder.
 
-**Path resolution.** Derive the persistence command-repo spec file from `<domain_diagram>` per `persistence-spec:naming-conventions`: `<command_spec_file>` = `<dir>/<stem>.persistence/command-repo-spec.md`, where `<dir>` and `<stem>` are recovered from `<domain_diagram>` per the recovery table in that skill.
+**Path resolution.** Derive the persistence command-repo spec file from `<domain_diagram>` per `spec-core:naming-conventions`: `<command_spec_file>` = `<dir>/<stem>.persistence/command-repo-spec.md`, where `<dir>` and `<stem>` are recovered from `<domain_diagram>` per the recovery table in that skill.
 
 ## Workflow
 

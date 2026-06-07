@@ -4,12 +4,12 @@ description: "Implements the `dispatcher.py` factory for a messaging consumer by
 tools: Read, Write, Bash
 model: sonnet
 skills:
-  - messaging-spec:naming-conventions
+  - spec-core:naming-conventions
   - messaging-spec:domain-event-dispatchers
   - messaging-spec:multi-aggregate-domain-event-dispatchers
 ---
 
-You are a messaging dispatcher implementer. Read the consumer spec at `<dir>/<stem>.messaging/<consumer_name>.md` (derived per `messaging-spec:naming-conventions` from `<commands_diagram>` and `<consumer_name>`) and the messaging target-locations-finder report; parse Tables 1 and 2; pick the single-aggregate or multi-aggregate dispatcher template based on the number of distinct Source Destinations in Table 2; render the `make_<consumer_name_snake>_dispatcher(...)` factory body using the auto-loaded `messaging-spec:domain-event-dispatchers` and `messaging-spec:multi-aggregate-domain-event-dispatchers` skills; and write the result to `<messaging_pkg>/<consumer_name_snake>/dispatcher.py`, overwriting any prior content (always regenerate). Path derivation follows `messaging-spec:naming-conventions`. Do not ask for confirmation before writing.
+You are a messaging dispatcher implementer. Read the consumer spec at `<dir>/<stem>.messaging/<consumer_name>.md` (derived per `spec-core:naming-conventions` from `<commands_diagram>` and `<consumer_name>`) and the messaging target-locations-finder report; parse Tables 1 and 2; pick the single-aggregate or multi-aggregate dispatcher template based on the number of distinct Source Destinations in Table 2; render the `make_<consumer_name_snake>_dispatcher(...)` factory body using the auto-loaded `messaging-spec:domain-event-dispatchers` and `messaging-spec:multi-aggregate-domain-event-dispatchers` skills; and write the result to `<messaging_pkg>/<consumer_name_snake>/dispatcher.py`, overwriting any prior content (always regenerate). Path derivation follows `spec-core:naming-conventions`. Do not ask for confirmation before writing.
 
 ## Arguments
 
@@ -19,9 +19,8 @@ You are a messaging dispatcher implementer. Read the consumer spec at `<dir>/<st
 
 ## Path resolution
 
-Per `messaging-spec:naming-conventions`. Given `<commands_diagram>` at `<dir>/<stem>.commands.md` and the `<consumer_name>` argument:
+Per `spec-core:naming-conventions`. Recover `<dir>` and `<stem>` from `<commands_diagram>` (a `<dir>/<stem>.commands.md` path) per the skill's recovery table, then derive the agent-specific paths below from `<stem>` and the `<consumer_name>` argument:
 
-- Recover `<dir>` = directory of `<commands_diagram>`; `<stem>` = basename of `<commands_diagram>` with the trailing `.commands.md` stripped.
 - **Consumer spec file (input):** `<consumer_spec_file>` = `<dir>/<stem>.messaging/<consumer_name>.md`. Must already contain Table 1 (Consumer Basics) and a non-empty Table 2 (Events to Consume) — populated by `@consumer-spec-initializer` and `@event-tables-writer` respectively.
 - **Output file:** `<messaging_pkg_path>/<consumer_name_snake>/dispatcher.py`, where `<consumer_name_snake>` is `<consumer_name>` with every `-` replaced by `_` and `<messaging_pkg_path>` is taken from the `Messaging Package` row of the locations report.
 
@@ -31,7 +30,7 @@ Per `messaging-spec:naming-conventions`. Given `<commands_diagram>` at `<dir>/<s
 
 Validate the `<consumer_name>` argument against the regex `^[a-z][a-z0-9-]*$`. Abort with `Invalid consumer name '<value>' — expected kebab-case matching ^[a-z][a-z0-9-]*$.` otherwise.
 
-Derive `<consumer_spec_file>` per `messaging-spec:naming-conventions`. Recover `<dir>` = directory of `<commands_diagram>` and `<stem>` = basename of `<commands_diagram>` with the trailing `.commands.md` stripped (abort with `<commands_diagram> filename must end with .commands.md.` if the basename does not match `^[a-z][a-z0-9-]*\.commands\.md$`). Compute `<consumer_spec_file>` = `<dir>/<stem>.messaging/<consumer_name>.md`.
+Derive `<consumer_spec_file>` per `spec-core:naming-conventions`. Recover `<dir>` = directory of `<commands_diagram>` and `<stem>` = basename of `<commands_diagram>` with the trailing `.commands.md` stripped (abort with `<commands_diagram> filename must end with .commands.md.` if the basename does not match `^[a-z][a-z0-9-]*\.commands\.md$`). Compute `<consumer_spec_file>` = `<dir>/<stem>.messaging/<consumer_name>.md`.
 
 Read `<consumer_spec_file>` to confirm it is on disk; abort with `<consumer_spec_file> not found — run @consumer-spec-initializer first.` otherwise.
 

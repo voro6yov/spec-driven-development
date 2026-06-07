@@ -3,7 +3,7 @@ name: application-updates-writer
 description: "Emits the per-update application report at `<dir>/<stem>.application/updates.md` by diffing the working-tree application specs (`commands.specs.md`, `queries.specs.md`, `services.md`) against `git HEAD`. Invoke with: @application-updates-writer <domain_diagram>"
 tools: Read, Write, Bash, Skill
 skills:
-  - application-spec:naming-conventions
+  - spec-core:naming-conventions
   - application-spec:updates-report-template
 model: sonnet
 ---
@@ -20,7 +20,7 @@ The `application-spec:updates-report-template` skill is loaded in your context a
 
 ## Path derivation
 
-Path derivation follows `application-spec:naming-conventions` exactly. Given `<domain_diagram>` at `<dir>/<stem>.md`:
+Path derivation follows `spec-core:naming-conventions` exactly. Given `<domain_diagram>` at `<dir>/<stem>.md`:
 
 - `<plugin_dir>` = `<dir>/<stem>.application`
 - `<commands_spec>` = `<plugin_dir>/commands.specs.md`
@@ -39,7 +39,7 @@ The agent **owns** writing `<output_file>`. Before writing, ensure the parent fo
 
 ### Step 1 — Resolve paths and validate inputs
 
-Recover `<dir>` and `<stem>` from `<domain_diagram>` per `application-spec:naming-conventions`. `<stem>` must satisfy `^[a-z][a-z0-9-]*$`; otherwise hard-fail with: `ERROR: <domain_diagram> path does not yield a valid aggregate stem (must match ^[a-z][a-z0-9-]*$).`
+Recover `<dir>` and `<stem>` from `<domain_diagram>` per `spec-core:naming-conventions`. `<stem>` must satisfy the aggregate-stem regex (per `spec-core:naming-conventions`); otherwise hard-fail with: `ERROR: <domain_diagram> path does not yield a valid aggregate stem (must match ^[a-z][a-z0-9-]*$).`
 
 Verify each of the three working-tree specs with `test -f`:
 
@@ -333,7 +333,7 @@ Each prints exactly one `ERROR: ...` line and exits non-zero. The agent does **n
 
 | Condition | Error template | Recovery |
 |---|---|---|
-| `<domain_diagram>` path produces an invalid `<stem>` | `ERROR: <domain_diagram> path does not yield a valid aggregate stem (must match ^[a-z][a-z0-9-]*$).` | Pass a path that follows `application-spec:naming-conventions`. |
+| `<domain_diagram>` path produces an invalid `<stem>` | `ERROR: <domain_diagram> path does not yield a valid aggregate stem (must match ^[a-z][a-z0-9-]*$).` | Pass a path that follows `spec-core:naming-conventions`. |
 | `<commands_spec>` missing on disk | `ERROR: <commands_spec> not found. The updates writer is not the first-run pipeline; run /application-spec:generate-specs <domain_diagram> first.` | Run `/application-spec:generate-specs`. |
 | `<queries_spec>` missing on disk | `ERROR: <queries_spec> not found. The updates writer is not the first-run pipeline; run /application-spec:generate-specs <domain_diagram> first.` | Run `/application-spec:generate-specs`. |
 | `<services_report>` missing on disk | `ERROR: <services_report> not found. The updates writer is not the first-run pipeline; run /application-spec:generate-specs <domain_diagram> first.` | Run `/application-spec:generate-specs`. |

@@ -3,7 +3,7 @@ name: queries-deps-writer
 description: Writes the Dependencies section of an `<AggregateRoot>Queries` application service spec to a per-plugin sibling file next to the domain class diagram. Invoke with: @queries-deps-writer <domain_diagram>
 tools: Read, Write, Bash, Skill
 skills:
-  - application-spec:naming-conventions
+  - spec-core:naming-conventions
   - application-spec:queries-dependencies-template
 model: sonnet
 ---
@@ -16,7 +16,7 @@ You are a query-application-service dependency specifier. Given a path to the do
 
 ## Path resolution
 
-Per `application-spec:naming-conventions` ("Path resolution"). Recover `<dir>` and `<stem>` from `<domain_diagram>`, then derive:
+Per `spec-core:naming-conventions` ("Path resolution"). Recover `<dir>` and `<stem>` from `<domain_diagram>`, then derive:
 
 - `<queries_diagram>` = `<dir>/<stem>.queries.md` — the diagram this agent parses
 - `<plugin_dir>` = `<dir>/<stem>.application` — the per-plugin folder for application-spec

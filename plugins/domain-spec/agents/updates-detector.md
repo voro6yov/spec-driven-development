@@ -4,7 +4,7 @@ description: Detects updates to a Mermaid class diagram and its surrounding pros
 tools: Read, Write, Bash
 model: sonnet
 skills:
-  - domain-spec:naming-conventions
+  - spec-core:naming-conventions
   - updates-report-template
 ---
 
@@ -20,7 +20,7 @@ The `updates-report-template` skill is loaded in your context and is the **singl
 
 ## Output path convention
 
-Given `<domain_diagram>` at `<dir>/<stem>.md`, the report is written to `<dir>/<stem>.domain/updates.md`. The file is always written, even when no changes are detected. See `domain-spec:naming-conventions` for the canonical per-plugin folder layout.
+Given `<domain_diagram>` at `<dir>/<stem>.md`, the report is written to `<dir>/<stem>.domain/updates.md`. The file is always written, even when no changes are detected. See `spec-core:naming-conventions` for the canonical per-plugin folder layout.
 
 This agent **owns folder creation** for `<dir>/<stem>.domain/` — it is the first writer in the `/update-specs` pipeline (Step 0). Before writing the report, ensure the folder exists with `mkdir -p "<dir>/<stem>.domain"`. Subsequent agents (`spec-pruner`, `class-specifier`, `pattern-assigner`, `spec-splicer`, `exceptions-specifier`, `aggregate-tests-planner`) assume the folder already exists.
 

@@ -21,6 +21,12 @@ Each plugin under `plugins/<name>/` has:
 
 `plugins/domain-spec/modules/shared/` contains Python reference modules (Entity, ValueObject, guards, etc.) that the generated domain code imports — not source for this repo to test, but the runtime contract that `code-implementer` targets.
 
+## Shared conventions (`spec-core`)
+
+`plugins/spec-core` is a base plugin that owns conventions shared across every spec plugin. Today it ships exactly one skill, `spec-core:naming-conventions` — the single source of truth for the aggregate stem, diagram filenames, per-plugin sibling-folder layout, path-resolution tables, and the numbered Path-hygiene rules. The five spec plugins (`domain-spec`, `application-spec`, `persistence-spec`, `rest-api-spec`, `messaging-spec`) and `model-diagrams` all reference it as `spec-core:naming-conventions` — in agent frontmatter `skills:` lists and in prose — rather than each carrying their own copy.
+
+**Dependency caveat:** there is no manifest-level dependency mechanism in `plugin.json`/`marketplace.json`, so this is an unenforced runtime assumption — every spec plugin requires `spec-core` to be enabled. The marketplace ships them together, but a subset install that omits `spec-core` will leave `spec-core:naming-conventions` unresolved: frontmatter auto-load fails silently, and an explicit Skill/agent invocation fails hard. When adding a new shared, cross-plugin convention, home its skill in `spec-core` and reference it by that namespace; do not re-duplicate it per plugin.
+
 ## How the domain-spec pipeline works
 
 The pipeline runs in two user-facing slash commands. Both fan out work to subagents in parallel where possible.

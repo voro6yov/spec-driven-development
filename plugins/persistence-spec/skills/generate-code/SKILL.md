@@ -5,7 +5,7 @@ argument-hint: <domain_diagram>
 allowed-tools: Read, Agent
 ---
 
-You are a persistence implementation orchestrator. Generate the command-side and query-side persistence code AND their integration tests for the aggregate described by `$ARGUMENTS[0]` (the domain diagram). The skill consumes the `<dir>/<stem>.persistence/command-repo-spec.md` sibling that `/persistence-spec:generate-specs` produces — it does not regenerate it. Spec-file paths are derived internally per `persistence-spec:naming-conventions`; downstream agents accept only `<domain_diagram>` plus non-derivable extras and derive the rest themselves.
+You are a persistence implementation orchestrator. Generate the command-side and query-side persistence code AND their integration tests for the aggregate described by `$ARGUMENTS[0]` (the domain diagram). The skill consumes the `<dir>/<stem>.persistence/command-repo-spec.md` sibling that `/persistence-spec:generate-specs` produces — it does not regenerate it. Spec-file paths are derived internally per `spec-core:naming-conventions`; downstream agents accept only `<domain_diagram>` plus non-derivable extras and derive the rest themselves.
 
 ## Precondition
 
@@ -13,7 +13,7 @@ Project-wide persistence scaffolding (`infrastructure/`, `infrastructure/reposit
 
 ## Sibling file convention
 
-Per `persistence-spec:naming-conventions`. From `$ARGUMENTS[0]` (the domain diagram) at `<dir>/<stem>.md`:
+Per `spec-core:naming-conventions`. From `$ARGUMENTS[0]` (the domain diagram) at `<dir>/<stem>.md`:
 
 - `<dir>` = directory containing the domain diagram
 - `<stem>` = the canonical aggregate stem (domain filename with `.md` stripped)

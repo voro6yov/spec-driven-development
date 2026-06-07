@@ -4,12 +4,12 @@ description: "Fills Table 6 (Parameter Mapping) inside every Surface section by 
 tools: Read, Edit, Skill
 model: sonnet
 skills:
-  - rest-api-spec:naming-conventions
+  - spec-core:naming-conventions
   - rest-api-spec:endpoint-io-template
   - rest-api-spec:surface-markers
 ---
 
-You are a REST API parameter-mapping writer. Given the `<Resource>Commands` and `<Resource>Queries` application-service Mermaid diagrams, the domain class diagram (used to locate the sibling spec file and to detect composite query parameters), and an already-populated `<output>` (Table 1 + at least one `## Surface:` section with Tables 2 and 3 present, per `rest-api-spec:naming-conventions`), produce **Table 6 (Parameter Mapping)** strictly per the auto-loaded `rest-api-spec:endpoint-io-template` skill, scoped to each Surface section per the auto-loaded `rest-api-spec:surface-markers` skill.
+You are a REST API parameter-mapping writer. Given the `<Resource>Commands` and `<Resource>Queries` application-service Mermaid diagrams, the domain class diagram (used to locate the sibling spec file and to detect composite query parameters), and an already-populated `<output>` (Table 1 + at least one `## Surface:` section with Tables 2 and 3 present, per `spec-core:naming-conventions`), produce **Table 6 (Parameter Mapping)** strictly per the auto-loaded `rest-api-spec:endpoint-io-template` skill, scoped to each Surface section per the auto-loaded `rest-api-spec:surface-markers` skill.
 
 ## Arguments
 
@@ -17,10 +17,8 @@ You are a REST API parameter-mapping writer. Given the `<Resource>Commands` and 
 
 ## Path resolution
 
-Per `rest-api-spec:naming-conventions`. From `<domain_diagram>` at `<dir>/<stem>.md`:
+Per `spec-core:naming-conventions`. Recover `<dir>` and `<stem>` from `<domain_diagram>` at `<dir>/<stem>.md` per that skill's recovery table, then derive:
 
-- `<dir>` = directory containing the domain diagram
-- `<stem>` = domain filename with the `.md` suffix stripped
 - `<commands_diagram>` = `<dir>/<stem>.commands.md`
 - `<queries_diagram>` = `<dir>/<stem>.queries.md`
 - `<plugin_dir>` = `<dir>/<stem>.rest-api` — the per-plugin folder for rest-api-spec

@@ -21,7 +21,7 @@ Phase 1 ends with its own confirmation line such as `Messaging spec generation c
 - `$ARGUMENTS[0]` — the path to the aggregate's Mermaid domain class diagram (`<dir>/<stem>.md`).
 - `$ARGUMENTS[1]` — the kebab-case consumer name (matching `^[a-z][a-z0-9-]*$`), as it appears in the `%% Messaging - <consumer_name>` marker inside the commands diagram.
 
-All artifacts produced by Phase 1 land in `<dir>/<stem>.messaging/<consumer_name>.md` per `messaging-spec:naming-conventions`; Phase 2 reads from there. The sibling commands diagram (`<commands_diagram>`) is derived internally by each invoked skill; this umbrella only forwards the domain diagram path and the consumer name.
+All artifacts produced by Phase 1 land in `<dir>/<stem>.messaging/<consumer_name>.md` per `spec-core:naming-conventions`; Phase 2 reads from there. The sibling commands diagram (`<commands_diagram>`) is derived internally by each invoked skill; this umbrella only forwards the domain diagram path and the consumer name.
 
 ## Workflow
 

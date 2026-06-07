@@ -3,7 +3,7 @@ name: rest-api-updates-writer
 description: "Emits a per-update REST API report by diffing `spec.md` against `git HEAD`. Invoke with: @rest-api-updates-writer <domain_diagram>"
 tools: Read, Write, Bash, Skill
 skills:
-  - rest-api-spec:naming-conventions
+  - spec-core:naming-conventions
   - rest-api-spec:updates-report-template
   - rest-api-spec:surface-markers
 model: sonnet
@@ -23,7 +23,7 @@ The writer is **diff-driven, not axis-restricted**: it reports whatever changed 
 
 ## Path derivation
 
-Path derivation follows `rest-api-spec:naming-conventions` exactly. Given `<domain_diagram>` at `<dir>/<stem>.md`:
+Path derivation follows `spec-core:naming-conventions` exactly. Given `<domain_diagram>` at `<dir>/<stem>.md`:
 
 - `<plugin_dir>` = `<dir>/<stem>.rest-api`
 - `<spec_file>` = `<plugin_dir>/spec.md`
@@ -40,7 +40,7 @@ The agent **owns** writing `<output_file>`. Before writing, ensure the parent fo
 
 ### Step 1 — Resolve paths and validate inputs
 
-Recover `<dir>` and `<stem>` from `<domain_diagram>` per `rest-api-spec:naming-conventions`. `<stem>` must satisfy `^[a-z][a-z0-9-]*$`; otherwise hard-fail with: `ERROR: <domain_diagram> path does not yield a valid aggregate stem (must match ^[a-z][a-z0-9-]*$).`
+Recover `<dir>` and `<stem>` from `<domain_diagram>` per `spec-core:naming-conventions`. `<stem>` must satisfy the aggregate-stem regex (per `spec-core:naming-conventions`); otherwise hard-fail with: `ERROR: <domain_diagram> path does not yield a valid aggregate stem (must match ^[a-z][a-z0-9-]*$).`
 
 Verify with `test -f`:
 
@@ -356,7 +356,7 @@ Each prints exactly one `ERROR: ...` line and exits non-zero. The agent does **n
 
 | Condition | Error template | Recovery |
 |---|---|---|
-| `<domain_diagram>` path produces an invalid `<stem>` | `ERROR: <domain_diagram> path does not yield a valid aggregate stem (must match ^[a-z][a-z0-9-]*$).` | Pass a path that follows `rest-api-spec:naming-conventions`. |
+| `<domain_diagram>` path produces an invalid `<stem>` | `ERROR: <domain_diagram> path does not yield a valid aggregate stem (must match ^[a-z][a-z0-9-]*$).` | Pass a path that follows `spec-core:naming-conventions`. |
 | `<spec_file>` missing on disk | `ERROR: <spec_file> not found. The updates writer is not the first-run pipeline; run /rest-api-spec:generate-specs <domain_diagram> first.` | Run `/rest-api-spec:generate-specs`. |
 | Working-tree spec missing `### Table 1: Resource Basics` | `ERROR: <spec_file> is malformed; cannot locate "### Table 1: Resource Basics". Run /rest-api-spec:generate-specs <domain_diagram> to rebuild.` | Run `/rest-api-spec:generate-specs`. |
 | `git ls-files --full-name` non-zero exit (not first-run; e.g. not a repo, ambiguous path) | `ERROR: cannot resolve <spec_file> against the git working tree.` | Verify the working directory is a git repo and the spec path is unambiguous. |

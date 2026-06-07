@@ -3,7 +3,7 @@ name: command-repo-spec-scaffolder
 description: Scaffolds a blank command-repo-spec sibling file from the template. Invoke with: @command-repo-spec-scaffolder <domain_diagram>
 tools: Read, Write, Bash, Skill
 skills:
-  - persistence-spec:naming-conventions
+  - spec-core:naming-conventions
   - persistence-spec:command-repo-spec-template
 model: haiku
 ---
@@ -14,7 +14,7 @@ You are a persistence spec scaffolder. Your job is to create a blank command rep
 
 ### Step 1 — Derive paths
 
-From `<domain_diagram>` (the first argument), per `persistence-spec:naming-conventions`:
+From `<domain_diagram>` (the first argument), per `spec-core:naming-conventions`:
 
 - `<dir>` = directory containing the file
 - `<stem>` = filename without the `.md` suffix

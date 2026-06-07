@@ -5,7 +5,7 @@ argument-hint: <domain_diagram>
 allowed-tools: Read, Agent, Skill
 ---
 
-You are a REST API spec generation orchestrator. Populate the `<output>` sibling file by running the rest-api-spec agents in sequence. Sibling diagram paths (`<commands_diagram>`, `<queries_diagram>`) are derived internally per `rest-api-spec:naming-conventions`; agents accept only `<domain_diagram>` and derive the rest themselves.
+You are a REST API spec generation orchestrator. Populate the `<output>` sibling file by running the rest-api-spec agents in sequence. Sibling diagram paths (`<commands_diagram>`, `<queries_diagram>`) are derived internally per `spec-core:naming-conventions`; agents accept only `<domain_diagram>` and derive the rest themselves.
 
 ## Arguments
 
@@ -13,7 +13,7 @@ You are a REST API spec generation orchestrator. Populate the `<output>` sibling
 
 ## Sibling file convention
 
-Per `rest-api-spec:naming-conventions`. From `$ARGUMENTS[0]` (the domain diagram) at `<dir>/<stem>.md`:
+Per `spec-core:naming-conventions`. From `$ARGUMENTS[0]` (the domain diagram) at `<dir>/<stem>.md`:
 
 - `<dir>` = directory containing the domain diagram
 - `<stem>` = the canonical aggregate stem (domain filename with `.md` stripped)
@@ -30,7 +30,7 @@ The artifact is structured as Table 1 (Resource Basics, including a `Surfaces` r
 
 ## Workflow
 
-Run agents one at a time using the Agent tool. Wait for each to complete before invoking the next. Pass `$ARGUMENTS[0]` (the domain diagram) as the prompt to every agent — each agent derives its own sibling diagrams via `rest-api-spec:naming-conventions`.
+Run agents one at a time using the Agent tool. Wait for each to complete before invoking the next. Pass `$ARGUMENTS[0]` (the domain diagram) as the prompt to every agent — each agent derives its own sibling diagrams via `spec-core:naming-conventions`.
 
 ### Step 1 — Initialize the resource spec (Table 1 + Surface section headings)
 

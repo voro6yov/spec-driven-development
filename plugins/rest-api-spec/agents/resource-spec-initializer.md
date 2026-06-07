@@ -4,7 +4,7 @@ description: "Initializes a REST API resource input spec sibling file next to a 
 tools: Read, Write, Bash, Skill
 model: haiku
 skills:
-  - rest-api-spec:naming-conventions
+  - spec-core:naming-conventions
   - rest-api-spec:resource-spec-template
   - rest-api-spec:surface-markers
 ---
@@ -17,10 +17,8 @@ You are a REST API resource-spec initializer. Read the Mermaid commands, queries
 
 ## Path resolution
 
-Per `rest-api-spec:naming-conventions`. From `<domain_diagram>` at `<dir>/<stem>.md`:
+Recover `<dir>` and `<stem>` from `<domain_diagram>` (`<dir>/<stem>.md`) per `spec-core:naming-conventions`. The agent-specific sibling paths derived from them:
 
-- `<dir>` = directory containing the domain diagram
-- `<stem>` = domain filename with the `.md` suffix stripped
 - `<commands_diagram>` = `<dir>/<stem>.commands.md`
 - `<queries_diagram>` = `<dir>/<stem>.queries.md`
 - `<plugin_dir>` = `<dir>/<stem>.rest-api` — the per-plugin folder for rest-api-spec
@@ -92,7 +90,7 @@ Call this ordered list `<surfaces>`. It is the value to write into Table 1's Sur
 
 ### Step 6 — Check the output file
 
-The output path is `<output>` = `<plugin_dir>/spec.md` (per `rest-api-spec:naming-conventions`).
+The output path is `<output>` = `<plugin_dir>/spec.md` (per `spec-core:naming-conventions`).
 
 If the file already exists **and** contains a `### Table 1: Resource Basics` heading, do **not** overwrite. Print `<output> already initialized — leaving existing Table 1 intact.` and stop. (Idempotent no-op. The `endpoint-tables-writer` is responsible for updating Table 1's Surfaces row and materializing missing `## Surface:` sections on subsequent runs after diagram drift.)
 

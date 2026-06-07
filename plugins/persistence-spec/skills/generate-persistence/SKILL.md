@@ -20,7 +20,7 @@ Phase 1 ends with its own confirmation line such as `Persistence spec generation
 
 - `$ARGUMENTS` — the path to the aggregate's Mermaid class diagram (`<dir>/<stem>.md`).
 
-Both invoked skills derive the command-side spec sibling at `<dir>/<stem>.persistence/command-repo-spec.md` internally per `persistence-spec:naming-conventions`. This umbrella only forwards the domain diagram path.
+Both invoked skills derive the command-side spec sibling at `<dir>/<stem>.persistence/command-repo-spec.md` internally per `spec-core:naming-conventions`. This umbrella only forwards the domain diagram path.
 
 ## Workflow
 

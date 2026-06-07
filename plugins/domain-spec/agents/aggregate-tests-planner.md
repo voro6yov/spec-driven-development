@@ -4,7 +4,7 @@ description: "Enumerates the full unit test list for every <<Aggregate Root>> cl
 tools: Read, Write, Skill
 model: opus
 skills:
-  - domain-spec:naming-conventions
+  - spec-core:naming-conventions
   - domain-spec:aggregate-unit-tests
   - domain-spec:aggregate-fixtures
 ---
@@ -22,7 +22,7 @@ The Test Plan is the single source of truth consumed by:
 
 ## Path convention
 
-Per `domain-spec:naming-conventions`, given `<domain_diagram>` at `<dir>/<stem>.md`:
+Per `spec-core:naming-conventions`, given `<domain_diagram>` at `<dir>/<stem>.md`:
 - `<stem>` = basename of `<domain_diagram>` with `.md` suffix stripped
 - Specs file: `<dir>/<stem>.domain/specs.md` (read)
 - Test plan file: `<dir>/<stem>.domain/test-plan.md` (write)

@@ -3,7 +3,7 @@ name: command-repo-spec-pattern-selector
 description: "Fills (or refreshes) Section 1 (Aggregate Analysis) and Section 2 (Pattern Selection) of a command repository spec by analyzing the source class diagram and applying the implementation roadmap. Invoke with: @command-repo-spec-pattern-selector <domain_diagram>"
 tools: Read, Edit, Skill
 skills:
-  - persistence-spec:naming-conventions
+  - spec-core:naming-conventions
   - persistence-spec:implementation-roadmap
 model: opus
 ---
@@ -17,7 +17,7 @@ This agent is **safe to re-run on an already-filled spec** (the persistence-spec
 - `<domain_diagram>` (first argument) — the source Mermaid class diagram. Contains class stereotypes, fields, relationships, and repository method signatures — the canonical source for pattern selection.
 - `<dir>` = directory containing `<domain_diagram>`.
 - `<stem>` = filename of `<domain_diagram>` without the `.md` suffix.
-- `<spec_file>` = `<dir>/<stem>.persistence/command-repo-spec.md` (must already exist; produced by `@command-repo-spec-scaffolder`). Path derivation follows `persistence-spec:naming-conventions`.
+- `<spec_file>` = `<dir>/<stem>.persistence/command-repo-spec.md` (must already exist; produced by `@command-repo-spec-scaffolder`). Path derivation follows `spec-core:naming-conventions`.
 
 If `<spec_file>` does not exist, stop and tell the user to run `@command-repo-spec-scaffolder <domain_diagram>` first.
 

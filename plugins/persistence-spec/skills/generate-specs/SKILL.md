@@ -9,7 +9,7 @@ You are a persistence spec generation orchestrator. Generate the command-side re
 
 ## Sibling-folder convention
 
-Per `persistence-spec:naming-conventions`, given `<domain_diagram>` at `<dir>/<stem>.md`, the persistence-spec plugin owns the per-aggregate folder `<dir>/<stem>.persistence/` and writes its single artifact inside it:
+Per `spec-core:naming-conventions`, given `<domain_diagram>` at `<dir>/<stem>.md`, the persistence-spec plugin owns the per-aggregate folder `<dir>/<stem>.persistence/` and writes its single artifact inside it:
 
 | File | Written/enriched by | Content |
 |---|---|---|

@@ -23,6 +23,18 @@ This skill is the single source of truth for those rules. Agents and skills acro
 
 The **aggregate stem** is a kebab-case identifier matching the domain aggregate root (e.g. `order`, `purchase-order`, `product-catalog`). It must satisfy `^[a-z][a-z0-9-]*$`.
 
+### Python package name derivation
+
+`<stem>` is kebab-case for **spec paths and filenames only**. The Python package name that appears on disk inside `src/<pkg>/domain/` is the same value in **snake_case** — obtained by replacing every `-` with `_`. Every agent that materializes a Python directory (notably `target-locations-finder`, `package-preparer`, `scaffold-builder`, `code-implementer`) must perform this conversion before touching the filesystem.
+
+| Diagram stem | Spec folder | Python package directory |
+|---|---|---|
+| `order` | `<dir>/order.domain/` | `src/<pkg>/domain/order/` |
+| `cache-type` | `<dir>/cache-type.domain/` | `src/<pkg>/domain/cache_type/` |
+| `purchase-order` | `<dir>/purchase-order.domain/` | `src/<pkg>/domain/purchase_order/` |
+
+Validate the derived Python package name against `^[a-z][a-z0-9_]*$`. Agents must abort if validation fails; they must never emit a path segment containing `-` under `src/`.
+
 Given a domain diagram path `<dir>/<stem>.md`:
 
 - `<dir>` is the **specs directory** — the directory holding every diagram and sibling folder for the aggregate.
@@ -32,13 +44,16 @@ Every plugin agent derives `<dir>` and `<stem>` by inspecting the domain-diagram
 
 ## Diagram filenames
 
-For an aggregate stem `<stem>`, the three Mermaid class diagrams have fixed names:
+For an aggregate stem `<stem>`, the Mermaid class diagrams have fixed names:
 
 | Diagram | Path | Owner |
 |---|---|---|
 | Domain | `<dir>/<stem>.md` | hand-authored input |
 | Commands application service | `<dir>/<stem>.commands.md` | hand-authored input |
 | Queries application service | `<dir>/<stem>.queries.md` | hand-authored input |
+| Ops application service | `<dir>/<stem>.ops.<op-name>.md` | hand-authored input |
+
+`<op-name>` is a kebab-case discriminator matching `^[a-z][a-z0-9-]*$` and equals the kebab-case of the ops service class name (the unique braced class in the diagram), so `<dir>/order.ops.subject-tagging.md` declares `class SubjectTagging`. An aggregate may have any number of ops diagrams (zero, one, or many), each becoming one free-form orchestration application service. Both `<stem>` and `<op-name>` are dot-free, so the literal `.ops.` separator is unambiguous.
 
 Examples for `<stem> = order`:
 
@@ -47,6 +62,7 @@ specs/
   order.md
   order.commands.md
   order.queries.md
+  order.ops.subject-tagging.md
 ```
 
 A plugin that needs a non-domain diagram (e.g. application-spec, messaging-spec) receives that path as an argument; it must not infer it by appending suffixes to the domain path.
@@ -70,11 +86,16 @@ A plugin must never write outside its own folder. The only exceptions are:
 - A plugin may **read** any other plugin's folder (cross-plugin reference is fine).
 - A plugin may **append** an entry to the diagram file's `## Artifacts` index (which is the diagram itself, not another plugin's folder).
 
-### Cross-plugin shared report: `commands-updates.md`
+### Cross-plugin reads — app-service-axis update reports
 
-The commands-diagram delta report at `<dir>/<stem>.application/commands-updates.md` is produced by `application-spec:commands-updates-detector` but **consumed cross-plugin** by `/messaging-spec:update-specs` and `/rest-api-spec:update-specs` in addition to `/application-spec:update-specs`. This is a deliberate cross-plugin path: the report describes one axis (the commands application-service diagram) and three consumer orchestrators share it rather than maintaining three plugin-local detectors against the same diagram. The cross-plugin dependency is read-only and unidirectional — messaging-spec and rest-api-spec read application-spec's folder; application-spec never reads back. The report's path stays under `<stem>.application/` because the diagram itself (`<stem>.commands.md`) is the application-spec layer's input.
+Several consumer orchestrators read the commands/queries delta reports owned by the **application-spec** plugin even though they never write inside `<dir>/<stem>.application/`:
 
-The same policy applies symmetrically to `<dir>/<stem>.application/queries-updates.md` — produced by application-spec, also consumed by rest-api-spec (not by messaging-spec, which is command-side only).
+| Path | Owner | Consumed by |
+|---|---|---|
+| `<dir>/<stem>.application/commands-updates.md` | `application-spec:commands-updates-detector` | `/application-spec:update-specs`, `/messaging-spec:update-specs`, and `/rest-api-spec:update-specs` — dispatching regen on commands-diagram deltas |
+| `<dir>/<stem>.application/queries-updates.md` | `application-spec:queries-updates-detector` | `/application-spec:update-specs` and `/rest-api-spec:update-specs` — dispatching regen on queries-diagram deltas (messaging-spec is command-side only) |
+
+The detectors are write-once-read-many producers; each consumer orchestrator re-invokes them at its own Step 0 to ensure freshness, then the producer overwrites the prior report. The cross-plugin dependency is deliberate, read-only, and unidirectional — the reports describe the application-service diagrams (`<stem>.commands.md`, `<stem>.queries.md`), and application-spec is the plugin that anchors those diagrams; application-spec never reads back. The three (and two) consumer orchestrators share one report rather than maintaining plugin-local detectors against the same diagram. See `notes/commands-queries-integration-approach.md` for the full rationale.
 
 ## File naming inside each plugin folder
 
@@ -97,14 +118,21 @@ The same policy applies symmetrically to `<dir>/<stem>.application/queries-updat
 | `queries.specs.md` | `specs-merger` (queries side) | Merged queries spec (final) |
 | `queries.exceptions.md` | `queries-methods-writer` (stub) → `application-exceptions-specifier` | Application exceptions raised by queries |
 | `services.md` | `services-finder` | Reconciled list of services the application layer must implement |
+| `updates.md` | `application-updates-writer` | Structured diff report (input to `/update-code`) |
+| `commands-updates.md` | `application-spec:commands-updates-detector` | Structured diff report of `<stem>.commands.md` — input to `application-spec:update-specs`, `messaging-spec:update-specs`, and `rest-api-spec:update-specs` (read cross-plugin; see *Cross-plugin reads* above) |
+| `queries-updates.md` | `application-spec:queries-updates-detector` | Structured diff report of `<stem>.queries.md` — input to `application-spec:update-specs` and `rest-api-spec:update-specs` (read cross-plugin; see *Cross-plugin reads* above) |
 | `commands.deps.md` | `commands-deps-writer` | Transient — deleted by `specs-merger` |
 | `commands.methods.md` | `commands-methods-writer` | Transient — deleted by `specs-merger` |
 | `queries.deps.md` | `queries-deps-writer` | Transient — deleted by `specs-merger` |
 | `queries.methods.md` | `queries-methods-writer` | Transient — deleted by `specs-merger` |
-| `commands-updates.md` | `application-spec:commands-updates-detector` | Structured diff report of `<stem>.commands.md` — input to `application-spec:update-specs`, `messaging-spec:update-specs`, and `rest-api-spec:update-specs` (read cross-plugin; see *Cross-plugin shared report* above) |
-| `queries-updates.md` | `application-spec:queries-updates-detector` | Structured diff report of `<stem>.queries.md` — input to `application-spec:update-specs` and `rest-api-spec:update-specs` (read cross-plugin; see *Cross-plugin shared report* above) |
+| `ops.<op-name>.specs.md` | `specs-merger` (ops side) | Merged ops spec (final) — one per ops diagram |
+| `ops.<op-name>.exceptions.md` | `ops-methods-writer` (stub) → `application-exceptions-specifier` | Application exceptions raised by this ops service's methods |
+| `ops.<op-name>.deps.md` | `ops-deps-writer` | Transient — deleted by `specs-merger` |
+| `ops.<op-name>.methods.md` | `ops-methods-writer` | Transient — deleted by `specs-merger` |
 
-The per-side fragments (`commands.deps.md`, `commands.methods.md`, `queries.deps.md`, `queries.methods.md`) exist only between writer and merger. After a successful pipeline run, only `commands.specs.md`, `commands.exceptions.md`, `queries.specs.md`, `queries.exceptions.md`, and `services.md` remain. The two `*-updates.md` reports are transient producer outputs of the application-spec detectors; they are regenerated wholesale on every detector run and overwrite the prior report.
+The per-side fragments (`commands.deps.md`, `commands.methods.md`, `queries.deps.md`, `queries.methods.md`, and each `ops.<op-name>.{deps,methods}.md`) exist only between writer and merger. After a successful pipeline run, only `commands.specs.md`, `commands.exceptions.md`, `queries.specs.md`, `queries.exceptions.md`, `services.md`, and each ops service's `ops.<op-name>.specs.md` / `ops.<op-name>.exceptions.md` remain. The `updates.md`, `commands-updates.md`, and `queries-updates.md` reports are transient producer outputs (of `application-updates-writer` and the two `application-spec` detectors respectively); each is regenerated wholesale on its producer's run and overwrites the prior report.
+
+`<op-name>` matches `^[a-z][a-z0-9-]*$` and equals the kebab-case of the ops service class. One pair of `ops.<op-name>.specs.md` / `ops.<op-name>.exceptions.md` per ops diagram; multiple ops services share the one flat `<stem>.application/` folder (no sub-folder), exactly as `commands`/`queries` artifacts do.
 
 ### `<stem>.persistence/` (persistence-spec)
 
@@ -129,13 +157,14 @@ The per-side fragments (`commands.deps.md`, `commands.methods.md`, `queries.deps
 
 ## Worked example
 
-For aggregate stem `order` with two messaging consumers `inventory-sync` and `shipping-events`, after running every pipeline:
+For aggregate stem `order` with two messaging consumers `inventory-sync` and `shipping-events`, plus one ops service `subject-tagging` (declaring `class SubjectTagging`), after running every pipeline:
 
 ```
 specs/
   order.md
   order.commands.md
   order.queries.md
+  order.ops.subject-tagging.md
 
   order.domain/
     specs.md
@@ -148,7 +177,10 @@ specs/
     commands.exceptions.md
     queries.specs.md
     queries.exceptions.md
+    ops.subject-tagging.specs.md
+    ops.subject-tagging.exceptions.md
     services.md
+    updates.md
 
   order.persistence/
     command-repo-spec.md
@@ -159,6 +191,7 @@ specs/
   order.messaging/
     inventory-sync.md
     shipping-events.md
+    updates.md
 ```
 
 ## Path resolution
@@ -174,6 +207,7 @@ Every agent and orchestrator receives a path argument and must derive sibling pa
 | `<domain_diagram>` = `<dir>/<stem>.md` | `<dir>` = directory of input; `<stem>` = basename with `.md` stripped |
 | `<commands_diagram>` = `<dir>/<stem>.commands.md` | `<dir>` = directory of input; `<stem>` = basename with `.commands.md` stripped |
 | `<queries_diagram>` = `<dir>/<stem>.queries.md` | `<dir>` = directory of input; `<stem>` = basename with `.queries.md` stripped |
+| `<ops_diagram>` = `<dir>/<stem>.ops.<op-name>.md` | `<dir>` = directory of input; split the basename (with `.md` stripped) on the literal `.ops.` — both `<stem>` and `<op-name>` are dot-free kebab, so the split is unambiguous: the left part is `<stem>`, the right part is `<op-name>` |
 | `<spec_file>` inside `<dir>/<stem>.<plugin>/...` | walk up two segments: the parent's parent is `<dir>`; the parent's basename minus `.<plugin>` is `<stem>` |
 
 `<stem>` must satisfy `^[a-z][a-z0-9-]*$`. If the recovered stem fails this regex, abort with a one-sentence error rather than silently producing nonsense paths.
@@ -187,6 +221,7 @@ Once `<dir>` and `<stem>` are recovered, every other artifact path is built from
 | Domain diagram | `<dir>/<stem>.md` |
 | Commands diagram | `<dir>/<stem>.commands.md` |
 | Queries diagram | `<dir>/<stem>.queries.md` |
+| Ops diagram | `<dir>/<stem>.ops.<op-name>.md` |
 | Domain merged spec | `<dir>/<stem>.domain/specs.md` |
 | Domain exceptions | `<dir>/<stem>.domain/exceptions.md` |
 | Domain test plan | `<dir>/<stem>.domain/test-plan.md` |
@@ -195,7 +230,10 @@ Once `<dir>` and `<stem>` are recovered, every other artifact path is built from
 | Application commands exceptions | `<dir>/<stem>.application/commands.exceptions.md` |
 | Application queries spec | `<dir>/<stem>.application/queries.specs.md` |
 | Application queries exceptions | `<dir>/<stem>.application/queries.exceptions.md` |
+| Application ops spec | `<dir>/<stem>.application/ops.<op-name>.specs.md` |
+| Application ops exceptions | `<dir>/<stem>.application/ops.<op-name>.exceptions.md` |
 | Application services report | `<dir>/<stem>.application/services.md` |
+| Application updates report | `<dir>/<stem>.application/updates.md` |
 | Application commands updates report | `<dir>/<stem>.application/commands-updates.md` |
 | Application queries updates report | `<dir>/<stem>.application/queries-updates.md` |
 | Persistence command-repo spec | `<dir>/<stem>.persistence/command-repo-spec.md` |
@@ -203,13 +241,25 @@ Once `<dir>` and `<stem>` are recovered, every other artifact path is built from
 | Messaging consumer spec | `<dir>/<stem>.messaging/<consumer_name>.md` |
 | Messaging updates report | `<dir>/<stem>.messaging/updates.md` |
 
-The messaging consumer spec is the only path that requires an additional discriminator (`<consumer_name>`); every other artifact is fully determined by `<stem>` plus the plugin's identity.
+The messaging consumer spec (`<consumer_name>`) and the ops artifacts (ops diagram, ops spec, ops exceptions — all keyed on `<op-name>`) are the only paths that require an additional discriminator; every other artifact is fully determined by `<stem>` plus the plugin's identity.
 
 ### Caller responsibilities
 
-- **User-facing orchestrator skills** accept exactly `<domain_diagram>` plus non-derivable extras (`<consumer_name>`, `<service_identifier>`, `<tests_dir>`, free-text notes). They never require the caller to pre-resolve commands/queries diagrams or sibling spec files — derivation happens inside the orchestrator using the tables above.
+- **User-facing orchestrator skills** accept exactly `<domain_diagram>` plus non-derivable extras (`<consumer_name>`, `<op-name>`, `<service_identifier>`, `<tests_dir>`, free-text notes). They never require the caller to pre-resolve commands/queries/ops diagrams or sibling spec files — derivation happens inside the orchestrator using the tables above.
 - **Per-plugin agents** accept exactly the diagram they primarily read — `<domain_diagram>` for `domain-spec`, `application-spec`, `persistence-spec`, and `rest-api-spec`; `<commands_diagram>` for `messaging-spec` — plus non-derivable extras. Sibling spec files inside the agent's own plugin folder are derived internally.
 - **Reconstruction by string substitution is forbidden** (e.g. `path.replace('.md', '.specs.md')`). Always recover `<stem>` and `<dir>` per the recovery table first, then build new paths from the artifact table.
+
+## Path hygiene (shared rules for file-writing agents)
+
+These rules apply to every agent that materializes files or directories under the project tree. They are the contract that prevents stray paths, shadow directories, and kebab-case Python imports.
+
+1. **Reject relative paths.** Every `<path>` argument an agent writes to must be absolute. Abort with an explicit error rather than resolving against the current working directory.
+2. **Reject hyphens in Python paths.** Any path segment that is (or descends into) a Python package — anything under `src/` or used as `<package_path>`, `<output_dir>`, `<aggregate_pkg_dir>`, `<module_path>` — must satisfy `^[a-z][a-z0-9_]*(/[a-z][a-z0-9_]*)*$` for its leaf segments. Treat a hyphen in any of those segments as a caller bug.
+3. **Implementers never create new modules.** An agent whose contract is "read-modify-write a scaffolded file" must verify the file already exists at the supplied path before reading and again before writing. A missing file is a hard failure, not a signal to create one.
+4. **Prefer locations-report paths over re-derivation.** When an orchestrator has a locations report (e.g. from `domain-spec:target-locations-finder`), it must pass each chained agent the exact path from the report rather than passing an ancestor and letting the agent re-derive. The report is the single source of truth for where things go.
+5. **Contain side effects to an expected ancestor.** When an orchestrator fans out parallel writers across a known set of paths, each writer should sanity-check that its target is contained within the orchestrator-supplied root (e.g. every `<module_path>` must begin with `<aggregate_pkg_dir>`).
+
+Agents that need to apply these rules cite this section by name (e.g. "Per `spec-core:naming-conventions`, Path hygiene rule 3, abort if the file does not exist") instead of restating them.
 
 ## What NOT to do
 

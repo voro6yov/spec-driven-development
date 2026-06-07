@@ -4,7 +4,7 @@ description: "Ensures `<tests_dir>/conftest.py` defines messaging handler fixtur
 tools: Read, Write, Edit, Bash
 model: sonnet
 skills:
-  - messaging-spec:naming-conventions
+  - spec-core:naming-conventions
   - messaging-spec:messaging-handler-fixtures
 ---
 
@@ -37,9 +37,8 @@ It **does**:
 
 ## Path resolution
 
-Per `messaging-spec:naming-conventions`. Given `<commands_diagram>` at `<dir>/<stem>.commands.md` and the `<consumer_name>` argument:
+Recover `<dir>` and `<stem>` from `<commands_diagram>` per `spec-core:naming-conventions` (Recovering `<dir>` and `<stem>`). Given those and the `<consumer_name>` argument:
 
-- Recover `<dir>` = directory of `<commands_diagram>`; `<stem>` = basename of `<commands_diagram>` with the trailing `.commands.md` stripped.
 - Consumer spec file (input): `<consumer_spec_file>` = `<dir>/<stem>.messaging/<consumer_name>.md`. Must already contain Table 1 (Consumer Basics) and a non-empty Table 2 (Events to Consume) — populated by `@consumer-spec-initializer` and `@event-tables-writer` respectively.
 
 If the `Tests` row is missing or malformed, abort with: `Error: locations report missing Tests row.`
@@ -102,7 +101,7 @@ Verify `test -d <tests_dir>`. Abort on failure per the inputs section.
 
 Validate the `<consumer_name>` argument against the regex `^[a-z][a-z0-9-]*$`. Abort with `Invalid consumer name '<value>' — expected kebab-case matching ^[a-z][a-z0-9-]*$.` otherwise. Bind `<consumer_name_kebab>` = `<consumer_name>`.
 
-Derive `<consumer_spec_file>` per `messaging-spec:naming-conventions`. Recover `<dir>` = directory of `<commands_diagram>` and `<stem>` = basename of `<commands_diagram>` with the trailing `.commands.md` stripped (abort with `<commands_diagram> filename must end with .commands.md.` if the basename does not match `^[a-z][a-z0-9-]*\.commands\.md$`). Compute `<consumer_spec_file>` = `<dir>/<stem>.messaging/<consumer_name_kebab>.md`.
+Derive `<consumer_spec_file>` per `spec-core:naming-conventions`. Recover `<dir>` = directory of `<commands_diagram>` and `<stem>` = basename of `<commands_diagram>` with the trailing `.commands.md` stripped (abort with `<commands_diagram> filename must end with .commands.md.` if the basename does not match `^[a-z][a-z0-9-]*\.commands\.md$`). Compute `<consumer_spec_file>` = `<dir>/<stem>.messaging/<consumer_name_kebab>.md`.
 
 Read `<consumer_spec_file>`. Abort with `<consumer_spec_file> not found — run @consumer-spec-initializer first.` if it is not on disk.
 

@@ -4,7 +4,7 @@ description: Generates DDD class specifications for a specific category of class
 tools: Read, Write, Bash
 model: opus
 skills:
-  - domain-spec:naming-conventions
+  - spec-core:naming-conventions
   - class-spec-template
 ---
 
@@ -100,7 +100,7 @@ Append the result as a `### Partial Dependencies` section at the end of the spec
 
 ### Step 5 — Write to temp file
 
-Derive `<stem>` by stripping the `.md` suffix from the basename of `<domain_diagram>`. Per `domain-spec:naming-conventions`, the per-plugin folder is `<source_dir>/<stem>.domain/` and the transient temp directory lives inside it.
+Derive `<stem>` by stripping the `.md` suffix from the basename of `<domain_diagram>`. Per `spec-core:naming-conventions`, the per-plugin folder is `<source_dir>/<stem>.domain/` and the transient temp directory lives inside it.
 
 1. Determine the temp directory: `<source_dir>/<stem>.domain/.specs-tmp/`
 2. Create the temp directory (and its parent folder) if either is absent: `mkdir -p "<source_dir>/<stem>.domain/.specs-tmp"`. This call is idempotent and race-safe — every parallel `class-specifier` invocation runs it independently.

@@ -4,7 +4,7 @@ description: Enriches the Domain Exceptions section in `<stem>.domain/exceptions
 tools: Read, Write
 model: sonnet
 skills:
-  - domain-spec:naming-conventions
+  - spec-core:naming-conventions
   - domain-exceptions
 ---
 
@@ -18,7 +18,7 @@ You are a DDD exceptions enricher. Your job is to read the exception stubs and r
 
 ## Path convention
 
-Per `domain-spec:naming-conventions`, given `<domain_diagram>` at `<dir>/<stem>.md`:
+Per `spec-core:naming-conventions`, given `<domain_diagram>` at `<dir>/<stem>.md`:
 - `<stem>` = basename of `<domain_diagram>` with `.md` suffix stripped
 - Specs file: `<dir>/<stem>.domain/specs.md`
 - Exceptions file: `<dir>/<stem>.domain/exceptions.md`

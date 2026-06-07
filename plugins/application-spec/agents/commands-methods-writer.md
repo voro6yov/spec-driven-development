@@ -3,7 +3,7 @@ name: commands-methods-writer
 description: "Writes the Method Specifications section of an `<AggregateRoot>Commands` application service spec. Invoke with: @commands-methods-writer <domain_diagram>"
 tools: Read, Write, Bash, Skill
 skills:
-  - application-spec:naming-conventions
+  - spec-core:naming-conventions
   - application-spec:commands-methods-template
 model: opus
 ---
@@ -18,7 +18,7 @@ Application command methods in this codebase **always return the aggregate root*
 
 ## Path resolution
 
-Per `application-spec:naming-conventions` ("Path resolution"). Recover `<dir>` and `<stem>` from `<domain_diagram>`, then derive:
+Per `spec-core:naming-conventions` ("Path resolution"). Recover `<dir>` and `<stem>` from `<domain_diagram>`, then derive:
 
 - `<commands_diagram>` = `<dir>/<stem>.commands.md` — the commands-side diagram this agent parses alongside the domain diagram
 - `<plugin_dir>` = `<dir>/<stem>.application` — the per-plugin folder for application-spec

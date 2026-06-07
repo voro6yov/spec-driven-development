@@ -3,7 +3,7 @@ name: integration-fixtures-writer
 description: "Writes the collection fixture (`test_<plural>`) and persistence fixture (`add_<plural>`) for an aggregate into <tests_dir>/integration/conftest.py. Invoke with: @integration-fixtures-writer <domain_diagram> <tests_dir>"
 tools: Read, Write, Edit, Bash, Skill
 skills:
-  - persistence-spec:naming-conventions
+  - spec-core:naming-conventions
   - persistence-spec:collection-fixtures
   - persistence-spec:persistence-fixtures
 model: sonnet
@@ -23,7 +23,7 @@ The autoloaded skills `persistence-spec:collection-fixtures` and `persistence-sp
 - `<domain_diagram>` (first argument): absolute path to the aggregate's domain Mermaid diagram (`<dir>/<stem>.md`).
 - `<tests_dir>` (second argument): absolute path to the project's tests directory (as resolved by `@target-locations-finder`); must contain `conftest.py` and `integration/conftest.py`.
 
-**Path resolution.** Derive the persistence command-repo spec file from `<domain_diagram>` per `persistence-spec:naming-conventions`: `<command_spec_file>` = `<dir>/<stem>.persistence/command-repo-spec.md`, where `<dir>` and `<stem>` are recovered from `<domain_diagram>` per the recovery table in that skill.
+**Path resolution.** Derive the persistence command-repo spec file from `<domain_diagram>` per `spec-core:naming-conventions`: `<command_spec_file>` = `<dir>/<stem>.persistence/command-repo-spec.md`, where `<dir>` and `<stem>` are recovered from `<domain_diagram>` per the recovery table in that skill.
 
 ## Workflow
 

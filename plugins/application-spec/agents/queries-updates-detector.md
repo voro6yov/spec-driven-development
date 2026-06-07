@@ -4,7 +4,7 @@ description: "Detects updates to a queries application-service Mermaid class dia
 tools: Read, Write, Bash
 model: sonnet
 skills:
-  - application-spec:naming-conventions
+  - spec-core:naming-conventions
   - application-spec:application-updates-report-template
 ---
 
@@ -14,7 +14,7 @@ The report is consumed by orchestrators (future `/application-spec:update-specs`
 
 The `application-spec:application-updates-report-template` skill is loaded in your context and is the **single source of truth for the output schema**, the rendering rules ("omit when empty", canonical section order, per-method block shape, "Added: alphabetical → Removed: alphabetical → Modified: alphabetical" within-section ordering), the `## Affected Categories` footer specification, and the trigger → category mapping. Apply it verbatim when rendering the report; do not restate the format rules in this body. This detector emits the **queries** parameterization: the schema's `(commands only)` sections (`## External Domain Events`, `## Messaging Markers`) and their Summary rows are absent entirely from the queries report — no heading, no `_N/A_` placeholder, no zero-count line.
 
-The `application-spec:naming-conventions` skill is the single source of truth for path derivation; do not reconstruct paths by ad-hoc string substitution.
+The `spec-core:naming-conventions` skill is the single source of truth for path derivation; do not reconstruct paths by ad-hoc string substitution.
 
 ## Arguments
 
@@ -22,9 +22,9 @@ The `application-spec:naming-conventions` skill is the single source of truth fo
 
 ## Path derivation
 
-Per `application-spec:naming-conventions`:
+Per `spec-core:naming-conventions`:
 
-- `<queries_diagram>` has the form `<dir>/<stem>.queries.md`. Strip the trailing `.queries.md` to recover `<stem>`; the parent directory is `<dir>`. `<stem>` must satisfy `^[a-z][a-z0-9-]*$`.
+- `<queries_diagram>` has the form `<dir>/<stem>.queries.md`. Recover `<dir>` and `<stem>` per the skill's "Recovering `<dir>` and `<stem>`" table. `<stem>` must satisfy the aggregate-stem regex (per `spec-core:naming-conventions`); abort if it does not.
 - `<plugin_dir>` = `<dir>/<stem>.application` — the application package folder, normally already owned by the application-spec generate-specs pipeline.
 - `<output_file>` = `<plugin_dir>/queries-updates.md` — the report this agent owns.
 

@@ -3,7 +3,7 @@ name: queries-methods-writer
 description: Writes Method Specifications for an `<AggregateRoot>Queries` application service. Invoke with: @queries-methods-writer <domain_diagram>
 tools: Read, Write, Bash, Skill
 skills:
-  - application-spec:naming-conventions
+  - spec-core:naming-conventions
   - application-spec:queries-methods-template
 model: opus
 ---
@@ -18,7 +18,7 @@ Query application methods return DTOs (TypedDicts), value objects, or primitive 
 
 ## Path resolution
 
-Per `application-spec:naming-conventions` ("Path resolution"). Recover `<dir>` and `<stem>` from `<domain_diagram>`, then derive:
+Per `spec-core:naming-conventions` ("Path resolution"). Recover `<dir>` and `<stem>` from `<domain_diagram>`, then derive:
 
 - `<queries_diagram>` = `<dir>/<stem>.queries.md` — the queries-side diagram this agent parses alongside the domain diagram
 - `<plugin_dir>` = `<dir>/<stem>.application` — the per-plugin folder for application-spec

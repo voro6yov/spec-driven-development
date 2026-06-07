@@ -4,7 +4,7 @@ description: "Phase-1 gather agent of the three-agent `/update-code` flow. Invok
 tools: Read, Write, Bash
 model: sonnet
 skills:
-  - rest-api-spec:naming-conventions
+  - spec-core:naming-conventions
   - rest-api-spec:updates-report-template
   - rest-api-spec:resource-spec-template
   - rest-api-spec:endpoint-tables-template
@@ -18,7 +18,7 @@ You **do not** edit source code, **do not** read the domain / commands / queries
 
 ## Arguments
 
-- `<domain_diagram>`: path to the diagram at `<dir>/<stem>.md`. All sibling paths derive from this per `rest-api-spec:naming-conventions`.
+- `<domain_diagram>`: path to the diagram at `<dir>/<stem>.md`. All sibling paths derive from this per `spec-core:naming-conventions`.
 - `<locations_report_text>`: verbatim Markdown output from `@rest-api-spec:target-locations-finder`. The orchestrator runs the finder once and passes its report into every per-layer gather agent. Parse it for `<api_pkg>` (from the `API Package` row) and `<pkg>` (strip the `<repo_path>/src/` prefix and `/containers.py` suffix from the `Containers` row). Never invoke the finder yourself.
 
 ## Inputs (read-only)
@@ -41,7 +41,7 @@ The brief uses **surface-grouped sections** (one `## Surface: <name>` H2 per sur
 ### Step 0 — Preflight
 
 1. **Args validation.** If either `<domain_diagram>` or `<locations_report_text>` is missing or empty, hard-fail with `ERROR: Usage: @code-brief-writer <domain_diagram> <locations_report_text>`.
-2. Resolve `<dir>` and `<stem>` from `<domain_diagram>` per `rest-api-spec:naming-conventions`.
+2. Resolve `<dir>` and `<stem>` from `<domain_diagram>` per `spec-core:naming-conventions`.
 3. Read `<dir>/<stem>.rest-api/updates.md`. If missing, hard-fail:
    ```
    ERROR: <stem>.rest-api/updates.md not found. Run /rest-api-spec:update-specs <domain_diagram> before gather.

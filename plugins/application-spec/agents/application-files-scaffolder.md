@@ -3,7 +3,7 @@ name: application-files-scaffolder
 description: "Scaffolds the per-aggregate application package and infrastructure service stubs from merged specs. Invoke with: @application-files-scaffolder <domain_diagram> <locations_report_text>"
 tools: Read, Write, Bash, Skill
 skills:
-  - application-spec:naming-conventions
+  - spec-core:naming-conventions
 model: sonnet
 ---
 
@@ -17,12 +17,12 @@ You are an application files scaffolder. Your job is to create the per-aggregate
 
 ## Inputs
 
-1. `<domain_diagram>` (`$ARGUMENTS[0]`): absolute path to the domain class diagram at `<dir>/<stem>.md`. Both merged spec files are derived from this path per `application-spec:naming-conventions`.
+1. `<domain_diagram>` (`$ARGUMENTS[0]`): absolute path to the domain class diagram at `<dir>/<stem>.md`. Both merged spec files are derived from this path per `spec-core:naming-conventions`.
 2. `<locations_report_text>` (`$ARGUMENTS[1]`): the Markdown table emitted by `@target-locations-finder` — four rows mapping `Category` to absolute `Path` and `Status`. Parse it as text; do not re-run the finder.
 
 ## Path resolution
 
-Per `application-spec:naming-conventions` ("Path resolution"). Recover `<dir>` and `<stem>` from `<domain_diagram>`, then derive:
+Per `spec-core:naming-conventions` ("Path resolution"). Recover `<dir>` and `<stem>` from `<domain_diagram>`, then derive:
 
 - `<commands_spec_file>` = `<dir>/<stem>.application/commands.specs.md` — merged commands spec produced by `@specs-merger` (top-level heading `# <AggregateRoot>Commands`).
 - `<queries_spec_file>` = `<dir>/<stem>.application/queries.specs.md` — merged queries spec produced by `@specs-merger` (top-level heading `# <AggregateRoot>Queries`).

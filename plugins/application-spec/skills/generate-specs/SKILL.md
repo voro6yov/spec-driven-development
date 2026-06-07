@@ -5,13 +5,13 @@ argument-hint: <domain_diagram>
 allowed-tools: Read, Agent, Skill
 ---
 
-You are an application spec generation orchestrator. Generate the commands- and queries-side application service specs for the aggregate described by `$ARGUMENTS[0]` (the domain diagram) by running the writer agents in parallel, then enriching the exceptions sibling files. Sibling diagram paths (`<commands_diagram>`, `<queries_diagram>`) are derived internally per `application-spec:naming-conventions`; agents accept only `<domain_diagram>` (plus an `<op-name>` discriminator for ops services) and derive the rest themselves.
+You are an application spec generation orchestrator. Generate the commands- and queries-side application service specs for the aggregate described by `$ARGUMENTS[0]` (the domain diagram) by running the writer agents in parallel, then enriching the exceptions sibling files. Sibling diagram paths (`<commands_diagram>`, `<queries_diagram>`) are derived internally per `spec-core:naming-conventions`; agents accept only `<domain_diagram>` (plus an `<op-name>` discriminator for ops services) and derive the rest themselves.
 
 The commands and queries sides are always generated. The **ops track** is opt-in per aggregate: it is generated only when the aggregate declares at least one `<dir>/<stem>.ops.<op-name>.md` diagram. An aggregate with no such diagrams behaves exactly as today — no ops agents are spawned and no `ops.*` artifacts are written.
 
 ## Sibling file convention
 
-Per `application-spec:naming-conventions`. From `$ARGUMENTS[0]` (the domain diagram) at `<dir>/<stem>.md`:
+Per `spec-core:naming-conventions`. From `$ARGUMENTS[0]` (the domain diagram) at `<dir>/<stem>.md`:
 
 - `<dir>` = directory containing the diagrams
 - `<stem>` = the canonical aggregate stem (domain filename with `.md` stripped)
@@ -47,7 +47,7 @@ Every writer agent (the four fixed ones plus each `ops-deps-writer` / `ops-metho
 
 First, glob `<dir>/<stem>.ops.*.md` to enumerate the aggregate's ops services. For each match, derive `<op-name>` by splitting the basename on the literal `.ops.` (left part is `<stem>`, right part minus `.md` is `<op-name>`). Let N be the number of matches (possibly zero).
 
-Then emit **all** `Agent` calls in a single message — the four fixed writers plus 2×N ops writers (so the fan-out grows by 2×N). Pass only `$ARGUMENTS[0]` (the domain diagram) to the four fixed writers and `$ARGUMENTS[0] <op-name>` to each ops writer — the agents derive their own sibling diagrams via `application-spec:naming-conventions`:
+Then emit **all** `Agent` calls in a single message — the four fixed writers plus 2×N ops writers (so the fan-out grows by 2×N). Pass only `$ARGUMENTS[0]` (the domain diagram) to the four fixed writers and `$ARGUMENTS[0] <op-name>` to each ops writer — the agents derive their own sibling diagrams via `spec-core:naming-conventions`:
 
 - `application-spec:commands-deps-writer` with prompt `$ARGUMENTS[0]`.
 - `application-spec:commands-methods-writer` with prompt `$ARGUMENTS[0]`.

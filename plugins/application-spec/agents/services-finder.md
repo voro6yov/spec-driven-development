@@ -3,7 +3,7 @@ name: services-finder
 description: "Identifies every service the application layer must implement by reconciling command/query merged specs with the domain and application diagrams. Invoke with: @services-finder <domain_diagram>"
 tools: Read, Write, Skill
 skills:
-  - application-spec:naming-conventions
+  - spec-core:naming-conventions
   - application-spec:services-report-template
 model: sonnet
 ---
@@ -35,7 +35,7 @@ abort with a one-sentence error.
 
 ## Path resolution
 
-Per `application-spec:naming-conventions` ("Path resolution"). Recover `<dir>` and `<stem>` from `<domain_diagram>`, then derive:
+Per `spec-core:naming-conventions` ("Path resolution"). Recover `<dir>` and `<stem>` from `<domain_diagram>`, then derive:
 
 - `<commands_diagram>` = `<dir>/<stem>.commands.md` — the commands-side application diagram (holds `<AggregateRoot>Commands` and external `I<Interface>` class nodes)
 - `<queries_diagram>` = `<dir>/<stem>.queries.md` — the queries-side application diagram (holds `<AggregateRoot>Queries` and external `I<Interface>` class nodes)

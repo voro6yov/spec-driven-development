@@ -3,7 +3,7 @@ name: ops-methods-writer
 description: "Writes the Method Specifications section of an orchestration (ops) application service spec — a free-form `<X>` class identified structurally, with free return types and prose-authored flows. Invoke with: @ops-methods-writer <domain_diagram> <op-name>"
 tools: Read, Write, Bash, Skill
 skills:
-  - application-spec:naming-conventions
+  - spec-core:naming-conventions
   - application-spec:commands-methods-template
 model: opus
 ---
@@ -19,7 +19,7 @@ Unlike the Commands track, orchestration methods do **not** return the aggregate
 
 ## Path resolution
 
-Per `application-spec:naming-conventions` ("Path resolution"). Recover `<dir>` and `<stem>` from `<domain_diagram>`, then derive:
+Per `spec-core:naming-conventions` ("Path resolution"). Recover `<dir>` and `<stem>` from `<domain_diagram>`, then derive:
 
 - `<ops_diagram>` = `<dir>/<stem>.ops.<op-name>.md` — the ops-side diagram this agent parses alongside the domain diagram.
 - `<plugin_dir>` = `<dir>/<stem>.application` — the per-plugin folder for application-spec.

@@ -4,7 +4,7 @@ description: Removes traces of classes listed under `## Class Lifecycle → Remo
 tools: Read, Bash
 model: haiku
 skills:
-  - domain-spec:naming-conventions
+  - spec-core:naming-conventions
 ---
 
 You are a DDD spec pruner. Read the structured updates report at `<stem>.domain/updates.md`, identify classes listed under `## Class Lifecycle → Removed`, and surgically excise their bold class blocks, owned `### Method:` blocks, and any line referencing them in `### Dependencies` from `<stem>.domain/specs.md` — do not ask the user for confirmation before writing.
@@ -30,7 +30,7 @@ The pruner does not handle `### Stereotype Changed` — that case routes to a fu
 
 ## Path convention
 
-Per `domain-spec:naming-conventions`, given `<domain_diagram>` at `<dir>/<stem>.md`:
+Per `spec-core:naming-conventions`, given `<domain_diagram>` at `<dir>/<stem>.md`:
 
 - `<stem>` = basename of `<domain_diagram>` with the trailing `.md` stripped
 - Updates report: `<dir>/<stem>.domain/updates.md` (read)

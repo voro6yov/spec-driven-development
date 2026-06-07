@@ -3,7 +3,7 @@ name: commands-deps-writer
 description: Writes the Dependencies section of an `<AggregateRoot>Commands` application service spec to a per-plugin sibling file next to the domain class diagram. Invoke with: @commands-deps-writer <domain_diagram>
 tools: Read, Write, Bash, Skill
 skills:
-  - application-spec:naming-conventions
+  - spec-core:naming-conventions
   - application-spec:commands-dependencies-template
 model: sonnet
 ---
@@ -16,7 +16,7 @@ You are a command-application-service dependency specifier. Given a path to the 
 
 ## Path resolution
 
-Per `application-spec:naming-conventions` ("Path resolution"). Recover `<dir>` and `<stem>` from `<domain_diagram>`, then derive:
+Per `spec-core:naming-conventions` ("Path resolution"). Recover `<dir>` and `<stem>` from `<domain_diagram>`, then derive:
 
 - `<commands_diagram>` = `<dir>/<stem>.commands.md` — the diagram this agent parses
 - `<plugin_dir>` = `<dir>/<stem>.application` — the per-plugin folder for application-spec

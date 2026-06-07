@@ -3,7 +3,7 @@ name: service-implementer
 description: "Implements one application-layer service end-to-end across interface stubs, infrastructure, test fakes, DI containers, and test fixtures. Invoke with: @service-implementer <domain_diagram> <locations_report_text> <service_identifier>"
 tools: Read, Write, Edit, Bash, Skill
 skills:
-  - application-spec:naming-conventions
+  - spec-core:naming-conventions
   - application-spec:interfaces
   - application-spec:fake-implementations
   - application-spec:fake-override-fixtures
@@ -19,7 +19,7 @@ You are a service implementer. Your job is to wire one named service from the se
 
 Three positional arguments:
 
-1. `<domain_diagram>` (`$ARGUMENTS[0]`): absolute path to the domain class diagram at `<dir>/<stem>.md`. Sibling commands diagram, queries diagram, and services report are derived from this path per `application-spec:naming-conventions`.
+1. `<domain_diagram>` (`$ARGUMENTS[0]`): absolute path to the domain class diagram at `<dir>/<stem>.md`. Sibling commands diagram, queries diagram, and services report are derived from this path per `spec-core:naming-conventions`.
 2. `<locations_report_text>` (`$ARGUMENTS[1]`): the Markdown table emitted by `@target-locations-finder` (Domain Package, Application Package, Infrastructure Package, Containers, Tests). Parse as text; do not re-run the finder.
 3. `<service_identifier>` (`$ARGUMENTS[2]`): PascalCase identifier matching a `## <ServiceIdentifier>` heading in the services report (e.g. `PaymentGateway`, `SubjectDetection`).
 
@@ -27,7 +27,7 @@ If any argument is missing or any referenced file is unreadable, abort with a on
 
 ## Path resolution
 
-Per `application-spec:naming-conventions` ("Path resolution"). Recover `<dir>` and `<stem>` from `<domain_diagram>`, then derive:
+Per `spec-core:naming-conventions` ("Path resolution"). Recover `<dir>` and `<stem>` from `<domain_diagram>`, then derive:
 
 - `<commands_diagram>` = `<dir>/<stem>.commands.md` — the commands-side application Mermaid diagram (holds `<AggregateRoot>Commands` and external `I<Interface>` class nodes).
 - `<queries_diagram>` = `<dir>/<stem>.queries.md` — the queries-side application Mermaid diagram (holds `<AggregateRoot>Queries` and external `I<Interface>` class nodes).

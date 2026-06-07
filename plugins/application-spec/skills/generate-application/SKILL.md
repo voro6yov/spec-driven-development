@@ -20,7 +20,7 @@ Phase 1 ends with its own confirmation line such as `Application spec generation
 
 - `$ARGUMENTS` — the path to the aggregate's Mermaid class diagram (`<dir>/<stem>.md`).
 
-All artifacts produced by Phase 1 land in `<dir>/<stem>.application/` per `application-spec:naming-conventions`; Phase 2 reads them from there. Sibling diagrams (`<commands_diagram>`, `<queries_diagram>`) are derived internally by each invoked skill; this umbrella only forwards the domain diagram path.
+All artifacts produced by Phase 1 land in `<dir>/<stem>.application/` per `spec-core:naming-conventions`; Phase 2 reads them from there. Sibling diagrams (`<commands_diagram>`, `<queries_diagram>`) are derived internally by each invoked skill; this umbrella only forwards the domain diagram path.
 
 ## Workflow
 

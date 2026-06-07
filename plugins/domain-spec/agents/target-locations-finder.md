@@ -35,7 +35,7 @@ Derive the kebab-case stem from `<domain_diagram>` by stripping the directory an
 basename <domain_diagram> .md
 ```
 
-Then convert the stem to its Python package name `<aggregate_pkg>` by replacing every `-` with `_`. The diagram stem is kebab-case (canonical for spec paths — see `domain-spec:naming-conventions`); the Python package name is the same value in snake_case.
+Then convert the stem to its Python package name `<aggregate_pkg>` by replacing every `-` with `_`. The diagram stem is kebab-case (canonical for spec paths — see `spec-core:naming-conventions`); the Python package name is the same value in snake_case.
 
 Worked examples:
 

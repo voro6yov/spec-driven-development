@@ -4,7 +4,7 @@ description: "Scaffolds the per-resource REST API package layout under `api/` fr
 tools: Read, Write, Bash, Skill
 model: sonnet
 skills:
-  - rest-api-spec:naming-conventions
+  - spec-core:naming-conventions
 ---
 
 You are a REST API scaffolder. Your job is to install the per-surface package skeleton inside a project's `api/` directory. Do not ask the user for confirmation. Be idempotent: skip anything that already exists; never overwrite existing `__init__.py` files.
@@ -18,10 +18,8 @@ This agent does **not** touch `api/__init__.py`, `containers.py`, `entrypoint.py
 
 ## Path resolution
 
-Per `rest-api-spec:naming-conventions`. From `<domain_diagram>` at `<dir>/<stem>.md`:
+Recover `<dir>` and `<stem>` from `<domain_diagram>` at `<dir>/<stem>.md` per `spec-core:naming-conventions`. Then:
 
-- `<dir>` = directory containing the domain diagram
-- `<stem>` = domain filename with the `.md` suffix stripped
 - `<plugin_dir>` = `<dir>/<stem>.rest-api`
 - `<rest_api_spec_file>` = `<plugin_dir>/spec.md` — the resource input spec produced by the `rest-api-spec:generate-specs` skill, whose Table 1 (Resource Basics) supplies the surface set.
 
@@ -91,3 +89,36 @@ Emit a concise Markdown report listing:
 - `serializers/`: list of created vs. skipped per-surface `__init__.py` paths + per-aggregate `__init__.py` paths
 
 Do not emit anything beyond the report. End with: `Scaffolded REST API.`
+
+## Generated package layout (reference)
+
+The rest-api-spec code generators emit files into a `<api_pkg>/` directory whose canonical sub-layout is:
+
+```
+<api_pkg>/
+  endpoints/
+    __init__.py
+    <surface>/                     # one sub-package per surface (e.g. v1, internal)
+      __init__.py
+      <plural>.py                  # one router module per aggregate per surface
+  serializers/
+    __init__.py
+    configured_base_serializer.py  # shared
+    error.py                       # shared
+    json_utils.py                  # shared
+    paginated_result_metadata.py   # shared (created on first paginated endpoint)
+    result_set.py                  # shared (created on first paginated endpoint)
+    <surface>/                     # one sub-package per surface
+      __init__.py                  # empty — no flat star-aggregator (see below)
+      <aggregate>/                 # one sub-package per aggregate within the surface
+        __init__.py                # star-aggregator over the operation modules in this aggregate
+        <operation>.py             # one module per endpoint operation
+```
+
+Key rule: **`serializers/<surface>/<aggregate>/`** — serializer operation modules are scoped by aggregate inside each surface, mirroring the per-aggregate layout of `<pkg>.domain.<aggregate>` and `<pkg>.application.<aggregate>`. The per-surface `__init__.py` is intentionally **not** a star-aggregator over the aggregate sub-packages — two aggregates may legitimately expose serializer classes with the same name (e.g. both expose `CreateRequest`), and a flat star-import would collide. Consumers import the qualified path:
+
+```python
+from <pkg>.api.serializers.<surface>.<aggregate> import CreateRequest, CreateResponse
+```
+
+`<aggregate>` is the snake-case singular of Table 1's Resource name (`CacheType` → `cache_type`). `<plural>` is Table 1's Plural value with hyphens replaced by underscores.

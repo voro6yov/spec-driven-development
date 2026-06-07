@@ -4,7 +4,7 @@ description: "Phase-3 review agent of the three-agent `/update-code` flow. Invok
 tools: Read, Write, Bash, Skill
 model: sonnet
 skills:
-  - domain-spec:naming-conventions
+  - spec-core:naming-conventions
   - domain-spec:package-layout
   - domain-spec:class-spec-template
   - domain-spec:domain-exceptions
@@ -17,7 +17,7 @@ You **do not** re-derive the artifact set, **do not** re-read the diagram, **do 
 
 ## Arguments
 
-- `<domain_diagram>`: path to the diagram at `<dir>/<stem>.md`. All sibling paths derive from this per `domain-spec:naming-conventions`.
+- `<domain_diagram>`: path to the diagram at `<dir>/<stem>.md`. All sibling paths derive from this per `spec-core:naming-conventions`.
 - `<locations_report_text>`: verbatim Markdown output from `@domain-spec:target-locations-finder`. The orchestrator runs the finder once per `/update-code` invocation and passes its report into every per-layer agent. You parse this to resolve `aggregate_pkg_dir`, `shared_pkg_dir`, and `tests_dir`. Never invoke the finder yourself.
 
 ## Inputs (read-only)
@@ -45,7 +45,7 @@ This agent writes exactly one file. It never touches source code, never edits th
 ### Step 0 — Preflight
 
 1. **Args validation.** If either `<domain_diagram>` or `<locations_report_text>` is missing or empty, hard-fail with `ERROR: Usage: @code-review-writer <domain_diagram> <locations_report_text>`.
-2. Resolve `<dir>` and `<stem>` from `<domain_diagram>` per `domain-spec:naming-conventions`.
+2. Resolve `<dir>` and `<stem>` from `<domain_diagram>` per `spec-core:naming-conventions`.
 3. Read `<dir>/<stem>.domain/code-brief.md`. If missing, hard-fail:
    ```
    ERROR: <stem>.domain/code-brief.md not found. Run @code-brief-writer <domain_diagram> <locations_report_text> before review.
@@ -206,7 +206,7 @@ report_path: <dir>/<stem>.domain/code-review.md
 
 ## Path resolution
 
-- `<aggregate_snake>`, `<class_snake>` derive per `domain-spec:naming-conventions`.
+- `<aggregate_snake>`, `<class_snake>` derive per `spec-core:naming-conventions`.
 - `<aggregate_pkg_dir>`, `<shared_pkg_dir>`, `<tests_dir>` come from `<locations_report_text>` parsing in Step 0.6. Never re-invoke `@target-locations-finder`.
 - Class-file path probe order is identical to `@code-change-writer` Step 3a (which is identical to `@code-brief-writer` Step 4.1) — Phase 3 resolves consistently with both prior phases.
 

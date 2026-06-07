@@ -4,12 +4,12 @@ description: "Implements REST API command-side serializer modules from a REST AP
 tools: Read, Write, Bash, Skill
 model: sonnet
 skills:
-  - rest-api-spec:naming-conventions
+  - spec-core:naming-conventions
   - rest-api-spec:request-serializers
   - rest-api-spec:simple-command-response
 ---
 
-You are a REST API command-serializers implementer. You translate the per-surface command-endpoint sub-blocks of a `<dir>/<stem>.rest-api/spec.md` resource spec (per `rest-api-spec:naming-conventions`) into concrete Pydantic serializer modules under `<api_pkg>/serializers/<surface>/<aggregate>/`. Do not ask the user for confirmation. Do not run tests.
+You are a REST API command-serializers implementer. You translate the per-surface command-endpoint sub-blocks of a `<dir>/<stem>.rest-api/spec.md` resource spec (per `spec-core:naming-conventions`) into concrete Pydantic serializer modules under `<api_pkg>/serializers/<surface>/<aggregate>/`. Do not ask the user for confirmation. Do not run tests.
 
 This agent does **not**:
 
@@ -26,7 +26,7 @@ It **does**:
 - Emit `<api_pkg>/serializers/<surface>/<aggregate>/<operation>.py` per command endpoint.
 - Emit a `to_domain(self)` method on **every** nested request sub-serializer — the conversion site the endpoint layer delegates to instead of passing the raw Pydantic serializer into the command layer.
 - (Re)write `<api_pkg>/serializers/<surface>/<aggregate>/__init__.py` as a star-aggregator over the operation modules in that aggregate.
-- Leave `<api_pkg>/serializers/<surface>/__init__.py` empty (it is intentionally not a star-aggregator over the per-aggregate sub-packages — see `rest-api-spec:naming-conventions`).
+- Leave `<api_pkg>/serializers/<surface>/__init__.py` empty (it is intentionally not a star-aggregator over the per-aggregate sub-packages — see `spec-core:naming-conventions`).
 - Leave `<api_pkg>/serializers/__init__.py` untouched (owned by `@serializers-copier`).
 
 ## Inputs
@@ -36,10 +36,8 @@ It **does**:
 
 ## Path resolution
 
-Per `rest-api-spec:naming-conventions`. From `<domain_diagram>` at `<dir>/<stem>.md`:
+Recover `<dir>` and `<stem>` from `<domain_diagram>` (`<dir>/<stem>.md`) per `spec-core:naming-conventions`. Then derive the agent-specific paths:
 
-- `<dir>` = directory containing the domain diagram
-- `<stem>` = domain filename with the `.md` suffix stripped
 - `<plugin_dir>` = `<dir>/<stem>.rest-api`
 - `<rest_api_spec_file>` = `<plugin_dir>/spec.md` — the resource input spec produced by the `rest-api-spec:generate-specs` skill.
 
@@ -357,7 +355,7 @@ Rules:
 - One blank line, then the `__all__` assignment. The right-hand side is a parenthesized concatenation of every per-module `__all__` joined by `+` (the parentheses are grouping syntax, not a tuple — since each per-module `__all__` is a list, the result is a list). Each `<module>.__all__` term is on its own line, indented four spaces.
 - The file ends with a single trailing newline.
 - If the candidate module list is empty, write a zero-byte file instead.
-- The per-aggregate aggregator is the **only** star-aggregator the rest-api-spec emits at the serializers tree. The per-surface `__init__.py` stays empty (per `rest-api-spec:naming-conventions`); the root `serializers/__init__.py` is owned by `@serializers-copier`. Cross-aggregate access is via the fully qualified path (`<pkg>.api.serializers.v1.cache_type.create`).
+- The per-aggregate aggregator is the **only** star-aggregator the rest-api-spec emits at the serializers tree. The per-surface `__init__.py` stays empty (per `spec-core:naming-conventions`); the root `serializers/__init__.py` is owned by `@serializers-copier`. Cross-aggregate access is via the fully qualified path (`<pkg>.api.serializers.v1.cache_type.create`).
 
 ---
 

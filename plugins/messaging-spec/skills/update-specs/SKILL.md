@@ -12,7 +12,7 @@ This skill is the messaging-side counterpart to `/update-specs` (domain), `/pers
 The orchestrator consumes two update reports — one per axis — and unions their dispatch signals:
 
 - **Domain axis** — `<dir>/<stem>.domain/updates.md`, produced by `domain-spec:updates-detector` (expected on disk; not invoked here).
-- **Commands-diagram axis** — `<dir>/<stem>.application/commands-updates.md`, produced by `application-spec:commands-updates-detector` (invoked at Step 0 below). The path is owned by application-spec's per-aggregate folder; messaging-spec reads it but never writes there. See `messaging-spec:naming-conventions` for the cross-plugin path policy.
+- **Commands-diagram axis** — `<dir>/<stem>.application/commands-updates.md`, produced by `application-spec:commands-updates-detector` (invoked at Step 0 below). The path is owned by application-spec's per-aggregate folder; messaging-spec reads it but never writes there. See `spec-core:naming-conventions` for the cross-plugin path policy.
 
 The queries-diagram axis is **not** consumed — messaging is command-side only, and there is no per-consumer subscription to query-side operations.
 
@@ -20,7 +20,7 @@ The orchestrator never re-diffs any diagram itself.
 
 ## Output path convention
 
-Per `messaging-spec:naming-conventions`, given `<domain_diagram>` at `<dir>/<stem>.md`:
+Per `spec-core:naming-conventions`, given `<domain_diagram>` at `<dir>/<stem>.md`:
 
 - `<dir>` = directory containing the diagrams.
 - `<stem>` = the canonical aggregate stem (domain filename with `.md` stripped); must satisfy `^[a-z][a-z0-9-]*$`.
@@ -35,7 +35,7 @@ Per `messaging-spec:naming-conventions`, given `<domain_diagram>` at `<dir>/<ste
 | `<plugin_dir>/<consumer>.md` × N | the consumer specs being updated (at least one must exist) | `event-tables-writer` + `event-fields-writer` (per affected consumer) |
 | `<plugin_dir>/updates.md` | output — messaging delta report | `messaging-updates-writer` |
 
-Every agent derives `<dir>` / `<stem>` from the path it receives per `messaging-spec:naming-conventions`. The writer agents (`event-tables-writer`, `event-fields-writer`) take `<commands_diagram> <consumer_name>`; `messaging-updates-writer` and `application-spec:commands-updates-detector` take `<domain_diagram>` (= `$ARGUMENTS[0]`). Reconstruction by string substitution is forbidden — recover `<dir>` / `<stem>` per the naming-conventions recovery rule, then build sibling paths from it.
+Every agent derives `<dir>` / `<stem>` from the path it receives per `spec-core:naming-conventions`. The writer agents (`event-tables-writer`, `event-fields-writer`) take `<commands_diagram> <consumer_name>`; `messaging-updates-writer` and `application-spec:commands-updates-detector` take `<domain_diagram>` (= `$ARGUMENTS[0]`). Reconstruction by string substitution is forbidden — recover `<dir>` / `<stem>` per the naming-conventions recovery rule, then build sibling paths from it.
 
 This skill keeps no runtime state between agents. `messaging-updates-writer` recovers the pre-update consumer specs via `git show HEAD:<file>` per consumer and recomputes the per-consumer abort list itself from the domain `updates.md` ∩ each consumer's `internal` Table 2 rows — the same derivation this orchestrator uses in Step 3, with the same inputs and rule — so there is nothing for the orchestrator to capture or hand along.
 
@@ -43,7 +43,7 @@ This skill keeps no runtime state between agents. `messaging-updates-writer` rec
 
 ### Step 0 — Verify inputs and produce the commands-diagram axis report
 
-Derive `<dir>` and `<stem>` from `$ARGUMENTS[0]` per `messaging-spec:naming-conventions`. `<stem>` must satisfy `^[a-z][a-z0-9-]*$`; if not, hard-fail with: `ERROR: <domain_diagram> path does not yield a valid aggregate stem (must match ^[a-z][a-z0-9-]*$).` Using `Bash` (`test -f`, `ls`):
+Derive `<dir>` and `<stem>` from `$ARGUMENTS[0]` per `spec-core:naming-conventions`. `<stem>` must satisfy `^[a-z][a-z0-9-]*$`; if not, hard-fail with: `ERROR: <domain_diagram> path does not yield a valid aggregate stem (must match ^[a-z][a-z0-9-]*$).` Using `Bash` (`test -f`, `ls`):
 
 - **0a.** If `<dir>/<stem>.domain/updates.md` is missing → hard-fail:
 
@@ -95,7 +95,7 @@ Do not synthesize any input file.
 
 Standalone invocations (without `--detectors-fresh`) take the default path below.
 
-**Default path.** After 0a–0c pass, invoke `application-spec:commands-updates-detector` with prompt `$ARGUMENTS[0]` (the domain diagram path — the detector derives the sibling commands diagram via `application-spec:naming-conventions`).
+**Default path.** After 0a–0c pass, invoke `application-spec:commands-updates-detector` with prompt `$ARGUMENTS[0]` (the domain diagram path — the detector derives the sibling commands diagram via `spec-core:naming-conventions`).
 
 The detector writes `<dir>/<stem>.application/commands-updates.md` or hard-fails with an `ERROR:` line. If it hard-fails, abort the orchestrator with that detector's `ERROR:` line repeated verbatim; the operator's recovery path (the message itself directs to `/application-spec:generate-specs <domain_diagram>`) applies here.
 

@@ -3,7 +3,7 @@ name: ops-deps-writer
 description: Writes the Dependencies section of an ops orchestration application service spec to a per-plugin sibling file next to the domain class diagram. Invoke with: @ops-deps-writer <domain_diagram> <op-name>
 tools: Read, Write, Bash, Skill
 skills:
-  - application-spec:naming-conventions
+  - spec-core:naming-conventions
   - application-spec:commands-dependencies-template
 model: sonnet
 ---
@@ -13,11 +13,11 @@ You are an ops-orchestration-application-service dependency specifier. Given a p
 ## Inputs
 
 - `<domain_diagram>` (`$ARGUMENTS[0]`): absolute path to the domain class diagram at `<dir>/<stem>.md`.
-- `<op-name>` (`$ARGUMENTS[1]`): the kebab-case service discriminator (`^[a-z][a-z0-9-]*$`), e.g. `mapping-rules-inferencing`.
+- `<op-name>` (`$ARGUMENTS[1]`): the kebab-case service discriminator (matching the aggregate-stem regex per `spec-core:naming-conventions`), e.g. `mapping-rules-inferencing`.
 
 ## Path resolution
 
-Per `application-spec:naming-conventions` ("Path resolution"). Recover `<dir>` and `<stem>` from `<domain_diagram>`, then derive:
+Per `spec-core:naming-conventions` ("Path resolution"). Recover `<dir>` and `<stem>` from `<domain_diagram>`, then derive:
 
 - `<ops_diagram>` = `<dir>/<stem>.ops.<op-name>.md` — the diagram this agent parses
 - `<plugin_dir>` = `<dir>/<stem>.application` — the per-plugin folder for application-spec

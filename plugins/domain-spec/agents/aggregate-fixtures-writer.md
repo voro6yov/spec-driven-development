@@ -4,7 +4,7 @@ description: "Generates pytest fixtures for <<Aggregate Root>> classes in tests/
 tools: Read, Write, Skill
 model: sonnet
 skills:
-  - domain-spec:naming-conventions
+  - spec-core:naming-conventions
   - domain-spec:aggregate-fixtures
   - domain-spec:aggregate-data-fixtures
 ---
@@ -22,7 +22,7 @@ The State Keys table of the Test Plan is the single source of truth for **which*
 
 ## Path convention
 
-Per `domain-spec:naming-conventions`, given `<domain_diagram>` at `<dir>/<stem>.md`:
+Per `spec-core:naming-conventions`, given `<domain_diagram>` at `<dir>/<stem>.md`:
 - `<stem>` = basename of `<domain_diagram>` with `.md` suffix stripped
 - Specs file: `<dir>/<stem>.domain/specs.md`
 - Test plan file: `<dir>/<stem>.domain/test-plan.md`

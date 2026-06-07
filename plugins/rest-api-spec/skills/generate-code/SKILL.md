@@ -5,11 +5,11 @@ argument-hint: <domain_diagram>
 allowed-tools: Agent, Skill
 ---
 
-You are a REST API implementation orchestrator. Implement the REST API layer for the resource whose domain diagram is at `$ARGUMENTS[0]`. The skill consumes the resource spec sibling that `/rest-api-spec:generate-specs` produces — it does not regenerate it. Spec-file paths are derived internally per `rest-api-spec:naming-conventions`; downstream agents accept only `<domain_diagram>` plus `<locations_report_text>` and derive the rest themselves.
+You are a REST API implementation orchestrator. Implement the REST API layer for the resource whose domain diagram is at `$ARGUMENTS[0]`. The skill consumes the resource spec sibling that `/rest-api-spec:generate-specs` produces — it does not regenerate it. Spec-file paths are derived internally per `spec-core:naming-conventions`; downstream agents accept only `<domain_diagram>` plus `<locations_report_text>` and derive the rest themselves.
 
 ## Sibling file convention
 
-Per `rest-api-spec:naming-conventions`. From `$ARGUMENTS[0]` (the domain diagram) at `<dir>/<stem>.md`:
+Per `spec-core:naming-conventions`. From `$ARGUMENTS[0]` (the domain diagram) at `<dir>/<stem>.md`:
 
 - `<dir>` = directory containing the domain diagram
 - `<stem>` = domain filename with the `.md` suffix stripped

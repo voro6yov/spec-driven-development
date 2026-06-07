@@ -13,7 +13,7 @@ This agent never creates new modules. Its contract is strictly read-modify-write
 
 - `<module_path>`: **absolute** path to a scaffolded `.py` file (already created by `domain-spec:scaffold-builder`)
 
-## Preconditions (Path hygiene rules 1, 2, and 3 of `domain-spec:naming-conventions`)
+## Preconditions (Path hygiene rules 1, 2, and 3 of `spec-core:naming-conventions`)
 
 Before reading or loading any skill:
 

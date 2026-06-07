@@ -4,7 +4,7 @@ description: Enriches Application Exceptions sections in commands, queries, and 
 tools: Read, Write
 model: sonnet
 skills:
-  - application-spec:naming-conventions
+  - spec-core:naming-conventions
   - domain-spec:domain-exceptions
 ---
 
@@ -18,7 +18,7 @@ The agent processes every side of an aggregate in one call: the fixed `commands`
 
 ## Path resolution
 
-Per `application-spec:naming-conventions` ("Path resolution"). Recover `<dir>` and `<stem>` from `<domain_diagram>`, then derive:
+Per `spec-core:naming-conventions` ("Path resolution"). Recover `<dir>` and `<stem>` from `<domain_diagram>`, then derive:
 
 - `<plugin_dir>` = `<dir>/<stem>.application` — the per-plugin folder for application-spec
 

@@ -4,7 +4,7 @@ description: "Creates the package skeleton — empty class stubs with spec docst
 tools: Read, Write, Bash
 model: sonnet
 skills:
-  - domain-spec:naming-conventions
+  - spec-core:naming-conventions
   - domain-spec:package-layout
 ---
 
@@ -19,7 +19,7 @@ You are a DDD package scaffolder. Read the spec from `<stem>.domain/specs.md` an
 
 ## Path convention
 
-Per `domain-spec:naming-conventions`, given `<domain_diagram>` at `<dir>/<stem>.md`:
+Per `spec-core:naming-conventions`, given `<domain_diagram>` at `<dir>/<stem>.md`:
 - `<stem>` = basename of `<domain_diagram>` with `.md` suffix stripped
 - Specs file: `<dir>/<stem>.domain/specs.md`
 - Exceptions file: `<dir>/<stem>.domain/exceptions.md`

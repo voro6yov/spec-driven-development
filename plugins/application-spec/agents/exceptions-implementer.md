@@ -3,7 +3,7 @@ name: exceptions-implementer
 description: "Implements application-layer exception classes from merged commands, queries, and per-service ops exceptions specs to the domain aggregate's `exceptions.py`. Invoke with: @application-spec:exceptions-implementer <domain_diagram> <locations_report_text>"
 tools: Read, Write, Edit, Skill
 skills:
-  - application-spec:naming-conventions
+  - spec-core:naming-conventions
   - domain-spec:domain-exceptions
 model: sonnet
 ---
@@ -20,14 +20,14 @@ The ops track is **opt-in**: an aggregate may declare zero or many `ops.<op-name
 
 Two positional arguments:
 
-1. `<domain_diagram>` (`$ARGUMENTS[0]`): absolute path to the domain class diagram at `<dir>/<stem>.md`. The merged commands and queries spec paths, and the per-service ops exceptions specs, are derived per `application-spec:naming-conventions`.
+1. `<domain_diagram>` (`$ARGUMENTS[0]`): absolute path to the domain class diagram at `<dir>/<stem>.md`. The merged commands and queries spec paths, and the per-service ops exceptions specs, are derived per `spec-core:naming-conventions`.
 2. `<locations_report_text>` (`$ARGUMENTS[1]`): the Markdown table emitted by `@target-locations-finder` (passed verbatim by the orchestrator). Parse as text; do not re-run the finder.
 
 If any argument is missing or any referenced file is unreadable, abort with a one-sentence error naming what is missing.
 
 ## Path resolution
 
-Per `application-spec:naming-conventions` ("Path resolution"). Recover `<dir>` and `<stem>` from `<domain_diagram>`, then derive:
+Per `spec-core:naming-conventions` ("Path resolution"). Recover `<dir>` and `<stem>` from `<domain_diagram>`, then derive:
 
 - `<commands_specs_file>` = `<dir>/<stem>.application/commands.specs.md` — merged commands spec (top-level heading `# <AggregateRoot>Commands`).
 - `<queries_specs_file>` = `<dir>/<stem>.application/queries.specs.md` — merged queries spec (top-level heading `# <AggregateRoot>Queries`).

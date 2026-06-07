@@ -22,7 +22,7 @@ Given `<domain_diagram>` at `<dir>/<stem>.md`, the orchestrator reads and writes
 | `<dir>/<stem>.domain/exceptions.md` | `spec-splicer` (stub refresh), `exceptions-specifier` (enrichment) | Replaced |
 | `<dir>/<stem>.domain/test-plan.md` | `aggregate-tests-planner` | Conditionally replaced (blast-radius gate) |
 
-All agents derive `<stem>` by stripping the `.md` suffix from `<domain_diagram>`. Per-category regen scratch lives at `<dir>/<stem>.domain/.specs-tmp/<category>.md`; the orchestrator owns its lifecycle and removes it on success. See `domain-spec:naming-conventions` for the canonical layout.
+All agents derive `<stem>` by stripping the `.md` suffix from `<domain_diagram>`. Per-category regen scratch lives at `<dir>/<stem>.domain/.specs-tmp/<category>.md`; the orchestrator owns its lifecycle and removes it on success. See `spec-core:naming-conventions` for the canonical layout.
 
 Step 10 writes the downstream per-plugin folders — `<dir>/<stem>.persistence/` and `<dir>/<stem>.application/` (and, via the application updater's own re-cascade, `<dir>/<stem>.rest-api/` and `<dir>/<stem>.messaging/`) — and their `updates.md` reports. The `<dir>/<stem>.application/commands-updates.md` / `queries-updates.md` detector reports are produced by the application updater at its own Step 0, **not here**. All those writes are owned entirely by the chained `/…-spec:update-specs` skills; see each one's own path-convention section for the per-file detail. This orchestrator invokes the two downstream updaters with `$ARGUMENTS[0]` (no flag) and surfaces every `ERROR:` line that returns.
 

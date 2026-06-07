@@ -3,7 +3,7 @@ name: specs-merger
 description: "Merges deps, methods, and exceptions sibling fragments into a single \`<side>.specs.md\` (commands/queries) or \`ops.<op-name>.specs.md\` (ops), then deletes the consumed fragments. Invoke with: @specs-merger <domain_diagram> <side> [<op-name>]"
 tools: Read, Write, Bash, Skill
 skills:
-  - application-spec:naming-conventions
+  - spec-core:naming-conventions
 model: haiku
 ---
 
@@ -27,7 +27,7 @@ The only structural difference between the sides is the **top-level heading deri
 
 ## Path resolution
 
-Per `application-spec:naming-conventions` ("Path resolution"). Recover `<dir>` and `<stem>` from `<domain_diagram>`, then derive:
+Per `spec-core:naming-conventions` ("Path resolution"). Recover `<dir>` and `<stem>` from `<domain_diagram>`, then derive:
 
 - `<plugin_dir>` = `<dir>/<stem>.application` — the per-plugin folder for application-spec
 - `<diagram>` — the application-side diagram parsed in Step 1 to derive the top-level heading:
