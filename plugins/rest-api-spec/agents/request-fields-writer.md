@@ -9,7 +9,9 @@ skills:
   - rest-api-spec:surface-markers
 ---
 
-You are a REST API request-fields writer. Given the `<Resource>Commands` application-service Mermaid diagram (derived from the domain diagram per `spec-core:naming-conventions`), the domain class diagram, and an already-populated `<output>` (Table 1 + at least one `## Surface:` section with Tables 2 and 3 present), produce **Table 5 (Request Fields)** strictly per the auto-loaded `rest-api-spec:endpoint-io-template` skill, scoped to each Surface section per the auto-loaded `rest-api-spec:surface-markers` skill.
+You are a REST API request-fields writer. Given the `<Resource>Commands` application-service Mermaid diagram (derived from the domain diagram per `spec-core:naming-conventions`), the domain class diagram, any sibling ops diagrams, and an already-populated `<output>` (Table 1 + at least one `## Surface:` section with Tables 2, 3, and 3o present), produce **Table 5 (Request Fields)** strictly per the auto-loaded `rest-api-spec:endpoint-io-template` skill, scoped to each Surface section per the auto-loaded `rest-api-spec:surface-markers` skill.
+
+Table 5 carries a request sub-block per **command endpoint** (Table 3) **and** per **ops endpoint** (Table 3o). Ops endpoints take a request body exactly like a command: the ops method's parameters minus the aggregate `id` (path), `tenant_id` (auth), and any path-bound `*_id` become body fields. Ops endpoints are **never** composite-key (they always carry an aggregate `id` path segment or are collection-rooted), so the composite-key partition never applies to them. An aggregate with zero ops diagrams produces no ops sub-blocks.
 
 ## Arguments
 
@@ -20,6 +22,7 @@ You are a REST API request-fields writer. Given the `<Resource>Commands` applica
 Recover `<dir>` and `<stem>` from `<domain_diagram>` at `<dir>/<stem>.md` per `spec-core:naming-conventions` (Recovering `<dir>` and `<stem>`). Then derive:
 
 - `<commands_diagram>` = `<dir>/<stem>.commands.md`
+- `<ops_diagrams>` = every `<dir>/<stem>.ops.*.md` (zero or more; sorted). Each carries one brace-body ops class whose method parameter lists are the source for ops request sub-blocks.
 - `<plugin_dir>` = `<dir>/<stem>.rest-api` — the per-plugin folder for rest-api-spec
 - `<output>` = `<plugin_dir>/spec.md` — the resource input spec edited in place
 
@@ -29,7 +32,7 @@ The file must already exist and contain `### Table 1: Resource Basics` plus at l
 
 ### Step 1 — Read inputs
 
-Read `<commands_diagram>`, `<domain_diagram>`, and the target `<output>`. Locate every `classDiagram` block.
+Read `<commands_diagram>`, `<domain_diagram>`, every `<ops_diagrams>` entry, and the target `<output>`. Locate every `classDiagram` block.
 
 **Do not strip `%% ...` line comments before parsing this time** — the surface-markers grammar (per `rest-api-spec:surface-markers`) needs them. Strip them only after the per-class scan in Step 2 has identified surface boundaries.
 
@@ -43,9 +46,11 @@ In the commands diagram, find the unique class whose name ends with `Commands`. 
 
 Parse Table 1 of the target file. The Resource name must equal `<AggregateRoot>`; abort on mismatch. Record the Surfaces row as a comma-separated list of lowercase tokens.
 
-Locate every `## Surface: <name>` H2 section in the target file. For each, record `<name>` and its bounded extent (from its `## Surface:` heading to the next `## Surface:` heading or end of file). Within each Surface section, parse `### Table 3: Command Endpoints` (rows or italic placeholder). Record `(surface, http, path, operation, domain_ref)` for every Table 3 row across all sections.
+For each `<ops_diagrams>` entry, find the unique brace-body class `<OpsClass>`. Bind `<ops_classes>` = the ordered list of `(op-name, <OpsClass>)`.
 
-Partition commands methods by surface per the **surface-markers parsing rules** (`rest-api-spec:surface-markers`):
+Locate every `## Surface: <name>` H2 section in the target file. For each, record `<name>` and its bounded extent (from its `## Surface:` heading to the next `## Surface:` heading or end of file). Within each Surface section, parse `### Table 3: Command Endpoints` **and** `### Table 3o: Ops Endpoints` (rows or italic placeholder). Record `(surface, http, path, operation, domain_ref)` for every Table 3 row (Domain Ref `<AggregateRoot>Commands.<op>`) and every Table 3o row (Domain Ref `<OpsClass>.<op>`).
+
+Partition commands methods **and every ops class's methods** by surface per the **surface-markers parsing rules** (`rest-api-spec:surface-markers`). Bind `ops_methods[<OpsClass>][surface]`:
 
 - Initialize current surface to `v1` at the start of the commands class body.
 - For each line inside the class body:
@@ -57,22 +62,22 @@ Preserve declaration order within each surface. Record name, ordered parameter l
 
 **Composite-key detection.** Consider **only endpoint-generating methods** — exclude every method whose name starts with `on_` before running this detection. Message handlers (`on_*`) never become REST endpoints (they are dropped by `endpoint-tables-writer` Step 4), so a handler's aggregate-id-shaped parameter — e.g. `on_ruleset_creation_completed(project_id: str, …)` — must **not** flip aggregate-id detection or shrink the composite-key set; otherwise a composite-key aggregate's key fields would be misrouted from the query string into the request body. If **no** endpoint-generating method on `<AggregateRoot>Commands` declares an aggregate-id parameter — `id`, or the alias `<resource_singular>_id` (`<resource_singular>` is the lowercase singular of the Resource name) — the aggregate has a *composite key*. Compute the **composite-key set** of parameter names over endpoint-generating commands methods only: if the commands class has ≥2 such methods, the set of parameter names present in *every* such commands-method signature, excluding `tenant_id`; if it has exactly one, that method's parameters excluding `tenant_id` and excluding any parameter whose name equals the method's `noun_tail` (the method name with the leading verb token removed, remaining tokens joined by `_`). When the aggregate has an aggregate id, the set is empty. Composite-key parameters are query-string parameters, not body fields (see Step 4a).
 
-### Step 3 — Match each Table 3 row to its commands method
+### Step 3 — Match each Table 3 / Table 3o row to its method
 
-For each `(surface, row)` pair in declared order:
+For each `(surface, row)` pair in declared order, across both Table 3 and Table 3o:
 
-- The Domain Ref column already names the canonical method (`<AggregateRoot>Commands.<method_name>`). Use that to resolve the method, not the Operation column (which may have been verb-stripped under the plural-tail heuristic).
-- The resolved method must be the one assigned to the same surface in Step 2. If the Domain Ref does not name an existing public method tagged for that surface, abort with `Cannot resolve commands method for <HTTP> <PATH> in surface <surface>.`
+- The Domain Ref column names the canonical method — `<AggregateRoot>Commands.<method_name>` for a Table 3 row, or `<OpsClass>.<method_name>` for a Table 3o row. Use that to resolve the method, not the Operation column (which may have been verb-stripped under the plural-tail heuristic for commands).
+- The resolved method must be the one assigned to the same surface in Step 2 (in the commands class for a Table 3 row, in `ops_methods[<OpsClass>]` for a Table 3o row). If the Domain Ref does not name an existing public method tagged for that surface, abort with `Cannot resolve command/ops method for <HTTP> <PATH> in surface <surface>.`
 
 ### Step 4 — Derive one request-fields sub-block per Table 3 row, per surface
 
 #### Step 4a — Drop path-bound and auth-bound parameters
 
-For each method, partition its parameters:
+For each method, partition its parameters. **For an ops (Table 3o) method, the composite-key set is empty** — ops endpoints are never composite-key — so the composite-key bullet below never fires; everything else applies identically:
 
 - `id` (the aggregate id) → path; **not** a body field.
 - `tenant_id` → auth context; **not** a body field.
-- Any parameter whose name is in the composite-key set (composite-key aggregates only) → **query parameter**, sourced from the query string per `parameter-mapping-writer`'s composite-key rule; **not** a body field.
+- Any parameter whose name is in the composite-key set (composite-key aggregates only; empty for ops endpoints) → **query parameter**, sourced from the query string per `parameter-mapping-writer`'s composite-key rule; **not** a body field.
 - Any other parameter whose name ends in `_id` (singular, not `_ids`) → **conditional path-bound nested id**. Compute the camelCase placeholder (split on `_`, drop trailing `id`, lowercase first remaining token, TitleCase the rest, append `Id`; e.g., `document_type_id` → `documentTypeId`). Look up the Table 3 row's path: if it contains `{<camelPlaceholder>}`, the parameter is path-bound and **not** a body field. **If no such placeholder exists in the path, treat the parameter as a body field** (this aligns with `parameter-mapping-writer`, which would otherwise abort on the mismatch — keeping the body schema lossless).
 - All remaining parameters → body fields.
 
@@ -146,9 +151,9 @@ For each Surface section, render its Table 5 under the heading:
 ### Table 5: Request Fields
 ```
 
-Sub-blocks are emitted in that surface's Table 3 row order. Separate consecutive sub-blocks with one blank line.
+Sub-blocks are emitted in that surface's Table 3 row order, **then** its Table 3o row order (command endpoints first, ops endpoints second), applying the same Step 4 partition to each ops method (with an empty composite-key set).
 
-If a surface's Table 3 is the placeholder `*No command endpoints in this surface.*`, emit the entire Table 5 body for that surface as the placeholder line `*No request fields in this surface — no command endpoints.*` and skip the per-endpoint dispatch for it.
+If **both** a surface's Table 3 and its Table 3o are the placeholder, emit the entire Table 5 body for that surface as the placeholder line `*No request fields in this surface — no command or ops endpoints.*` and skip the per-endpoint dispatch for it. When only one is a placeholder, render sub-blocks for the non-empty table.
 
 ### Step 6 — Write into the target file
 

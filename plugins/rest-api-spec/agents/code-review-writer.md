@@ -28,7 +28,7 @@ You **do** read the brief, the change log, every source module the change log re
 | `<dir>/<stem>.rest-api/code-brief.md` | Yes | Phase-1 brief. Source of truth for the artifact list, risk tags, and pattern lists. Absent → Phase 3 no-op exit (see Step 0.3). |
 | `<dir>/<stem>.rest-api/code-changes.md` | Yes (when brief present) | Phase-2 change log. Source of per-file action/status to verify. Absent → Phase 3 no-op exit (see Step 0.4). |
 | Every source module named in the change log's `Path` column | Yes (when status row implies a written file exists) | Subject of the structural and semantic spot-checks. Unreadable files degrade gracefully to a `warn` issue. |
-| `<dir>/<stem>.md` | Yes (when any `command-serializer` modify/add appears in the change log) | Domain diagram. Source of the `<<Domain TypedDict>>` / `<<Query DTO>>` stereotype set for the `to_domain()` target check. |
+| `<dir>/<stem>.md` | Yes (when any `command-serializer` **or `ops-serializer`** modify/add appears in the change log) | Domain diagram. Source of the `<<Domain TypedDict>>` / `<<Query DTO>>` stereotype set for the `to_domain()` target check. |
 | `<tests_dir>/conftest.py` | Yes (when any `test-impl` row appears in the change log) | Source of `<aggregate>_<n>` fixture definitions for the fixture-resolution check. |
 
 The agent **never** reads `commands.md` / `queries.md` / `spec.md` / `updates.md`. The brief and the change log are the contract this phase verifies against; spec.md was Phase 2's source of truth and re-deriving it here would burn the savings the three-agent flow is designed to capture.
@@ -132,7 +132,7 @@ Semantic spot-checks (subset chosen per the design):
 | Check | Inputs | Skip-when |
 |---|---|---|
 | **endpoint↔serializer linkage** | every `endpoint-module` row in the log (any non-`deleted` action with `status` in {`ok`, `deferred`}), plus the sibling serializer files in the brief's `endpoints_in_surface` for that surface | endpoint module unreadable → skipped with reason |
-| **`to_domain()` target on domain diagram** | every `command-serializer` row in the log with `action` in {`created`, `modified`} and `status` in {`ok`, `deferred`}, plus `<dir>/<stem>.md` | command-serializer absent → skipped silently; domain diagram unreadable → skipped with reason |
+| **`to_domain()` target on domain diagram** | every `command-serializer` **or `ops-serializer`** row in the log with `action` in {`created`, `modified`} and `status` in {`ok`, `deferred`}, plus `<dir>/<stem>.md` | none present → skipped silently; domain diagram unreadable → skipped with reason |
 | **integrator scope discipline** | `<pkg>/constants.py`, `<pkg>/entrypoint.py`, `<api_pkg>/auth.py` if any appears in the change log with `action == modified` | not present in change log → skipped silently; not a git repository → skipped with reason |
 
 Pre-flagged annotation pass (always runs when the change log is present):
@@ -193,11 +193,11 @@ Restricting the scan to test-function parameter lists (rather than the whole fil
 
 For each `endpoint-module` row in the log with `action` ∈ {`created`, `modified`} and `status` ∈ {`ok`, `deferred`}: read the file. Build `serializer_imports: set[str]` from any `from <api_pkg>.serializers.<surface>.<aggregate> import …` line — the union of every imported name across all such lines.
 
-For every brief `endpoints_in_surface` entry attached to the brief row that maps to this endpoint module: confirm the operation's expected request/response serializer name (per the brief's pattern list — `command-serializer` rows imply `<Operation>Request` + `<Operation>Response`; `query-serializer` rows imply `<Operation>Response` and optionally `<Operation>Request` for paginated lists) appears in `serializer_imports`. For any missing import:
+For every brief `endpoints_in_surface` entry attached to the brief row that maps to this endpoint module: confirm the operation's expected request/response serializer name (per the brief's pattern list — `command-serializer` rows imply `<Operation>Request` + `<Operation>Response`; `query-serializer` rows imply `<Operation>Response` and optionally `<Operation>Request` for paginated lists; **`ops-serializer` rows imply `<Operation>Request` when the endpoint has a body, plus `<Operation>Response` unless the endpoint's `ops_resp` is `none`/204**) appears in `serializer_imports`. For any missing import:
 
 - severity `warn`, check `endpoint↔serializer linkage`, note `endpoint '<operation>' missing import for '<Serializer>' from <api_pkg>.serializers.<surface>.<aggregate>`.
 
-For each brief `query-serializer` / `command-serializer` row in the same surface with `action == add` and `status == ok` whose module is not imported by any endpoint module in the surface:
+For each brief `query-serializer` / `command-serializer` / `ops-serializer` row in the same surface with `action == add` and `status == ok` whose module is not imported by any endpoint module in the surface:
 
 - severity `warn`, check `endpoint↔serializer linkage`, note `serializer '<path>' was added but no endpoint module imports it`.
 
@@ -205,7 +205,7 @@ For each brief `query-serializer` / `command-serializer` row in the same surface
 
 Read `<dir>/<stem>.md` and extract the set of class names with stereotype `<<Domain TypedDict>>` or `<<Query DTO>>` from the Mermaid `classDiagram` body (regex over each `class <Name> {` block, retaining `<Name>` when the block contains a `<<Domain TypedDict>>` or `<<Query DTO>>` line). Call this `domain_typed_set`.
 
-For each `command-serializer` row in the log with `action` ∈ {`created`, `modified`} and `status` ∈ {`ok`, `deferred`}: read the file. Locate every `def to_domain(self) -> <Type>:` declaration (regex `^\s*def to_domain\s*\(\s*self\s*\)\s*->\s*([^:]+):`). For each captured `<Type>`:
+For each `command-serializer` **or `ops-serializer`** row in the log with `action` ∈ {`created`, `modified`} and `status` ∈ {`ok`, `deferred`}: read the file. Locate every `def to_domain(self) -> <Type>:` declaration (regex `^\s*def to_domain\s*\(\s*self\s*\)\s*->\s*([^:]+):`). For each captured `<Type>` (ops serializers carry the same nested-request `to_domain()` machinery as command serializers):
 
 - Strip outer `list[…]` / `Optional[…]` / `<Type> | None` wrappers down to the inner identifier sequence.
 - Skip if the inner identifier is in the primitive allow-list (`str`, `int`, `float`, `bool`, `bytes`, `None`) or is a `dict[…]` of primitives.
@@ -252,6 +252,7 @@ The `what_to_look_for` sentence is kind-dispatched:
 
 - `endpoint-module` / `modify`: "Confirm the application-service call signature in the modified endpoint(s) matches the (now-updated) <Resource>Commands / <Resource>Queries diagram, and that path parameters still bind to the right Guard."
 - `command-serializer` / `modify`: "Re-read the `to_domain()` body for fields whose target type changed — Pydantic coercion may silently drop fields the new TypedDict no longer accepts."
+- `ops-serializer` / `modify`: "Confirm the response class still matches the ops method's return type (id-only vs full DTO vs 204) and that any `to_domain()` on request sub-serializers reflects the new field set; an ops return-type change can silently flip the response shape."
 - `integrator-entrypoint` / `modify`: "Confirm the new `include_router` placement does not shadow an existing route prefix and that surface ordering is alphabetical."
 - `integrator-auth` / any: "Confirm the auth skip guard's prefix match cannot be bypassed by a trailing slash or query string."
 - `integrator-constants` / `modify`: "Confirm no existing constant was renamed in a way that breaks an importer in another layer."

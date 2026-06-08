@@ -115,7 +115,7 @@ For every artifact carrying an `endpoint` or `endpoints_in_surface`, look up eac
 Dependency-ordered phases, sequential within each:
 
 1. **Per-surface phase** (in the surface order spec.md declares, alphabetical fallback):
-   1. Every `query-serializer` and `command-serializer` row for the surface, alphabetical by operation.
+   1. Every `query-serializer`, `command-serializer`, and `ops-serializer` row for the surface, alphabetical by operation.
    2. The surface's `endpoint-module` row (if present).
    3. The surface's `serializer-aggregator` row (if present).
    4. Any `serializer-surface-aggregator` / `endpoint-surface-aggregator` rows for the surface (if present — surface-add only).
@@ -135,9 +135,9 @@ For each artifact in order, dispatch by `(kind, action)`. Before any code mutati
 
 Then, dispatch:
 
-#### 5a. `query-serializer` and `command-serializer`
+#### 5a. `query-serializer`, `command-serializer`, and `ops-serializer`
 
-- **`action == add`** — full module Write driven by the loaded skill bodies + the endpoint's `endpoint_index` entry. For `command-serializer`, apply the `to_domain()` conversion rules per `rest-api-spec:request-serializers` § "Scope" and `rest-api-spec:endpoints` § "Create with Domain TypedDict Parameter" for every request-body field whose target type — looked up via the commands-diagram's `<Resource>Commands.<operation>` parameter — is a `<<Domain TypedDict>>` or `<<Query DTO>>` on the domain diagram. Overwrite any file already at `abs_path` (per the Add-vs-exists rule). On success: add `artifact.path` to `written_modules`.
+- **`action == add`** — full module Write driven by the loaded skill bodies + the endpoint's `endpoint_index` entry. For `command-serializer`, apply the `to_domain()` conversion rules per `rest-api-spec:request-serializers` § "Scope" and `rest-api-spec:endpoints` § "Create with Domain TypedDict Parameter" for every request-body field whose target type — looked up via the commands-diagram's `<Resource>Commands.<operation>` parameter — is a `<<Domain TypedDict>>` or `<<Query DTO>>` on the domain diagram. For an **`ops-serializer`**, follow `@ops-serializers-implementer`'s response dispatch keyed off the endpoint's `ops_resp` (from the brief / `endpoint_index`): `none` → emit no `<Operation>Response` (204); `id_only` → id-only `simple-command-response`; `dto` / `dto_list` → full response serializer from the Table 4 fields; `scalar` → single-`value` static response; `todo` → a `<Operation>Response` placeholder with a `# TODO`. The request side (`<Operation>Request` + nested `to_domain()`) is identical to a command serializer. Overwrite any file already at `abs_path`. On success: add `artifact.path` to `written_modules`.
 - **`action == modify`** — read the existing file. For each bullet in `members`, look up its shape in the auto-loaded `rest-api-spec:updates-report-template` vocabulary and translate to the surgical Edit the template documents for that bullet kind. Field-level bullets translate to in-place Edit operations on the corresponding serializer body (insert / delete / replace a field declaration, retype a nested sub-class entry, swap a `to_domain` / value-extraction expression). Structural bullets (binary-response toggled, body-placeholder toggled, pagination toggled, polymorphic union changed, path mutation, query-parameters added/removed) translate per the template's documented semantics; when the bullet shape implies a kind-flip too disruptive for line-level Edit, record `status: deferred, reason: <bullet>` for the file and leave it untouched. Bullets whose shape is absent from the template are treated as `status: deferred, reason: unknown bullet '<verbatim>'`.
 - **`action == remove`** — `rm <abs_path>` via Bash; add `artifact.path` to `removed_modules`; record `deleted`.
 
@@ -147,7 +147,7 @@ Edit failures (`old_string` ambiguous, `old_string` not present) → record `sta
 
 The brief's Patterns list carries the union of endpoint-kind skills (e.g. `rest-api-spec:endpoints` always, plus `…:nested-resource-endpoints` / `…:file-upload-endpoint` / `…:command-action-endpoint` as applicable). Load all listed skills.
 
-- **`action == add`** — full module Write. For every endpoint in spec.md's Tables 2/3 for this surface, emit one router function block per the endpoint kind dispatch (path-shape + Table 5 `bytes` + Table 4 binary), wire serializer imports from `<api_pkg>/serializers/<surface>/<aggregate>/`, and add the `<plural>_router = APIRouter(prefix=…, tags=…)` declaration. Overwrite any pre-existing file. On success: add `artifact.path` to `written_modules`.
+- **`action == add`** — full module Write. For every endpoint in spec.md's Tables 2/3/**3o** for this surface, emit one router function block per the endpoint kind dispatch (path-shape + Table 5 `bytes` + Table 4 binary; ops `POST /{id}/<op>` → command-action, ops `POST /<op>` → plain, ops `none`-return → 204, else `<Operation>Response.from_domain(...)` injecting `Containers.<op_snake>`), wire serializer imports from `<api_pkg>/serializers/<surface>/<aggregate>/`, and add the `<plural>_router = APIRouter(prefix=…, tags=…)` declaration. Overwrite any pre-existing file. On success: add `artifact.path` to `written_modules`.
 - **`action == modify`** — read the existing file. For each entry in `endpoints_in_surface`:
   - **sub-action `add`** — insert the endpoint function block (decorator + def + dependency-injection signature + body) at the end of the router block, preserving alphabetical ordering by operation when feasible. Insert any missing serializer imports at the top of the file (alphabetical, preserving the existing import block's grouping).
   - **sub-action `modify`** — walk that endpoint's `members` bullets and apply surgical Edits per the same template-driven dispatch as 5a, but targeted at endpoint signature / body / decorator (e.g. retype path placeholder, add a new `Depends`, swap the application-service call kwargs).
@@ -159,7 +159,7 @@ The brief's Patterns list carries the union of endpoint-kind skills (e.g. `rest-
 No pattern skills (`patterns: []`). Brief-driven additive Edit driven by the `written_modules` / `removed_modules` sets accumulated in Steps 5a and 5b:
 
 - Compute the set of `add` and `remove` re-export lines that fall under this aggregator's scope:
-  - `serializer-aggregator` at `api/serializers/<surface>/<aggregate>/__init__.py` — one re-export per serializer module under it (both query- and command-side; the file is jointly owned). Adds = `written_modules ∩ api/serializers/<surface>/<aggregate>/<*>.py`; removes = `removed_modules ∩ …`.
+  - `serializer-aggregator` at `api/serializers/<surface>/<aggregate>/__init__.py` — one re-export per serializer module under it (query-, command-, **and ops**-side; the file is jointly owned by all three serializer implementers). Adds = `written_modules ∩ api/serializers/<surface>/<aggregate>/<*>.py`; removes = `removed_modules ∩ …`.
   - `endpoint-surface-aggregator` at `api/endpoints/<surface>/__init__.py` — one re-export per `<plural>.py` under it. Adds = `written_modules ∩ api/endpoints/<surface>/<*>.py`; removes = `removed_modules ∩ …`.
   - `endpoint-root-aggregator` at `api/endpoints/__init__.py` — one re-export per per-surface aggregator. Adds / removes derived from the brief's enumerated `endpoint-surface-aggregator` rows, not from `written_modules` directly (since the per-surface aggregator content itself is what changes).
   - `serializer-surface-aggregator` at `api/serializers/<surface>/__init__.py` — empty (intentionally; per the canonical structure, surface-level serializer aggregators are blank) — when this artifact appears (surface-add only) ensure the file exists and is empty.

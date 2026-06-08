@@ -22,8 +22,8 @@ This agent does **not**:
 
 It **does**:
 
-- Read Table 1 + every `## Surface:` section's Tables 2, 3, 5, and 6 from `<rest_api_spec_file>`.
-- Emit `<api_pkg>/endpoints/<surface>/<plural>.py` per surface with at least one endpoint, containing the surface's `<plural>_router` and one endpoint function per Table 2 / Table 3 row.
+- Read Table 1 + every `## Surface:` section's Tables 2, 3, 3o, 4, 5, and 6 from `<rest_api_spec_file>`.
+- Emit `<api_pkg>/endpoints/<surface>/<plural>.py` per surface with at least one endpoint, containing the surface's `<plural>_router` and one endpoint function per Table 2 / Table 3 / **Table 3o** row. Ops endpoints (Table 3o) are POST action endpoints whose application-service dependency is the ops orchestration service (DI key `<op_snake>` = snake_case of the ops class), and whose response is dispatched on the ops method's free return type (`204 No Content` for a `None` return, else `<Operation>Response.from_domain(result)`).
 
 ## Inputs
 
@@ -87,7 +87,7 @@ The agent emits a deterministic, sorted import block. Compute the union of needs
 | third-party | `Provide, inject` | `dependency_injector.wiring` |
 | third-party | `APIRouter, Depends, status` + any of `Path, Query, Body, File, UploadFile` actually used | `fastapi` |
 | third-party | `StreamingResponse` (only if a binary endpoint exists) | `fastapi.responses` |
-| project | `<aggregate>_commands` / `<aggregate>_queries` application classes (only those referenced) | `<pkg>.application` |
+| project | `<aggregate>_commands` / `<aggregate>_queries` application classes, **and any ops service class** `<OpsClass>` referenced by a Table 3o Domain Ref (only those referenced) | `<pkg>.application` |
 | project | `Pagination` (only if Table 6 references `→ Pagination`) | `<pkg>.domain.shared` |
 | project | Per-aggregate domain composites referenced by Table 6 (e.g., `<Resource>Filtering`) | `<pkg>.domain.<aggregate>` |
 | project | `Containers` | `<pkg>.containers` |
@@ -107,13 +107,13 @@ Serializer imports go through `...serializers.<surface>.<aggregate>` — the per
 
 ### Endpoint kind dispatch
 
-For each Table 2 / Table 3 row, classify with this rule set (first match wins):
+For each Table 2 / Table 3 / Table 3o row, classify with this rule set (first match wins). **Table 3o (ops) rows** are always POST actions; they classify exactly like a command row of the same path shape — `/{id}/<kebab>` → **command action** (rule 4); `/<kebab>` collection-rooted → **plain endpoint** (rule 5, a `POST /<segment>`). The only ops-specific differences are the dependency (the ops service, rule below) and the free-return response handling (Status codes / DI rendering below).
 
 1. **File upload** — Table 3 row only, and the row's Table 5 sub-block contains at least one field whose Type is `bytes` or `bytes | None`. Render per `rest-api-spec:file-upload-endpoint`.
 2. **Binary streaming** — Table 2 row only, and the row's Table 4 sub-block is the binary placeholder (`*Binary response* — returns raw …`). Render with `StreamingResponse`; no `response_model`.
 3. **Nested resource** — path contains ≥ 2 `{…}` placeholders (e.g., `/{id}/overages/{tireId}/confirm`, `/{id}/overages/{tireId}`). Render per `rest-api-spec:nested-resource-endpoints`.
-4. **Command action** — HTTP is POST/PATCH/PUT and path matches `/{id}/<one-or-more-static-kebab-segments>` (i.e. has exactly one placeholder — `{id}` — followed by one or more static segments and no further placeholders). Render per `rest-api-spec:command-action-endpoint`.
-5. **Plain endpoint** — everything else (`POST /`, `GET /`, `GET /{id}`, `PATCH /{id}`, `DELETE /{id}`, and composite-key command paths such as `PATCH /evo-version` and `DELETE /`). Render per `rest-api-spec:endpoints`.
+4. **Command action** — HTTP is POST/PATCH/PUT and path matches `/{id}/<one-or-more-static-kebab-segments>` (i.e. has exactly one placeholder — `{id}` — followed by one or more static segments and no further placeholders). Render per `rest-api-spec:command-action-endpoint`. Ops `/{id}/<method-kebab>` rows land here.
+5. **Plain endpoint** — everything else (`POST /`, `GET /`, `GET /{id}`, `PATCH /{id}`, `DELETE /{id}`, composite-key command paths such as `PATCH /evo-version` and `DELETE /`, and collection-rooted ops `POST /<method-kebab>`). Render per `rest-api-spec:endpoints`.
 
 The dispatch is purely mechanical: a row's `(http, path, table5_types)` triple uniquely determines its kind.
 
@@ -134,7 +134,7 @@ Within an endpoint function signature, parameters are emitted in this fixed orde
 6. Command query params — `<name>: <type> = Query(..., alias="<camelName>")` for each Table 6 `Query param` row on a command endpoint (composite-key aggregates; see [§ Composite-key query parameters](#composite-key-query-parameters)). (Defaulted.) Emit in Table 6 row order.
 7. Query body model — `request: <Operation>Request = Depends()` for query endpoints with query params.
 8. `tenant_id: str = Depends(get_tenant_id)` — when any Table 6 row is `Auth context`.
-9. Application-service dependency — `<aggregate>_commands` / `<aggregate>_queries`.
+9. Application-service dependency — `<aggregate>_commands` / `<aggregate>_queries`, or, for a Table 3o row, the ops service `<op_snake>: <OpsClass>` (DI key `<op_snake>` = snake_case of the ops class from the Domain Ref).
 
 Python requires defaulted parameters after non-defaulted ones; the ordering above respects that. Within a group (3, 4, 5, 6), preserve the order in which the corresponding Table 5 / Table 6 / path placeholders appear.
 
@@ -150,6 +150,10 @@ Always emit `openapi_extra={"visibility": Visibility.<X>}`. `<X>` = `INTERNAL` w
 | Table 3 row with HTTP=DELETE | `HTTP_204_NO_CONTENT` |
 | All other Table 3 rows | `HTTP_200_OK` |
 | All Table 2 rows | `HTTP_200_OK` |
+| Table 3o (ops) row whose method's return type is `None` (Table 4 sub-block is the `*No response body — returns `204 No Content`.*` placeholder) | `HTTP_204_NO_CONTENT` |
+| All other Table 3o (ops) rows | `HTTP_200_OK` |
+
+An ops `204` endpoint follows the same no-`response_model`, no-`from_domain`, returns-`None` carve-out as a DELETE (below). An ops `200` endpoint wraps `<Operation>Response.from_domain(<result>)` where `<result>` is the ops method's return value — except when the ops serializer emitted no `<Operation>Response` module (a `None`/204 return), in which case it is a 204.
 
 For `HTTP_204_NO_CONTENT` endpoints emit **no** `response_model=...`, the function body still calls the application service but does **not** wrap the return; it returns `None` (FastAPI sends an empty body):
 
@@ -293,10 +297,11 @@ For each surface in canonical order, within its bounded section (from `## Surfac
 
 1. **Parse Table 2** (Query Endpoints). If the empty placeholder `*No query endpoints in this surface.*` is present, record zero query endpoints. Otherwise collect every data row as `(http, path, operation, description, domain_ref)`. Validate `http == "GET"`.
 2. **Parse Table 3** (Command Endpoints). If the empty placeholder `*No command endpoints in this surface.*` is present, record zero command endpoints. Otherwise collect every data row as `(http, path, operation, description, domain_ref)`. Validate `http ∈ {POST, PUT, PATCH, DELETE}`. Drop rows whose Domain Ref method name starts with `on_`.
-3. **Parse Table 4** (Response Fields) — sub-block per Table 2 row. Used only to detect `**Wish List**` (any response field Source ends with `(includable)`) and **binary** placeholder (`*Binary response*`).
-4. **Parse Table 5** (Request Fields) — sub-block per Table 3 row. Used only to detect (a) presence of any field rows (drives whether the endpoint has a request body), and (b) any field whose Type is `bytes` or `bytes | None` (drives file-upload dispatch).
-5. **Parse Table 6** (Parameter Mapping) — sub-block per Table 2 and Table 3 row. Used to drive the application-service call signature row-by-row. If a Table 2 or Table 3 row has no Table 6 sub-block, abort with: `Error: surface "<name>" endpoint "<HTTP> <PATH>" has no Table 6 sub-block.`
-6. **Collision check.** Across the combined Table 2 + Table 3 rows of the surface, every Operation value must be distinct and every `(HTTP, Path)` pair must be distinct. If either invariant fails, **abort without writing any module** — do not silently keep the first row of a colliding group. Abort with: `Error: surface "<name>" has <N> endpoint rows colliding on <Operation '<op>' | (HTTP,Path) '<http> <path>'>: <DomainRef1>, <DomainRef2>, …. The rest-api spec is internally inconsistent — re-run @endpoint-tables-writer (and fix the colliding command names in the commands diagram) before implementing endpoints.` A duplicate Operation produces clashing function names; a duplicate `(HTTP, Path)` is a FastAPI route conflict. Both must be resolved in the spec, not papered over here.
+2o. **Parse Table 3o** (Ops Endpoints). If the empty placeholder `*No ops endpoints in this surface.*` is present, record zero ops endpoints. Otherwise collect every data row as `(http, path, operation, description, domain_ref)`. Validate `http == "POST"`. Each Domain Ref has the form `<OpsClass>.<method>`; bind `<op_snake>` = snake_case(`<OpsClass>`) for the dependency. These rows are processed identically to command rows (kind dispatch, function ordering, DI) except for the dependency key and the free-return response handling.
+3. **Parse Table 4** (Response Fields) — sub-block per Table 2 row **and per Table 3o row**. For Table 2 rows: detect `**Wish List**` (`(includable)`) and **binary** (`*Binary response*`). For Table 3o rows: detect the response shape — the `*No response body — returns `204 No Content`.*` placeholder ⇒ 204 (no `response_model`, no wrap); otherwise the `<Operation>Response` serializer (emitted by `@ops-serializers-implementer`) is wrapped via `from_domain`.
+4. **Parse Table 5** (Request Fields) — sub-block per Table 3 row **and per Table 3o row**. Used to detect (a) presence of any field rows (drives whether the endpoint has a request body), and (b) any `bytes` field (file-upload — not applicable to ops endpoints).
+5. **Parse Table 6** (Parameter Mapping) — sub-block per Table 2, Table 3, **and Table 3o** row. Used to drive the application-service call signature row-by-row. If a Table 2, Table 3, or Table 3o row has no Table 6 sub-block, abort with: `Error: surface "<name>" endpoint "<HTTP> <PATH>" has no Table 6 sub-block.`
+6. **Collision check.** Across the combined Table 2 + Table 3 + **Table 3o** rows of the surface, every Operation value must be distinct and every `(HTTP, Path)` pair must be distinct. If either invariant fails, **abort without writing any module** — do not silently keep the first row of a colliding group. Abort with: `Error: surface "<name>" has <N> endpoint rows colliding on <Operation '<op>' | (HTTP,Path) '<http> <path>'>: <DomainRef1>, <DomainRef2>, …. The rest-api spec is internally inconsistent — re-run @endpoint-tables-writer (and fix the colliding command/ops names in the diagrams) before implementing endpoints.` A duplicate Operation produces clashing function names; a duplicate `(HTTP, Path)` is a FastAPI route conflict. Both must be resolved in the spec, not papered over here.
 
 If a surface has zero query endpoints AND zero command endpoints, record `skipped: <surface>: no endpoints` and continue to the next surface — do not emit a module for it.
 
@@ -348,6 +353,7 @@ For each surface's module, render the file as the concatenation of, in order:
 6. Blank line.
 7. One endpoint function per Table 2 row, ordered per [§ Route ordering](#route-ordering) (kind = binary or plain).
 8. One endpoint function per Table 3 row, ordered per [§ Route ordering](#route-ordering) (kind = file-upload, nested-resource, command-action, or plain).
+9. One endpoint function per Table 3o (ops) row, ordered per [§ Route ordering](#route-ordering) (kind = command-action for `/{id}/<kebab>`, or plain for collection-rooted `POST /<kebab>`). Table 3o functions are emitted after the Table 3 functions; they participate in the same per-HTTP-method route ordering as the POST command rows (more-specific paths first) so a `POST /{id}/<op>` ops route and a `POST /{id}/<verb>` command route are ordered consistently.
 
 A blank line separates each endpoint function from the next. The file ends with a single trailing newline.
 
@@ -363,7 +369,7 @@ The agent owns these substitutions on top of the skill template:
 - **Visibility** — per §Visibility.
 - **Request / body / query parameter** — per §Plain endpoint request body / query params and §File-upload endpoint specifics.
 - **Application-service call** — per §Application-service call construction (driven by Table 6).
-- **Domain Ref → dependency** — Domain Ref `<Resource>Commands.<method>` → parameter `<aggregate>_commands: <Resource>Commands = Depends(Provide[Containers.<aggregate>_commands])`. Same shape for `<Resource>Queries`. The `<method_name>` invoked on the dependency is the bare method name from Domain Ref (after the `.`), used verbatim — never the Operation column (which may be verb-stripped).
+- **Domain Ref → dependency** — Domain Ref `<Resource>Commands.<method>` → parameter `<aggregate>_commands: <Resource>Commands = Depends(Provide[Containers.<aggregate>_commands])`. Same shape for `<Resource>Queries`. For a **Table 3o** row, Domain Ref `<OpsClass>.<method>` → parameter `<op_snake>: <OpsClass> = Depends(Provide[Containers.<op_snake>])`, where `<op_snake>` = snake_case(`<OpsClass>`) (the same DI key `application-spec`'s `ops-implementer` registers, and the same import module `<pkg>.application`). The `<method_name>` invoked on the dependency is the bare method name from Domain Ref (after the `.`), used verbatim — never the Operation column (which may be verb-stripped). For an ops `200` endpoint, bind the call result to a local (`result = <op_snake>.<method_name>(...)`) and wrap it: `return <Operation>Response.from_domain(result)`. For an ops `204` endpoint (no `<Operation>Response` was emitted), call `<op_snake>.<method_name>(...)` and fall through (no wrap, no return).
 
 Two kinds have rendering rules not covered by any loaded skill:
 

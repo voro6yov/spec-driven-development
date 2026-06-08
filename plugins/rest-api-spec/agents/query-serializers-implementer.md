@@ -19,6 +19,7 @@ This agent does **not**:
 
 - Touch endpoints (`<api_pkg>/endpoints/...`), `<api_pkg>/__init__.py`, `containers.py`, `entrypoint.py`, or `constants.py`.
 - Process command endpoints (Table 3) or request-body serializers (Table 5). Those belong to a separate command-serializers implementer.
+- Process ops endpoints (Table 3o). Those belong to `@ops-serializers-implementer` — even though an ops endpoint's response can be a full DTO like a query response, its module is owned by the ops implementer (which dispatches on the free return type).
 - Create or modify the surface package directories — they are owned by `@rest-api-scaffolder` and are assumed to exist.
 
 It **does**:

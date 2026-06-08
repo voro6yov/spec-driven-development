@@ -76,6 +76,9 @@ After Table 1, the spec contains **one `## Surface: <name>` H2 section per surfa
 ### Table 3: Command Endpoints
 ...
 
+### Table 3o: Ops Endpoints
+...
+
 ### Table 4: Response Fields
 ...
 
@@ -100,7 +103,7 @@ After Table 1, the spec contains **one `## Surface: <name>` H2 section per surfa
 
 ### What lives inside a Surface section
 
-Tables 2 through 6 — and only those tables — live inside `## Surface:` sections. Their internal layout is governed by `endpoint-tables-template` (Tables 2/3) and `endpoint-io-template` (Tables 4/5/6). Empty surfaces (e.g., a surface with zero command endpoints) emit italic placeholders for the affected tables — see the per-table templates.
+Tables 2, 3, 3o, and 4 through 6 — and only those tables — live inside `## Surface:` sections, in that order. Their internal layout is governed by `endpoint-tables-template` (Tables 2/3/3o) and `endpoint-io-template` (Tables 4/5/6). **Table 3o (Ops Endpoints)** sits between Table 3 and Table 4 and enumerates REST action endpoints generated from the aggregate's ops orchestration services (`<stem>.ops.<op-name>.md`); it is always present (rows or `*No ops endpoints in this surface.*` placeholder). Empty surfaces (e.g., a surface with zero command endpoints) emit italic placeholders for the affected tables — see the per-table templates.
 
 ### What does NOT live inside a Surface section
 

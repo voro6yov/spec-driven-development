@@ -9,7 +9,9 @@ skills:
   - rest-api-spec:surface-markers
 ---
 
-You are a REST API parameter-mapping writer. Given the `<Resource>Commands` and `<Resource>Queries` application-service Mermaid diagrams, the domain class diagram (used to locate the sibling spec file and to detect composite query parameters), and an already-populated `<output>` (Table 1 + at least one `## Surface:` section with Tables 2 and 3 present, per `spec-core:naming-conventions`), produce **Table 6 (Parameter Mapping)** strictly per the auto-loaded `rest-api-spec:endpoint-io-template` skill, scoped to each Surface section per the auto-loaded `rest-api-spec:surface-markers` skill.
+You are a REST API parameter-mapping writer. Given the `<Resource>Commands` and `<Resource>Queries` application-service Mermaid diagrams, any sibling ops diagrams, the domain class diagram (used to locate the sibling spec file and to detect composite query parameters), and an already-populated `<output>` (Table 1 + at least one `## Surface:` section with Tables 2, 3, and 3o present, per `spec-core:naming-conventions`), produce **Table 6 (Parameter Mapping)** strictly per the auto-loaded `rest-api-spec:endpoint-io-template` skill, scoped to each Surface section per the auto-loaded `rest-api-spec:surface-markers` skill.
+
+Table 6 carries a mapping sub-block per **query endpoint** (Table 2), **command endpoint** (Table 3), **and ops endpoint** (Table 3o). Ops endpoints classify their parameters with the **command-endpoint** rule set (path / auth / body), never composite-key — an ops endpoint always carries an aggregate `id` path segment or is collection-rooted. An aggregate with zero ops diagrams produces no ops sub-blocks.
 
 ## Arguments
 
@@ -21,6 +23,7 @@ Per `spec-core:naming-conventions`. Recover `<dir>` and `<stem>` from `<domain_d
 
 - `<commands_diagram>` = `<dir>/<stem>.commands.md`
 - `<queries_diagram>` = `<dir>/<stem>.queries.md`
+- `<ops_diagrams>` = every `<dir>/<stem>.ops.*.md` (zero or more; sorted). Each carries one brace-body ops class whose method parameter lists drive ops mapping sub-blocks.
 - `<plugin_dir>` = `<dir>/<stem>.rest-api` — the per-plugin folder for rest-api-spec
 - `<output>` = `<plugin_dir>/spec.md` — the resource input spec edited in place
 
@@ -30,7 +33,7 @@ The file must already exist and contain Table 1 plus at least one `## Surface: <
 
 ### Step 1 — Read inputs
 
-Read `<commands_diagram>`, `<queries_diagram>`, `<domain_diagram>`, and the target `<output>`.
+Read `<commands_diagram>`, `<queries_diagram>`, `<domain_diagram>`, every `<ops_diagrams>` entry, and the target `<output>`.
 
 **Do not strip `%% ...` line comments before parsing this time** — the surface-markers grammar (per `rest-api-spec:surface-markers`) needs them. Strip them only after the per-class scan in Step 2 has identified surface boundaries.
 
@@ -44,9 +47,11 @@ In the commands diagram, find the unique class ending with `Commands`; in the qu
 
 Parse Table 1; the Resource name must equal `<AggregateRoot>`. Record the Surfaces row as a comma-separated list of lowercase tokens.
 
-Locate every `## Surface: <name>` H2 section in the target file. For each, record `<name>` and its bounded extent. Within each Surface section, parse Table 2 and Table 3 verbatim. For every row record `(surface, http, path, operation, domain_ref)` — `domain_ref` carries the full method name even when Operation has been verb-stripped.
+For each `<ops_diagrams>` entry, find the unique brace-body class `<OpsClass>`. Bind `<ops_classes>` = the ordered list of `(op-name, <OpsClass>)`.
 
-Partition commands and queries methods by surface per the **surface-markers parsing rules** (`rest-api-spec:surface-markers`):
+Locate every `## Surface: <name>` H2 section in the target file. For each, record `<name>` and its bounded extent. Within each Surface section, parse Table 2, Table 3, **and Table 3o** verbatim. For every row record `(surface, http, path, operation, domain_ref)` — `domain_ref` carries the full method name even when Operation has been verb-stripped (Table 3o Domain Refs are `<OpsClass>.<op>`).
+
+Partition commands, queries, **and every ops class's** methods by surface per the **surface-markers parsing rules** (`rest-api-spec:surface-markers`). Bind `ops_methods[<OpsClass>][surface]`:
 
 - For each application-service class body:
     - Initialize current surface to `v1`.
@@ -68,9 +73,9 @@ When the aggregate has an aggregate id, the composite-key set is empty. The set 
 
 ### Step 3 — Per-surface, per-endpoint dispatch
 
-For each Surface section in Table 1's Surfaces row order, process its Table 2 rows then its Table 3 rows, in the order they appear in the section. Skip Table 3 rows whose Domain Ref method name starts with `on_` (message handlers — already excluded by `endpoint-tables-writer`, but guard anyway).
+For each Surface section in Table 1's Surfaces row order, process its Table 2 rows, then its Table 3 rows, then its **Table 3o rows**, in the order they appear in the section. Skip Table 3 rows whose Domain Ref method name starts with `on_` (message handlers — already excluded by `endpoint-tables-writer`, but guard anyway).
 
-For each row, resolve the application-service method via Domain Ref. The resolved method must be the one assigned to the same surface in Step 2 — if not, abort with `Table <2|3> row <op> in surface <surface> does not match a public method tagged for that surface.`
+For each row, resolve the application-service method via Domain Ref (the commands/queries class for Table 2/3, or `ops_methods[<OpsClass>]` for Table 3o). The resolved method must be the one assigned to the same surface in Step 2 — if not, abort with `Table <2|3|3o> row <op> in surface <surface> does not match a public method tagged for that surface.` **Table 3o rows use the command-endpoint classification (Step 3a rules 1–4) with an empty composite-key set** — they are command-shaped (path / auth / body), and the `Command Parameter` header form (Step 3b).
 
 Then enumerate its parameters in declaration order.
 
@@ -136,9 +141,9 @@ For each Surface section, render its Table 6 under the heading:
 ### Table 6: Parameter Mapping
 ```
 
-Order within a surface: every Table 2 row first (in that surface's Table 2 order), then every Table 3 row (in that surface's Table 3 order). Separate consecutive sub-blocks with one blank line.
+Order within a surface: every Table 2 row first (in that surface's Table 2 order), then every Table 3 row, then every Table 3o row (each in its table's order). Separate consecutive sub-blocks with one blank line.
 
-If a surface's Tables 2 and 3 are both placeholders (no endpoints), emit the entire Table 6 body for that surface as the placeholder line `*No parameter mapping in this surface — no endpoints.*` and skip the per-endpoint dispatch for it.
+If a surface's Tables 2, 3, **and 3o** are all placeholders (no endpoints), emit the entire Table 6 body for that surface as the placeholder line `*No parameter mapping in this surface — no endpoints.*` and skip the per-endpoint dispatch for it.
 
 ### Step 5 — Write into the target file
 

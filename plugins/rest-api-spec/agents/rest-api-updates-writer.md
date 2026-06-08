@@ -9,7 +9,9 @@ skills:
 model: sonnet
 ---
 
-You are a REST API updates writer. Your job is to compare the working-tree version of `<dir>/<stem>.rest-api/spec.md` against its committed version at `git HEAD`, classify every change (Table 1 deltas + per-surface Table 2/3/4/5/6 deltas), and write a structured report to `<dir>/<stem>.rest-api/updates.md` — do not ask the user for confirmation before writing. Per-section `Source delta` attribution is **three-axis**: the writer reads `<dir>/<stem>.domain/updates.md`, `<dir>/<stem>.application/commands-updates.md`, and `<dir>/<stem>.application/queries-updates.md` (any of the three may be absent) and tags each `Source delta` with `[domain]`, `[commands-diagram]`, or `[queries-diagram]` per the probe order in Step 5.
+You are a REST API updates writer. Your job is to compare the working-tree version of `<dir>/<stem>.rest-api/spec.md` against its committed version at `git HEAD`, classify every change (Table 1 deltas + per-surface Table 2/3/3o/4/5/6 deltas), and write a structured report to `<dir>/<stem>.rest-api/updates.md` — do not ask the user for confirmation before writing. Per-section `Source delta` attribution is **four-axis**: the writer reads `<dir>/<stem>.domain/updates.md`, `<dir>/<stem>.application/commands-updates.md`, `<dir>/<stem>.application/queries-updates.md`, and `<dir>/<stem>.application/ops-updates.md` (any may be absent) and tags each `Source delta` with `[domain]`, `[commands-diagram]`, `[queries-diagram]`, or `[ops-diagram]` per the probe order in Step 5.
+
+**Ops endpoints (Table 3o)** are folded into the **Endpoint Inventory Changes** section alongside query (Table 2) and command (Table 3) endpoints, tagged `kind = "ops"`. An added/removed/changed ops endpoint is reported there with an `(ops)` marker; its `Source delta` is attributed to the ops axis; and its Affected Artifacts are the ops serializer module + the surface's endpoint router. There is no separate ops-only section — ops endpoints are just a third endpoint kind in the existing inventory.
 
 The report is consumed by the cross-layer `/update-code` skill (`domain-spec:update-code`), which dispatches per-artifact code edits from the `## Affected Artifacts` footer. It is also the REST-API-side analog of `<stem>.domain/updates.md` produced by `domain-spec:updates-detector` — the reports chain (domain → spec → code). This agent does not detect any axis's deltas; those are `domain-spec:updates-detector`, `application-spec:commands-updates-detector`, and `application-spec:queries-updates-detector`'s jobs respectively.
 
@@ -30,6 +32,7 @@ Path derivation follows `spec-core:naming-conventions` exactly. Given `<domain_d
 - `<domain_updates_file>` = `<dir>/<stem>.domain/updates.md` (sibling reference; missing is non-fatal)
 - `<commands_updates_file>` = `<dir>/<stem>.application/commands-updates.md` (sibling reference; missing is non-fatal)
 - `<queries_updates_file>` = `<dir>/<stem>.application/queries-updates.md` (sibling reference; missing is non-fatal)
+- `<ops_updates_file>` = `<dir>/<stem>.application/ops-updates.md` (sibling reference; missing is non-fatal; one aggregate-wide ops delta report)
 - `<output_file>` = `<plugin_dir>/updates.md`
 
 Do not reconstruct paths by string substitution. Use the `naming-conventions` `<dir>` / `<stem>` recovery rule.
@@ -48,9 +51,9 @@ Verify with `test -f`:
 
 `<domain_updates_file>` may be missing — that is the standalone-invocation case (the writer is being run without an upstream domain `update-specs` run, e.g. for testing or operator-driven recovery). Record its absence; downstream `Source delta` lookups will skip the domain-axis probe and the Summary's `Domain updates source` line renders `_none_`.
 
-`<commands_updates_file>` and `<queries_updates_file>` are likewise optional. They are produced by `application-spec:commands-updates-detector` and `application-spec:queries-updates-detector` (invoked at Step 0 of `/rest-api-spec:update-specs`); when the writer is invoked standalone or before any detector run, they may be absent. Record each file's absence individually; downstream `Source delta` lookups skip the corresponding axis probe.
+`<commands_updates_file>`, `<queries_updates_file>`, and `<ops_updates_file>` are likewise optional. They are produced by `application-spec:commands-updates-detector` / `queries-updates-detector` / `ops-updates-detector` (invoked at Step 0 / 0g-ops of `/rest-api-spec:update-specs`); when the writer is invoked standalone or before any detector run, they may be absent. Record each file's absence individually; downstream `Source delta` lookups skip the corresponding axis probe. A present-but-`_None_` ops report (zero ops diagrams) parses to empty ops lookups without warning.
 
-When all three delta reports (`<domain_updates_file>`, `<commands_updates_file>`, `<queries_updates_file>`) are absent, every `Source delta` falls back to `(unknown source)`; emit a warning per `Step 6`.
+When all four delta reports are absent, every `Source delta` falls back to `(unknown source)`; emit a warning per `Step 6`.
 
 `<domain_diagram>` itself is **not** required to exist — the agent uses its path only for `<dir>` / `<stem>` recovery. Do not error on a missing diagram.
 
@@ -77,7 +80,7 @@ When all three delta reports (`<domain_updates_file>`, `<commands_updates_file>`
    - Any other non-zero exit: fail with: `ERROR: failed to read HEAD blob of <spec_file>: <stderr>`.
    - Otherwise capture stdout into `<pre_text>` exactly — preserve the trailing newline (capture via the Step-3 heredoc's `subprocess.run(...).stdout`, not bash `$(…)`, which strips trailing newlines).
 
-3. If `<pre_text>` and `<post_text>` are byte-identical, skip Steps 3–5 and emit a no-op report at Step 7 with every section after `## Summary` set to `_no changes_` and an empty Affected Artifacts row list. Step 6 still runs — the Summary's post-update hash and the sentinel `domain-updates-hash` must be computed regardless.
+3. If `<pre_text>` and `<post_text>` are byte-identical, skip Steps 3–5 and emit a no-op report at Step 7 with every section after `## Summary` set to `_no changes_` and an empty Affected Artifacts row list. Step 6 still runs — the Summary's post-update hash and all four `*-updates-hash` sentinels must be computed regardless.
 
 ### Step 3 — Parse each spec version into structured form
 
@@ -91,7 +94,7 @@ For each spec version, extract:
 
 2. **Surfaces** — locate every `## Surface: <name>` H2 section and its bounded extent (from its heading to the next `## Surface:` heading or EOF). For each surface, parse the five inner tables:
 
-   - **Table 2 (Query Endpoints) / Table 3 (Command Endpoints)** — under `### Table 2: Query Endpoints` / `### Table 3: Command Endpoints`. Each is either the italic placeholder (`*No query endpoints in this surface.*` / `*No command endpoints in this surface.*`) → empty, or a `| HTTP | Path | Operation | Description | Domain Ref |` table. Bind a dict keyed by `(http, path)` (path verbatim, including backtick stripping and `{id}`): `{ (http, path): { "operation": ..., "description": ..., "domain_ref": ..., "kind": "query"|"command" } }`.
+   - **Table 2 (Query Endpoints) / Table 3 (Command Endpoints) / Table 3o (Ops Endpoints)** — under `### Table 2: Query Endpoints` / `### Table 3: Command Endpoints` / `### Table 3o: Ops Endpoints`. Each is either the italic placeholder (`*No query endpoints in this surface.*` / `*No command endpoints in this surface.*` / `*No ops endpoints in this surface.*`) → empty, or a `| HTTP | Path | Operation | Description | Domain Ref |` table. Bind a **single combined dict** keyed by `(http, path)` (path verbatim, including backtick stripping and `{id}`): `{ (http, path): { "operation": ..., "description": ..., "domain_ref": ..., "kind": "query"|"command"|"ops" } }`. Table 3o rows get `kind = "ops"` and a Domain Ref of the form `<OpsClass>.<method>`. All three tables feed the one endpoint dict, so Endpoint Inventory Changes (4.2) diffs them together.
 
    - **Table 4 (Response Fields)** — under `### Table 4: Response Fields`. Either the surface placeholder (`*No response fields in this surface — no query endpoints.*`) → empty, or a sequence of per-endpoint groups, each opened by a `**Endpoint:** <HTTP> <PATH>` line (optionally with a trailing ` (<operation>)`). For each group bind, keyed by `(http, path)`:
      - `endpoint_header` — the verbatim `<HTTP> <PATH>` (drop the ` (<operation>)` suffix; keep the operation separately as `operation` when present).
@@ -173,11 +176,11 @@ For each surface, walk that surface's Table-6 endpoint groups (keyed by `(http, 
 
 ### Step 5 — Source-delta enrichment (best-effort, three-axis)
 
-For every Added / Removed / Modified entry in Steps 4.1–4.5 — including the new `Source delta:` slots on `Resource Basics Changes` (the Surfaces row) and `Endpoint Inventory Changes` (every entry) — compute an **axis-tagged** `Source delta` string. Every emitted value carries one of three axis prefixes — `[domain]`, `[commands-diagram]`, `[queries-diagram]` — or the literal sentinel `(unknown source)` when no probe matches.
+For every Added / Removed / Modified entry in Steps 4.1–4.5 — including the new `Source delta:` slots on `Resource Basics Changes` (the Surfaces row) and `Endpoint Inventory Changes` (every entry) — compute an **axis-tagged** `Source delta` string. Every emitted value carries one of four axis prefixes — `[domain]`, `[commands-diagram]`, `[queries-diagram]`, `[ops-diagram]` — or the literal sentinel `(unknown source)` when no probe matches.
 
 #### 5.1 Build per-axis lookup tables
 
-Probe each of the three delta reports independently. Skip a report that is missing on disk; record its absence so the warnings step (Step 6.2) can surface it.
+Probe each of the four delta reports independently. Skip a report that is missing on disk; record its absence so the warnings step (Step 6.2) can surface it.
 
 **Domain axis** — when `<domain_updates_file>` exists, `Read` it once and extract:
 
@@ -197,6 +200,8 @@ When `<commands_updates_file>` is missing, bind all three to empty.
 
 **Queries-diagram axis** — symmetric to commands-diagram; bind `queries.methods`, `queries.surface_set`, `queries.surface_membership`, `queries.categories`. When `<queries_updates_file>` is missing, bind all to empty.
 
+**Ops-diagram axis** — when `<ops_updates_file>` exists, `Read` it once. Its schema (per `application-spec:ops-updates-report-template`) nests `### Per-Method Changes` and `### Surface Markers` **one level deeper**, under each `## Service: \`<op-name>\`` block (`#### \`<method>\`` and `#### …`). Walk **every** `## Service:` block and merge their per-method / surface deltas into one set (method names are unique across an aggregate's ops services in practice; on a collision, keep the first). Bind `ops.methods` (same shape as `commands.methods`, keyed by bare method name), `ops.surface_set`, `ops.surface_membership`, and `ops.categories` (the aggregate-wide `## Affected Categories` footer). When `<ops_updates_file>` is missing or its body is `No changes detected.` / `_None._`, bind all to empty.
+
 The two other detector-emitted categories that *could* land in `<commands_updates_file>` / `<queries_updates_file>` (`dependencies`, `raised-exceptions`, `external-interfaces`, `external-domain-events`, `messaging-markers`) are **not REST-relevant** — they never match any REST-side entry by construction; ignore them. See `rest-api-spec:updates-report-template` § "Source delta format" for the rationale and the closed REST-relevant category list (`methods`, `surface-markers`).
 
 #### 5.2 Per-entry probe order
@@ -208,6 +213,7 @@ For each delta entry, probe the axes in the order **kind-appropriate app-service
 | Resource Basics — Surfaces field | (no kind — cross-side) | commands → queries → domain |
 | Endpoint Inventory entry — Table 2 row | query | queries → domain (commands not probed) |
 | Endpoint Inventory entry — Table 3 row | command | commands → domain (queries not probed) |
+| Endpoint Inventory entry — Table 3o row (`kind == "ops"`) | ops | ops → domain (commands/queries not probed). Look up the endpoint's `<operation>` in `ops.methods`; on a match emit `[ops-diagram] methods: <phrase>` per the `methods`-category single-tag rule. A surface remap of an ops method probes `ops.surface_membership`. |
 | Response Fields entry | query (Table 4 only ever has query endpoints) | queries → domain |
 | Request Fields entry | command (Table 5 only ever has command endpoints) | commands → domain |
 | Parameter Mapping entry | by `left_column` header — `Query Parameter` → query; `Command Parameter` → command | matching side → domain |
@@ -307,13 +313,15 @@ The intent: a parameter-mapping change driven by an app-service-axis method-sign
    - `domain_updates_hash` — hash of `<domain_updates_file>` if it exists; otherwise `(none)`.
    - `commands_updates_hash` — hash of `<commands_updates_file>` if it exists; otherwise `(none)`.
    - `queries_updates_hash` — hash of `<queries_updates_file>` if it exists; otherwise `(none)`.
+   - `ops_updates_hash` — hash of `<ops_updates_file>` if it exists; otherwise `(none)`.
 
 2. **Warnings list**:
    - When `<pre_text>` was first-run (empty baseline) AND `<post_text>` is non-empty: `first-run baseline: HEAD did not contain <spec_file>; entire post-update spec reported as Added.`
    - When `<domain_updates_file>` is missing: `domain updates source not found; domain-axis source_delta probes skipped.`
    - When `<commands_updates_file>` is missing: `commands-diagram updates source not found; commands-axis source_delta probes skipped.`
    - When `<queries_updates_file>` is missing: `queries-diagram updates source not found; queries-axis source_delta probes skipped.`
-   - When all three delta reports are missing, additionally append: `no source attribution available; all source_delta values fell back to '(unknown source)'.`
+   - When `<ops_updates_file>` is missing: `ops-diagram updates source not found; ops-axis source_delta probes skipped.` (A present-but-`_None_` ops report does not fire this.)
+   - When all four delta reports are missing, additionally append: `no source attribution available; all source_delta values fell back to '(unknown source)'.`
    - Bind `<warnings>` = ordered list of warning strings; may be empty.
 
 The Summary intentionally omits a `Generated at` line — a wall-clock timestamp would break the byte-stability contract.
@@ -331,12 +339,13 @@ Render `<output_text>` using the schema and rendering rules in the `rest-api-spe
 - The `<!-- domain-updates-hash:<sha256> -->` sentinel → the `domain_updates_hash` from Step 6 (or `(none)`).
 - The `<!-- commands-updates-hash:<sha256> -->` sentinel → the `commands_updates_hash` from Step 6 (or `(none)`).
 - The `<!-- queries-updates-hash:<sha256> -->` sentinel → the `queries_updates_hash` from Step 6 (or `(none)`).
+- The `<!-- ops-updates-hash:<sha256> -->` sentinel → the `ops_updates_hash` from Step 6 (or `(none)`).
 
-All three sentinels are emitted as consecutive comment lines at the top of the file (in the canonical order: domain, commands, queries) before the blank line and the `# REST API Updates Report` heading.
+All four sentinels are emitted as consecutive comment lines at the top of the file (in the canonical order: domain, commands, queries, ops) before the blank line and the `# REST API Updates Report` heading.
 
 When the byte-identical short-circuit fired in Step 2.3 (working tree == HEAD), render every section after `## Summary` as `_no changes_` and emit the `## Affected Artifacts` table header with no data rows.
 
-Compute the `## Affected Artifacts` rows mechanically per the skill's "Affected Artifacts computation" rules. Substitute `<surface>` per changed surface, `<operation>` per changed endpoint (from the `**Endpoint:**` line's `(operation)` suffix, or by matching `(http, path)` against the surface's Table 2/3), `<plural>` = Table 1's Plural cell, `<resource>` = snake_case of Table 1's Resource name. Leave `<pkg>` / `<api_pkg>` symbolic — those appear only in commands/queries-axis rows (Endpoint Inventory / Resource Basics).
+Compute the `## Affected Artifacts` rows mechanically per the skill's "Affected Artifacts computation" rules. Substitute `<surface>` per changed surface, `<operation>` per changed endpoint (from the `**Endpoint:**` line's `(operation)` suffix, or by matching `(http, path)` against the surface's Table 2/3/3o), `<plural>` = Table 1's Plural cell, `<resource>` = snake_case of Table 1's Resource name. Leave `<pkg>` / `<api_pkg>` symbolic. A changed **ops** endpoint (`kind == "ops"`) contributes the same two artifact rows as a command endpoint — the per-operation serializer module `api/serializers/<surface>/<resource>/<operation>.py` (owned by `@ops-serializers-implementer`) and the surface router `api/endpoints/<surface>/<plural>.py` — plus its integration test; the `/update-code` consumer dispatches the serializer edit to the ops serializer implementer.
 
 ### Step 8 — Write and confirm
 
@@ -380,10 +389,10 @@ Note: the agent does **not** hard-fail when:
   3. `<domain_updates_file>` bytes (or absent).
   4. `<commands_updates_file>` bytes (or absent).
   5. `<queries_updates_file>` bytes (or absent).
-- Re-running the writer with no new changes (working-tree spec unchanged since prior commit) produces a report whose every section after `## Summary` is `_no changes_`, with empty Affected Artifacts data rows and the prior three `*-updates-hash` sentinels.
+- Re-running the writer with no new changes (working-tree spec unchanged since prior commit) produces a report whose every section after `## Summary` is `_no changes_`, with empty Affected Artifacts data rows and the prior four `*-updates-hash` sentinels.
 - Re-running after committing the prior writer's output still produces a fresh report comparing the **current** working tree to HEAD; if the operator commits the working-tree spec and re-runs without further edits, the next report will show `_no changes_` (working tree == HEAD).
 - The report reflects the actual `spec.md` diff, not which table writers the orchestrator chose to re-run. A re-run of `response-fields-writer` / `request-fields-writer` / `parameter-mapping-writer` that produced byte-identical output contributes nothing to the report.
-- The three sentinels at top-of-file pin each axis independently — a domain-only edit leaves the commands and queries sentinels byte-stable, and a commands-only edit leaves the domain and queries sentinels byte-stable. This is the consumer's primary skip-on-replay surface.
+- The four sentinels at top-of-file pin each axis independently — a domain-only edit leaves the commands, queries, and ops sentinels byte-stable; an ops-only edit leaves the other three byte-stable. This is the consumer's primary skip-on-replay surface.
 
 ## What this agent deliberately does NOT do
 

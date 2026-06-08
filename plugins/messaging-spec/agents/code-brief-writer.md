@@ -46,7 +46,7 @@ The brief uses **flat per-artifact sections** (one `### \`<path>\`` block per ro
    ```
    ERROR: <stem>.messaging/updates.md not found. Run /update-specs <domain_diagram> before gather.
    ```
-4. Parse the two-line sentinel block at the top (`<!-- domain-updates-hash:... -->` / `<!-- commands-updates-hash:... -->`). Treat them as informational only — do **not** skip-on-replay (the design treats every gather as fresh).
+4. Parse the three-line sentinel block at the top (`<!-- domain-updates-hash:... -->` / `<!-- commands-updates-hash:... -->` / `<!-- ops-updates-hash:... -->`). Treat them as informational only — do **not** skip-on-replay (the design treats every gather as fresh).
 5. Parse `<locations_report_text>` to extract:
    - `messaging_pkg_dir` — absolute path to `<src>/<pkg>/messaging/`
    - `tests_dir` — absolute path to the tests root
@@ -126,7 +126,7 @@ These rows let Phase 2 silently skip (`path` is non-existent — Phase 2's dispa
 Within each `updated` consumer's H3 block, locate the `- Table 3 sub-blocks regenerated:` bullet and its nested sub-bullet list, and parse each sub-block entry per the `updated` block body schema in `messaging-spec:updates-report-template`. From each entry capture:
 
 - `EventName`, the `internal | external` tag, and `SourceDestination` — from the sub-block heading line.
-- `source_delta` — verbatim text of the `Source delta:` sub-bullet (including the `[domain]` / `[commands-diagram]` axis tag, or `(unknown source)`).
+- `source_delta` — verbatim text of the `Source delta:` sub-bullet (including the `[domain]` / `[commands-diagram]` / `[ops-diagram]` axis tag, or `(unknown source)`).
 - `mapping_changes` — verbatim text of every `Event Field mappings changed:` sub-sub-bullet (`;`-joined), or the literal `_(none — only the low-confidence flag was re-derived)_` sentinel.
 - `low_conf_flag` — verbatim text of `Low-confidence flags:` value (`_none_` when absent).
 

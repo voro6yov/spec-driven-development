@@ -26,7 +26,9 @@ Per `spec-core:naming-conventions`. From `$ARGUMENTS[0]` (the domain diagram) at
 
 A single sibling file `<output>`, located inside the per-plugin folder next to `<domain_diagram>`. Each step below populates a different set of tables in this file.
 
-The artifact is structured as Table 1 (Resource Basics, including a `Surfaces` row) followed by one `## Surface: <name>` H2 section per surface, each containing Tables 2–6 scoped to that surface. Surfaces are auto-derived from `%% <name>` markers inside the commands and queries class bodies — see the `rest-api-spec:surface-markers` skill. Diagrams without markers default to a single `v1` surface, so existing single-surface diagrams keep working unchanged.
+The artifact is structured as Table 1 (Resource Basics, including a `Surfaces` row) followed by one `## Surface: <name>` H2 section per surface, each containing Tables 2, 3, 3o, and 4–6 scoped to that surface. Surfaces are auto-derived from `%% <name>` markers inside the commands, queries, **and any ops** class bodies — see the `rest-api-spec:surface-markers` skill. Diagrams without markers default to a single `v1` surface, so existing single-surface diagrams keep working unchanged.
+
+**Ops endpoints.** When the aggregate declares one or more `<dir>/<stem>.ops.<op-name>.md` diagrams, each public ops method additionally becomes a `Table 3o` (Ops Endpoints) POST action endpoint, with its request/response/parameter detail filled into Tables 4–6 by the same writers. An aggregate with no ops diagrams produces no Table 3o rows and behaves exactly as today — the writers self-discover ops diagrams by glob, so the pipeline below is unchanged.
 
 ## Workflow
 
@@ -42,7 +44,7 @@ Populates: Table 1 (Resource Basics) and one empty `## Surface: <name>` H2 headi
 
 Use the Agent tool to invoke `rest-api-spec:endpoint-tables-writer` with `$ARGUMENTS[0]` as the prompt.
 
-Populates: Tables 2 (Query Endpoints) and 3 (Command Endpoints).
+Populates: Tables 2 (Query Endpoints), 3 (Command Endpoints), and 3o (Ops Endpoints).
 
 ### Step 3 — Write response fields (Table 4)
 

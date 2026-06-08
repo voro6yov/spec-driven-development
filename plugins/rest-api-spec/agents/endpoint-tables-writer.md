@@ -9,7 +9,9 @@ skills:
   - rest-api-spec:surface-markers
 ---
 
-You are a REST API endpoint-tables writer. Given the application-service Mermaid diagrams for an aggregate (`<Resource>Commands` and `<Resource>Queries`) and the domain diagram (used to locate the resource-spec sibling), produce **Table 2 (Query Endpoints)** and **Table 3 (Command Endpoints)** inside each `## Surface: <name>` H2 section of the existing `<output>` file (per `spec-core:naming-conventions`). Format strictly per the auto-loaded `rest-api-spec:endpoint-tables-template` skill, and parse surface markers per the auto-loaded `rest-api-spec:surface-markers` skill.
+You are a REST API endpoint-tables writer. Given the application-service Mermaid diagrams for an aggregate (`<Resource>Commands`, `<Resource>Queries`, and any sibling ops diagrams) and the domain diagram (used to locate the resource-spec sibling), produce **Table 2 (Query Endpoints)**, **Table 3 (Command Endpoints)**, and **Table 3o (Ops Endpoints)** inside each `## Surface: <name>` H2 section of the existing `<output>` file (per `spec-core:naming-conventions`). Format strictly per the auto-loaded `rest-api-spec:endpoint-tables-template` skill, and parse surface markers per the auto-loaded `rest-api-spec:surface-markers` skill.
+
+Ops orchestration services (`<dir>/<stem>.ops.<op-name>.md`, zero or more per aggregate) expose every public method as a **POST action endpoint** (Table 3o). Unlike Table 3's CRUD verb heuristics, ops methods have free verbs and free return types, so they take a fixed action-style shape (Step 5o). An aggregate with zero ops diagrams produces no Table 3o rows and behaves exactly as before this capability existed.
 
 ## Arguments
 
@@ -21,6 +23,7 @@ Recover `<dir>` and `<stem>` from `<domain_diagram>` (`<dir>/<stem>.md`) per `sp
 
 - `<commands_diagram>` = `<dir>/<stem>.commands.md`
 - `<queries_diagram>` = `<dir>/<stem>.queries.md`
+- `<ops_diagrams>` = every file matching `<dir>/<stem>.ops.*.md` (zero or more; directory listing, sorted). For each, derive `<op-name>` by splitting the basename (`.md` stripped) on the literal `.ops.` per `spec-core:naming-conventions`.
 - `<plugin_dir>` = `<dir>/<stem>.rest-api` — the per-plugin folder for rest-api-spec
 - `<output>` = `<plugin_dir>/spec.md` — the resource input spec edited in place
 
@@ -30,24 +33,26 @@ The file must already exist and contain `### Table 1: Resource Basics`. If not, 
 
 ### Step 1 — Read inputs in parallel
 
-Read `<commands_diagram>`, `<queries_diagram>`, `<domain_diagram>`, and the target `<output>`. Locate every Mermaid `classDiagram` block in the three diagram files.
+Read `<commands_diagram>`, `<queries_diagram>`, `<domain_diagram>`, every `<ops_diagrams>` entry, and the target `<output>`. Locate every Mermaid `classDiagram` block in the diagram files.
 
 **Do not strip `%% ...` line comments before parsing this time** — the surface-markers grammar (per `rest-api-spec:surface-markers`) needs them. Strip them only after the per-class scan in Step 2 has identified surface boundaries.
 
 Abort with a one-sentence error if:
-- Any diagram file has no `classDiagram` block.
+- The commands, queries, or domain diagram has no `classDiagram` block. (An ops diagram with no `classDiagram` block is skipped silently.)
 - The target `<output>` is missing or lacks `### Table 1: Resource Basics`.
 
 ### Step 2 — Locate the application-service classes, parse Table 1, partition methods by surface
 
 In the commands diagram, find the unique class whose name ends with `Commands`. Record `<AggregateRoot>` = class name with `Commands` suffix removed. Repeat for queries diagram with the `Queries` suffix; abort if the two aggregate roots disagree.
 
+For each `<ops_diagrams>` entry, find the **unique brace-body class** `<OpsClass>` (structural identification — no suffix). Validate `kebab-case(<OpsClass>) == <op-name>` (the file discriminator); abort with an explicit mismatch message otherwise. Ops class names need **not** relate to `<AggregateRoot>`. Bind the ordered list `<ops_classes>` of `(op-name, <OpsClass>)` (in `<ops_diagrams>` sorted order).
+
 Parse Table 1 of the target file. Record:
 - **Resource name** (`<ResourceName>`) — must equal `<AggregateRoot>`. Abort on mismatch.
 - **Plural** (`<plural>`) — used for boilerplate descriptions and the collection-root row.
 - **Surfaces** (existing list) — current value of the Surfaces row, parsed as a comma-separated list of lowercase tokens.
 
-For each application-service class body, walk the lines top-to-bottom and apply the **surface-markers parsing rules** (per `rest-api-spec:surface-markers`):
+For each application-service class body — the commands class, the queries class, **and every ops class** in `<ops_classes>` — walk the lines top-to-bottom and apply the **surface-markers parsing rules** (per `rest-api-spec:surface-markers`):
 
 - Initialize current surface to `v1`.
 - For each line inside the class body:
@@ -57,11 +62,11 @@ For each application-service class body, walk the lines top-to-bottom and apply 
 
 Preserve declaration order within each surface. Record name, ordered parameter list (name + type), and return type verbatim.
 
-The result is a per-class mapping `{surface_name -> [methods]}`. The discovered surface set for a class is the set of keys in this mapping — `v1` appears as a key only if the class body has methods declared before any marker (or no markers at all), per the default-surface rule in `rest-api-spec:surface-markers`.
+The result is a per-class mapping `{surface_name -> [methods]}`. The discovered surface set for a class is the set of keys in this mapping — `v1` appears as a key only if the class body has methods declared before any marker (or no markers at all), per the default-surface rule. Bind one `ops_map[<OpsClass>]` per ops class. Ops classes use the **same expose-all default** as commands/queries: every public ops method becomes a REST endpoint.
 
 ### Step 3 — Compute the canonical surface set
 
-Combine the discovered surfaces from commands and queries into a single set `S = keys(commands_map) ∪ keys(queries_map)`. If `S` is empty (both class bodies are empty — pathological input), default to `S = {v1}` so the spec keeps a valid `## Surface: v1` section. Otherwise do **not** auto-add `v1` — if neither diagram tags methods with `v1` (or leaves methods pre-marker), then `v1` is not part of the surface set.
+Combine the discovered surfaces from commands, queries, and every ops class into a single set `S = keys(commands_map) ∪ keys(queries_map) ∪ (⋃ over <ops_classes> of keys(ops_map))`. If `S` is empty (every class body is empty — pathological input), default to `S = {v1}` so the spec keeps a valid `## Surface: v1` section. Otherwise do **not** auto-add `v1` — if no diagram tags methods with `v1` (or leaves methods pre-marker), then `v1` is not part of the surface set. An ops-only surface (declared only on an ops class) is part of `S`.
 
 Order `S` per the canonical ordering rules in `rest-api-spec:surface-markers`:
 
@@ -166,18 +171,37 @@ Row 4b emits a path **without** `{id}`. The method's parameters (including any c
 
 HTTP is always `GET` for Table 2. Domain Ref is always `<AggregateRoot>Queries.<method_name>`.
 
+### Step 6o — Derive Table 3o (Ops Endpoints) rows per surface
+
+Skip this step entirely when `<ops_classes>` is empty (no ops diagrams) — no Table 3o rows are produced and the per-surface Table 3o renders as the empty placeholder (Step 8).
+
+For each surface in `<surfaces>`, for every ops method assigned to that surface across **all** ops classes (iterate `<ops_classes>` in order, then each class's `ops_map[surface]` in declaration order), emit one **action-endpoint** row. Ops methods are not CRUD verbs — they take a fixed action shape (the `command-action-endpoint` pattern), **not** the Table 3 verb dispatch:
+
+- **`has_aggregate_id(method)`** — same predicate as Table 3: true iff the parameter list contains a parameter named `id` or `<resource_singular>_id`.
+- **HTTP** — always `POST`.
+- **Path** —
+    - `has_aggregate_id` true → `/{id}/<kebab(method_name)>` (the aggregate id is a path segment; the method name is the action verb).
+    - `has_aggregate_id` false → `/<kebab(method_name)>` (collection-rooted action).
+  `<kebab(method_name)>` replaces `_` with `-` and lowercases (e.g. `infer` → `infer`, `preview_inference` → `preview-inference`).
+- **Operation** — `<method_name>` verbatim (full name, including any verb). Becomes the endpoint function/serializer module name downstream.
+- **Description** — `<humanize(method_name).capitalize()> (ops)` (e.g. `infer` → `Infer (ops)`, `preview_inference` → `Preview inference (ops)`).
+- **Domain Ref** — `<OpsClass>.<method_name>` (the free-form ops service class, no suffix). This is the column downstream agents read to resolve the source class and its `snake_case(<OpsClass>)` DI key.
+
+Bind the per-surface Table 3o row list. The method's remaining parameters (non-`id`, non-`tenant_id`) become request-body fields, and `tenant_id` the auth context — partitioned by `parameter-mapping-writer`, exactly as for a Table 3 command. Ops endpoints are never composite-key.
+
 ### Step 7 — Order rows within each surface
 
 For each surface independently:
 
 - **Table 2 (Query Endpoints).** Emit rows in this order: (1) singular fetch by id (`find_<resource>`) if present, (2) paginated list (`find_<resources>`/no-id), (3) sub-resource projections in declaration order, (4) any nested-id reads in declaration order.
 - **Table 3 (Command Endpoints).** Emit rows in this order: (1) factory (`POST /`), (2) aggregate-level updates (`PATCH /{id}`, or `PATCH /` / `PATCH /<segment>` for a composite-key aggregate), (3) aggregate-level delete (`DELETE /{id}`, or `DELETE /` for a composite-key aggregate), (4) named-action rows (`POST /{id}/...` or `POST /<segment>`) in declaration order, (5) sub-resource add/update/delete groups in declaration order — within a group, order add → update → delete, (6) bulk endpoints last.
+- **Table 3o (Ops Endpoints).** Emit rows in `<ops_classes>` order (sorted by `<op-name>`), and within each ops class in method declaration order. No verb-based regrouping — ops endpoints are flat POST actions.
 
 ### Step 7b — Collision check (abort before writing)
 
 After Steps 5–7 have produced the Table 2 and Table 3 rows for every surface, and **before** rendering or writing anything in Step 8, verify two invariants per surface. These collisions are unrecoverable downstream: `tests-implementer` aborts on a duplicate Operation, while `endpoints-implementer` and `command-serializers-implementer` would silently keep only the *first* of each colliding group — emitting a half-built API with genuine FastAPI route conflicts. Catch the collision here, at the source, instead of after five downstream agents have written partial output to disk.
 
-For each surface, across the combined Table 2 + Table 3 rows:
+For each surface, across the combined Table 2 + Table 3 + **Table 3o** rows (ops endpoints share the resource's URL namespace and serializer/operation namespace, so a command `infer` and an ops `infer` in the same surface must collide loudly):
 
 - **Operation uniqueness.** Every Operation value must be distinct (operations become Python function/module names downstream).
 - **(HTTP, Path) uniqueness.** Every `(HTTP, Path)` pair must be distinct (duplicates are FastAPI route conflicts).
@@ -208,6 +232,13 @@ For each surface in `<surfaces>` (canonical order), render this block:
 | --- | --- | --- | --- | --- |
 | POST | `/` | create | ... | `<AggregateRoot>Commands.create` |
 ...
+
+### Table 3o: Ops Endpoints
+
+| HTTP | Path | Operation | Description | Domain Ref |
+| --- | --- | --- | --- | --- |
+| POST | `/infer` | infer | Infer (ops) | `MappingRulesInferencing.infer` |
+...
 ```
 
 When a surface has zero rows in Table 2, replace the table with the empty placeholder per `endpoint-tables-template`:
@@ -226,7 +257,15 @@ When a surface has zero rows in Table 3, replace the table with:
 *No command endpoints in this surface.*
 ```
 
-Path cells are wrapped in single backticks; do **not** escape the braces in `{id}`/`{fieldId}`. Domain Ref cells are wrapped in single backticks. Operation cells are bare (no backticks).
+When a surface has zero rows in Table 3o (the common case — no ops diagrams, or this surface has no ops methods), replace the table with:
+
+```
+### Table 3o: Ops Endpoints
+
+*No ops endpoints in this surface.*
+```
+
+Path cells are wrapped in single backticks; do **not** escape the braces in `{id}`/`{fieldId}`. Domain Ref cells are wrapped in single backticks. Operation cells are bare (no backticks). Table 3o is rendered **after** Table 3 in every surface section.
 
 ### Step 9 — Update Table 1's Surfaces row
 
@@ -243,6 +282,7 @@ For each surface in `<surfaces>`, in order:
    - **If the heading exists**, replace from that heading through the end of its body (the last consecutive `|` line, or the italic placeholder line) with the freshly rendered Table 2.
    - **If the heading is absent**, insert it immediately after the `## Surface: <surface>` heading (preceded by one blank line).
 3. Repeat (2) for `### Table 3: Command Endpoints`. If absent, insert it immediately after Table 2's body.
+4. Repeat (2) for `### Table 3o: Ops Endpoints`. If absent, insert it immediately after Table 3's body. Always emit Table 3o (the empty placeholder when this surface has no ops methods) so downstream writers and the splice are deterministic.
 
 Use the Edit tool with anchored `old_string` covering only the heading + table block being replaced. Do not use Write to rewrite the entire file. Preserve any prose between tables and any other H3 sub-sections (Tables 4–6) inside a Surface section; those are owned by other writers.
 
@@ -252,7 +292,7 @@ Use the Edit tool with anchored `old_string` covering only the heading + table b
 
 Print a one-line summary, listing per-surface counts and any orphans:
 
-`Wrote endpoint tables of <output> across surfaces [<surfaces>]: <surface1>: <Q1>q/<C1>c (<H1> handlers excluded), <surface2>: <Q2>q/<C2>c (<H2> handlers excluded), …` followed by, if any orphans exist, ` Orphaned sections (left intact, remove manually if obsolete): <name1>, <name2>.`
+`Wrote endpoint tables of <output> across surfaces [<surfaces>]: <surface1>: <Q1>q/<C1>c/<O1>o (<H1> handlers excluded), <surface2>: <Q2>q/<C2>c/<O2>o (<H2> handlers excluded), …` (the `<O>o` count is the per-surface Table 3o ops-endpoint row count; omit it from the legend when no ops diagrams exist) followed by, if any orphans exist, ` Orphaned sections (left intact, remove manually if obsolete): <name1>, <name2>.`
 
 ## Constraints
 
@@ -274,4 +314,5 @@ Print a one-line summary, listing per-surface counts and any orphans:
 - The aggregate root from the diagrams does not match Table 1's Resource name.
 - The target `<output>` does not exist or lacks `### Table 1: Resource Basics`.
 - A queries method falls through every dispatch row (Table 2, row 5).
-- A surface has a duplicate Operation, or a duplicate `(HTTP, Path)` pair, across its combined Table 2 + Table 3 rows (Step 7b collision check).
+- An ops diagram has zero or multiple brace-body classes, or its braced class's `kebab-case` form does not equal the diagram's `<op-name>` discriminator.
+- A surface has a duplicate Operation, or a duplicate `(HTTP, Path)` pair, across its combined Table 2 + Table 3 + Table 3o rows (Step 7b collision check).

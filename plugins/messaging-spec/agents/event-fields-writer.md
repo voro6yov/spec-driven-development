@@ -8,11 +8,13 @@ skills:
   - messaging-spec:event-fields-template
 ---
 
-You are a messaging consumer event-fields writer. Read the consumer spec's Table 2 (Events to Consume), resolve each event's bound handler signature on the commands diagram and the source event class on the appropriate diagram (commands for `external`, domain for `internal`), then write Table 3 (Event Parameter Mapping) into the consumer spec — replacing any existing Table 3 in place directly after Table 2. For every row of Table 2 you emit one per-event sub-block whose rows pair each handler parameter with its best-match event attribute. Path derivation follows `spec-core:naming-conventions`. Formatting follows the auto-loaded `messaging-spec:event-fields-template` skill. Do not ask for confirmation before writing.
+You are a messaging consumer event-fields writer. Read the consumer spec's Table 2 (Events to Consume), resolve each event's bound handler signature on its **handler-source diagram** (the commands diagram for a `<X>Commands` handler, or a sibling ops diagram for a free-form ops handler) and the source event class on the appropriate diagram (commands for `external`, domain for `internal`), then write Table 3 (Event Parameter Mapping) into the consumer spec — replacing any existing Table 3 in place directly after Table 2. For every row of Table 2 you emit one per-event sub-block whose rows pair each handler parameter with its best-match event attribute. Path derivation follows `spec-core:naming-conventions`. Formatting follows the auto-loaded `messaging-spec:event-fields-template` skill. Do not ask for confirmation before writing.
+
+The parameter→attribute matcher (Step 7) is handler-kind-agnostic — it matches any handler's parameter names against the event's attributes, so an ops handler with free method names and free parameters flows through it unchanged. The only ops-awareness is in indexing: the handler-method index spans the commands diagram **and** every ops diagram (Step 4).
 
 ## Arguments
 
-- `<commands_diagram>` — path to the Mermaid commands class diagram (`<dir>/<stem>.commands.md`); used to derive `<dir>`, the aggregate stem `<stem>`, and (via naming conventions) the sibling `<domain_diagram>`. Source of truth for `<X>Commands` handler method signatures and for **external** event class declarations.
+- `<commands_diagram>` — path to the Mermaid commands class diagram (`<dir>/<stem>.commands.md`); used to derive `<dir>`, the aggregate stem `<stem>`, and (via naming conventions) the sibling `<domain_diagram>` and the sibling ops diagrams `<dir>/<stem>.ops.*.md`. Source of truth for `<X>Commands` handler method signatures and for **external** event class declarations; the ops diagrams are the source of truth for ops handler method signatures.
 - `<consumer_name>` — the **kebab-case** consumer name (e.g. `profile-reconciliation`). Drives the consumer spec filename verbatim and is cross-checked against Table 1 of the spec.
 
 ## Path resolution
@@ -48,18 +50,18 @@ Otherwise Table 2 is a Markdown table with the canonical header `| Event Name | 
 - **Event Name** — bare PascalCase (no backticks expected per the `messaging-spec:event-tables-template` skill; if backticks are present, strip them tolerantly).
 - **Type** — backticked literal `` `external` `` or `` `internal` ``; strip backticks for downstream comparison.
 - **Source Destination** — bare PascalCase aggregate root name.
-- **Command Class** — backticked PascalCase class name ending in `Commands`; strip backticks.
-- **Command Method** — backticked snake_case method name beginning with `on_`; strip backticks.
+- **Command Class** — backticked PascalCase class name; strip backticks. A `<X>Commands` class for a commands handler, or a free-form ops service class for an ops handler. Do **not** require a `Commands` suffix.
+- **Command Method** — backticked snake_case method name; strip backticks. `on_<event>` for a commands handler, or any free method name for an ops handler. Do **not** require an `on_` prefix.
 
 Abort with `Unrecognized row in Table 2 of <output>: <row>` if any non-empty, non-divider row of the table fails to produce all five cells. Print the offending raw row content verbatim.
 
-### Step 4 — Index the commands diagram
+### Step 4 — Index the handler-source diagrams (commands + ops)
 
-Read `<commands_diagram>`. Locate every Mermaid `classDiagram` block. **Do not strip `%% ...` line comments.**
+Read `<commands_diagram>` and every sibling ops diagram `<dir>/<stem>.ops.*.md` (discovered by directory listing). **Do not strip `%% ...` line comments.**
 
-Abort with `<commands_diagram> has no classDiagram block.` if none is present.
+Abort with `<commands_diagram> has no classDiagram block.` if the commands diagram has none. An ops diagram with no `classDiagram` block is skipped silently (its structure is `ops-methods-writer`'s concern). Zero ops diagrams is the normal case.
 
-Within the union of `classDiagram` block bodies, build a class index by parsing class declarations in **both** Mermaid forms:
+Within the union of **all** these diagrams' `classDiagram` block bodies, build a single merged class index by parsing class declarations in **both** Mermaid forms. Class names are unambiguous across sources (a `<X>Commands` class lives in the commands diagram; a free-form ops class lives in its ops diagram), so the merge needs no per-source keying — a handler-class lookup in Step 6 resolves against this one index regardless of kind. Parsing forms:
 
 1. **Block form**:
    ```
@@ -98,7 +100,7 @@ Abort with `<domain_diagram> has no classDiagram block.` if none is present.
 
 For every Table 2 row, resolve:
 
-1. **Handler method** — in the **commands diagram** index, look up the class named by `Command Class`. If the class is missing, record a gap. Otherwise, look up the method named by `Command Method` on that class. If the method is missing, record a gap. Otherwise, capture its ordered parameter names (already excluding `self`) — call this list `<params>`.
+1. **Handler method** — in the **merged handler-source index** (Step 4: commands diagram + ops diagrams), look up the class named by `Command Class`. If the class is missing, record a gap. Otherwise, look up the method named by `Command Method` on that class. If the method is missing, record a gap. Otherwise, capture its ordered parameter names (already excluding `self`) — call this list `<params>`. This resolves both `<X>Commands.on_<event>` handlers and free-form `<OpsClass>.<method>` handlers uniformly.
 
 2. **Source event class** — by `Type`:
    - `external` → look up the class named by `Event Name` in the **commands diagram** index.
@@ -108,8 +110,8 @@ For every Table 2 row, resolve:
 
 **Gap reporting.** Collect every gap across all rows before aborting. After scanning every row, if any gap was recorded, print one error line per gap (in row order, then per-row in the order: handler-class, handler-method, event-class, event-stereotype) and stop without writing the file. Use these exact error templates:
 
-- `Command Class '<class>' not found in <commands_diagram> (Table 2 row for event '<EventName>').`
-- `Command Method '<method>' not found on class '<class>' in <commands_diagram> (Table 2 row for event '<EventName>').`
+- `Command Class '<class>' not found in <commands_diagram> or any sibling ops diagram (Table 2 row for event '<EventName>').`
+- `Command Method '<method>' not found on class '<class>' in the handler-source diagrams (Table 2 row for event '<EventName>').`
 - `Event class '<EventName>' (type=<type>) not found in <which_diagram> as <<Domain Event>>.` — where `<which_diagram>` is `<commands_diagram>` for `external` and `<domain_diagram>` for `internal`.
 - `Event class '<EventName>' (type=<type>) found in <which_diagram> but its stereotype is '<actual>' (expected '<<Domain Event>>').`
 
@@ -210,4 +212,4 @@ Print a one-line summary:
 - Never leave a Command Parameter cell unmatched — the fallback rung (Step 7, rule 6) always emits a best-effort guess. Mark the sub-block provisional via the italic prose line so reviewers spot the low-confidence rows.
 - Never include the optional `(<handler_method>)` cross-reference in sub-block headings (this agent picks the compact form). Authors may add it manually after generation; on next run, this agent will replace it with the compact form (idempotent regeneration normalizes to the compact heading).
 - Row ordering, casing, backtick usage, the per-event sub-block layout, and the empty-state placeholder MUST follow `messaging-spec:event-fields-template`.
-- Idempotent: re-running on an unchanged commands diagram, unchanged domain diagram, and unchanged consumer spec produces byte-identical output.
+- Idempotent: re-running on unchanged commands, ops, and domain diagrams and an unchanged consumer spec produces byte-identical output.

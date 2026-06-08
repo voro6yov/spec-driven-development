@@ -52,7 +52,7 @@ If the initializer aborts, propagate the failure and stop — do not proceed to 
 
 Invoke `messaging-spec:event-tables-writer` with prompt `<commands_diagram> <consumer_name>`. Wait for completion.
 
-This parses the `%% Messaging - <consumer_name>` block(s) inside the Mermaid commands class diagram and writes one row per `<X>Commands <arrow> <Event> : handles (<Source>, <on_method>)` line into Table 2 of `<consumer_spec_file>`. Replaces any existing Table 2 in place. Idempotent.
+This parses the `%% Messaging - <consumer_name>` block(s) inside the Mermaid commands class diagram **and every sibling ops diagram** (`<dir>/<stem>.ops.*.md`, auto-discovered by the writer) and writes one row per `<HandlerClass> <arrow> <Event> : handles (<Source>, <method>)` line into Table 2 of `<consumer_spec_file>` — a `<X>Commands.on_<event>` binding from the commands diagram or a free-form ops-service binding from an ops diagram. Replaces any existing Table 2 in place. Idempotent. An aggregate with zero ops diagrams behaves exactly as before.
 
 If the writer aborts, propagate the failure and stop — do not proceed to Step 5.
 
@@ -60,7 +60,7 @@ If the writer aborts, propagate the failure and stop — do not proceed to Step 
 
 Invoke `messaging-spec:event-fields-writer` with prompt `<commands_diagram> <consumer_name>`. Wait for completion.
 
-This walks every row of the Table 2 written in Step 4, matches the bound `<AggregateRoot>Commands.on_<event>` handler's parameters against the source event class's attributes, and emits one per-event sub-block into Table 3. Replaces any existing Table 3 in place. Idempotent.
+This walks every row of the Table 2 written in Step 4, matches the bound handler's parameters (resolved from the commands diagram for a `<X>Commands.on_<event>` handler, or from the sibling ops diagram for a `<OpsClass>.<method>` handler) against the source event class's attributes, and emits one per-event sub-block into Table 3. Replaces any existing Table 3 in place. Idempotent.
 
 If the writer aborts, propagate the failure and stop.
 

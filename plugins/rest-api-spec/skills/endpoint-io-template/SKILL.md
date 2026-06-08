@@ -18,33 +18,33 @@ Defines the canonical shape of **Table 4: Response Fields**, **Table 5: Request 
 
 The three tables are filled together because they share the same per-endpoint dispatch:
 
-- Table 4 is filled per **query** endpoint (Table 2). It describes the response body and any query-string inputs.
-- Table 5 is filled per **command** endpoint (Table 3). It describes the request body.
-- Table 6 is filled per **endpoint** that calls into the application service (both command and query). It maps each application-service method parameter to its HTTP source.
+- Table 4 is filled per **query** endpoint (Table 2) **and per ops** endpoint (Table 3o). It describes the response body and any query-string inputs. An ops endpoint's sub-block is dispatched on the ops method's free return type: `*No response body — returns `204 No Content`.*` for a `None` return; an id-only single-row table for an aggregate return; a full resolved table for a `*Info` / TypedDict / value-object return; or `*Response fields could not be resolved for `<Type>` — TODO: fill manually.*` when the return type is unresolvable on the domain diagram. Ops endpoints carry **no** Query Parameters sub-block (they take a request body, not query params).
+- Table 5 is filled per **command** endpoint (Table 3) **and per ops** endpoint (Table 3o). It describes the request body — an ops endpoint's parameters minus the aggregate `id` (path), `tenant_id` (auth), and path-bound `*_id` become body fields, exactly like a command (ops endpoints are never composite-key).
+- Table 6 is filled per **endpoint** that calls into the application service (query, command, **and ops**). It maps each application-service method parameter to its HTTP source. Ops endpoints use the **command-endpoint** classification (path / auth / body) with the `Command Parameter` header.
 
-Each table is a **per-endpoint group** — repeat the sub-table once per endpoint, headed by an `**Endpoint:** <HTTP> <PATH>` line that matches a row in the enclosing Surface section's Table 2 or Table 3 verbatim. An optional ` (operation_name)` may follow the path to ease cross-referencing with Table 2/3.
+Each table is a **per-endpoint group** — repeat the sub-table once per endpoint, headed by an `**Endpoint:** <HTTP> <PATH>` line that matches a row in the enclosing Surface section's Table 2, Table 3, or Table 3o verbatim. An optional ` (operation_name)` may follow the path to ease cross-referencing.
 
 ## Per-surface scoping
 
 Tables 4, 5, and 6 always live inside a `## Surface: <name>` H2 section (see `resource-spec-template`). A resource with N surfaces has N copies of each of Tables 4, 5, and 6 — one per surface — each describing only the endpoints exposed on that surface (i.e., the rows of that surface's Tables 2 and 3).
 
-When a surface has zero query endpoints (its Table 2 is the `*No query endpoints in this surface.*` placeholder), its Table 4 is replaced with the placeholder line:
+When a surface has zero query endpoints **and** zero ops endpoints (both Table 2 and Table 3o are placeholders), its Table 4 is replaced with the placeholder line:
 
 ```
 ### Table 4: Response Fields
 
-*No response fields in this surface — no query endpoints.*
+*No response fields in this surface — no query or ops endpoints.*
 ```
 
-When a surface has zero command endpoints (its Table 3 is the `*No command endpoints in this surface.*` placeholder), its Table 5 is replaced with:
+When a surface has zero command endpoints **and** zero ops endpoints (both Table 3 and Table 3o are placeholders), its Table 5 is replaced with:
 
 ```
 ### Table 5: Request Fields
 
-*No request fields in this surface — no command endpoints.*
+*No request fields in this surface — no command or ops endpoints.*
 ```
 
-When a surface has both Tables 2 and 3 empty, its Table 6 is replaced with:
+When a surface has Tables 2, 3, **and 3o** all empty, its Table 6 is replaced with:
 
 ```
 ### Table 6: Parameter Mapping

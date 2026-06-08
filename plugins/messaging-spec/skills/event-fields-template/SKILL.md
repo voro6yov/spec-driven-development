@@ -9,7 +9,7 @@ user-invocable: false
 
 ## Purpose
 
-Defines the canonical shape of **Table 3: Event Parameter Mapping** of a messaging consumer input spec. Table 3 sits directly after Table 2 (see `event-tables-template`) and, for every event the consumer subscribes to, maps each parameter of the bound `<AggregateRoot>Commands.on_<event>` handler method to the event attribute it draws from.
+Defines the canonical shape of **Table 3: Event Parameter Mapping** of a messaging consumer input spec. Table 3 sits directly after Table 2 (see `event-tables-template`) and, for every event the consumer subscribes to, maps each parameter of the bound handler method to the event attribute it draws from. The handler method is whatever Table 2's `Command Method` names — `<AggregateRoot>Commands.on_<event>` for a commands handler, or `<OpsClass>.<free_method>` for an ops handler. The mapping mechanics are identical for both kinds: every parameter is sourced from a named event attribute.
 
 **See also:** `consumer-spec-template` (Table 1: Consumer Basics) and `event-tables-template` (Table 2: Events to Consume) — the two sibling skills that define the rest of the consumer input spec.
 
@@ -59,7 +59,7 @@ The italic line is the entire content of the section — never mix it with a rea
 ### Command Parameter
 
 - **Format:** `snake_case`, **in backticks**.
-- **Cardinality:** Names a single parameter of the bound handler method `<AggregateRoot>Commands.on_<event_name_snake_case>` — the same method enumerated in Table 2's Command Method column for this event.
+- **Cardinality:** Names a single parameter of the bound handler method — the method enumerated in Table 2's Command Method column for this event (`<AggregateRoot>Commands.on_<event_name_snake_case>` for a commands handler, or `<OpsClass>.<free_method>` for an ops handler).
 - **Existence requirement:** The parameter must exist on the handler method's signature. If the handler does not yet declare the parameter, the row is provisional and must be flagged in the surrounding prose.
 - **Examples:** `` `id` ``, `` `tenant_id` ``, `` `profile_id` ``, `` `path` ``
 - **Counter-examples:** `id` (missing backticks), `` `Id` `` (must be lowercase snake_case), `` `event.id` `` (no qualifier — the column names the parameter, not its source), `` `id, tenant_id` `` (one parameter per row — split into multiple rows), `` `*args` `` / `` `**kwargs` `` (no variadic parameters — every accepted parameter must be named)
@@ -135,7 +135,7 @@ Both events share `id` and `tenant_id`, but `FilePIIReductionStarted` carries no
 - [ ] One sub-block per Table 2 row — every event in Table 2 has a corresponding sub-block in Table 3 (provisional sub-blocks must be flagged in surrounding prose)
 - [ ] Sub-block heading is `**Event:** \`<EventName>\`` with optional ` (<handler_method>)` cross-reference
 - [ ] Event Name in the heading is backticked PascalCase and matches Table 2's Event Name cell verbatim
-- [ ] When present, the cross-reference matches Table 2's Command Method cell exactly (`on_` prefix, snake_case, no `_event` suffix)
+- [ ] When present, the cross-reference matches Table 2's Command Method cell exactly (`on_<event>` for a commands handler; any free method name for an ops handler)
 - [ ] Sub-blocks are ordered: external block (alphabetical by Event Name) then internal block (alphabetical by Event Name); no separator between groups
 
 ### Columns
@@ -147,6 +147,6 @@ Both events share `id` and `tenant_id`, but `FilePIIReductionStarted` carries no
 
 ### Completeness
 
-- [ ] Every parameter of `<AggregateRoot>Commands.on_<event>` appears as a row
+- [ ] Every parameter of the bound handler method (`<AggregateRoot>Commands.on_<event>` or `<OpsClass>.<free_method>`) appears as a row
 - [ ] Every event attribute consumed by the handler appears in the Event Field column of some row
 - [ ] Row order within a sub-block follows the handler method's Python parameter order (excluding `self`)

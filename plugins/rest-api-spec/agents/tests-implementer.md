@@ -139,14 +139,15 @@ Within the surface's bounded section (from `## Surface: <surface>` to the next `
 
 1. **Parse Table 2** (Query Endpoints). Treat `*No query endpoints in this surface.*` as zero rows. Otherwise capture each row as `(http, path, operation, description, domain_ref)`.
 2. **Parse Table 3** (Command Endpoints). Treat `*No command endpoints in this surface.*` as zero rows. Otherwise capture rows; drop rows whose Domain Ref method name starts with `on_`.
-3. **Parse Table 5** (Request Fields) — sub-block per Table 3 row. Bind `has_body` per row:
-   - `has_body == False` if the Table 5 sub-block begins with `*No request body` (any variant — `*No request body*`, `*No request body — composite key sourced from query parameters.*`, `*No request body — id and tenant_id are sourced from path and auth.*`, …) or is empty / absent.
+2o. **Parse Table 3o** (Ops Endpoints). Treat `*No ops endpoints in this surface.*` as zero rows. Otherwise capture each row as `(http, path, operation, description, domain_ref)` (`http` is always `POST`; Domain Ref is `<OpsClass>.<method>`). Bind `<resp_204>` per ops row by reading its Table 4 sub-block: `True` when the sub-block is the `*No response body — returns `204 No Content`.*` placeholder, `False` otherwise. Ops rows are tested exactly like command rows of the same path shape, except the success status assertion is 204 vs 200 per `<resp_204>`.
+3. **Parse Table 5** (Request Fields) — sub-block per Table 3 row **and per Table 3o row**. Bind `has_body` per row:
+   - `has_body == False` if the Table 5 sub-block begins with `*No request body` (any variant) or is empty / absent.
    - `has_body == True` otherwise. Capture each field row as `(name, type, required?, description)`; a field is **required** iff its Type cell does not contain `| None`.
-4. **Parse Table 6** (Parameter Mapping) — sub-block per Table 3 row. For each command endpoint, bind `<cmd_query_params>` = the ordered list of left-column parameter names whose Source cell is `` Query param `<name>` `` (a composite-key aggregate produces these; for an id-bearing aggregate the list is empty). No other Table 6 column is needed by this agent.
+4. **Parse Table 6** (Parameter Mapping) — sub-block per Table 3 row. For each command endpoint, bind `<cmd_query_params>` = the ordered list of left-column parameter names whose Source cell is `` Query param `<name>` ``. Ops endpoints never have composite-key query params, so `<cmd_query_params>` is empty for them.
 
-If a surface has zero endpoints (Tables 2 and 3 both empty / placeholder), record `skipped: <surface>: no endpoints` and continue.
+If a surface has zero endpoints (Tables 2, 3, and 3o all empty / placeholder), record `skipped: <surface>: no endpoints` and continue.
 
-**Operation uniqueness.** Within a surface, every Table 2 + Table 3 row's Operation column must be unique (function names would otherwise collide in the emitted module). If duplicates are found, abort with: `ERROR: surface "<surface>" has duplicate Operation '<op>' across endpoint rows.`
+**Operation uniqueness.** Within a surface, every Table 2 + Table 3 + **Table 3o** row's Operation column must be unique (function names would otherwise collide in the emitted module). If duplicates are found, abort with: `ERROR: surface "<surface>" has duplicate Operation '<op>' across endpoint rows.`
 
 #### Per-endpoint scenario dispatch
 
@@ -159,9 +160,13 @@ For each endpoint row, classify by `(http, path, body?)` and emit the listed sce
 | Table 3 POST with path == `/` (factory) | `__success` + `__already_exists` + (`__missing_required_field` iff `has_body` AND Table 5 has at least one required field) |
 | Table 3 with `{id}` in path (PATCH/PUT/DELETE/POST action) | `__success` + `__not_found` + (`__missing_required_field` iff method ∈ {POST, PUT, PATCH} AND `has_body` AND Table 5 has at least one required field) |
 | Table 3 row with non-empty `<cmd_query_params>` (composite-key command endpoint; not the factory `POST /` handled above) | `__success` + `__not_found` + (`__missing_required_field` iff method ∈ {POST, PUT, PATCH} AND `has_body` AND Table 5 has at least one required field) |
+| Table 3o ops row with `{id}` in path (`POST /{id}/<op>`) | `__success` + `__not_found` + (`__missing_required_field` iff `has_body` AND Table 5 has at least one required field) |
+| Table 3o ops row without `{id}` (collection-rooted `POST /<op>`) | `__success` + (`__missing_required_field` iff `has_body` AND Table 5 has at least one required field) |
 | Anything else | `__success` |
 
 The `__missing_required_field` test sends an **empty JSON body** (`json={}`) and asserts `422 UNPROCESSABLE_ENTITY`. The required-field detection (first non-`| None` row in Table 5) is used only to decide whether the test is emitted — the body itself is `{}`.
+
+**Ops success status.** An ops endpoint's `__success` asserts `HTTPStatus.NO_CONTENT` (204) when `<resp_204>` is `True`, else `HTTPStatus.OK` (200). Ops endpoints resolve through the real `containers` fixture (the ops service is DI-keyed `<op_snake>`, wired by `application-spec`'s `ops-implementer`), so no per-test mock is needed — the body is built from Table 5 fields exactly like a command endpoint, and the path `{id}` / not-found handling is identical.
 
 When `has_body == False` for a mutating endpoint (e.g. `POST /{id}/start-receiving` with `*No request body*`), the emitted `__success` and `__not_found` tests **omit the `json=` keyword entirely**.
 

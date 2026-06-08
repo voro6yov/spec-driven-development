@@ -7,12 +7,13 @@ allowed-tools: Read, Bash, Agent
 
 You are a messaging consumer-spec **update** orchestrator. Given a domain diagram and its sibling commands application-service diagram, refresh the existing per-consumer specs under `<dir>/<stem>.messaging/` in place — for every consumer whose `internal` Table 2 subscriptions intersect a changed domain event, or whose `%% Messaging - <consumer>` block rows / bound handler signatures / referenced external event classes changed in the commands diagram, re-run `event-tables-writer` then `event-fields-writer` to regenerate Tables 2–3 from the current diagrams; for every consumer that subscribes (as `internal`) to a domain event that was removed or renamed *and* the corresponding `%% Messaging` row was not also dropped from the commands diagram, abort that consumer with reconcile instructions and skip it; then emit `<dir>/<stem>.messaging/updates.md`. Do not rerun the full `/messaging-spec:generate-code` pipeline, do not touch the diagram files, and do not ask for confirmation before writing.
 
-This skill is the messaging-side counterpart to `/update-specs` (domain), `/persistence-spec:update-specs`, `/application-spec:update-specs`, and `/rest-api-spec:update-specs`. Design rationale lives in `notes/spec-updater-approach.md`, `notes/update-types.md`, `notes/updates-report.md`, and `notes/commands-queries-integration-approach.md`; the load-bearing idea is **a thin two-axis dispatcher, not a surgical splicer** — every consumer-spec table is a pure snapshot, fully regeneratable from the diagrams, so "update Table 3 for consumer C" *is* "re-run `event-fields-writer <commands_diagram> C`". There are **no new agents** — this skill orchestrates the two existing writers (`event-tables-writer`, `event-fields-writer`) plus the existing `messaging-updates-writer`, and consumes the cross-plugin `application-spec:commands-updates-detector` report.
+This skill is the messaging-side counterpart to `/update-specs` (domain), `/persistence-spec:update-specs`, `/application-spec:update-specs`, and `/rest-api-spec:update-specs`. Design rationale lives in `notes/spec-updater-approach.md`, `notes/update-types.md`, `notes/updates-report.md`, and `notes/commands-queries-integration-approach.md`; the load-bearing idea is **a thin multi-axis dispatcher, not a surgical splicer** — every consumer-spec table is a pure snapshot, fully regeneratable from the diagrams, so "update Table 3 for consumer C" *is* "re-run `event-fields-writer <commands_diagram> C`". There are **no new agents** — this skill orchestrates the two existing writers (`event-tables-writer`, `event-fields-writer`) plus the existing `messaging-updates-writer`, and consumes the cross-plugin `application-spec:commands-updates-detector` and `application-spec:ops-updates-detector` reports.
 
-The orchestrator consumes two update reports — one per axis — and unions their dispatch signals:
+The orchestrator consumes three update reports — one per axis — and unions their dispatch signals:
 
 - **Domain axis** — `<dir>/<stem>.domain/updates.md`, produced by `domain-spec:updates-detector` (expected on disk; not invoked here).
 - **Commands-diagram axis** — `<dir>/<stem>.application/commands-updates.md`, produced by `application-spec:commands-updates-detector` (invoked at Step 0 below). The path is owned by application-spec's per-aggregate folder; messaging-spec reads it but never writes there. See `spec-core:naming-conventions` for the cross-plugin path policy.
+- **Ops-diagram axis** — `<dir>/<stem>.application/ops-updates.md`, produced by `application-spec:ops-updates-detector` (invoked at Step 0 below). A consumer's handler bindings may now live in a `%% Messaging - <consumer>` block inside an ops diagram (`<stem>.ops.<op-name>.md`), and an ops method may change signature — both ripple into Table 2/3 exactly as commands-diagram deltas do. The ops report is one aggregate-wide file covering every ops diagram; messaging reads it but never writes there. Schema owned by `application-spec:ops-updates-report-template`.
 
 The queries-diagram axis is **not** consumed — messaging is command-side only, and there is no per-consumer subscription to query-side operations.
 
@@ -32,6 +33,7 @@ Per `spec-core:naming-conventions`, given `<domain_diagram>` at `<dir>/<stem>.md
 | `<dir>/<stem>.domain/updates.md` | input — domain delta report (must already exist) | not modified |
 | `<dir>/<stem>.commands.md` | input — hand-authored commands diagram (must already exist) | not modified |
 | `<dir>/<stem>.application/commands-updates.md` | input — commands-diagram delta report | produced by `application-spec:commands-updates-detector` at Step 0 |
+| `<dir>/<stem>.application/ops-updates.md` | input — ops-diagram delta report | produced by `application-spec:ops-updates-detector` at Step 0 |
 | `<plugin_dir>/<consumer>.md` × N | the consumer specs being updated (at least one must exist) | `event-tables-writer` + `event-fields-writer` (per affected consumer) |
 | `<plugin_dir>/updates.md` | output — messaging delta report | `messaging-updates-writer` |
 
@@ -99,9 +101,15 @@ Standalone invocations (without `--detectors-fresh`) take the default path below
 
 The detector writes `<dir>/<stem>.application/commands-updates.md` or hard-fails with an `ERROR:` line. If it hard-fails, abort the orchestrator with that detector's `ERROR:` line repeated verbatim; the operator's recovery path (the message itself directs to `/application-spec:generate-specs <domain_diagram>`) applies here.
 
-Wait for the detector to return successfully before proceeding to Step 1.
+Wait for the detector to return successfully before proceeding to the ops detector below.
 
-Only the commands detector is invoked. The queries detector is irrelevant to messaging (no per-consumer subscription is driven by query-side operations) and would be wasted work.
+The queries detector is irrelevant to messaging (no per-consumer subscription is driven by query-side operations) and would be wasted work.
+
+#### 0d-ops. Invoke the ops-diagram detector (always — even under `--detectors-fresh`)
+
+Invoke `application-spec:ops-updates-detector` with prompt `$ARGUMENTS[0]`. **This runs on both the default and the cascade (`--detectors-fresh`) paths**, because `--detectors-fresh` is the application-spec orchestrator's promise that it produced the *commands/queries* axis reports — it does **not** produce the ops report, so messaging produces it here regardless. The detector is cheap to re-run (it fast-paths on a combined-digest match when no ops diagram changed) and is a true no-op (writes `_None_`) when the aggregate has zero ops diagrams.
+
+The detector writes `<dir>/<stem>.application/ops-updates.md` or hard-fails with an `ERROR:` line. If it hard-fails, abort the orchestrator with that `ERROR:` line repeated verbatim. Wait for it to return successfully before proceeding to Step 1.
 
 ### Step 1 — Preflight (per-axis-scoped)
 
@@ -128,9 +136,18 @@ Only the commands detector is invoked. The queries detector is irrelevant to mes
 - **`commands.external_event_changes`** — for each `### `-style block under `## External Domain Events`, the event-class name and whether its `**Members:**` block has any `Attribute added:` / `Attribute removed:` / `Attribute changed:` bullets. Plus the names listed under `## Class Lifecycle → Added` / `→ Removed` whose stereotype is `<<Domain Event>>`.
 - **`commands.changed_methods`** — for each `### <method>`-style block under `## Per-Method Changes`, the method name and whether its `**Signature:**`, `**Surface:**`, `**Messaging:**`, or `**Prose — ...**` sub-section is present. We dispatch on the presence of a `**Signature:**` change (the only sub-section that affects an `on_<event>` handler's Table 3).
 
+**Ops-diagram axis** (`Read` `<stem>.application/ops-updates.md`; the exact formats are owned by `application-spec:ops-updates-report-template`). Unlike the commands report's flat `## Messaging Markers` / `## Per-Method Changes` sections, the ops report wraps everything in one `## Service: \`<op-name>\`` block per touched ops service, with `### Messaging Markers` and `### Per-Method Changes` nested **one heading level deeper** (`#### <consumer-name>` and `#### \`<method>\`` respectively). Extract, unioned across **all** `## Service:` blocks:
+
+- **`ops.degraded_baseline`** — whether the `## Summary` block contains a line beginning `_warning: HEAD `.
+- **`ops.affected_categories`** — bullets under `## Affected Categories`, in order. The literal body `_None._` means empty.
+- **`ops.messaging_markers`** — for each `#### <consumer-name>`-style block under any service's `### Messaging Markers`, capture the consumer name and its per-row deltas (`row_added` / `row_removed` / `row_changed`, plus the `(consumer added)` / `(consumer removed)` heading suffix). Each block becomes one entry `{ consumer, status ∈ {added, removed, modified}, rows_added, rows_removed, rows_changed }`. When the same consumer appears under more than one service's Messaging Markers (a consumer that binds methods on two ops services), **merge** the entries: union the row sets and treat the status as `modified` unless every contributing block is `added` (then `added`) or every is `removed` (then `removed`).
+- **`ops.changed_methods`** — for each `#### \`<method>\``-style block under any service's `### Per-Method Changes` whose `**Signature:**` sub-section is present (a signature change), capture the method name. These drive the M4-analog dispatch (an ops handler whose method signature changed needs its Table 3 regenerated). Ops methods are free-named (not `on_<event>`), so the match against a consumer's `Command Method` column is by exact method name, not by the `on_<event>` convention.
+
+The ops report's own structural hard-fails (ops service class renamed, multi-anchor) abort the detector at Step 0d-ops and surface verbatim — they never reach this step. The orchestrator sees a `_warning:_` on the ops axis only when an ops diagram's HEAD baseline was degraded.
+
 The structural hard-fails the commands detector itself enforces (anchor missing/renamed, multi-anchor, stereotype change inside the commands diagram) never reach the orchestrator — the detector aborts at Step 0d and the orchestrator surfaces its `ERROR:` verbatim. The orchestrator only sees a `_warning:_` on the commands axis when HEAD was degraded.
 
-Apply the gates below per axis. Each gate sets a per-axis disable flag (`domain_axis_disabled`, `commands_axis_disabled`) and emits a `WARNING:` line describing what was skipped; the run continues if any other axis is still enabled. Only the aggregated 1.all gate aborts the orchestrator.
+Apply the gates below per axis. Each gate sets a per-axis disable flag (`domain_axis_disabled`, `commands_axis_disabled`, `ops_axis_disabled`) and emits a `WARNING:` line describing what was skipped; the run continues if any other axis is still enabled. Only the aggregated 1.all gate aborts the orchestrator.
 
 #### 1.dom — Domain-axis gates
 
@@ -157,9 +174,19 @@ Each gate **disables only the commands axis** and emits a `WARNING:`.
 
 The commands detector itself hard-fails on stereotype change, anchor rename, multi-anchor — those never reach the orchestrator.
 
+#### 1.ops — Ops-diagram axis gates
+
+Each gate **disables only the ops axis** and emits a `WARNING:`.
+
+| Gate | Trigger | Action |
+|---|---|---|
+| 1.ops.a | `ops.degraded_baseline` true | Set `ops_axis_disabled = true`; emit `WARNING: ops-diagram axis disabled — an ops diagram's HEAD baseline is degraded (multiple or missing Mermaid blocks at HEAD per <stem>.application/ops-updates.md). Ops-diagram-driven dispatch is skipped for this run.` |
+
+The ops detector itself hard-fails on an ops service-class rename or multi-anchor — those never reach the orchestrator. When the aggregate has zero ops diagrams the ops report is a `_None._` no-op and this gate never fires.
+
 #### 1.all — Total-abort gate
 
-If `domain_axis_disabled` AND `commands_axis_disabled` are both true, abort the orchestrator with:
+If `domain_axis_disabled` AND `commands_axis_disabled` AND `ops_axis_disabled` are all true, abort the orchestrator with:
 
 ```
 ERROR: both input axes are disabled by preflight gates (see WARNING lines above). The orchestrator
@@ -187,12 +214,13 @@ Compute the per-consumer dangling set:
 
 ```
 dangling[C] := internal_subs[C] ∩ domain.removed_or_renamed_events     # existing rule
-            - rows_already_removed_from_commands[C]                    # NEW: deduct already-reconciled rows
+            - rows_already_removed_from_commands[C]                    # deduct already-reconciled commands rows
+            - rows_already_removed_from_ops[C]                         # deduct already-reconciled ops rows
 ```
 
-Where `rows_already_removed_from_commands[C]` is the set of internal-event names that the commands report (`commands.messaging_markers`) flags as `row_removed` or `row_changed` (old-side event name) under `### <C>`. If `commands_axis_disabled`, this set is empty (the deduction collapses to the existing rule).
+Where `rows_already_removed_from_commands[C]` is the set of internal-event names that the commands report (`commands.messaging_markers`) flags as `row_removed` or `row_changed` (old-side event name) under `### <C>`, and `rows_already_removed_from_ops[C]` is the same set derived from the ops report (`ops.messaging_markers`) under `#### <C>`. If `commands_axis_disabled` (resp. `ops_axis_disabled`), the corresponding set is empty (the deduction collapses to the existing rule for that axis).
 
-Rationale: if the operator's edit covered both diagrams — dropped the `<<Domain Event>>` class from the domain diagram **and** removed the corresponding `<X>Commands --() <E> : handles (...)` row from the commands diagram's `%% Messaging - <C>` block — the consumer is no longer dangling, just regenerating. Without the deduction, a coordinated edit would still abort the consumer.
+Rationale: if the operator's edit covered both diagrams — dropped the `<<Domain Event>>` class from the domain diagram **and** removed the corresponding `<HandlerClass> --() <E> : handles (...)` row from the `%% Messaging - <C>` block (in either the commands diagram or an ops diagram) — the consumer is no longer dangling, just regenerating. Without the deduction, a coordinated edit would still abort the consumer.
 
 For every consumer with `dangling[C] ≠ ∅` (after deduction), add `<C>` to the **aborted** set and hold the per-consumer reconcile text. This is **not** a whole-skill hard-fail — every non-dangling consumer still proceeds through Steps 4–5. `event-fields-writer` would fail to resolve a removed/renamed internal event class; and even if it didn't, the consumer's Table 2 (and the commands diagram's `%% Messaging` marker) would still name an event the domain diagram no longer declares — only reconciling the hand-authored marker fixes that.
 
@@ -202,9 +230,10 @@ Per-consumer reconcile text (one per dangling event `<E>`, using that row's `<Co
 
 ```
 consumer <C> subscribes to internal event <E>, which was removed/renamed in <stem>.domain/updates.md.
-Reconcile the `%% Messaging - <C>` block in <stem>.commands.md (drop or rename the
-`<CommandClass> --() <E> : handles (<Source>, <on_method>)` line, and the on_<E> handler on <AggregateRoot>Commands),
-then re-run `@event-tables-writer <commands_diagram> <C>` and `@event-fields-writer <commands_diagram> <C>`
+Reconcile the `%% Messaging - <C>` block in the diagram that declares it — <stem>.commands.md for a
+`<CommandClass> --() <E> : handles (<Source>, <on_method>)` line (and the on_<E> handler on <AggregateRoot>Commands),
+or the relevant <stem>.ops.<op-name>.md for a `<OpsClass> --() <E> : handles (<Source>, <method>)` line (and that
+ops method) — then re-run `@event-tables-writer <commands_diagram> <C>` and `@event-fields-writer <commands_diagram> <C>`
 (or `/messaging-spec:generate-code <domain_diagram> <C>`).
 ```
 
@@ -246,8 +275,26 @@ commands_affected = ∅ if commands_axis_disabled else (
             ∧ <C> ∉ aborted }
 )
 
-# Three-way union
-affected = domain_affected ∪ commands_affected
+# Ops-diagram-axis contribution (new) — parallels the commands axis, minus M7
+# (ops diagrams declare no external <<Domain Event>> classes; external events live
+# on the commands diagram, so the external-event ripple stays a commands-axis signal)
+ops_affected = ∅ if ops_axis_disabled else (
+    # ops X3 / X4 / X5: row added / removed / changed inside an existing consumer's
+    # %% Messaging block declared in an ops diagram (block as a whole not removed)
+    { <C> : <C> ∈ existing_consumers ∧ ops.messaging_markers[C].status == "modified"
+            ∧ (rows_added ∪ rows_removed ∪ rows_changed) ≠ ∅
+            ∧ <C> ∉ aborted }
+    ∪
+    # ops M4: an ops method whose signature changed ripples into Table 3 of every
+    # consumer whose Table 2 has a row binding that method (Command Method == method
+    # name; ops methods are free-named, matched exactly, not via the on_<event> rule)
+    { <C> : ∃ method ∈ ops.changed_methods :
+            ∃ row ∈ Table 2(<C>) : row.command_method == method
+            ∧ <C> ∉ aborted }
+)
+
+# Three-way union (domain + commands-diagram + ops-diagram)
+affected = domain_affected ∪ commands_affected ∪ ops_affected
 ```
 
 Notes on the per-category mapping (`## Affected Categories` → consumer impact):
@@ -290,7 +337,7 @@ Note: at v1 the writer does **not** consume `commands-updates.md` for source att
 
 Print **one** summary line (each invoked agent already printed its own per-step report; add no commentary beyond this line and the `WARNING:` lines below).
 
-Build `<axis_summary>` first — a comma-separated list (in canonical order: `domain`, `commands-diagram`) of axes that contributed at least one trigger to a dirty-consumer flag. An axis whose flag-contribution was the empty set (either disabled, or its triggers all resolved to empty) does not appear in `<axis_summary>`. Use ` + ` (space-plus-space) as the separator when both axes contributed (e.g. `domain + commands-diagram`).
+Build `<axis_summary>` first — a comma-separated list (in canonical order: `domain`, `commands-diagram`, `ops-diagram`) of axes that contributed at least one trigger to a dirty-consumer flag (domain via `domain_affected`, commands via `commands_affected`, ops via `ops_affected`). An axis whose flag-contribution was the empty set (either disabled, or its triggers all resolved to empty) does not appear in `<axis_summary>`. Use ` + ` (space-plus-space) as the separator when multiple axes contributed (e.g. `domain + commands-diagram + ops-diagram`).
 
 Build the per-outcome counts from Step 3 / 4 / 5:
 
@@ -298,8 +345,8 @@ Build the per-outcome counts from Step 3 / 4 / 5:
 - `<f>` = consumers a Step 5 writer aborted on.
 - `<m>` = `len(aborted)` (Step 3).
 - `<n>` = discovered − `<k>` − `<f>` − `<m>` (consumers untouched this run — neither dirty nor dangling).
-- `<i>` = X1 consumers (new `%% Messaging - <C>` block on the commands diagram, no consumer spec on disk yet). Count derived from `commands.messaging_markers` entries with `status == "added"`.
-- `<o>` = X2 consumers (existing consumer spec, `%% Messaging - <C>` block dropped from the commands diagram). Count derived from `commands.messaging_markers` entries with `status == "removed"` for a consumer in `existing_consumers`.
+- `<i>` = X1 consumers (new `%% Messaging - <C>` block, no consumer spec on disk yet). Count derived from `commands.messaging_markers` **and** `ops.messaging_markers` entries with `status == "added"` (dedupe a consumer that appears in both axes — count it once).
+- `<o>` = X2 consumers (existing consumer spec, every `%% Messaging - <C>` block dropped). Count derived from `commands.messaging_markers` and `ops.messaging_markers` entries with `status == "removed"` for a consumer in `existing_consumers`. A consumer is X2 only when **no** surviving `%% Messaging - <C>` block remains across all diagrams — if the commands diagram dropped the block but an ops diagram still declares one (or vice versa), the consumer is `modified`/regenerating, not orphaned.
 
 #### Tier-3 no-op (`affected` and `aborted` and X1 and X2 all empty)
 
@@ -320,10 +367,10 @@ Drop any clause whose count is zero. Then append the per-consumer WARNING lines:
   `WARNING: <reconcile text>` — the Step 3 text with `<C>` / `<E>` / `<CommandClass>` / `<Source>` / `<on_method>` filled from that consumer's dangling Table 2 row and `<stem>` / `<commands_diagram>` from the path derivation. Leave `<AggregateRoot>` literal (the operator knows their aggregate root — the orchestrator does not parse the domain diagram for the root *name*).
 - For each consumer a Step 5 writer failed on, append one line:
   `WARNING: <agent> failed on consumer <C>: <message> — reconcile the indicated diagram and re-run /messaging-spec:update-specs.`
-- For each X1 consumer `<C>` (consumer added — `%% Messaging - <C>` block declared on the commands diagram, no consumer spec on disk), append:
-  `WARNING: commands diagram declares new %% Messaging - <C> block with no consumer spec on disk — run /messaging-spec:generate-code <domain_diagram> <C> to initialize the consumer spec and scaffold its code-side artifacts.`
-- For each X2 consumer `<C>` (consumer orphaned — `%% Messaging - <C>` block removed from the commands diagram, consumer spec still on disk), append:
-  `WARNING: consumer spec <stem>.messaging/<C>.md exists but the corresponding %% Messaging - <C> block is no longer present in <stem>.commands.md. Delete <stem>.messaging/<C>.md (and the matching messaging/<C>/ subpackage via /messaging-spec:generate-code follow-up) once the operator is sure the consumer should be retired.`
+- For each X1 consumer `<C>` (consumer added — a new `%% Messaging - <C>` block declared in the commands diagram or an ops diagram, no consumer spec on disk), append:
+  `WARNING: a diagram declares new %% Messaging - <C> block with no consumer spec on disk — run /messaging-spec:generate-code <domain_diagram> <C> to initialize the consumer spec and scaffold its code-side artifacts.`
+- For each X2 consumer `<C>` (consumer orphaned — every `%% Messaging - <C>` block removed from the commands diagram and all ops diagrams, consumer spec still on disk), append:
+  `WARNING: consumer spec <stem>.messaging/<C>.md exists but no %% Messaging - <C> block remains in <stem>.commands.md or any <stem>.ops.<op-name>.md. Delete <stem>.messaging/<C>.md (and the matching messaging/<C>/ subpackage via /messaging-spec:generate-code follow-up) once the operator is sure the consumer should be retired.`
 
 If any preflight axis was disabled (Step 1.dom / 1.cmd fired), the `WARNING:` line(s) for those gates are emitted before the summary so the operator sees what got skipped. The summary itself still runs.
 

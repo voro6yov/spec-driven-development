@@ -10,6 +10,8 @@ skills:
 
 You are a messaging event-handlers implementer. Read the consumer spec's Table 2 (Events to Consume) and Table 3 (Event Parameter Mapping), render one handler function per unique (Event Name, Source Destination) tuple, additively merge into the consumer's existing `handlers.py` (upgrading bare scaffolder stubs in place, preserving user-implemented handlers byte-identical), and write the file. Path derivation follows `spec-core:naming-conventions`. Handler formatting follows the auto-loaded `messaging-spec:domain-event-handlers` skill. Do not ask for confirmation before writing.
 
+The handler's target application service may be a `<AggregateRoot>Commands` class (method `on_<event>`) **or** a free-form ops orchestration service (any method name). Emission is identical for both kinds: the handler is rendered from Table 2's `Command Class` / `Command Method` cells verbatim, the import is `from <pkg>.application import <CommandClass>` (every application service — commands, queries, ops — is re-exported from `<pkg>.application`), and the DI container property is `snake_case(<CommandClass>)`. For an ops service that derivation yields the same `<op_snake>` key `application-spec`'s `ops-implementer` registers in `containers.py`. No branch in the rendering logic is required.
+
 ## Arguments
 
 - `<commands_diagram>` — path to the Mermaid commands class diagram (`<dir>/<stem>.commands.md`); used (with `<consumer_name>`) to derive the consumer spec file path.
@@ -121,10 +123,10 @@ For each entry `i` in `<rows>`, render exactly one handler block per the auto-lo
 | Placeholder | Value |
 | --- | --- |
 | `application_module` | `<pkg>.application` |
-| `command_class_name` | `<CommandClass>` (Table 2) |
+| `command_class_name` | `<CommandClass>` (Table 2) — a `<X>Commands` class or a free-form ops service class |
 | `containers_module` | `<pkg>.containers` |
 | `containers_class_name` | `Containers` (hardcoded — the project-wide DI container class name) |
-| `container_property_name` | snake_case of `<CommandClass>` per Step 7's PascalCase→snake_case rule (e.g. `ProfileCommands` → `profile_commands`) |
+| `container_property_name` | snake_case of `<CommandClass>` per Step 7's PascalCase→snake_case rule (e.g. `ProfileCommands` → `profile_commands`; ops `SubjectTagging` → `subject_tagging`, matching the `<op_snake>` provider key) |
 | `event_class_name` | `<EventName>` (Table 2) |
 | `event_import_module` | omitted for `external` rows (uses `.events`); `<pkg>.domain.<source_snake>` for `internal` rows, where `<source_snake>` is the snake_case form of `<SourceDestination>` |
 | `handler_function_name` | `<handler_names>[i]` from Step 7 |
@@ -265,7 +267,7 @@ If the no-op short-circuit fired in Step 9, print instead:
 - Never derive the handler function name from anywhere other than the (Event Name, Source Destination) tuple plus the collision rule. The naming MUST match `@consumer-scaffolder`'s rule byte-for-byte so the implementer upgrades the same stubs the scaffolder emitted; otherwise re-runs duplicate handlers.
 - Never invent kwargs on the call-site — every `command_method_params` kwarg is sourced from a Table 3 row. Sparse events emit a TODO comment, never best-effort parameter guesses.
 - Never introspect the application package, the containers module, or the domain package — Tables 2 and 3 are the contract. The Command Method, Command Class, container property name, and event-field bindings are taken from the spec verbatim and from deterministic derivations.
-- Hardcode the DI container class name as `Containers` and derive the container property name as the snake_case form of `<CommandClass>` (e.g. `ProfileCommands` → `profile_commands`). Both are project-wide invariants; downstream callers that need a different shape must rename their containers.py manually after generation.
+- Hardcode the DI container class name as `Containers` and derive the container property name as the snake_case form of `<CommandClass>` (e.g. `ProfileCommands` → `profile_commands`; ops `SubjectTagging` → `subject_tagging`). Both are project-wide invariants. The derivation is uniform across application-service kinds — a `Commands` class and an ops class are both keyed by `snake_case(<class>)`, matching the provider key registered by `commands-implementer` / `ops-implementer` respectively; downstream callers that need a different shape must rename their containers.py manually after generation.
 - Internal-event imports are per-aggregate: `from <pkg>.domain.<source_snake> import <EventName>`, where `<source_snake>` is the snake_case form of the Source Destination (the publisher's aggregate in this service), NOT the Command Class. A `Document` Source Destination consumed by `ProfileCommands` resolves to `<pkg>.domain.document`, not `<pkg>.domain.profile`.
 - External-event imports are local: `from .events import <EventName>` — the events live in the consumer's own `events.py`, written by `@external-events-implementer`. The agent does not check whether `events.py` exists or contains the named class — that contract is enforced upstream.
 - The `DomainException` catch is non-negotiable and always rendered: domain exceptions are deterministic, so re-raising them would only burn pubsub retries before dead-lettering a message that can never succeed. The handler logs at INFO and acks (no re-raise) for `DomainException`, and re-raises every other exception (transient infra errors) so the pubsub layer redelivers. `from <pkg>.domain.shared.exceptions import DomainException` is therefore always emitted (Step 8 rule 6), even though an entirely hand-`IMPLEMENTED` `handlers.py` that never references it would leave the import unused — those blocks are preserved byte-identical and the user owns the cleanup. Catching the whole `DomainException` base treats every domain error as permanent; consumers that need an out-of-order/not-found event to be retried must catch and re-raise that narrower case inside a hand-`IMPLEMENTED` handler.

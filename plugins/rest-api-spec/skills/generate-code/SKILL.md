@@ -52,13 +52,23 @@ This emits one Python module per command endpoint under `api/serializers/<surfac
 
 **Do not run Steps 3 and 4 in parallel.** Both agents (re)write the same per-aggregate `__init__.py` based on a disk scan; running them concurrently risks a write race where one agent's aggregator clobbers the other's freshly-written modules. Sequencing query → command guarantees the final aggregator reflects both sets.
 
+If the implementer aborts, propagate the failure and stop — do not proceed to Step 4o.
+
+### Step 4o — Implement ops serializers
+
+Invoke `rest-api-spec:ops-serializers-implementer` with prompt `$ARGUMENTS[0] <locations_report_text>`. Wait for completion.
+
+This emits one Python module per **Table 3o (Ops Endpoints)** row under `api/serializers/<surface>/<aggregate>/<operation>.py` — a request serializer from the ops method's body fields and a response serializer dispatched on the free return type (id-only for an aggregate return, full from Table 4 for a DTO/value object, none for a `204`/`None` return) — and (re)writes the per-aggregate `__init__.py`.
+
+**Run after Step 4, before Step 5**, and **never in parallel with Steps 3–4**: all three serializer implementers (re)write the same per-aggregate `__init__.py` from a disk scan; sequencing query → command → ops guarantees the final aggregator reflects all three sets. This step is a **no-op when no surface has Table 3o rows** (the aggregate has no ops diagrams) — the agent reads the spec, finds no ops endpoints, and writes nothing.
+
 If the implementer aborts, propagate the failure and stop — do not proceed to Step 5.
 
 ### Step 5 — Implement endpoints
 
 Invoke `rest-api-spec:endpoints-implementer` with prompt `$ARGUMENTS[0] <locations_report_text>`. Wait for completion.
 
-This emits one router module per surface at `api/endpoints/<surface>/<plural>.py` containing the surface's `<plural>_router` plus one endpoint function per Table 2 / Table 3 row. The endpoints reference the serializer classes emitted in Steps 3–4 via the per-aggregate aggregator imports (`...serializers.<surface>.<aggregate>`).
+This emits one router module per surface at `api/endpoints/<surface>/<plural>.py` containing the surface's `<plural>_router` plus one endpoint function per Table 2 / Table 3 / **Table 3o** row. The endpoints reference the serializer classes emitted in Steps 3–4o via the per-aggregate aggregator imports (`...serializers.<surface>.<aggregate>`). Ops endpoints inject their ops service via `Containers.<op_snake>` (`<op_snake> = snake_case(<OpsClass>)`).
 
 If the implementer aborts, propagate the failure and stop — do not proceed to Step 6.
 

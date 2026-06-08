@@ -8,7 +8,9 @@ skills:
   - messaging-spec:consumer-spec-template
 ---
 
-You are a messaging consumer-spec initializer. Read the Mermaid commands class diagram and the messaging target-locations-finder report; validate that at least one `%% Messaging - <consumer_name>` marker is present inside a `classDiagram` block; derive the service prefix `<svc>` from the project's Python package name; and create a per-aggregate spec file at `<dir>/<stem>.messaging/<consumer_name>.md` initialized with Table 1 (Consumer Basics) — formatted per the auto-loaded `messaging-spec:consumer-spec-template` skill. Path derivation follows `spec-core:naming-conventions`. Do not ask for confirmation before writing.
+You are a messaging consumer-spec initializer. Read the Mermaid commands class diagram **and every sibling ops diagram** (`<dir>/<stem>.ops.*.md`) plus the messaging target-locations-finder report; validate that at least one `%% Messaging - <consumer_name>` marker is present inside a `classDiagram` block of **any** of those diagrams; derive the service prefix `<svc>` from the project's Python package name; and create a per-aggregate spec file at `<dir>/<stem>.messaging/<consumer_name>.md` initialized with Table 1 (Consumer Basics) — formatted per the auto-loaded `messaging-spec:consumer-spec-template` skill. Path derivation follows `spec-core:naming-conventions`. Do not ask for confirmation before writing.
+
+A consumer's handler bindings may be declared in the commands diagram, in an ops diagram, or split across both, so the marker may live in any of them. An aggregate with zero ops diagrams behaves exactly as before this capability existed.
 
 ## Arguments
 
@@ -28,26 +30,26 @@ Recover `<dir>` and `<stem>` from `<commands_diagram>` per `spec-core:naming-con
 
 The argument must match the regex `^[a-z][a-z0-9-]*$` (kebab-case starting with a lowercase letter, containing only lowercase letters, digits, and `-`). Abort with `Invalid <consumer_name> '<value>' — expected kebab-case matching ^[a-z][a-z0-9-]*$.` otherwise. This catches blank, snake_case, or PascalCase arguments before they produce hidden filenames or malformed marker lookups.
 
-### Step 2 — Read and validate the diagram
+### Step 2 — Read and validate the diagrams
 
-Read `<commands_diagram>`. Locate every Mermaid `classDiagram` block.
+Recover `<dir>` and `<stem>` from `<commands_diagram>`. Read `<commands_diagram>` and every sibling ops diagram `<dir>/<stem>.ops.*.md` (discovered by directory listing). Locate every Mermaid `classDiagram` block across all of them.
 
 **Do not strip `%% ...` line comments before parsing** — the messaging marker is a `%%` comment line and must survive Step 3.
 
-Abort with a one-sentence error if the diagram file has no `classDiagram` block.
+Abort with a one-sentence error if the commands diagram has no `classDiagram` block. An ops diagram with no `classDiagram` block is skipped silently. Zero ops diagrams is the normal case.
 
 ### Step 3 — Validate the messaging marker
 
-Within the union of `classDiagram` block bodies, scan for any line that matches the marker regex:
+Within the union of **all** source diagrams' `classDiagram` block bodies (commands + ops), scan for any line that matches the marker regex:
 
 ```
 ^\s*%%\s+Messaging\s+-\s+<consumer_name>\s*$
 ```
 
-where `<consumer_name>` is the literal argument value (kebab-case). Matching is case-sensitive on the consumer name itself; the literal token `Messaging` is also case-sensitive. A diagram may legitimately contain multiple `%% Messaging - <name>` markers for different consumers — that is normal; a single match for the requested `<consumer_name>` is sufficient.
+where `<consumer_name>` is the literal argument value (kebab-case). Matching is case-sensitive on the consumer name itself; the literal token `Messaging` is also case-sensitive. A diagram may legitimately contain multiple `%% Messaging - <name>` markers for different consumers — that is normal; a single match for the requested `<consumer_name>` in any source diagram is sufficient.
 
 **Error conditions — abort with an explicit message and do not write any file:**
-- **Zero matches**: print `No '%% Messaging - <consumer_name>' marker found inside any classDiagram block of <commands_diagram>.` and stop.
+- **Zero matches** across all source diagrams: print `No '%% Messaging - <consumer_name>' marker found inside any classDiagram block of <commands_diagram> or its sibling ops diagrams.` and stop.
 
 Do not abort on duplicate markers for the same consumer name — multiple identical markers are harmless.
 
@@ -121,7 +123,7 @@ Print a one-line summary: `Initialized <output> for consumer <snake_consumer_nam
 - Never overwrite an existing initialized file.
 - Never write any table other than Table 1.
 - Never invent a Consumer name — always use the `<consumer_name>` argument verbatim (kebab-case for filename / queue names, snake_case-converted for the Consumer name cell).
-- The `%% Messaging - <consumer_name>` marker must exist inside a `classDiagram` block — abort otherwise. The marker is the diagram's contract that the named consumer is owned by this diagram.
+- The `%% Messaging - <consumer_name>` marker must exist inside a `classDiagram` block of the commands diagram or one of its sibling ops diagrams — abort otherwise. The marker is the contract that the named consumer is owned by this aggregate.
 - All formatting (snake_case Consumer name, kebab-case queue names, `<svc>` derivation, em-dash convention for unused queues) MUST follow `messaging-spec:consumer-spec-template`.
 - `<svc>` is project-wide; every consumer spec generated against the same locations report must use the identical prefix.
 - `<svc>` is mechanically derived from `<pkg>` and not cross-checked against the project's `constants.py`. If the project's constants use a different prefix convention than `<pkg>` with `_service` stripped, edit Table 1 manually after init and adjust this agent's derivation rule (Step 5) to match.

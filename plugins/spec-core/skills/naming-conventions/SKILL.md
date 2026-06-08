@@ -55,6 +55,8 @@ For an aggregate stem `<stem>`, the Mermaid class diagrams have fixed names:
 
 `<op-name>` is a kebab-case discriminator matching `^[a-z][a-z0-9-]*$` and equals the kebab-case of the ops service class name (the unique braced class in the diagram), so `<dir>/order.ops.subject-tagging.md` declares `class SubjectTagging`. An aggregate may have any number of ops diagrams (zero, one, or many), each becoming one free-form orchestration application service. Both `<stem>` and `<op-name>` are dot-free, so the literal `.ops.` separator is unambiguous.
 
+Beyond `application-spec` (which generates the ops application service), the ops diagram is a read-only input to two downstream plugins: `messaging-spec` reads each `<stem>.ops.<op-name>.md` for `%% Messaging - <consumer>` handler-binding blocks (an ops method may handle an event), and `rest-api-spec` reads it for the ops service's public methods (each becomes a REST action endpoint). Both discover ops diagrams by globbing `<dir>/<stem>.ops.*.md`; an aggregate with zero ops diagrams leaves their behavior unchanged. Ops-diagram deltas reach those plugins' update flows through the shared `<dir>/<stem>.application/ops-updates.md` report (see *Cross-plugin reads* below).
+
 Examples for `<stem> = order`:
 
 ```
@@ -94,8 +96,9 @@ Several consumer orchestrators read the commands/queries delta reports owned by 
 |---|---|---|
 | `<dir>/<stem>.application/commands-updates.md` | `application-spec:commands-updates-detector` | `/application-spec:update-specs`, `/messaging-spec:update-specs`, and `/rest-api-spec:update-specs` — dispatching regen on commands-diagram deltas |
 | `<dir>/<stem>.application/queries-updates.md` | `application-spec:queries-updates-detector` | `/application-spec:update-specs` and `/rest-api-spec:update-specs` — dispatching regen on queries-diagram deltas (messaging-spec is command-side only) |
+| `<dir>/<stem>.application/ops-updates.md` | `application-spec:ops-updates-detector` | `/messaging-spec:update-specs` and `/rest-api-spec:update-specs` — dispatching regen on ops-diagram deltas (one aggregate-wide report covering every `<stem>.ops.<op-name>.md`) |
 
-The detectors are write-once-read-many producers; each consumer orchestrator re-invokes them at its own Step 0 to ensure freshness, then the producer overwrites the prior report. The cross-plugin dependency is deliberate, read-only, and unidirectional — the reports describe the application-service diagrams (`<stem>.commands.md`, `<stem>.queries.md`), and application-spec is the plugin that anchors those diagrams; application-spec never reads back. The three (and two) consumer orchestrators share one report rather than maintaining plugin-local detectors against the same diagram. See `notes/commands-queries-integration-approach.md` for the full rationale.
+The detectors are write-once-read-many producers; each consumer orchestrator re-invokes them at its own Step 0 to ensure freshness, then the producer overwrites the prior report. The cross-plugin dependency is deliberate, read-only, and unidirectional — the reports describe the application-service diagrams (`<stem>.commands.md`, `<stem>.queries.md`, and every `<stem>.ops.<op-name>.md`), and application-spec is the plugin that anchors those diagrams; application-spec never reads back. The consumer orchestrators (three for commands, two for queries, two for ops) share one report per axis rather than maintaining plugin-local detectors against the same diagram. See `notes/commands-queries-integration-approach.md` for the full rationale.
 
 ## File naming inside each plugin folder
 
@@ -121,6 +124,7 @@ The detectors are write-once-read-many producers; each consumer orchestrator re-
 | `updates.md` | `application-updates-writer` | Structured diff report (input to `/update-code`) |
 | `commands-updates.md` | `application-spec:commands-updates-detector` | Structured diff report of `<stem>.commands.md` — input to `application-spec:update-specs`, `messaging-spec:update-specs`, and `rest-api-spec:update-specs` (read cross-plugin; see *Cross-plugin reads* above) |
 | `queries-updates.md` | `application-spec:queries-updates-detector` | Structured diff report of `<stem>.queries.md` — input to `application-spec:update-specs` and `rest-api-spec:update-specs` (read cross-plugin; see *Cross-plugin reads* above) |
+| `ops-updates.md` | `application-spec:ops-updates-detector` | Structured diff report of every `<stem>.ops.<op-name>.md` (one aggregate-wide report) — input to `messaging-spec:update-specs` and `rest-api-spec:update-specs` (read cross-plugin; see *Cross-plugin reads* above) |
 | `commands.deps.md` | `commands-deps-writer` | Transient — deleted by `specs-merger` |
 | `commands.methods.md` | `commands-methods-writer` | Transient — deleted by `specs-merger` |
 | `queries.deps.md` | `queries-deps-writer` | Transient — deleted by `specs-merger` |
@@ -236,6 +240,7 @@ Once `<dir>` and `<stem>` are recovered, every other artifact path is built from
 | Application updates report | `<dir>/<stem>.application/updates.md` |
 | Application commands updates report | `<dir>/<stem>.application/commands-updates.md` |
 | Application queries updates report | `<dir>/<stem>.application/queries-updates.md` |
+| Application ops updates report | `<dir>/<stem>.application/ops-updates.md` |
 | Persistence command-repo spec | `<dir>/<stem>.persistence/command-repo-spec.md` |
 | REST API resource spec | `<dir>/<stem>.rest-api/spec.md` |
 | Messaging consumer spec | `<dir>/<stem>.messaging/<consumer_name>.md` |

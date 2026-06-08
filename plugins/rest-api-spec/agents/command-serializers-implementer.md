@@ -15,6 +15,7 @@ This agent does **not**:
 
 - Touch endpoints (`<api_pkg>/endpoints/...`), `<api_pkg>/__init__.py`, `containers.py`, `entrypoint.py`, or `constants.py`.
 - Process query endpoints (Table 2) or response-field tables (Table 4). Those belong to `@query-serializers-implementer`.
+- Process ops endpoints (Table 3o). Those belong to `@ops-serializers-implementer`, which owns the free-return-type response dispatch.
 - Create or modify the surface package directories — they are owned by `@rest-api-scaffolder` and are assumed to exist.
 - Generate pagination base modules (`result_set.py`, `paginated_result_metadata.py`) — those are query-side concerns.
 - Handle file-upload (multipart) command endpoints. Their request shape is not a `ConfiguredRequestSerializer` and requires manual handling — the agent processes them mechanically per Table 5 (which will not faithfully represent multipart inputs) and the developer must adjust.

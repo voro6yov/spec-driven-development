@@ -7,13 +7,14 @@ allowed-tools: Read, Bash, Agent
 
 You are a REST API spec **update** orchestrator. Given a domain diagram and its sibling commands/queries application-service diagrams, refresh the existing `<dir>/<stem>.rest-api/spec.md` in place — invoke the two app-service-axis update detectors, dispatch on the union of the three delta reports, re-run only the table writer(s) whose owned table is dirty (`resource-spec-initializer` → Table 1, `endpoint-tables-writer` → Tables 2/3, `response-fields-writer` → Table 4, `request-fields-writer` → Table 5, `parameter-mapping-writer` → Table 6), leave every other table byte-stable, and emit `<dir>/<stem>.rest-api/updates.md`. Do not rerun the full `/rest-api-spec:generate-specs` pipeline, do not touch the diagram files, and do not ask for confirmation before writing.
 
-This skill is the REST-API-side counterpart to `/update-specs` (domain), `/persistence-spec:update-specs`, and `/application-spec:update-specs`. Design rationale lives in `notes/spec-updater-approach.md`, `notes/update-types.md`, `notes/updates-report.md`, and `notes/commands-queries-integration-approach.md`; the load-bearing ideas are **(a)** every section of `spec.md` is a pure snapshot (no append-only-log analog), **(b)** `spec.md` is one file owned table-by-table by five writers, and **(c)** the three trigger axes (domain, commands-diagram, queries-diagram) reach different tables — domain reaches only Tables 4/5/6, while the app-service axis can reach Tables 1, 2/3, 4, 5, 6 — so the surgical unit is "the dirty table writer(s)" of the unioned axis triggers.
+This skill is the REST-API-side counterpart to `/update-specs` (domain), `/persistence-spec:update-specs`, and `/application-spec:update-specs`. Design rationale lives in `notes/spec-updater-approach.md`, `notes/update-types.md`, `notes/updates-report.md`, and `notes/commands-queries-integration-approach.md`; the load-bearing ideas are **(a)** every section of `spec.md` is a pure snapshot (no append-only-log analog), **(b)** `spec.md` is one file owned table-by-table by five writers, and **(c)** the four trigger axes (domain, commands-diagram, queries-diagram, ops-diagram) reach different tables — domain reaches only Tables 4/5/6, while the app-service axes (commands/queries/ops) can reach Tables 1, 2/3/3o, 4, 5, 6 — so the surgical unit is "the dirty table writer(s)" of the unioned axis triggers.
 
-The orchestrator consumes three update reports — one per axis — and unions their dispatch signals:
+The orchestrator consumes four update reports — one per axis — and unions their dispatch signals:
 
 - **Domain axis** — `<dir>/<stem>.domain/updates.md`, produced by `domain-spec:updates-detector` (expected on disk; not invoked here).
 - **Commands-diagram axis** — `<dir>/<stem>.application/commands-updates.md`, produced by `application-spec:commands-updates-detector` (invoked at Step 0 below).
 - **Queries-diagram axis** — `<dir>/<stem>.application/queries-updates.md`, produced by `application-spec:queries-updates-detector` (invoked at Step 0 below).
+- **Ops-diagram axis** — `<dir>/<stem>.application/ops-updates.md`, produced by `application-spec:ops-updates-detector` (invoked at Step 0 below). Every public ops method is a REST action endpoint (Table 3o), so an ops method add/remove/signature change or an ops surface-marker change reaches Tables 3o + 4/5/6 exactly as a commands/queries `methods` / `surface-markers` change reaches Tables 2/3 + 4/5/6. The ops report is one aggregate-wide file; schema owned by `application-spec:ops-updates-report-template`.
 
 The orchestrator never re-diffs any diagram itself.
 
@@ -34,7 +35,8 @@ The two app-service-axis detector reports live under `<dir>/<stem>.application/`
 | `<dir>/<stem>.queries.md` | input — hand-authored queries application-service diagram (must already exist) | not modified |
 | `<dir>/<stem>.application/commands-updates.md` | input — commands-diagram delta report | produced by `application-spec:commands-updates-detector` at Step 0 |
 | `<dir>/<stem>.application/queries-updates.md` | input — queries-diagram delta report | produced by `application-spec:queries-updates-detector` at Step 0 |
-| `<plugin_dir>/spec.md` | the resource spec being updated (must already exist) | `resource-spec-initializer` (Table 1) / `endpoint-tables-writer` (Tables 2/3) / `response-fields-writer` (Table 4) / `request-fields-writer` (Table 5) / `parameter-mapping-writer` (Table 6) — only the dirty one(s) |
+| `<dir>/<stem>.application/ops-updates.md` | input — ops-diagram delta report (one aggregate-wide report) | produced by `application-spec:ops-updates-detector` at Step 0 |
+| `<plugin_dir>/spec.md` | the resource spec being updated (must already exist) | `resource-spec-initializer` (Table 1) / `endpoint-tables-writer` (Tables 2/3/3o) / `response-fields-writer` (Table 4) / `request-fields-writer` (Table 5) / `parameter-mapping-writer` (Table 6) — only the dirty one(s) |
 | `<plugin_dir>/updates.md` | output — REST API delta report | `rest-api-updates-writer` |
 
 `<domain_diagram>`, `<commands_diagram>`, and `<queries_diagram>` are read by the invoked agents; this orchestrator never modifies them. Every agent derives `<dir>` / `<stem>` from `$ARGUMENTS[0]` per `spec-core:naming-conventions` — pass `$ARGUMENTS[0]` verbatim as the prompt to each.
@@ -113,7 +115,11 @@ Each detector writes its own report (`<dir>/<stem>.application/commands-updates.
 
 If either detector hard-fails, abort the orchestrator with that detector's `ERROR:` line repeated verbatim. The other detector's output (if it completed) is left on disk for the next run; no rollback is performed. The same `/rest-api-spec:generate-specs <domain_diagram>` recovery path the detectors themselves direct to applies here.
 
-Wait for both detectors to return successfully before proceeding to Step 1.
+Wait for both detectors to return successfully before proceeding to the ops detector below.
+
+#### 0g-ops. Invoke the ops-diagram detector (always — even under `--detectors-fresh`)
+
+Invoke `application-spec:ops-updates-detector` with prompt `$ARGUMENTS[0]`. **This runs on both the default and the cascade (`--detectors-fresh`) paths**: `--detectors-fresh` is the application-spec orchestrator's promise that it produced the *commands/queries* axis reports — it does **not** produce the ops report, so this skill produces it here regardless. The detector fast-paths on a combined-digest match when no ops diagram changed and is a true no-op (writes `_None_`) when the aggregate has zero ops diagrams. It writes `<dir>/<stem>.application/ops-updates.md` or hard-fails with an `ERROR:` line; on hard-fail, abort with that line verbatim. Wait for it to return before proceeding to Step 1.
 
 ### Step 1 — Preflight (per-axis-scoped)
 
@@ -140,16 +146,22 @@ Wait for both detectors to return successfully before proceeding to Step 1.
 - **`queries.degraded_baseline`** — whether the `## Summary` block contains a line beginning `_warning: HEAD `.
 - **`queries.affected_categories`** — bullets under `## Affected Categories`. The literal body `_None._` means empty.
 
-Then scan the two application-service diagrams for the *referenced-type set* (used by domain-axis gate 1.dom.d). `Read` `<dir>/<stem>.commands.md` and `<dir>/<stem>.queries.md`; walk each `<Resource>Commands` / `<Resource>Queries` class body (tolerating `%% <name>` surface markers per `rest-api-spec:surface-markers` — they do not affect which method lines exist) and extract every PascalCase type token, after stripping `| None`, `list[...]`, `dict[..., ...]`, and `Literal[...]` wrappers:
+**Ops-diagram axis** (from `<dir>/<stem>.application/ops-updates.md`; schema owned by `application-spec:ops-updates-report-template`). The ops report aggregates per-service `## Service:` blocks, but for REST dispatch only the **aggregate-wide** `## Affected Categories` footer and the degraded warning matter:
+
+- **`ops.degraded_baseline`** — whether the `## Summary` block contains a line beginning `_warning: HEAD ` (a degraded ops diagram baseline).
+- **`ops.affected_categories`** — bullets under `## Affected Categories`. The literal body `_None._` means empty (zero ops diagrams, or no ops diagram changed). The only categories that drive the REST spec are `methods` (an ops method added / removed / signature-changed → Table 3o rows + Tables 4/5/6) and `surface-markers` (ops method moved between surfaces → per-surface section set). The others (`dependencies`, `raised-exceptions`, `external-interfaces`, `messaging-markers`) are ignored.
+
+Then scan the two application-service diagrams **and every ops diagram** for the *referenced-type set* (used by domain-axis gate 1.dom.d). `Read` `<dir>/<stem>.commands.md`, `<dir>/<stem>.queries.md`, and every `<dir>/<stem>.ops.*.md`; walk each `<Resource>Commands` / `<Resource>Queries` / ops class body (tolerating `%% <name>` surface markers) and extract every PascalCase type token, after stripping `| None`, `list[...]`, `dict[..., ...]`, and `Literal[...]` wrappers:
 
 - **`commands_referenced_types`** — every PascalCase token appearing as a *parameter* type on a public `<Resource>Commands` method.
 - **`queries_referenced_types`** — every PascalCase token appearing as a *return* type or a *parameter* type on a public `<Resource>Queries` method.
+- **`ops_referenced_types`** — every PascalCase token appearing as a *return* type or a *parameter* type on a public ops method (ops endpoints serialize free return types and accept body params, so both sides are REST-referenced).
 
 These are the *direct* references. Transitive references (a referenced type whose field is itself a custom type that changed) are not computed here — `response-fields-writer` / `request-fields-writer` / `parameter-mapping-writer` resolve them recursively, and the conservative dispatch in Step 2 re-runs the relevant writer whenever *any* `data-structures` / `value-objects` change is present, so a missed transitive reference still gets picked up. (A *transitively*-referenced renamed/removed type that the Step-1 scan misses can still surface as a runtime writer abort in Step 3 — see *Abort-and-reconcile (runtime)* there.)
 
 The structural hard-fails the app-service-axis detectors themselves enforce (anchor missing/renamed, multi-anchor, stereotype change inside the app-service diagram) never reach the orchestrator — the detector aborts at Step 0 and the orchestrator surfaces its `ERROR:` verbatim. The orchestrator only sees a `_warning:_` on an app-service axis when HEAD was degraded.
 
-Apply the gates below per axis. Each gate sets a per-axis disable flag (`domain_axis_disabled`, `commands_axis_disabled`, `queries_axis_disabled`) and emits a `WARNING:` line describing what was skipped; the run continues if any other axis is still enabled. Only the aggregated 1.all gate aborts the orchestrator.
+Apply the gates below per axis. Each gate sets a per-axis disable flag (`domain_axis_disabled`, `commands_axis_disabled`, `queries_axis_disabled`, `ops_axis_disabled`) and emits a `WARNING:` line describing what was skipped; the run continues if any other axis is still enabled. Only the aggregated 1.all gate aborts the orchestrator.
 
 #### 1.dom — Domain-axis gates
 
@@ -160,7 +172,7 @@ Each gate **disables only the domain axis** and emits a `WARNING:` (not `ERROR:`
 | 1.dom.a | `domain.degraded_baseline` true | Set `domain_axis_disabled = true`; emit `WARNING: domain axis disabled — HEAD baseline is degraded (multiple or missing Mermaid blocks at HEAD per <stem>.domain/updates.md). The surgical REST API updater cannot operate against a degraded baseline. Run /rest-api-spec:generate-specs <domain_diagram> to regenerate the domain-driven half from scratch.` |
 | 1.dom.b | `domain.stereotype_changed` non-empty | Set `domain_axis_disabled = true`; emit `WARNING: domain axis disabled — class(es) <names> have stereotype changes in <stem>.domain/updates.md. A stereotype change moves a class to a different pattern catalog (e.g. a value object becoming a child entity), so a referenced type is no longer the kind of thing the REST spec assumed; this subsumes the aggregate-root case. Run /rest-api-spec:generate-specs <domain_diagram> to regenerate from scratch.` (surface every offending name) |
 | 1.dom.c | Any bullet in `domain.removed_classes` has stereotype `<<Aggregate Root>>` | Set `domain_axis_disabled = true`; emit `WARNING: domain axis disabled — aggregate root <ClassName> is listed under Class Lifecycle → Removed in <stem>.domain/updates.md. The resource loses its anchor (Table 1's Resource name / Plural / Router prefix and every Domain Ref in Tables 2/3). An aggregate-root rename — reported as removed (old) + added (new) — also moves all three diagram filenames (<stem>.md, <stem>.commands.md, <stem>.queries.md) and the <stem>.rest-api/ folder: a coordinated multi-file rename the updater cannot perform. Rename the diagrams and the <stem>.rest-api/ folder, then run /rest-api-spec:generate-specs <domain_diagram>.` |
-| 1.dom.d | `domain.removed_or_renamed_data_types ∩ (commands_referenced_types ∪ queries_referenced_types)` non-empty | Set `domain_axis_disabled = true`; emit `WARNING: domain axis disabled — data type(s) <names> were removed or renamed in <stem>.domain/updates.md but are still referenced by a method return/parameter type in <stem>.commands.md / <stem>.queries.md. response-fields-writer / request-fields-writer / parameter-mapping-writer would abort with "Cannot resolve …". Reconcile the commands/queries diagram — point the method's type token at the new name, or drop the reference — then re-run /rest-api-spec:update-specs <domain_diagram>. (The rest of the spec is fine; this is not a from-scratch rebuild.)` (surface every offending name) |
+| 1.dom.d | `domain.removed_or_renamed_data_types ∩ (commands_referenced_types ∪ queries_referenced_types ∪ ops_referenced_types)` non-empty | Set `domain_axis_disabled = true`; emit `WARNING: domain axis disabled — data type(s) <names> were removed or renamed in <stem>.domain/updates.md but are still referenced by a method return/parameter type in <stem>.commands.md / <stem>.queries.md / a <stem>.ops.*.md. response-fields-writer / request-fields-writer / parameter-mapping-writer would abort (a query DTO) or degrade to a TODO (an ops return). Reconcile the offending diagram — point the method's type token at the new name, or drop the reference — then re-run /rest-api-spec:update-specs <domain_diagram>. (The rest of the spec is fine; this is not a from-scratch rebuild.)` (surface every offending name) |
 
 Only one of 1.dom.a–1.dom.d fires per run (whichever is first); evaluate in order and stop at the first match. Unlike the previous design where 1.dom.d aborted the orchestrator wholesale, it now only disables the domain axis — the commands/queries-axis dispatch can still proceed if those axes have triggers.
 
@@ -182,19 +194,29 @@ Each gate **disables only the queries axis** and emits a `WARNING:`.
 |---|---|---|
 | 1.qry.a | `queries.degraded_baseline` true | Set `queries_axis_disabled = true`; emit `WARNING: queries-diagram axis disabled — HEAD baseline is degraded (multiple or missing Mermaid blocks at HEAD per <stem>.application/queries-updates.md). Queries-diagram-driven dispatch is skipped for this run.` |
 
+#### 1.ops — Ops-axis gates
+
+Each gate **disables only the ops axis** and emits a `WARNING:`.
+
+| Gate | Trigger | Action |
+|---|---|---|
+| 1.ops.a | `ops.degraded_baseline` true | Set `ops_axis_disabled = true`; emit `WARNING: ops-diagram axis disabled — an ops diagram's HEAD baseline is degraded (multiple or missing Mermaid blocks at HEAD per <stem>.application/ops-updates.md). Ops-diagram-driven dispatch is skipped for this run.` |
+
+(The ops detector itself hard-fails on an ops service-class rename or multi-anchor — those never reach the orchestrator. When the aggregate has zero ops diagrams the ops report is a `_None._` no-op and this gate never fires.)
+
 #### 1.all — Total-abort gate
 
-If `domain_axis_disabled` AND `commands_axis_disabled` AND `queries_axis_disabled` are all true, abort the orchestrator with:
+If `domain_axis_disabled` AND `commands_axis_disabled` AND `queries_axis_disabled` AND `ops_axis_disabled` are all true, abort the orchestrator with:
 
 ```
-ERROR: all three input axes are disabled by preflight gates (see WARNING lines above). The orchestrator
+ERROR: all four input axes are disabled by preflight gates (see WARNING lines above). The orchestrator
 cannot regenerate any table. Resolve the underlying conditions or run /rest-api-spec:generate-specs
 <domain_diagram> to rebuild the REST API spec from scratch.
 ```
 
 No writes; no downstream agents are invoked.
 
-### Step 2 — Dispatch tier (three-way union)
+### Step 2 — Dispatch tier (four-way union)
 
 Compute the per-writer dirty flags from the values captured in Step 1, treating disabled axes as contributing the empty set.
 
@@ -227,8 +249,13 @@ commands_axis_triggers = ∅ if commands_axis_disabled else
 queries_axis_triggers  = ∅ if queries_axis_disabled else
     set(queries.affected_categories)  & {"methods", "surface-markers"}
 
-app_service_triggers = commands_axis_triggers ∪ queries_axis_triggers
+ops_axis_triggers      = ∅ if ops_axis_disabled else
+    set(ops.affected_categories)      & {"methods", "surface-markers"}
+
+app_service_triggers = commands_axis_triggers ∪ queries_axis_triggers ∪ ops_axis_triggers
 ```
+
+The ops axis contributes the same two trigger categories as commands/queries: an ops `methods` change adds/removes/re-signatures a Table 3o row (and its Tables 4/5/6 entries); an ops `surface-markers` change relocates an ops endpoint between surfaces (and may add/drop an ops-only surface, which changes Table 1's `Surfaces` row). Because `endpoint-tables-writer` owns Tables 2 **and** 3o, and the Tables 4/5/6 writers process ops endpoints, folding `ops_axis_triggers` into `app_service_triggers` re-runs exactly the right writers with no new dirty flag.
 
 The other app-service-axis categories (`dependencies`, `raised-exceptions`, `external-interfaces`, `external-domain-events`, `messaging-markers`) never reach the REST spec — they drive `/application-spec:update-specs` and `/messaging-spec:update-specs` instead, and this orchestrator silently ignores them (no contribution to any dirty flag, no log line).
 
@@ -240,7 +267,8 @@ table_1_dirty            = ("surface-markers" in app_service_triggers)
 
 tables_2_3_dirty         = ("methods" in app_service_triggers)
                         or ("surface-markers" in app_service_triggers)
-                           # endpoint inventory + per-surface section set
+                           # endpoint inventory (Tables 2, 3, AND 3o) + per-surface section set
+                           # endpoint-tables-writer owns Table 3o, so this flag also re-runs ops endpoints
 
 response_fields_dirty    = domain_response_fields_dirty
                         or ("methods" in app_service_triggers)
@@ -261,7 +289,8 @@ Per-category mapping to REST writers (cross-reference `notes/commands-queries-in
 |---|---|---|
 | `methods` | commands | `endpoint-tables-writer` (Table 3 add/remove rows); Tables 4/5/6 writers (refresh affected endpoint) |
 | `methods` | queries | `endpoint-tables-writer` (Table 2 add/remove rows); Tables 4/5/6 writers (refresh affected endpoint) |
-| `surface-markers` | either | `resource-spec-initializer` (Table 1 `Surfaces` row); `endpoint-tables-writer` (materialize / drop `## Surface:` sections; relocate endpoints between surfaces); Tables 4/5/6 writers (per-surface scoping) |
+| `methods` | ops | `endpoint-tables-writer` (Table 3o add/remove rows); Tables 4/5/6 writers (refresh affected ops endpoint) |
+| `surface-markers` | any | `resource-spec-initializer` (Table 1 `Surfaces` row); `endpoint-tables-writer` (materialize / drop `## Surface:` sections; relocate endpoints between surfaces); Tables 4/5/6 writers (per-surface scoping) |
 
 **Why `surface-markers` fans out to nearly every writer.** A surface added (S1) materializes a brand-new `## Surface: <name>` section in `spec.md` — every table in that section (Tables 2/3 + per-endpoint Tables 4/5/6) must be filled. A surface removed (S2) symmetrically drops the section. A method moved between surfaces (S3) relocates its row in Tables 2/3 *and* its per-endpoint Tables 4/5/6 entries. This is by design: writer ownership of `## Surface: <name>` sections is monolithic — when a surface appears or disappears, all surface-scoped writers run.
 
@@ -284,7 +313,7 @@ For each dirty writer, **in this order**, invoke it via the `Agent` tool with pr
 | Order | Writer | When | Owns |
 |---|---|---|---|
 | 1 | `rest-api-spec:resource-spec-initializer` | `table_1_dirty` | Table 1 `Surfaces` row; per-surface `## Surface:` H2 headings (materialization / removal) |
-| 2 | `rest-api-spec:endpoint-tables-writer` | `tables_2_3_dirty` | Tables 2 (Query Endpoints) + 3 (Command Endpoints) per surface |
+| 2 | `rest-api-spec:endpoint-tables-writer` | `tables_2_3_dirty` | Tables 2 (Query Endpoints) + 3 (Command Endpoints) + 3o (Ops Endpoints) per surface |
 | 3 | `rest-api-spec:response-fields-writer` | `response_fields_dirty` | Table 4 (Response Fields) per surface per endpoint |
 | 4 | `rest-api-spec:request-fields-writer` | `request_fields_dirty` | Table 5 (Request Fields) per surface per endpoint |
 | 5 | `rest-api-spec:parameter-mapping-writer` | `parameter_mapping_dirty` | Table 6 (Parameter Mapping) per surface per endpoint |
@@ -315,7 +344,7 @@ This step runs **on every successful run**, including the Tier-3 no-op early-exi
 
 Print one summary line. The shape depends on the dispatch outcome.
 
-Build `<axis_summary>` first — a comma-separated list (in canonical order: `domain`, `commands-diagram`, `queries-diagram`) of axes that contributed at least one trigger to any dirty flag. An axis whose contribution was the empty set (either disabled, or its triggers all resolved to empty) does not appear in `<axis_summary>`. Use ` + ` (space-plus-space) as the separator (e.g. `domain + commands-diagram`).
+Build `<axis_summary>` first — a comma-separated list (in canonical order: `domain`, `commands-diagram`, `queries-diagram`, `ops-diagram`) of axes that contributed at least one trigger to any dirty flag. An axis whose contribution was the empty set (either disabled, or its triggers all resolved to empty) does not appear in `<axis_summary>`. Use ` + ` (space-plus-space) as the separator (e.g. `domain + ops-diagram`).
 
 - **Tier 3 no-op**:
   - If `domain.orphan_prose` is true: `No REST API spec updates required. Orphan prose changes detected — review <stem>.domain/updates.md (a bounded-context title rename, if any, is byte-neutral for the REST spec). Emitted <stem>.rest-api/updates.md.`

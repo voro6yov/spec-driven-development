@@ -63,18 +63,21 @@ If `updates.md` has every section after `## Summary` rendered `_no changes_` **a
 
 ### Step 2 — Build the spec endpoint index
 
-From `spec.md`, parse Table 1 + every `## Surface: <name>` section. For each surface, for each Table 2 row and Table 3 row build a record:
+From `spec.md`, parse Table 1 + every `## Surface: <name>` section. For each surface, for each Table 2 row, Table 3 row, **and Table 3o row** build a record:
 
 ```
 endpoint_index[(surface, http, path)] = {
   operation,
   domain_ref,
-  source_table: 2 | 3,           # query vs command
+  source_table: 2 | 3 | "3o",    # query | command | ops
   table4: { binary: bool, has_nested: bool, has_pagination: bool, has_polymorphic: bool, has_query_params: bool },
   table5: { has_body: bool, has_bytes_field: bool, has_nested: bool },
   table6_rows: [{left, source}, ...],
+  ops_resp,                      # only when source_table == "3o": one of "none" | "id_only" | "dto" | "dto_list" | "scalar" | "todo" (from the Table 4 ops sub-block — see § ops_resp detection)
 }
 ```
+
+**ops_resp detection** (Table 3o rows only): read the endpoint's Table 4 sub-block — `*No response body — returns `204 No Content`.*` → `none`; a single `id`/`<Resource>.id` row → `id_only`; `*Response fields could not be resolved …*` → `todo`; a single `value` row → `scalar`; a `*List response …*` note → `dto_list`; any other resolved field table → `dto`.
 
 Detection rules (see `rest-api-spec:endpoint-io-template` for full grammar):
 
@@ -101,7 +104,7 @@ Walk `updates.md`'s `## Affected Artifacts` table row-by-row. For each row, emit
 
 | Path pattern | `kind` | Resolved endpoint(s) |
 |---|---|---|
-| `api/serializers/<surface>/<aggregate>/<operation>.py` | `query-serializer` if the matching `endpoint_index` row's `source_table == 2`, else `command-serializer` | single endpoint `(surface, operation)` — match by `<operation>` to Table 2/3 |
+| `api/serializers/<surface>/<aggregate>/<operation>.py` | `query-serializer` if the matching `endpoint_index` row's `source_table == 2`; `ops-serializer` if `source_table == "3o"`; else `command-serializer` | single endpoint `(surface, operation)` — match by `<operation>` to Table 2/3/3o |
 | `api/endpoints/<surface>/<plural>.py` | `endpoint-module` | every endpoint of `<surface>` mentioned in any per-section delta map entry |
 | `api/serializers/<surface>/<aggregate>/__init__.py` | `serializer-aggregator` | (collateral) |
 | `api/endpoints/<surface>/__init__.py` | `endpoint-surface-aggregator` | (collateral) |
@@ -116,6 +119,7 @@ For each artifact, compute its **pattern (skill) list** by inline kind-dispatch:
 
 - **`query-serializer`** — start with `rest-api-spec:response-serializers`. Add `rest-api-spec:query-params` when the endpoint's `table4.has_query_params` is true. Add `rest-api-spec:nested-response-serializers` when `table4.has_nested`. Add `rest-api-spec:pagination-serializers` AND `rest-api-spec:result-set-serializer` when `table4.has_pagination`. Add `rest-api-spec:polymorphic-response-serializers` when `table4.has_polymorphic`. Add `rest-api-spec:static-response-serializer` if the operation matches a closed-Literal response (heuristic: every response field has a `Literal[…]` type — emit defensively; Phase 2 ignores the skill when not actually static). If the row's resolved endpoint is the binary-streaming kind (`table4.binary`) **and** `table5.has_body` is false: replace the whole list with `[]` and append `notes` "binary endpoint — no serializer module to emit; row exists in updates report but Phase 2 should skip module emission".
 - **`command-serializer`** — start with `rest-api-spec:request-serializers`. Add `rest-api-spec:nested-response-serializers` when `table5.has_nested` (same nested-class machinery covers request bodies). Add `rest-api-spec:simple-command-response` when the endpoint's response is the id-only form (heuristic: `table4` has exactly one field whose Type is `str` and Source is `<aggregate>.id`). Add `rest-api-spec:literal-type-fields` when any Table 5 row has a `Literal[…]` Type.
+- **`ops-serializer`** — owned by `@ops-serializers-implementer` (free-return dispatch). Start with `rest-api-spec:request-serializers` (request side, when `table5.has_body`) and add `rest-api-spec:nested-response-serializers` when `table5.has_nested`. Then add the response-side skill(s) per `ops_resp`: `none` → none (204, no response module); `id_only` → `rest-api-spec:simple-command-response`; `dto` → `rest-api-spec:response-serializers` (+ `…:nested-response-serializers` when `table4.has_nested`); `dto_list` → `rest-api-spec:result-set-serializer` (+ `…:pagination-serializers` when `table4.has_pagination`); `scalar` → `rest-api-spec:static-response-serializer`; `todo` → none, and append `notes` "ops return type unresolved — Phase 2 emits a TODO response placeholder".
 - **`endpoint-module`** — start with `rest-api-spec:endpoints` (always present, the base template). Per resolved endpoint in the surface, add the kind-specific skill: `rest-api-spec:file-upload-endpoint` (if `source_table == 3` and `table5.has_bytes_field`), `rest-api-spec:nested-resource-endpoints` (path contains ≥2 `{…}` placeholders), `rest-api-spec:command-action-endpoint` (HTTP ∈ {POST, PATCH, PUT} AND path matches `/\{id\}/[a-z-]+(/[a-z-]+)*` — exactly one placeholder followed by static segments). Plain endpoints contribute no extra skill beyond the base. The brief lists the union across all touched endpoints in the surface.
 - **`serializer-aggregator` / `endpoint-surface-aggregator` / `endpoint-root-aggregator` / `serializer-surface-aggregator`** — `patterns = []`. Append `notes` naming the owning agent:
   - `serializer-aggregator` (per-aggregate `api/serializers/<surface>/<aggregate>/__init__.py`) — `"regen owned jointly by @query-serializers-implementer and @command-serializers-implementer; whichever fires last refreshes the star-aggregator"`. Both implementers (re)write this file because it re-exports both query- and command-side serializers for the same aggregate.

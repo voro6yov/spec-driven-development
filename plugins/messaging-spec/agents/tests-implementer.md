@@ -12,6 +12,8 @@ You are a messaging tests implementer. Given a `<commands_diagram>`, a `<consume
 
 The agent is **append-only and idempotent**: existing test functions are preserved byte-identical; only missing ones are added. Per-handler scenario dispatch is fixed at one scenario — `__success` — per the design choice that minimal call-only tests document the contract while leaving assertion authoring to the user.
 
+**Two handler kinds.** A Table 2 row's `Command Class` is either a `<AggregateRoot>Commands` class (the full aggregate-routed path described below) or a **free-form ops orchestration service** (no `Commands` suffix). The agent classifies each row by `<CommandClass>.endswith("Commands")` and renders ops rows through a **simpler smoke-test path** (see [§ Ops-handler rows](#ops-handler-rows)): an ops service may touch zero or several aggregates and return a free type, so the aggregate-fixture / precondition / `add_<plural>` / body-resolution machinery (Steps 4a, 4e, 5, and rules 1–5b of 7c) does **not** apply. The ops smoke test builds the event with type-stub field values, arms any configurable-seed fakes the ops service consumes (Step 4g, reused unchanged), invokes the handler, and asserts nothing — the handler-doesn't-raise contract is the success condition, identical to the commands path. Deeper ops-aware test synthesis (multi-aggregate state, return-value assertions) is left to the author. Everything below describes the **commands-row** path unless a step is explicitly marked for ops rows.
+
 The `__success` scenario's success contract is **"the handler does not raise."** To deliver that green-by-default the agent goes beyond type-correct stubs and actively avoids the three data artefacts that make a well-behaved handler raise:
 
 1. **Null forwarding** — a fixture attribute that is declared optional may be `None` in the selected fixture; forwarding it into a domain factory that requires a value raises `IllegalArgument`. Step 5 detects optional aggregate attributes and Step 7c declines to source event values from them (falls through to a concrete literal instead).
@@ -112,9 +114,15 @@ For every `<EventName>` in `<rows>`:
 
 For each entry `i` in `<rows>` (in source order), compute the bindings used by Step 7's render. All derivations are mechanical and deterministic.
 
-**4a. Command-aggregate name `<command_aggregate>`.**
+**4-pre. Classify the handler kind `<is_ops_row>`.**
 
-The `<CommandClass>` cell from Table 2 must end with the literal suffix `Commands`. Abort with `ERROR: Command Class '<CommandClass>' in Table 2 of <consumer_spec_file> does not end with 'Commands' — refusing to derive aggregate.` otherwise.
+Bind `<is_ops_row>` = `True` iff the `<CommandClass>` cell does **not** end with the literal suffix `Commands` (a free-form ops orchestration service class). When `<is_ops_row>` is `True`, skip steps **4a** (command-aggregate / aggregate-fixture / plural), **4e** (precondition flag — an ops handler has no `add_<plural>` precondition; bind `<has_precondition>` = `False`, `<aggregate_fix>` = `None`, `<add_fix>` = `None`), and the entire aggregate-attribute discovery (Step 5) for this row. Steps **4b** (source snake), **4c** (handler name), **4d** (test name), **4f** (event-class import), and **4g** (fake arming) apply to **both** kinds. Render the ops row via [§ Ops-handler rows](#ops-handler-rows) in Step 7.
+
+For an ops row, bind `<op_snake>` = snake_case(`<CommandClass>`) (the same `<op_snake>` DI key `application-spec` registers, used in place of `<command_aggregate>` wherever Step 4g and Step 8 key on the handler class).
+
+**4a. Command-aggregate name `<command_aggregate>`** *(commands rows only — skipped when `<is_ops_row>`)*.
+
+The `<CommandClass>` cell from Table 2 ends with the literal suffix `Commands` (guaranteed for commands rows by 4-pre; ops rows never reach here).
 
 Strip the trailing `Commands` and apply the PascalCase → snake_case rule:
 
@@ -230,6 +238,8 @@ The agent does **not** verify that the event class itself is exported from the m
 
 Run **once per distinct `<command_aggregate>`** across `<rows>` (the result is shared across every test for that aggregate). The goal is to compute `<fake_arms>[<command_aggregate>]` = an ordered list of `(<fixture_name>, <setter_name>, <default_expr>, <import_line>)` arming tuples that Step 7a injects as fixtures and Step 7c emits as `set_<m>_return(...)` calls before the handler invocation.
 
+**Ops rows.** This step applies to ops rows unchanged except for three substitutions: (a) the cache key is `<op_snake>` (snake_case of the ops class) instead of `<command_aggregate>` — bind `<fake_arms>[<op_snake>]`; (b) `<command_service>` (4g-i) is the ops class verbatim, with **no** `<AggregateRoot>` strip (an ops service is not aggregate-named); (c) skip source-1 default harvest in 4g-iv (there is no `test_<command_aggregate>_commands.py` for an ops service) and resolve defaults from source 2 (synthesize from the return type's factory) or skip the setter with the source-3 warning. The services-report harvest (4g-ii) finds ops services because `services-finder` lists every application-service class — including ops classes — in each service's `Consumers`, so an ops service that injects a configurable-seed fake is discovered and armed exactly like a `Commands` service.
+
 Every test for the aggregate arms the **full** set — the agent does not analyze which fake a specific handler method actually calls. Over-arming is harmless (a setter seed a handler never reads simply goes unused, and the autouse fixture clears it next test) and it guarantees green for whichever handler does call the fake; the alternative — per-handler call-graph analysis of the application service — is not worth the added fragility.
 
 This closes the **unconfigured-fake** failure: a handler whose application service calls a configurable-seed domain-service fake (`application-spec:fake-implementations` — raises `NotImplementedError` until armed) would otherwise fail the "handler does not raise" contract, because the autouse override fixtures (`application-spec:fake-override-fixtures`) reset every fake to its unconfigured state before each test.
@@ -317,9 +327,54 @@ Apply the rules from `messaging-spec:messaging-handler-test-rules` exactly:
 - No mocking of the application layer (Rule: "No Mocking Application Layer").
 - Use fixtures only — never construct or persist domain objects inside the test body.
 
-For each entry `i` in `<rows>` (source order), render one test function block.
+For each entry `i` in `<rows>` (source order), render one test function block. **Dispatch on `<is_ops_row>` (Step 4-pre):** a commands row renders via 7a–7e below; an ops row renders via [§ Ops-handler rows](#ops-handler-rows). Both kinds share `make_event_envelope` construction, Step 6's event-field iteration for the constructor kwargs, Step 4g fake-arming, Step 7d (no assertions), and Step 8 file composition.
 
-#### 7a. Function signature
+<a id="ops-handler-rows"></a>
+#### Ops-handler rows
+
+When `<is_ops_row>` is `True` (the handler targets a free-form ops orchestration service), render a **smoke test** — there is no local aggregate to seed, so the aggregate-fixture, precondition, `add_<plural>`, and body-resolution rules (7a items 3–4, 7b, and 7c rules 1–5b) do not apply.
+
+**Signature.** Positional fixtures in order: `make_event_envelope`, `<handler_name>`, then the distinct fake fixtures from `<fake_arms>[<op_snake>]` (Step 4g, services-report order). No `<aggregate_fix>`, no `<add_fix>`. Apply the same 100-char line-wrap rule as 7a.
+
+```python
+def <test_name>(make_event_envelope, <handler_name>{, <fake_fixtures>}):
+```
+
+**GIVEN comment.** A single line: `# GIVEN <op_snake> collaborators configured` (when `<fake_arms>[<op_snake>]` is non-empty) or `# GIVEN an event for <op_snake>` (when there are no fakes to arm).
+
+**Body.** Build the event via `make_event_envelope`, iterating Step 6's harvested `<event_fields>[<EventName>]` (every declared dataclass field, source order). For each field emit a **type-stub literal** via the Step 7c **rule 6** type-stub table keyed on `<type_expr>` (ops rows have no `<aggregate_fix>`, so rules 1–5b are skipped wholesale — every field resolves to its type stub). Append the trailing comment `# TODO: <event_attr> stubbed (ops smoke test — supply a real value)` to each stubbed kwarg. Then emit the Step 4g arming lines (if any), one blank line on each side, then the handler call. No assertions (7d).
+
+```python
+    envelope = make_event_envelope(
+        <EventName>(
+            <field_1>=<stub_1>,  # TODO: <field_1> stubbed (ops smoke test — supply a real value)
+            ...
+        ),
+    )
+
+    <fixture_name>.<setter_name>(<default_expr>)
+
+    <handler_name>(envelope)
+```
+
+**Worked render.** For an ops row with `<EventName>` = `RulesPublished` (`external`), `<CommandClass>` = `SubjectTagging`, `<CommandMethod>` = `tag_subjects`, `<op_snake>` = `subject_tagging`, Step 6 harvest `[("rules", "list[str]"), ("tenant_id", "str")]`, and no consumed fakes:
+
+```python
+def test_rules_published_handler__success(make_event_envelope, rules_published_handler):
+    # GIVEN an event for subject_tagging
+    envelope = make_event_envelope(
+        RulesPublished(
+            rules=[],  # TODO: rules stubbed (ops smoke test — supply a real value)
+            tenant_id="test",  # TODO: tenant_id stubbed (ops smoke test — supply a real value)
+        ),
+    )
+
+    rules_published_handler(envelope)
+```
+
+Every ops-row stub is reported in Step 9 as `WARNING: <test_name>: field '<event_attr>' stubbed (ops smoke test) — supply a real value if the test fails.`
+
+#### 7a. Function signature *(commands rows)*
 
 The test function takes positional pytest fixtures in this canonical order, separated by `, `:
 
@@ -623,7 +678,7 @@ Existing `__init__.py` files (regardless of content) are never overwritten.
 
 - For every `external` row: `from <pkg>.messaging.<consumer_name_snake>.events import <EventName>` — one line per **distinct** `<EventName>` across external rows, sorted alphabetically.
 - For every `internal` row: `from <pkg>.domain.<source_snake> import <EventName>` — one line per **distinct** `(<source_snake>, <EventName>)` pair across internal rows, sorted by `(<source_snake>, <EventName>)`.
-- For every distinct `<import_line>` carried by `<fake_arms>[<command_aggregate>]` (Step 4g) across all `<rows>`: emit that line verbatim — one per **distinct** `(module, name)`, sorted by line text. These import the domain return types referenced by fake-arming `<default_expr>`s (e.g. `from <pkg>.domain.conversion import RulesetCreationDecision`). Drop any whose `(module, name)` is already covered by an event-class import above or an existing import in the file.
+- For every distinct `<import_line>` carried by `<fake_arms>[<key>]` (Step 4g) across all `<rows>` — where `<key>` is `<command_aggregate>` for commands rows and `<op_snake>` for ops rows: emit that line verbatim — one per **distinct** `(module, name)`, sorted by line text. These import the domain return types referenced by fake-arming `<default_expr>`s (e.g. `from <pkg>.domain.conversion import RulesetCreationDecision`). Drop any whose `(module, name)` is already covered by an event-class import above or an existing import in the file.
 
 When the file already exists, additively patch missing imports:
 
@@ -673,6 +728,12 @@ WARNING: <test_name>: field '<event_attr>' stubbed (<reason>) — replace with a
 ```
 
 The `<reason>` mirrors the TODO comment's body (Step 7c rule 6): `param '<param>' not on <aggregate_fix>; likely new state introduced by handler`, the `<param>' is optional on <aggregate_fix> — may be None; likely new state introduced by handler` variant when rule 1 was nullable-suppressed, or the matching `no Table 3 binding` / nullable variants. Because Rule 5b auto-substitutes any sibling-fixture literal, a stubbed field is one **no** fixture binds — so the reason always ends `likely new state introduced by handler`. Fields resolved by Rule 5 (selected-fixture literal) or Rule 5b (sibling-fixture literal) do **not** appear in the warnings list — they are clean resolutions, not stubs.
+
+For **ops rows** (every field is type-stubbed by design — there is no aggregate fixture to resolve against), append one warning per stubbed field instead:
+
+```
+WARNING: <test_name>: field '<event_attr>' stubbed (ops smoke test) — supply a real value if the test fails.
+```
 
 If aggregate-module discovery (Step 5) fell through for any `<command_aggregate>`, append one warning per missing module:
 
@@ -828,7 +889,7 @@ Notes:
 - Fixture-body kwarg harvest (Step 4a) is **best-effort and never aborts**. If `<tests_dir>/conftest.py` is missing, the AST parse fails, or a fixture has no `ast.Constant` kwargs in its body, `<fixture_kwargs>[<command_aggregate>][<N>]` is empty — Rule 5 simply never fires for that fixture, and the per-field resolution falls through to Rule 6. The harvest scans every `Call` node inside the fixture's function body (constructors, mutators, helpers — any nesting depth), with first-occurrence-wins for repeated kwarg names. Non-literal values (`ast.Name`, `ast.Call`, `ast.Attribute`, …) are skipped silently — only constants are emittable verbatim as test arguments.
 - There is no fixture-coverage NOTE line (it was removed when Rule 5b began auto-substituting sibling-fixture literals per field — Step 7b). Do not emit a `# NOTE: … replace <aggregate_fix> with …` advisory.
 - Skip upstream fixture verification — let pytest surface missing fixtures (`make_event_envelope`, `<handler_name>`, `<aggregate_fix>`, `<add_fix>`) at collection time. The agent's contract is that `@test-fixtures-preparer`, `@aggregate-fixtures-writer`, and `@integration-fixtures-writer` have run; if they haven't, pytest will produce a clean fixture-not-found error.
-- Aggregate-fixture naming is derived from `<CommandClass>` (strip `Commands`, snake_case), NOT from `<SourceDestination>`. Source Destination names the *publishing* service's aggregate; Command Class names the *local* aggregate whose state responds to the event — and the local aggregate's fixture is what the test uses for body resolution. The numeric suffix is `_1` for creation handlers (template; not persisted) and `_2` for non-creation handlers (canonical "after first mutation" state per `domain-spec:aggregate-fixtures`), with disk-driven fallback to `_1` when `_2` is undefined.
+- Aggregate-fixture naming is derived from `<CommandClass>` (strip `Commands`, snake_case), NOT from `<SourceDestination>`. Source Destination names the *publishing* service's aggregate; Command Class names the *local* aggregate whose state responds to the event — and the local aggregate's fixture is what the test uses for body resolution. The numeric suffix is `_1` for creation handlers (template; not persisted) and `_2` for non-creation handlers (canonical "after first mutation" state per `domain-spec:aggregate-fixtures`), with disk-driven fallback to `_1` when `_2` is undefined. **Ops rows are exempt:** an ops handler class has no `Commands` suffix and no associated aggregate fixture, so its smoke test (see § Ops-handler rows) uses no `<aggregate_fix>` / `<add_fix>` and type-stubs every event field.
 - The `<plural>` form follows **lightweight pluralization** — `<command_aggregate>` if the snake_case name already ends in `s` (e.g. `conversion_reqs`), else `<command_aggregate> + "s"` (e.g. `profile` → `profiles`). This matches `persistence-spec`'s `@unit-of-work-integrator` / `@query-context-integrator` so cross-pipeline naming aligns. Truly irregular plurals (e.g. `policy/policies`) still require the user to override the fixture name in `<tests_dir>/integration/conftest.py` and rename the test arg manually.
 - Body kwargs iterate over the **event class's declared fields** (Step 6 harvest), not Table 3 rows — every dataclass field is emitted, including audit/version fields the handler does not consume. Table 3 supplies the param→aggregate binding *when a row matches*; unmatched (or nullable-suppressed) fields fall through to direct aggregate-attribute lookup by event-attr name (rule 3), to selected-fixture body literal (rule 5), to sibling-fixture body literal (rule 5b), and finally to the type-stub table (rule 6). This eliminates the silent-drop failure where Table 3 lists a strict subset of the event's fields.
 - The closed creation allow-list (`created, initialized, started, opened, registered`) is intentionally narrow. Verbs outside it keep the `add_<plural>` precondition. Renaming a method in the diagram is the user's escape hatch for the rare case where the heuristic gets it wrong.
@@ -851,7 +912,6 @@ Notes:
 | Table 1 Consumer name mismatch | `ERROR: <consumer_spec_file> Table 1 lists Consumer name '<parsed>' but filename derives '<consumer_name_snake>' — refusing to implement tests for a mismatched spec.` |
 | Table 2 row Type unrecognized | `ERROR: unrecognized Type '<value>' in Table 2 of <consumer_spec_file>.` |
 | Table 3 sparse for an event | `ERROR: Table 3 missing sub-block for event '<EventName>' — run @event-fields-writer first.` |
-| Command Class missing `Commands` suffix | `ERROR: Command Class '<CommandClass>' in Table 2 of <consumer_spec_file> does not end with 'Commands' — refusing to derive aggregate.` |
 | External events module missing | `ERROR: external events module not found at <messaging_pkg_path>/<consumer_name_snake>/events.py — run @consumer-scaffolder + @external-events-implementer first.` |
 | Internal event package missing | `ERROR: internal event package not found at <domain_pkg_path>/<source_snake>/ — domain aggregate '<SourceDestination>' missing in this service.` |
 | Same `<EventName>` resolves to multiple modules | `ERROR: event '<EventName>' has rows resolving to multiple modules in <consumer_spec_file>: <module1>, <module2>. Python will name-collide on import; rename one of the events or merge the rows.` |

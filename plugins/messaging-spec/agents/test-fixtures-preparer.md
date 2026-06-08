@@ -132,7 +132,12 @@ Run `test -f <tests_dir>/conftest.py`.
 
 Render the file using the `messaging-spec:messaging-handler-fixtures` skill, **handler fixtures + `make_event_envelope` only** — that is, exactly the canonical helper plus one fixture per `<handler_names>` entry plus the imports they need. Do **not** emit `make_command_message`, fake-override, repository, or aggregate sections; those belong to other agents.
 
-**Resolve `<aggregate_root_pascal>`** — the local aggregate-root name in PascalCase, used as the `make_event_envelope` helper's default `aggregate_type` value. Take Table 2's first row's `<CommandClass>` cell (already parsed in Step 2), strip the trailing `Commands` suffix, and emit the result verbatim (e.g. `ConversionReqsCommands` → `ConversionReqs`, `ProfileCommands` → `Profile`). If Table 2 has rows for multiple distinct `<CommandClass>` values, use the first row's value — the helper default is just a placeholder; tests that need a different `aggregate_type` pass it explicitly.
+**Resolve `<aggregate_root_pascal>`** — the local aggregate-root name in PascalCase, used as the `make_event_envelope` helper's default `aggregate_type` value. Resolve by the first rule that fires:
+
+1. **A commands handler row exists** — take the **first** Table 2 row whose `<CommandClass>` ends in `Commands`, strip that suffix, and emit the result verbatim (e.g. `ConversionReqsCommands` → `ConversionReqs`, `ProfileCommands` → `Profile`).
+2. **All rows are ops handlers** (no `<CommandClass>` ends in `Commands` — every binding targets a free-form ops service class, which is not the aggregate name) — fall back to the PascalCase form of `<stem>` (the aggregate this messaging service centers on, recovered in Step 2): split `<stem>` on `-`, capitalize each token, and concatenate (e.g. `conversion-reqs` → `ConversionReqs`). Do **not** strip-`Commands` an ops class name — that would yield the ops class verbatim, which is not the aggregate type.
+
+The helper default is just a placeholder either way; tests that need a different `aggregate_type` pass it explicitly. (For a commands handler, rule 1 equals `PascalCase(<stem>)`, so the two rules agree whenever a commands row is present.)
 
 Canonical render (substitute `<pkg>`, `<consumer_name_snake>`, and `<aggregate_root_pascal>` literally; substitute each `<handler_name>` from Step 2's ordered list):
 

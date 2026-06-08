@@ -9,7 +9,9 @@ skills:
   - rest-api-spec:surface-markers
 ---
 
-You are a REST API resource-spec initializer. Read the Mermaid commands, queries, and domain class diagrams; detect the single `<<Aggregate Root>>` class on the domain diagram; partition methods on the commands and queries application-service classes by surface marker; and create a sibling `<dir>/<stem>.rest-api/spec.md` initialized with Table 1 (Resource Basics) plus one `## Surface: <name>` H2 heading per discovered surface — formatted per the auto-loaded `rest-api-spec:resource-spec-template` and `rest-api-spec:surface-markers` skills. Do not ask for confirmation before writing.
+You are a REST API resource-spec initializer. Read the Mermaid commands, queries, domain, and any sibling ops class diagrams; detect the single `<<Aggregate Root>>` class on the domain diagram; partition methods on the commands, queries, **and every ops** application-service class by surface marker; and create a sibling `<dir>/<stem>.rest-api/spec.md` initialized with Table 1 (Resource Basics) plus one `## Surface: <name>` H2 heading per discovered surface — formatted per the auto-loaded `rest-api-spec:resource-spec-template` and `rest-api-spec:surface-markers` skills. Do not ask for confirmation before writing.
+
+Ops orchestration services (`<dir>/<stem>.ops.<op-name>.md`, zero or more per aggregate) expose their public methods as REST action endpoints. This initializer only contributes their **surfaces** to the surface set (so each gets a `## Surface:` heading); the per-surface Table 3o (Ops Endpoints) rows are filled later by `endpoint-tables-writer`. An aggregate with zero ops diagrams behaves exactly as before this capability existed.
 
 ## Arguments
 
@@ -21,6 +23,7 @@ Recover `<dir>` and `<stem>` from `<domain_diagram>` (`<dir>/<stem>.md`) per `sp
 
 - `<commands_diagram>` = `<dir>/<stem>.commands.md`
 - `<queries_diagram>` = `<dir>/<stem>.queries.md`
+- `<ops_diagrams>` = every file matching `<dir>/<stem>.ops.*.md` (zero or more; discovered by directory listing, processed in sorted order). For each, derive `<op-name>` by splitting the basename (with `.md` stripped) on the literal `.ops.` per `spec-core:naming-conventions`.
 - `<plugin_dir>` = `<dir>/<stem>.rest-api` — the per-plugin folder for rest-api-spec
 - `<output>` = `<plugin_dir>/spec.md` — the resource input spec written here
 
@@ -28,11 +31,11 @@ Recover `<dir>` and `<stem>` from `<domain_diagram>` (`<dir>/<stem>.md`) per `sp
 
 ### Step 1 — Read the diagrams
 
-Read `<commands_diagram>`, `<queries_diagram>`, and `<domain_diagram>`. Locate every Mermaid `classDiagram` block in each.
+Read `<commands_diagram>`, `<queries_diagram>`, `<domain_diagram>`, and every `<ops_diagrams>` entry. Locate every Mermaid `classDiagram` block in each.
 
 **Do not strip `%% ...` line comments before parsing this time** — the surface-markers grammar (per `rest-api-spec:surface-markers`) needs them. Strip them only after the per-class scan in Step 4 has identified surface boundaries.
 
-Abort with a one-sentence error if any diagram file has no `classDiagram` block.
+Abort with a one-sentence error if the commands, queries, or domain diagram has no `classDiagram` block. An ops diagram with no `classDiagram` block is skipped silently (its structure is `ops-methods-writer`'s concern).
 
 ### Step 2 — Detect the aggregate root (domain diagram)
 
@@ -65,9 +68,11 @@ In `<commands_diagram>`, find the unique class whose name ends with `Commands`. 
 
 The aggregate root derived from each (class name with the `Commands` / `Queries` suffix removed) must equal `<ResourceName>`. Abort with an explicit mismatch message otherwise.
 
+For each `<ops_diagrams>` entry, find the **unique brace-body class** `<OpsClass>` (the ops service is identified structurally — no suffix). Validate `kebab-case(<OpsClass>) == <op-name>` (the file's discriminator; `kebab-case` inserts `-` before each interior uppercase letter and lowercases). Abort with an explicit mismatch message otherwise. Unlike commands/queries, an ops class name need **not** relate to `<ResourceName>` — it is a free-form noun phrase (the aggregate binding comes from `<stem>`). Bind each `(op-name, <OpsClass>)`.
+
 ### Step 4 — Partition methods by surface
 
-Apply the **surface-markers parsing rules** (per `rest-api-spec:surface-markers`) to each application-service class body independently:
+Apply the **surface-markers parsing rules** (per `rest-api-spec:surface-markers`) to each application-service class body independently — the commands class, the queries class, **and every ops class** (one per `<ops_diagrams>` entry):
 
 - Initialize current surface to `v1`.
 - For each line inside the class body:
@@ -75,11 +80,11 @@ Apply the **surface-markers parsing rules** (per `rest-api-spec:surface-markers`
     - If it is any other `%%` line, treat it as a regular comment and skip.
     - If it is a public method declaration (line starts with `+` or has no visibility prefix; method syntax is `[+|-|#|~]?<name>(<param>: <type>, ...) <return_type>`), record the method under the current surface. Lines starting with `-` or `#` are skipped.
 
-The result is a per-class mapping `{surface_name -> [methods]}`. The discovered surface set for a class is the set of keys in this mapping — `v1` appears as a key only if the class body has methods declared before any marker (or no markers at all), per the default-surface rule.
+The result is a per-class mapping `{surface_name -> [methods]}`. The discovered surface set for a class is the set of keys in this mapping — `v1` appears as a key only if the class body has methods declared before any marker (or no markers at all), per the default-surface rule. Ops classes use the **same expose-all default** as commands/queries: every public ops method belongs to a surface (`v1` when before any marker), so every ops method becomes a REST endpoint.
 
 ### Step 5 — Compute the canonical surface set
 
-Combine the discovered surfaces from commands and queries into a single set `S = keys(commands_map) ∪ keys(queries_map)`. If `S` is empty (both class bodies are empty — pathological input), default to `S = {v1}` so the spec keeps at least one valid `## Surface:` section.
+Combine the discovered surfaces from commands, queries, and every ops class into a single set `S = keys(commands_map) ∪ keys(queries_map) ∪ (⋃ over ops classes of keys(ops_map))`. If `S` is empty (every class body is empty — pathological input), default to `S = {v1}` so the spec keeps at least one valid `## Surface:` section. An ops-only surface (a surface that appears only on an ops class — e.g. an `internal` surface used solely by an ops service) is still part of `S` and gets its own `## Surface:` section.
 
 Order `S` per the canonical ordering rules in `rest-api-spec:surface-markers`:
 

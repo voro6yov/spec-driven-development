@@ -8,9 +8,9 @@ user-invocable: false
 
 ## Purpose
 
-Defines the canonical shape of **Table 2: Query Endpoints** and **Table 3: Command Endpoints** of a REST API resource input spec. Together these tables enumerate every HTTP endpoint the resource exposes on a single URL surface, and bind each one to a method on its application service (`<Resource>Queries` / `<Resource>Commands`). Status codes, request/response field details, and parameter mapping are the concern of later sections — these two tables are the endpoint *inventory*.
+Defines the canonical shape of **Table 2: Query Endpoints**, **Table 3: Command Endpoints**, and **Table 3o: Ops Endpoints** of a REST API resource input spec. Together these tables enumerate every HTTP endpoint the resource exposes on a single URL surface, and bind each one to a method on an application service — `<Resource>Queries` / `<Resource>Commands` for Tables 2/3, or a free-form ops orchestration service (e.g. `MappingRulesInferencing`) for Table 3o. Status codes, request/response field details, and parameter mapping are the concern of later sections — these tables are the endpoint *inventory*.
 
-Both tables share the same five-column shape:
+All three tables share the same five-column shape:
 
 `HTTP | Path | Operation | Description | Domain Ref`
 
@@ -32,7 +32,13 @@ Empty-surface placeholders, used when a surface has zero query (or command) endp
 *No command endpoints in this surface.*
 ```
 
-The italic line is the entire content of that table — never mix the placeholder with a real table.
+```
+### Table 3o: Ops Endpoints
+
+*No ops endpoints in this surface.*
+```
+
+The italic line is the entire content of that table — never mix the placeholder with a real table. Table 3o is always present (placeholder or rows), rendered after Table 3.
 
 ---
 
@@ -91,6 +97,37 @@ The italic line is the entire content of that table — never mix the placeholde
 `POST` is the default for action endpoints with domain-specific verbs. Reserve `PUT`/`PATCH`/`DELETE` for canonical CRUD.
 
 **Composite-key aggregates.** An aggregate identified by a composite key (no single `id` parameter — e.g. `Project` keyed by `(project_type, company_id, cmf)`) has no `{id}` path segment. Its `update`/`patch` commands still map to `PATCH` and its `delete`/`remove` commands to `DELETE`, but on a `/` or `/<segment>` path; the composite-key fields travel as **query parameters**. See the `endpoint-tables-writer` rows 1b-del / 1b-upd / 1b-act.
+
+---
+
+## Table 3o: Ops Endpoints
+
+### Shape
+
+| HTTP | Path | Operation | Description | Domain Ref |
+| --- | --- | --- | --- | --- |
+| POST | `/infer` | infer | Infer (ops) | `MappingRulesInferencing.infer` |
+| POST | `/{id}/reconcile` | reconcile | Reconcile (ops) | `MappingRulesInferencing.reconcile` |
+
+Table 3o enumerates the REST endpoints generated from an aggregate's **ops orchestration services** (`<stem>.ops.<op-name>.md`, zero or more per aggregate). Every public ops method becomes an endpoint. It is rendered **after** Table 3 in each `## Surface:` section.
+
+### Column rules
+
+- **HTTP** — always `POST`. Ops methods are free-verb, free-return actions, not CRUD; they take a uniform action shape (the `command-action-endpoint` pattern), never the Table 3 verb dispatch.
+- **Path** — `/{id}/<method-kebab>` when the ops method declares an aggregate `id` (or `<resource_singular>_id`) parameter; otherwise `/<method-kebab>` (collection-rooted). `<method-kebab>` is the full method name kebab-cased.
+- **Operation** — the ops method name verbatim (full, including the verb). Becomes the endpoint function / serializer module name downstream.
+- **Description** — `<Humanized method name> (ops)`.
+- **Domain Ref** — **Required.** Format: `<OpsClass>.<method_name>` — the free-form ops service class (no `Commands`/`Queries` suffix). Downstream agents read this to resolve the source class and its `snake_case(<OpsClass>)` DI key.
+
+Ops endpoints are **never** composite-key. The ops method's non-`id`, non-`tenant_id` parameters become request-body fields; the return type drives the response serializer (id-only for an aggregate return, full for a DTO/value object, 204 for `None`).
+
+Empty placeholder (the common case — no ops diagrams, or this surface exposes no ops methods):
+
+```
+### Table 3o: Ops Endpoints
+
+*No ops endpoints in this surface.*
+```
 
 ---
 
@@ -189,3 +226,12 @@ Paths are relative to the resource's Router prefix (Table 1). A leading `/` is r
 - [ ] Operation mirrors a snake-case method name on `<Resource>Commands` (domain-driven verbs preferred over generic REST verbs)
 - [ ] Domain Ref is present on **every** row, formatted `<AggregateRoot>Commands.<snake_case_method>`
 - [ ] Description states the business effect, not the HTTP mechanic
+
+### Table 3o — Ops Endpoints
+
+- [ ] Every row has `POST` in the HTTP column
+- [ ] Path is `/{id}/<method-kebab>` (when the method takes an aggregate id) or `/<method-kebab>` (collection-rooted)
+- [ ] Operation is the full ops method name (snake case)
+- [ ] Domain Ref is `<OpsClass>.<method_name>` — a free-form ops class with no `Commands`/`Queries` suffix
+- [ ] An empty Table 3o uses `*No ops endpoints in this surface.*`; Table 3o is always present, after Table 3
+- [ ] No ops Operation or `(HTTP, Path)` collides with a Table 2 or Table 3 row in the same surface

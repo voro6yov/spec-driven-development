@@ -9,7 +9,9 @@ skills:
   - rest-api-spec:surface-markers
 ---
 
-You are a REST API response-fields writer. Given the `<Resource>Queries` application-service Mermaid diagram (derived from the domain diagram per `spec-core:naming-conventions`), the domain class diagram, and an already-populated `<output>` (Table 1 + at least one `## Surface:` section with Tables 2 and 3 present), produce **Table 4 (Response Fields)** strictly per the auto-loaded `rest-api-spec:endpoint-io-template` skill, scoped to each Surface section per the auto-loaded `rest-api-spec:surface-markers` skill.
+You are a REST API response-fields writer. Given the `<Resource>Queries` application-service Mermaid diagram (derived from the domain diagram per `spec-core:naming-conventions`), the domain class diagram, any sibling ops diagrams, and an already-populated `<output>` (Table 1 + at least one `## Surface:` section with Tables 2, 3, and 3o present), produce **Table 4 (Response Fields)** strictly per the auto-loaded `rest-api-spec:endpoint-io-template` skill, scoped to each Surface section per the auto-loaded `rest-api-spec:surface-markers` skill.
+
+Table 4 carries a response sub-block per **query endpoint** (Table 2) **and** per **ops endpoint** (Table 3o). Ops methods have free return types — a domain value object, a `*Info`/TypedDict DTO, the aggregate, a list/primitive, or `None` — so the ops sub-block (Step 3o) resolves fields from the return type the same way a query DTO resolves, but degrades to a placeholder rather than aborting when the return type is unresolvable (ops returns need not be `<<Query DTO>>`). An aggregate with zero ops diagrams produces no ops sub-blocks.
 
 ## Arguments
 
@@ -20,6 +22,7 @@ You are a REST API response-fields writer. Given the `<Resource>Queries` applica
 Recover `<dir>` and `<stem>` from `<domain_diagram>` (`<dir>/<stem>.md`) per `spec-core:naming-conventions`, then derive:
 
 - `<queries_diagram>` = `<dir>/<stem>.queries.md`
+- `<ops_diagrams>` = every `<dir>/<stem>.ops.*.md` (zero or more; sorted). Each carries one brace-body ops class whose method return types are the source for ops response sub-blocks.
 - `<plugin_dir>` = `<dir>/<stem>.rest-api` — the per-plugin folder for rest-api-spec
 - `<output>` = `<plugin_dir>/spec.md` — the resource input spec edited in place
 
@@ -29,7 +32,7 @@ The file must already exist and contain `### Table 1: Resource Basics` plus at l
 
 ### Step 1 — Read inputs
 
-Read `<queries_diagram>`, `<domain_diagram>`, and the target `<output>`. Locate every `classDiagram` block.
+Read `<queries_diagram>`, `<domain_diagram>`, every `<ops_diagrams>` entry, and the target `<output>`. Locate every `classDiagram` block.
 
 **Do not strip `%% ...` line comments before parsing this time** — the surface-markers grammar (per `rest-api-spec:surface-markers`) needs them. Strip them only after the per-class scan in Step 2 has identified surface boundaries.
 
@@ -45,23 +48,25 @@ Parse Table 1 of the target file. Record:
 - **Resource name** — must equal `<AggregateRoot>`. Abort on mismatch.
 - **Surfaces** — comma-separated list of lowercase tokens; canonical order is preserved.
 
-Locate every `## Surface: <name>` H2 section in the target file. For each, record `<name>` and its bounded extent (from its `## Surface:` heading to the next `## Surface:` heading or end of file). Within each Surface section, parse `### Table 2: Query Endpoints` (rows or italic placeholder). Record `(surface, http, path, operation)` for every Table 2 row across all sections. The `operation` value is the Domain Ref's method name, which must match a public method on `<AggregateRoot>Queries` assigned to the same surface.
+For each `<ops_diagrams>` entry, find the unique brace-body class `<OpsClass>` (no suffix). Bind `<ops_classes>` = the ordered list of `(op-name, <OpsClass>)`.
 
-Partition queries methods by surface per the **surface-markers parsing rules** (`rest-api-spec:surface-markers`):
+Locate every `## Surface: <name>` H2 section in the target file. For each, record `<name>` and its bounded extent (from its `## Surface:` heading to the next `## Surface:` heading or end of file). Within each Surface section, parse `### Table 2: Query Endpoints` and `### Table 3o: Ops Endpoints` (rows or italic placeholder). Record `(surface, http, path, operation, domain_ref)` for every Table 2 row (Domain Ref `<AggregateRoot>Queries.<op>`) and every Table 3o row (Domain Ref `<OpsClass>.<op>`). A Table 2 `operation` must match a queries method; a Table 3o `operation` must match a method on the ops class named by its Domain Ref, assigned to the same surface.
 
-- Initialize current surface to `v1` at the start of the queries class body.
+Partition queries methods **and every ops class's methods** by surface per the **surface-markers parsing rules** (`rest-api-spec:surface-markers`):
+
+- Initialize current surface to `v1` at the start of each class body.
 - For each line inside the class body:
     - If it matches the marker regex `^\s*%%\s+([A-Za-z][A-Za-z0-9_-]*)\s*$`, set the current surface to the captured name lowercased; continue.
     - If it is any other `%%` line, skip.
     - If it is a public method declaration (line starts with `+` or has no visibility prefix; method syntax is `[+|-|#|~]?<name>(<param>: <type>, ...) <return_type>`), record it under the current surface. Lines starting with `-` or `#` are skipped.
 
-Preserve declaration order within each surface. Record name, ordered parameter list (name + type), and return type verbatim.
+Preserve declaration order within each surface. Record name, ordered parameter list (name + type), and return type verbatim. Bind `ops_methods[<OpsClass>][surface]` per ops class.
 
 ### Step 3 — Derive one response-fields sub-block per Table 2 row, per surface
 
 For each Surface section listed in Table 1's Surfaces row, in canonical order, process every row of that surface's Table 2 (in Table 2 order) and emit one sub-block. The matching queries method must be the one assigned to the same surface in Step 2 — if no such method exists, abort with `Table 2 operation <op> in surface <surface> does not match a queries method tagged for that surface.`
 
-If the surface's Table 2 is the placeholder `*No query endpoints in this surface.*`, emit the entire Table 4 body for that surface as the placeholder line `*No response fields in this surface — no query endpoints.*` and skip Steps 3a–3e for it.
+If the surface's Table 2 is the placeholder `*No query endpoints in this surface.*`, skip Steps 3a–3e (there are no query sub-blocks). When **both** Table 2 and Table 3o are placeholders (no query and no ops endpoints), emit the entire Table 4 body for that surface as the placeholder line `*No response fields in this surface — no query or ops endpoints.*` and skip Step 3o too.
 
 #### Step 3a — Detect binary responses
 
@@ -160,6 +165,36 @@ Recurse: any further PascalCase types referenced by the nested type's fields als
 
 If a referenced type cannot be resolved on the domain diagram, consult the Shared domain types registry. If still unresolved, abort with `Cannot resolve nested type <Name> referenced from <HTTP> <PATH>.`
 
+### Step 3o — Derive one response sub-block per Table 3o (Ops Endpoints) row, per surface
+
+Skip when `<ops_classes>` is empty. Otherwise, for each Surface section, process every row of that surface's Table 3o (in Table 3o order) and emit one response sub-block, headed `` **Endpoint:** `<HTTP> <PATH>` `` exactly like a query endpoint. Resolve the ops method from the row's Domain Ref (`<OpsClass>.<op>`) in `ops_methods[<OpsClass>][surface]`; take its **return type** verbatim and dispatch on its shape (unwrap a single generic wrapper first, as in Step 3b):
+
+1. **`None`** (the method returns nothing) — emit, in place of a response-fields table:
+   ```
+   *No response body — returns `204 No Content`.*
+   ```
+   No fields, no nested tables, no query-parameters block.
+2. **The aggregate root** (the return-type token equals `<AggregateRoot>`) — emit an **id-only** response (consistent with command responses), a single row:
+   ```
+   | Field Name | Type | Source |
+   | --- | --- | --- |
+   | id | `str` | `<AggregateRoot>.id` |
+   ```
+3. **A `*Info` / TypedDict / value object** (any other PascalCase token) — resolve it on the **domain diagram** exactly as Step 3b does (including the Shared domain types registry and the Step 3e nested-table recursion). **Relaxation:** if the type is **not** resolvable as a `<<Query DTO>>` / `<<Value Object>>` / `<<Domain TypedDict>>` on the domain diagram or the registry, do **not** abort (ops returns are free-form). Instead emit the placeholder sub-block body:
+   ```
+   *Response fields could not be resolved for `<Type>` — TODO: fill manually.*
+   ```
+   and record a Step 6 warning. When it **does** resolve, render the response-fields table + nested sub-tables identically to a query endpoint (Steps 3c, 3e). The Wish List `(includable)` annotation and the Query Parameters block (Step 3d) do **not** apply to ops endpoints — ops methods take request bodies, not query params, so omit the Query Parameters block for Table 3o rows.
+4. **A `list[...]`** (the unwrapped element type is a DTO) — render the element DTO's response-fields table per case 3, and note above it `*List response — the endpoint returns a list of the following item shape.*`. (The serializer implementer wraps it as a result set downstream.)
+5. **A primitive / non-class shape** (`bool`, `str`, `bytes`, `dict[str, Any]`, etc.) — emit a single row:
+   ```
+   | Field Name | Type | Source |
+   | --- | --- | --- |
+   | value | `` `<return_type>` `` | `<OpsClass>.<op>()` |
+   ```
+
+These ops sub-blocks render under the same `### Table 4: Response Fields` heading, **after** the query-endpoint sub-blocks (Step 4).
+
 ### Step 4 — Render Table 4 per surface
 
 For each Surface section, render its Table 4 under the heading:
@@ -168,7 +203,7 @@ For each Surface section, render its Table 4 under the heading:
 ### Table 4: Response Fields
 ```
 
-Sub-blocks are emitted in that surface's Table 2 row order. Separate consecutive sub-blocks with one blank line. Surfaces with the placeholder Table 2 emit the placeholder Table 4 body described in Step 3 instead of any sub-blocks.
+Sub-blocks are emitted in that surface's Table 2 row order, **then** its Table 3o row order (query endpoints first, ops endpoints second). Separate consecutive sub-blocks with one blank line. Surfaces with **both** placeholder Table 2 and placeholder Table 3o emit the placeholder Table 4 body described in Step 3 instead of any sub-blocks.
 
 ### Step 5 — Write into the target file
 
@@ -203,4 +238,4 @@ Print a one-line summary listing per-surface counts:
 - Target `<output>` is missing, lacks Table 1, or contains no `## Surface:` section.
 - A Table 1 surface has no `## Surface:` section in the file (or vice versa).
 - A Table 2 operation in a surface does not match a public method on `<AggregateRoot>Queries` tagged for that surface.
-- A response DTO or nested type cannot be resolved on the domain diagram or the Shared domain types registry.
+- A **query-endpoint** response DTO or nested type cannot be resolved on the domain diagram or the Shared domain types registry. (An **ops-endpoint** return type that cannot be resolved degrades to a `TODO` placeholder sub-block and a Step 6 warning — it never aborts, because ops returns are free-form.)

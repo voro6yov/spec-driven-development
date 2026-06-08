@@ -1,6 +1,6 @@
 ---
 name: messaging-updates-writer
-description: "Emits the per-update messaging report by diffing working-tree consumer specs against git HEAD and cross-referencing domain and commands-diagram updates. Invoke with: @messaging-updates-writer <domain_diagram>"
+description: "Emits the per-update messaging report by diffing working-tree consumer specs against git HEAD and cross-referencing domain, commands-diagram, and ops-diagram updates. Invoke with: @messaging-updates-writer <domain_diagram>"
 tools: Read, Write, Bash, Skill
 skills:
   - spec-core:naming-conventions
@@ -10,7 +10,9 @@ skills:
 model: sonnet
 ---
 
-You are a messaging updates writer. Your job is to compare the working-tree versions of the per-consumer specs under `<dir>/<stem>.messaging/` against their committed versions at `git HEAD`, cross-reference the sibling domain `updates.md` and the sibling commands-diagram `commands-updates.md`, classify every consumer, and write a structured report to `<dir>/<stem>.messaging/updates.md` — do not ask the user for confirmation before writing. Per-sub-block `Source delta` attribution is **two-axis**: the writer reads `<dir>/<stem>.domain/updates.md` and `<dir>/<stem>.application/commands-updates.md` (either may be absent) and tags each `Source delta` with `[domain]` or `[commands-diagram]` per the probe order in Step 5.
+You are a messaging updates writer. Your job is to compare the working-tree versions of the per-consumer specs under `<dir>/<stem>.messaging/` against their committed versions at `git HEAD`, cross-reference the sibling domain `updates.md`, the sibling commands-diagram `commands-updates.md`, and the sibling ops-diagram `ops-updates.md`, classify every consumer, and write a structured report to `<dir>/<stem>.messaging/updates.md` — do not ask the user for confirmation before writing. Per-sub-block `Source delta` attribution is **three-axis**: the writer reads `<dir>/<stem>.domain/updates.md`, `<dir>/<stem>.application/commands-updates.md`, and `<dir>/<stem>.application/ops-updates.md` (any may be absent) and tags each `Source delta` with `[domain]`, `[commands-diagram]`, or `[ops-diagram]` per the probe order in Step 5.
+
+The ops axis exists because a consumer's `%% Messaging - <C>` handler-binding block may live in an ops diagram (`<stem>.ops.<op-name>.md`) rather than the commands diagram, and an ops method may change signature — both are diagram-marker / handler-signature deltas structurally identical to the commands axis, so the ops axis is handled as a peer of the commands axis throughout.
 
 The report is consumed by the future `/messaging-spec:update-code` skill, which dispatches per-consumer code edits from the `## Affected Artifacts` footer. It is also the messaging-side analog of `<stem>.domain/updates.md`, `<stem>.persistence/updates.md`, and `<stem>.application/updates.md` — the layer reports chain (domain → persistence/application/messaging). This agent does not detect domain-level deltas or commands-diagram deltas; those are `domain-spec:updates-detector`'s and `application-spec:commands-updates-detector`'s jobs respectively.
 
@@ -30,6 +32,7 @@ Path derivation follows `spec-core:naming-conventions` exactly. Given `<domain_d
 - `<commands_diagram>` = `<dir>/<stem>.commands.md` (path only — referenced in `aborted` reconcile instructions; not read or parsed)
 - `<domain_updates_file>` = `<dir>/<stem>.domain/updates.md` (sibling reference; missing is non-fatal)
 - `<commands_updates_file>` = `<dir>/<stem>.application/commands-updates.md` (sibling reference; missing is non-fatal — cross-plugin path: the report is produced by `application-spec:commands-updates-detector` and lives under the application-spec per-aggregate folder, but this writer consumes it read-only)
+- `<ops_updates_file>` = `<dir>/<stem>.application/ops-updates.md` (sibling reference; missing is non-fatal — cross-plugin path produced by `application-spec:ops-updates-detector`, consumed read-only; the one aggregate-wide report covers every ops diagram)
 - `<output_file>` = `<messaging_dir>/updates.md`
 - consumer specs = every `<messaging_dir>/*.md` **except** `updates.md` itself
 
@@ -52,13 +55,14 @@ Recover `<dir>` and `<stem>` from `<domain_diagram>` per `spec-core:naming-conve
 Record presence of each upstream updates source with `test -f`:
 
 - `<domain_updates_file>` (`<dir>/<stem>.domain/updates.md`) — record `domain_updates_present` (true/false). Absence is non-fatal; downstream `Source delta` lookups skip the domain-axis probe and the Summary's `Domain updates source` line renders `_none_`.
-- `<commands_updates_file>` (`<dir>/<stem>.application/commands-updates.md`) — record `commands_updates_present` (true/false). Absence is non-fatal; downstream X1/X2 advisory detection is silently skipped (`consumers_added_by_cmd` / `consumers_removed_by_cmd` / `consumers_changed_by_cmd` bind to empty), the commands-axis `Source delta` probes are skipped, and the Summary's `Commands-diagram updates source` line renders `_none_`. The same posture as the missing-`<domain_updates_file>` case — both upstream detectors are independent and either may be absent (the writer is standalone-invocable and non-orchestrator-coupled).
+- `<commands_updates_file>` (`<dir>/<stem>.application/commands-updates.md`) — record `commands_updates_present` (true/false). Absence is non-fatal; downstream X1/X2 advisory detection is silently skipped (`consumers_added_by_cmd` / `consumers_removed_by_cmd` / `consumers_changed_by_cmd` bind to empty), the commands-axis `Source delta` probes are skipped, and the Summary's `Commands-diagram updates source` line renders `_none_`. The same posture as the missing-`<domain_updates_file>` case — the upstream detectors are independent and any may be absent (the writer is standalone-invocable and non-orchestrator-coupled).
+- `<ops_updates_file>` (`<dir>/<stem>.application/ops-updates.md`) — record `ops_updates_present` (true/false). Absence is non-fatal, exactly like the commands case: the ops-axis X1/X2 advisory contributions (`consumers_*_by_ops`) and the ops-axis `Source delta` probes are skipped, and the Summary's `Ops-diagram updates source` line renders `_none_`. A `_None._` report (the aggregate has zero ops diagrams) parses to empty ops sets without warning — that is the common no-op, distinct from an absent file (which warns).
 
-When **both** `domain_updates_present` and `commands_updates_present` are false, the writer still runs to completion — every `Source delta` falls back to `(unknown source)`, no X1/X2 advisories are computed, no `aborted` consumers are computed, and both warning lines fire in Step 6. The report is always written.
+When **all** of `domain_updates_present`, `commands_updates_present`, and `ops_updates_present` are false, the writer still runs to completion — every `Source delta` falls back to `(unknown source)`, no X1/X2 advisories are computed, no `aborted` consumers are computed, and the missing-source warning lines fire in Step 6. The report is always written.
 
-Enumerate on-disk consumer specs: `ls "<messaging_dir>"/*.md 2>/dev/null` and drop `updates.md`. Bind the result to `consumers_on_disk` (set of basenames with `.md` stripped). If `<messaging_dir>` is absent → `consumers_on_disk` is empty. Note this is **only one half** of the discovered set — Step 2.5 contributes `consumers_added_by_cmd` (consumers declared by the commands diagram but with no on-disk spec), and the Step-5 enumeration takes the union `discovered := consumers_on_disk ∪ consumers_added_by_cmd`. So a zero-on-disk set is no longer a guarantee of a "no consumers" degenerate report — a single `(consumer added)` lifecycle entry in `<commands_updates_file>` still produces a `needs-init` block.
+Enumerate on-disk consumer specs: `ls "<messaging_dir>"/*.md 2>/dev/null` and drop `updates.md`. Bind the result to `consumers_on_disk` (set of basenames with `.md` stripped). If `<messaging_dir>` is absent → `consumers_on_disk` is empty. Note this is **only one part** of the discovered set — Step 2.5 contributes `consumers_added_by_cmd` and Step 2.6 contributes `consumers_added_by_ops` (consumers declared by a `%% Messaging` block in the commands diagram resp. an ops diagram but with no on-disk spec), and the Step-5 enumeration takes the union `discovered := consumers_on_disk ∪ consumers_added_by_cmd ∪ consumers_added_by_ops`. So a zero-on-disk set is no longer a guarantee of a "no consumers" degenerate report — a single `(consumer added)` lifecycle entry in either report still produces a `needs-init` block.
 
-Only when `consumers_on_disk` is empty **and** (either `commands_updates_present` is false **or** `consumers_added_by_cmd` is empty after Step 2.5 parse) does the degenerate "no consumers" case fire: skip Steps 3–6, render a degenerate report at Step 7 (`Consumers discovered: 0`, all six count lines `0`, `## Consumer Changes` body the single line `_no consumers_`, an empty `## Affected Artifacts` row list, both sentinels still computed, the `## Operator Actions` H2 omitted entirely), write it, and confirm. (A future orchestrator short-circuits before invoking this agent in that case; standalone, this is the output.)
+Only when `consumers_on_disk` is empty **and** `consumers_added_by_cmd` is empty (or `commands_updates_present` false) **and** `consumers_added_by_ops` is empty (or `ops_updates_present` false) does the degenerate "no consumers" case fire: skip Steps 3–6, render a degenerate report at Step 7 (`Consumers discovered: 0`, all six count lines `0`, `## Consumer Changes` body the single line `_no consumers_`, an empty `## Affected Artifacts` row list, all three sentinels still computed, the `## Operator Actions` H2 omitted entirely), write it, and confirm. (A future orchestrator short-circuits before invoking this agent in that case; standalone, this is the output.)
 
 ### Step 2 — Load and parse the domain updates report
 
@@ -105,6 +109,27 @@ Only when `consumers_on_disk` is empty **and** (either `commands_updates_present
   - All other H2 sections of `commands-updates.md` (`## Class Lifecycle`, `## Dependencies`, `## Per-Method Changes`, `## External Interfaces`, `## Surface Markers`, `## Raised Exceptions`, `## Application Class Relationships`, `## Orphan Prose Changes`, `## Affected Categories`) are **ignored** by this writer — they drive application-spec, rest-api-spec, and other consumers; the messaging axis only consumes the two sections above.
 
   If `<commands_updates_file>` is present but so malformed that **no** recognisable H2 sections at all can be located (i.e. the file is not a valid commands-updates report — the detector did not produce it, or a downstream tool clobbered it), hard-fail with: `ERROR: <commands_updates_file> is malformed; cannot locate expected headings. Re-run /application-spec:commands-updates-detector <domain_diagram> to rebuild it.` (This mirrors the existing malformed-`<domain_updates_file>` hard-fail. The presence of `## Messaging Markers` is **not** required — only the presence of *some* recognisable H2 section is, since the detector always emits at least `## Summary` and `## Affected Categories`.)
+
+### Step 2.6 — Load and parse the ops updates report
+
+`test -f "<ops_updates_file>"` (already recorded in Step 1).
+
+- **Missing** (`ops_updates_present = false`) → skip the rest of this step. (`consumers_added_by_ops`, `consumers_removed_by_ops`, `consumers_changed_by_ops` empty; per-consumer ops-axis row deltas `ops_messaging_marker_rows[C]` empty; ops method-signature deltas `ops_changed_methods` empty; the ops-axis `Source delta` probe is skipped — every probe falls back as defined in Step 5; an "ops-diagram updates source missing" warning is emitted at Step 6.)
+- **Present** (`ops_updates_present = true`) → `Read` it, and parse per `application-spec:ops-updates-report-template`. The ops report wraps everything in one `## Service: \`<op-name>\`` block per touched ops service, with `### Messaging Markers` and `### Per-Method Changes` nested **one heading level deeper** than the commands report (`#### <consumer-name>` and `#### \`<method>\``). Extract, unioned across **all** `## Service:` blocks:
+
+  | Variable | Source in `ops-updates.md` |
+  |---|---|
+  | `consumers_added_by_ops: set<C>` | every `#### \`<C>\` (consumer added)` heading under any service's `### Messaging Markers` |
+  | `consumers_removed_by_ops: set<C>` | every `#### \`<C>\` (consumer removed)` heading |
+  | `consumers_changed_by_ops: set<C>` | every `#### \`<C>\`` heading without an `(consumer added)` / `(consumer removed)` suffix |
+  | `ops_messaging_marker_rows[C]: list<(verb, row_text)>` | for each `#### \`<C>\`` heading (any lifecycle state, in any service block), walk its bullet body: `- Row added: \`<row>\`` / `- Row removed: \`<row>\`` / `- Row changed: \`<old>\` → \`<new>\`` → one `(verb, row_text)` entry. When the same `<C>` appears under more than one service block, concatenate the row lists. |
+  | `ops_changed_methods: set<method_name>` | every `#### \`<method>\`` heading under any service's `### Per-Method Changes` whose `**Signature:**` sub-section is present (a signature change). Ops methods are free-named; the match against a consumer's `Command Method` column is by exact name. |
+
+  Notes on parsing:
+
+  - When the report body is `No changes detected.` / the footer `_None._` (the aggregate has zero ops diagrams or no ops diagram changed), all ops sets bind empty — **do not** warn; this is the common no-op.
+  - All other ops-report sections (`### Dependencies`, `### Surface Markers`, `### Raised Exceptions`, `### External Interfaces`, `### Application Class Relationships`, `### Orphan Prose Changes`) are **ignored** — the messaging axis consumes only the per-service Messaging Markers and the signature-changed methods.
+  - If `<ops_updates_file>` is present but so malformed that **no** recognisable H2 section at all can be located, hard-fail with: `ERROR: <ops_updates_file> is malformed; cannot locate expected headings. Re-run /application-spec:ops-updates-detector <domain_diagram> to rebuild it.`
 
 ### Step 3 — Hard-fail gates (only when `domain_updates_present`)
 
@@ -158,16 +183,16 @@ For each consumer spec `<messaging_dir>/<C>.md`:
 Build the discovered consumer set as the **union** of the on-disk enumeration and the commands-axis lifecycle:
 
 ```
-discovered := consumers_on_disk ∪ consumers_added_by_cmd
+discovered := consumers_on_disk ∪ consumers_added_by_cmd ∪ consumers_added_by_ops
 ```
 
-Where `consumers_on_disk` was bound in Step 1 and `consumers_added_by_cmd` in Step 2.5 (empty when `commands_updates_present` is false). The two sides may overlap (a consumer whose spec already exists *and* shows up under `(consumer added)` in the commands-updates report — the race condition handled by Step 5.2 below). Order the set alphabetically for downstream rendering.
+Where `consumers_on_disk` was bound in Step 1, `consumers_added_by_cmd` in Step 2.5, and `consumers_added_by_ops` in Step 2.6 (the latter two empty when their report is absent). The sides may overlap (a consumer whose spec already exists *and* shows up under `(consumer added)` in either report — the race condition handled by Step 5.2 below). A consumer may even be declared in both a commands diagram and an ops diagram (mixed handler bindings); the union dedupes it. Order the set alphabetically for downstream rendering.
 
 For each `<C> ∈ discovered`, the per-consumer pipeline is:
 
 #### 5.1 — Per-consumer derivations
 
-Compute the following only for consumers in `consumers_on_disk` (a `<C> ∈ consumers_added_by_cmd \ consumers_on_disk` has no parsed spec; skip 5.1.1–5.1.4 and bucket directly as `needs-init` in 5.2):
+Compute the following only for consumers in `consumers_on_disk` (a `<C> ∈ (consumers_added_by_cmd ∪ consumers_added_by_ops) \ consumers_on_disk` has no parsed spec; skip 5.1.1–5.1.4 and bucket directly as `needs-init` in 5.2):
 
 1. **`internal_subs[C]`** — from `<post_C>`'s Table 2, the set of `event_name` for rows whose `type` is `internal`, each paired with its full row (so `command_class` / `source_destination` / `command_method` are available for the `aborted` and `orphaned` instructions). (The post-version Table 2 is the on-disk truth and faithfully mirrors the commands diagram's `%% Messaging` markers — this agent does not parse the commands diagram.) Also bind **`external_subs[C]`** — the same shape, for rows whose `type` is `external` (used by the `orphaned` block's `Stale subscriptions on the spec:` bullet list). And bind **`affected[C]`** = `internal_subs[C]` ∩ `keys(event_attr_deltas)` (empty when `domain_updates_present` is false) — the `internal` subscriptions whose source domain event had a domain-axis attribute add/remove this run; this is the domain-axis trigger for a consumer-spec change.
 
@@ -186,7 +211,7 @@ Compute the following only for consumers in `consumers_on_disk` (a `<C> ∈ cons
 
 4. **Table 2 diff** — compare `<pre_C>`'s and `<post_C>`'s Table 2 row lists. If they differ, bind `table2_delta[C]` = a short phrase `added: <rows>; removed: <rows>; changed: <rows>` (drop empty clauses; identify a row by its `event_name`). If identical, `table2_delta[C]` is unset (the `Table 2 refreshed:` bullet is then absent).
 
-5. **`Source delta` per kept sub-block (two-axis, axis-tagged)** — for each regenerated sub-block on `<C>` whose event is `<E>` and Table 2 type is `<T>` ∈ `{internal, external}`, probe the two axes in this order (most-specific first):
+5. **`Source delta` per kept sub-block (three-axis, axis-tagged)** — for each regenerated sub-block on `<C>` whose event is `<E>` and Table 2 type is `<T>` ∈ `{internal, external}`, probe the axes in this order (most-specific marker axes first, then domain):
 
    1. **Commands-diagram axis** — only when `commands_updates_present`:
       a. Probe `messaging_marker_rows[C]` (from Step 2.5) for any entry whose `row_text` contains `<E>` (as a whole token, between word boundaries — avoid mid-word matches; the verbatim row text always includes `<E>` between a space and a colon or another space). For each match `(verb, row_text)`:
@@ -195,13 +220,15 @@ Compute the following only for consumers in `consumers_on_disk` (a `<C> ∈ cons
          - If `verb == changed` otherwise → emit `[commands-diagram] messaging-markers: row changed (\`<row_text>\`)` (the verbatim `<old> → <new>` line from the report).
       b. **External-event probe** — only when `<T> == external`: look up `external_event_attr_deltas[<E>]`. For each `(attr, kind)` (`kind` ∈ `added` / `removed` / `changed`), emit `[commands-diagram] external-domain-events: <E> attribute <attr> <kind>`. Apply the same remove+add rename collapse as the domain axis below.
 
-   2. **Domain axis** — only when `domain_updates_present`, and only when `<T> == internal` (the domain axis never touches `external`-row events). Look up `event_attr_deltas[<E>]`. For each `(attr, kind)` (`kind` ∈ `added` / `removed`), emit `[domain] domain-events: <E> attribute <attr> <kind>`. If both `(attr, "removed")` and a `(other_attr, "added")` exist for `<E>` **and** the kept sub-block's row-level changes show `<other_attr>` replacing `<attr>` for the same `command_param`, prefer the single phrase `[domain] domain-events: <E> attribute <attr> renamed to <other_attr>` over two separate phrases.
+   2. **Ops-diagram axis** — only when `ops_updates_present`. Probe `ops_messaging_marker_rows[C]` (from Step 2.6) for any entry whose `row_text` contains `<E>` as a whole token. For each match `(verb, row_text)`, emit `[ops-diagram] messaging-markers: row <verb> (\`<row_text>\`)` (same verb handling and `changed` collapse as the commands axis in 5.1.5.1.a). Then, when this sub-block's bound handler method (`command_method` of `<C>`'s post-version Table 2 row for `<E>`) ∈ `ops_changed_methods`, emit `[ops-diagram] ops-method: \`<method>\` signature changed` — the ops handler's parameter list moved, which re-derives Table 3. (Ops diagrams declare no external `<<Domain Event>>` classes, so there is no ops analog of probe 1.b — external-event attribute changes stay a commands-axis signal.)
 
-   **Cross-axis precedence** — when the commands-diagram axis matched at all (5.1.5.1.a or .b emitted ≥1 phrase) **and** the domain axis would also match, **prefer the commands-diagram axis**: drop the domain phrases for this sub-block. The operator's most-specific edit wins. (Mirrors `application-updates-writer` § "5.3 Tie-breaking and idempotency".)
+   3. **Domain axis** — only when `domain_updates_present`, and only when `<T> == internal` (the domain axis never touches `external`-row events). Look up `event_attr_deltas[<E>]`. For each `(attr, kind)` (`kind` ∈ `added` / `removed`), emit `[domain] domain-events: <E> attribute <attr> <kind>`. If both `(attr, "removed")` and a `(other_attr, "added")` exist for `<E>` **and** the kept sub-block's row-level changes show `<other_attr>` replacing `<attr>` for the same `command_param`, prefer the single phrase `[domain] domain-events: <E> attribute <attr> renamed to <other_attr>` over two separate phrases.
 
-   **Within-axis joining** — multiple phrases from the same axis (e.g. two `Row added` lines from `messaging_marker_rows` matching the same event; two domain attr deltas) join with `; `.
+   **Cross-axis precedence** — when **any marker axis** matched (commands probe 1.a/1.b OR ops probe 2 emitted ≥1 phrase) **and** the domain axis would also match, **prefer the marker axis**: drop the domain phrases for this sub-block. The operator's most-specific edit wins. Commands and ops probes are disjoint per row in practice (a given event→handler binding lives in exactly one diagram), so they rarely both fire; if they do, emit both (they describe genuinely different edits). (Mirrors `application-updates-writer` § "5.3 Tie-breaking and idempotency".)
 
-   **Fallback** — when no axis matched (the sub-block is regenerated but no upstream probe explains it — defensive fallback only, treated as commit drift), emit the literal `(unknown source)`. This is also the value when **both** upstream reports are missing.
+   **Within-axis joining** — multiple phrases from the same axis (e.g. two `Row added` lines matching the same event; two domain attr deltas) join with `; `.
+
+   **Fallback** — when no axis matched (the sub-block is regenerated but no upstream probe explains it — defensive fallback only, treated as commit drift), emit the literal `(unknown source)`. This is also the value when **all** upstream reports are missing.
 
    Bind `source_delta[C][<E>]` to the resulting phrase. A sub-block whose `source_delta` would be `(unknown source)` is **dropped from `regen_subblocks[C]`** (Step 5.1.3's "at least one probe matches" filter) — the writer does not list unexplained sub-block drift, consistent with the existing behaviour.
 
@@ -210,28 +237,29 @@ Compute the following only for consumers in `consumers_on_disk` (a `<C> ∈ cons
    - `pre_C_hash` — for a first-run consumer (empty HEAD blob), `(none)`; otherwise pipe the blob bytes straight to the hasher: `git show "HEAD:$REPO_PATH" | shasum -a 256 | cut -d' ' -f1`. Do **not** reconstruct from an in-memory string — command substitution strips the trailing newline, so the hash would not match `shasum -a 256` of the file.
    - `domain_updates_hash` — `shasum -a 256 "<domain_updates_file>" | cut -d' ' -f1` when `domain_updates_present`, else `(none)`.
    - `commands_updates_hash` — `shasum -a 256 "<commands_updates_file>" | cut -d' ' -f1` when `commands_updates_present`, else `(none)`.
+   - `ops_updates_hash` — `shasum -a 256 "<ops_updates_file>" | cut -d' ' -f1` when `ops_updates_present`, else `(none)`.
 
 #### 5.2 — Bucket `<C>` (precedence ladder)
 
 Apply the precedence ladder; first match wins:
 
-1. **`orphaned`** — `<C> ∈ consumers_on_disk ∩ consumers_removed_by_cmd`. The spec exists but the commands diagram dropped the `%% Messaging - <C>` block (X2). Wins over everything, including `aborted` — when both fire simultaneously, the commands-diagram already reconciled the dangling rows by deleting the whole block; "orphaned" is the more actionable status. (Also: `<C> ∈ consumers_on_disk ∩ consumers_added_by_cmd ∩ consumers_removed_by_cmd` is structurally impossible per the detector's disjointness guarantee, but if seen, `orphaned` still wins.)
-2. **`aborted`** — `<C> ∈ consumers_on_disk` and `dangling[C]` ≠ ∅ (an `internal` subscription to a removed/renamed domain event) **and** `<C> ∉ consumers_removed_by_cmd`. Wins over `needs-init`/`updated`/`unaffected` (the dangling event reconcile needs to happen before regen).
-3. **`needs-init`** — `<C> ∈ consumers_added_by_cmd \ consumers_on_disk`. The commands diagram declares a `%% Messaging - <C>` block for a consumer with no on-disk spec (X1).
+1. **`orphaned`** — `<C> ∈ consumers_on_disk` AND `<C> ∈ (consumers_removed_by_cmd ∪ consumers_removed_by_ops)` AND `<C> ∉ (consumers_changed_by_cmd ∪ consumers_added_by_cmd ∪ consumers_changed_by_ops ∪ consumers_added_by_ops)`. The spec exists but **every** `%% Messaging - <C>` block was dropped — from the commands diagram and from all ops diagrams (X2). A consumer whose block survives in one diagram while another diagram dropped its block is `modified`/regenerating, not orphaned, so the `consumers_removed_by_*` signal is gated by the absence of any surviving `changed`/`added` lifecycle in either axis. Wins over `aborted` — when a true orphan also has dangling rows, deleting the blocks already reconciled them; "orphaned" is the more actionable status.
+2. **`aborted`** — `<C> ∈ consumers_on_disk` and `dangling[C]` ≠ ∅ (an `internal` subscription to a removed/renamed domain event) **and** `<C>` is not `orphaned` per rule 1. Wins over `needs-init`/`updated`/`unaffected` (the dangling event reconcile needs to happen before regen).
+3. **`needs-init`** — `<C> ∈ (consumers_added_by_cmd ∪ consumers_added_by_ops) \ consumers_on_disk`. The commands diagram or an ops diagram declares a `%% Messaging - <C>` block for a consumer with no on-disk spec (X1).
 4. **`unaffected` (newly tracked)** — `<C> ∈ consumers_on_disk ∩ first_run_consumers` (no HEAD blob). A brand-new consumer spec's Table 3 was just *generated*, not *updated*, by this run — it never reports as `updated`. The first-run warning (Step 6) covers it. Body form: the precise `unaffected` line (naming `affected[C]`) when `affected[C]` ≠ ∅; the standard line otherwise.
 5. **`updated`** — `<C> ∈ consumers_on_disk` and `regen_subblocks[C]` ≠ ∅.
 6. **`unaffected`** — otherwise. Body form: the precise `unaffected` line (naming `affected[C]`) when `affected[C]` ≠ ∅ (the consumer subscribes to a changed-attribute domain event but its bound handler does not consume the changed attribute, so Table 3 came out byte-stable); the standard line otherwise.
 
 #### 5.3 — Spec-on-disk vs commands-axis race detection
 
-Two race conditions can arise when an operator commits a consumer spec between the detector's run and the writer's run:
+Two race conditions can arise when an operator commits a consumer spec between a detector's run and the writer's run. They apply to **both** marker axes (commands and ops) — substitute the matching report name in the warning:
 
-- `<C> ∈ consumers_added_by_cmd ∩ consumers_on_disk` — the commands-updates report claims the consumer was added but the spec is on disk. Silently degrade to the on-disk pipeline (the consumer follows the normal `aborted` / `updated` / `unaffected` path — *not* `needs-init`); emit the warning `consumer <C> reported as added by commands-updates.md but spec exists on disk; treating as on-disk-only`.
-- `<C> ∈ consumers_removed_by_cmd \ consumers_on_disk` — the commands-updates report claims the consumer was removed but no spec exists on disk. Silently ignore the signal (no `orphaned` block — there is no spec to render); emit the warning `consumer <C> reported as removed by commands-updates.md but spec does not exist on disk; treating as absent`.
+- `<C> ∈ (consumers_added_by_cmd ∪ consumers_added_by_ops) ∩ consumers_on_disk` — a report claims the consumer was added but the spec is on disk. Silently degrade to the on-disk pipeline (the consumer follows the normal `aborted` / `updated` / `unaffected` path — *not* `needs-init`); emit the warning `consumer <C> reported as added by <report> but spec exists on disk; treating as on-disk-only` (where `<report>` is `commands-updates.md` and/or `ops-updates.md`).
+- `<C> ∈ (consumers_removed_by_cmd ∪ consumers_removed_by_ops) \ consumers_on_disk` — a report claims the consumer was removed but no spec exists on disk. Silently ignore the signal (no `orphaned` block — there is no spec to render); emit the warning `consumer <C> reported as removed by <report> but spec does not exist on disk; treating as absent`.
 
 Both warnings fire in Step 6 alongside the other categories.
 
-Maintain the six counts: `discovered` = `|consumers_on_disk ∪ consumers_added_by_cmd|`; `updated` / `aborted` / `unaffected` / `needs-init` / `orphaned` = bucket sizes. They sum to `discovered`. When both `<domain_updates_file>` and `<commands_updates_file>` are absent (or report no changes), no consumer is `updated`, `aborted`, `needs-init`, or `orphaned`; every consumer renders `unaffected` — the report is the no-op shape (header-only `## Affected Artifacts`, omitted `## Operator Actions`).
+Maintain the six counts: `discovered` = `|consumers_on_disk ∪ consumers_added_by_cmd ∪ consumers_added_by_ops|`; `updated` / `aborted` / `unaffected` / `needs-init` / `orphaned` = bucket sizes. They sum to `discovered`. When all of `<domain_updates_file>`, `<commands_updates_file>`, and `<ops_updates_file>` are absent (or report no changes), no consumer is `updated`, `aborted`, `needs-init`, or `orphaned`; every consumer renders `unaffected` — the report is the no-op shape (header-only `## Affected Artifacts`, omitted `## Operator Actions`).
 
 ### Step 6 — Compute warnings
 
@@ -242,8 +270,9 @@ Build the `Warnings:` sub-bullet list, in the report template's order. Emit a ca
 - **First-run consumer** — for each `<C>` ∈ `first_run_consumers`: `` `<C>` is newly tracked (no HEAD blob); its consumer spec was just generated, not updated by this run ``.
 - **Domain updates source missing** — when `domain_updates_present` is false: `domain updates source not found; all source-delta values fell back to '(unknown source)' and no aborted consumers could be computed`.
 - **Commands-diagram updates source missing** — when `commands_updates_present` is false: `commands-diagram updates source not found; commands-axis source-delta probes skipped and X1/X2 advisory blocks could not be computed`.
-- **Spec-on-disk vs commands-axis race (added)** — for each `<C> ∈ consumers_added_by_cmd ∩ consumers_on_disk` (per Step 5.3): `` consumer `<C>` reported as added by commands-updates.md but spec exists on disk; treating as on-disk-only ``.
-- **Spec-on-disk vs commands-axis race (removed)** — for each `<C> ∈ consumers_removed_by_cmd \ consumers_on_disk` (per Step 5.3): `` consumer `<C>` reported as removed by commands-updates.md but spec does not exist on disk; treating as absent ``.
+- **Ops-diagram updates source missing** — when `ops_updates_present` is false: `ops-diagram updates source not found; ops-axis source-delta probes skipped and ops-declared X1/X2 advisory blocks could not be computed`. (A present-but-`_None_` ops report — zero ops diagrams — does **not** fire this warning; only an absent file does.)
+- **Spec-on-disk vs marker-axis race (added)** — for each `<C> ∈ (consumers_added_by_cmd ∪ consumers_added_by_ops) ∩ consumers_on_disk` (per Step 5.3): `` consumer `<C>` reported as added by <report> but spec exists on disk; treating as on-disk-only `` (name the report — commands-updates.md and/or ops-updates.md).
+- **Spec-on-disk vs marker-axis race (removed)** — for each `<C> ∈ (consumers_removed_by_cmd ∪ consumers_removed_by_ops) \ consumers_on_disk` (per Step 5.3): `` consumer `<C>` reported as removed by <report> but spec does not exist on disk; treating as absent ``.
 
 (The "consumer subscribes to a changed-attribute event but its Table 3 is byte-stable" case is **not** a warning — it is expressed by the precise `unaffected` body form per Step 5.2 and the report template.)
 
@@ -251,15 +280,16 @@ Build the `Warnings:` sub-bullet list, in the report template's order. Emit a ca
 
 Render `<output_text>` using the schema and rendering rules in the `messaging-spec:updates-report-template` skill — that skill is the single source of truth for the output format. Substitute placeholders as follows:
 
-- `<dir>/<stem>.messaging/` → the actual `<messaging_dir>/`; `<dir>/<stem>.commands.md` → the actual `<commands_diagram>`; `<dir>/<stem>.domain/updates.md` → the actual `<domain_updates_file>` (render the entire `Domain updates source` value as `_none_` when `domain_updates_present` is false); `<dir>/<stem>.application/commands-updates.md` → the actual `<commands_updates_file>` (render the entire `Commands-diagram updates source` value as `_none_` when `commands_updates_present` is false).
+- `<dir>/<stem>.messaging/` → the actual `<messaging_dir>/`; `<dir>/<stem>.commands.md` → the actual `<commands_diagram>`; `<dir>/<stem>.domain/updates.md` → the actual `<domain_updates_file>` (render the entire `Domain updates source` value as `_none_` when `domain_updates_present` is false); `<dir>/<stem>.application/commands-updates.md` → the actual `<commands_updates_file>` (render `_none_` when `commands_updates_present` is false); `<dir>/<stem>.application/ops-updates.md` → the actual `<ops_updates_file>` (render `_none_` when `ops_updates_present` is false).
 - `<sha256>` placeholders → the corresponding hash from Step 5 (or the literal `(none)`).
-- The **two-line sentinel block** at the top of the file → emit in the canonical order, both lines always present:
+- The **three-line sentinel block** at the top of the file → emit in the canonical order, all three lines always present:
   ```
   <!-- domain-updates-hash:<domain_updates_hash> -->
   <!-- commands-updates-hash:<commands_updates_hash> -->
+  <!-- ops-updates-hash:<ops_updates_hash> -->
   ```
   Each sentinel's value is `(none)` when its source file is missing. Followed by one blank line, then the `# Messaging Updates Report` heading.
-- `## Summary` → emit the ten bullet lines in the canonical order per the report template: messaging folder, commands diagram, domain updates source, commands-diagram updates source, then the six count lines `Consumers discovered`/`updated`/`aborted`/`unaffected`/`needing init`/`orphaned (commands diagram dropped marker)`. The `Warnings:` line follows if and only if any Step-6 category fired.
+- `## Summary` → emit the bullet lines in the canonical order per the report template: messaging folder, commands diagram, domain updates source, commands-diagram updates source, ops-diagram updates source, then the six count lines `Consumers discovered`/`updated`/`aborted`/`unaffected`/`needing init`/`orphaned (every marker dropped)`. The `Warnings:` line follows if and only if any Step-6 category fired.
 - `## Consumer Changes` → one H3 block per `<C> ∈ discovered`, **alphabetical by `<C>` regardless of status**, body per the Step-5.2 bucket and the per-status body rules in the report template:
   - `updated` → emit `Spec`, `Pre-update hash`, `Post-update hash`, optional `Table 2 refreshed:`, `Table 3 sub-blocks regenerated:` with each sub-block's `Source delta:` rendered with the axis-tagged phrase from Step 5.1.5 (or the literal `(unknown source)` fallback).
   - `aborted (reconcile commands diagram)` → emit the existing two-bullet shape per the report template.
@@ -296,6 +326,7 @@ Each prints exactly one `ERROR: ...` line and exits non-zero. The agent does **n
 | `<domain_diagram>` path produces an invalid `<stem>` | `ERROR: <domain_diagram> path does not yield a valid aggregate stem (must match ^[a-z][a-z0-9-]*$).` | Pass a path that follows `spec-core:naming-conventions`. |
 | `<domain_updates_file>` present but missing all expected headings | `ERROR: <domain_updates_file> is malformed; cannot locate expected headings. Re-run /update-specs <domain_diagram> to rebuild it.` | Re-run `/update-specs`. |
 | `<commands_updates_file>` present but missing all recognisable H2 sections | `ERROR: <commands_updates_file> is malformed; cannot locate expected headings. Re-run /application-spec:commands-updates-detector <domain_diagram> to rebuild it.` | Re-run `/application-spec:commands-updates-detector`. |
+| `<ops_updates_file>` present but missing all recognisable H2 sections | `ERROR: <ops_updates_file> is malformed; cannot locate expected headings. Re-run /application-spec:ops-updates-detector <domain_diagram> to rebuild it.` | Re-run `/application-spec:ops-updates-detector`. |
 | Aggregate root removed / stereotype-demoted in `<domain_updates_file>` | `ERROR: the aggregate root was removed or re-stereotyped in <domain_updates_file>; the whole diagram set (and every consumer under <messaging_dir>/) is invalid. Reconcile the diagrams, then re-run /messaging-spec:generate-code per consumer.` | Reconcile the diagrams; re-run `/messaging-spec:generate-code` per consumer. |
 | Aggregate root renamed in `<domain_updates_file>` | `ERROR: the aggregate root was renamed in <domain_updates_file>; this cascades to <commands_diagram>'s class names + filename, the <messaging_dir>/ folder, the %% Messaging markers' <Source> cells, and the <pkg>.domain.<root_snake> import root in generated code. Rename the diagrams + folder, reconcile the markers, then re-run /messaging-spec:generate-code per consumer.` | Rename the diagrams + folder; reconcile the markers; re-run `/messaging-spec:generate-code` per consumer. |
 | Any stereotype change in `<domain_updates_file>` | `ERROR: a class stereotype changed in <domain_updates_file>; reconcile the diagrams, then re-run /messaging-spec:generate-code per affected consumer.` | Reconcile the diagrams; re-run `/messaging-spec:generate-code` per affected consumer. |

@@ -117,7 +117,7 @@ The envelope is always constructed via the `make_event_envelope` helper fixture 
 
 ### Arming Configurable Fakes
 
-When a handler's `<AggregateRoot>Commands` service depends on a **configurable-seed** domain-service fake (one that `raise NotImplementedError` until `set_<m>_return(...)` is called — see `application-spec:fake-implementations`), the test MUST arm it in the GIVEN phase, before the handler call. The autouse override fixtures (`application-spec:fake-override-fixtures`) reset every fake to its unconfigured state between tests, so arming cannot be inherited from another test.
+When a handler's application service (a `<AggregateRoot>Commands` class **or** an ops orchestration service) depends on a **configurable-seed** domain-service fake (one that `raise NotImplementedError` until `set_<m>_return(...)` is called — see `application-spec:fake-implementations`), the test MUST arm it in the GIVEN phase, before the handler call. The autouse override fixtures (`application-spec:fake-override-fixtures`) reset every fake to its unconfigured state between tests, so arming cannot be inherited from another test.
 
 ```python
 def test_source_dms_file_added_handler__success(
