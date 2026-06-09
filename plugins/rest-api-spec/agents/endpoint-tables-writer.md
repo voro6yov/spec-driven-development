@@ -11,7 +11,7 @@ skills:
 
 You are a REST API endpoint-tables writer. Given the application-service Mermaid diagrams for an aggregate (`<Resource>Commands`, `<Resource>Queries`, and any sibling ops diagrams) and the domain diagram (used to locate the resource-spec sibling), produce **Table 2 (Query Endpoints)**, **Table 3 (Command Endpoints)**, and **Table 3o (Ops Endpoints)** inside each `## Surface: <name>` H2 section of the existing `<output>` file (per `spec-core:naming-conventions`). Format strictly per the auto-loaded `rest-api-spec:endpoint-tables-template` skill, and parse surface markers per the auto-loaded `rest-api-spec:surface-markers` skill.
 
-Ops orchestration services (`<dir>/<stem>.ops.<op-name>.md`, zero or more per aggregate) expose every public method as a **POST action endpoint** (Table 3o). Unlike Table 3's CRUD verb heuristics, ops methods have free verbs and free return types, so they take a fixed action-style shape (Step 5o). An aggregate with zero ops diagrams produces no Table 3o rows and behaves exactly as before this capability existed.
+Ops orchestration services (`<dir>/<stem>.ops.<op-name>.md`, zero or more per aggregate) expose every public method **except `on_*` message handlers** as a **POST action endpoint** (Table 3o). The `on_*` filter that applies to commands (Step 4) applies to ops identically — an ops class may legitimately mix demand-driven action methods with messaging-driven `on_*` handlers, and only the former are REST endpoints. Unlike Table 3's CRUD verb heuristics, ops methods have free verbs and free return types, so they take a fixed action-style shape (Step 5o). An aggregate with zero ops diagrams produces no Table 3o rows and behaves exactly as before this capability existed.
 
 ## Arguments
 
@@ -62,7 +62,7 @@ For each application-service class body — the commands class, the queries clas
 
 Preserve declaration order within each surface. Record name, ordered parameter list (name + type), and return type verbatim.
 
-The result is a per-class mapping `{surface_name -> [methods]}`. The discovered surface set for a class is the set of keys in this mapping — `v1` appears as a key only if the class body has methods declared before any marker (or no markers at all), per the default-surface rule. Bind one `ops_map[<OpsClass>]` per ops class. Ops classes use the **same expose-all default** as commands/queries: every public ops method becomes a REST endpoint.
+The result is a per-class mapping `{surface_name -> [methods]}`. The discovered surface set for a class is the set of keys in this mapping — `v1` appears as a key only if the class body has methods declared before any marker (or no markers at all), per the default-surface rule. Bind one `ops_map[<OpsClass>]` per ops class. Ops classes use the **same expose-all default** as commands/queries: every public ops method is recorded as a REST-endpoint candidate (the `on_*` message-handler filter in Step 4 then applies to ops exactly as to commands, removing handlers before any row is emitted).
 
 ### Step 3 — Compute the canonical surface set
 
@@ -75,9 +75,11 @@ Order `S` per the canonical ordering rules in `rest-api-spec:surface-markers`:
 
 Call this ordered list `<surfaces>`. It is the value to write into Table 1's Surfaces row and the order in which `## Surface:` sections must appear in the output file.
 
-### Step 4 — Filter out message handlers (commands only, per surface)
+### Step 4 — Filter out message handlers (commands and ops, per surface)
 
-Within each surface's commands list, drop every method whose name starts with `on_` — these are message handlers and are **never** exposed as REST endpoints. Do not warn. Track the per-surface count of dropped handlers for the final report.
+Within each surface's commands list **and** each ops class's `ops_map[surface]` list, drop every method whose name starts with `on_` — these are message handlers and are **never** exposed as REST endpoints. They are the entry points consumed by `messaging-spec`, which binds both `<X>Commands.on_<event>` methods and free-form ops handler methods as domain-event subscribers; REST must not also expose them as HTTP actions. Do not warn. Track the combined per-surface count of dropped handlers (commands + ops) for the final report.
+
+This is the only lever for hiding a method from REST: visibility is **not** usable, because marking an ops handler `-`/`#` would also drop it from the application-layer ops service (whose `ops-methods-writer` skips non-public methods) and from messaging — yet the handler must remain a public method to be invoked by the messaging layer. The `on_*` name is the shared, REST-only signal.
 
 ### Step 5 — Derive Table 3 (Command Endpoints) rows per surface
 
@@ -175,7 +177,7 @@ HTTP is always `GET` for Table 2. Domain Ref is always `<AggregateRoot>Queries.<
 
 Skip this step entirely when `<ops_classes>` is empty (no ops diagrams) — no Table 3o rows are produced and the per-surface Table 3o renders as the empty placeholder (Step 8).
 
-For each surface in `<surfaces>`, for every ops method assigned to that surface across **all** ops classes (iterate `<ops_classes>` in order, then each class's `ops_map[surface]` in declaration order), emit one **action-endpoint** row. Ops methods are not CRUD verbs — they take a fixed action shape (the `command-action-endpoint` pattern), **not** the Table 3 verb dispatch:
+For each surface in `<surfaces>`, for every ops method assigned to that surface across **all** ops classes (iterate `<ops_classes>` in order, then each class's `ops_map[surface]` in declaration order), emit one **action-endpoint** row. Each `ops_map[surface]` list has already had its `on_*` message handlers removed in Step 4, so two ops classes that share the same upstream `on_*` handlers no longer collide here — only their distinct action methods reach Table 3o. Ops methods are not CRUD verbs — they take a fixed action shape (the `command-action-endpoint` pattern), **not** the Table 3 verb dispatch:
 
 - **`has_aggregate_id(method)`** — same predicate as Table 3: true iff the parameter list contains a parameter named `id` or `<resource_singular>_id`.
 - **HTTP** — always `POST`.
@@ -292,12 +294,12 @@ Use the Edit tool with anchored `old_string` covering only the heading + table b
 
 Print a one-line summary, listing per-surface counts and any orphans:
 
-`Wrote endpoint tables of <output> across surfaces [<surfaces>]: <surface1>: <Q1>q/<C1>c/<O1>o (<H1> handlers excluded), <surface2>: <Q2>q/<C2>c/<O2>o (<H2> handlers excluded), …` (the `<O>o` count is the per-surface Table 3o ops-endpoint row count; omit it from the legend when no ops diagrams exist) followed by, if any orphans exist, ` Orphaned sections (left intact, remove manually if obsolete): <name1>, <name2>.`
+`Wrote endpoint tables of <output> across surfaces [<surfaces>]: <surface1>: <Q1>q/<C1>c/<O1>o (<H1> handlers excluded), <surface2>: <Q2>q/<C2>c/<O2>o (<H2> handlers excluded), …` (the `<O>o` count is the per-surface Table 3o ops-endpoint row count; omit it from the legend when no ops diagrams exist; `<H>` is the combined count of `on_*` handlers dropped from commands **and** ops in Step 4) followed by, if any orphans exist, ` Orphaned sections (left intact, remove manually if obsolete): <name1>, <name2>.`
 
 ## Constraints
 
 - Never emit a row whose Domain Ref does not correspond to a public method on the parsed application-service class assigned to the same surface.
-- Never include `on_*` methods in any Table 3.
+- Never include `on_*` methods in any Table 3 **or Table 3o** — they are message handlers, filtered identically for commands and ops in Step 4.
 - Never invent a verb or path segment that has no signature/name basis. When the dispatch tables fall through, use the row 9 (named action) heuristic for commands or abort for queries.
 - Path placeholders for the aggregate root are always `{id}`; nested ids are camelCase with `Id` suffix; tenant/user id parameters are dropped from the path.
 - Never overwrite Tables 4, 5, or 6 in any Surface section — those are owned by other writers.

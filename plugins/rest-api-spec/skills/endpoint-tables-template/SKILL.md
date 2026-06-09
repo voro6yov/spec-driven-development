@@ -109,7 +109,7 @@ The italic line is the entire content of that table — never mix the placeholde
 | POST | `/infer` | infer | Infer (ops) | `MappingRulesInferencing.infer` |
 | POST | `/{id}/reconcile` | reconcile | Reconcile (ops) | `MappingRulesInferencing.reconcile` |
 
-Table 3o enumerates the REST endpoints generated from an aggregate's **ops orchestration services** (`<stem>.ops.<op-name>.md`, zero or more per aggregate). Every public ops method becomes an endpoint. It is rendered **after** Table 3 in each `## Surface:` section.
+Table 3o enumerates the REST endpoints generated from an aggregate's **ops orchestration services** (`<stem>.ops.<op-name>.md`, zero or more per aggregate). Every public ops method becomes an endpoint **except `on_*` message handlers**, which are filtered out exactly as for command endpoints — they are consumed by messaging, never exposed over REST. It is rendered **after** Table 3 in each `## Surface:` section.
 
 ### Column rules
 

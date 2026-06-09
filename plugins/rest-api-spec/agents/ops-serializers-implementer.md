@@ -88,7 +88,7 @@ For each surface, within its bounded section:
 
 #### 3a. Parse Table 3o (Ops Endpoints)
 
-Locate `### Table 3o: Ops Endpoints`. Empty placeholder → zero ops endpoints for this surface; skip. Real table → collect every data row `(http, path, operation, description, domain_ref)`. The Domain Ref has the form `<OpsClass>.<method>` — resolve `<OpsClass>` against `<ops_classes>` and the method against that class's signatures (abort `Error: surface "<name>" Table 3o Domain Ref "<ref>" does not resolve to an ops method.` if it doesn't). Bind the method's **return type** verbatim.
+Locate `### Table 3o: Ops Endpoints`. Empty placeholder → zero ops endpoints for this surface; skip. Real table → collect every data row `(http, path, operation, description, domain_ref)`, dropping any whose Domain Ref method name starts with `on_` (defensive — `endpoint-tables-writer` already excludes ops `on_*` message handlers). The Domain Ref has the form `<OpsClass>.<method>` — resolve `<OpsClass>` against `<ops_classes>` and the method against that class's signatures (abort `Error: surface "<name>" Table 3o Domain Ref "<ref>" does not resolve to an ops method.` if it doesn't). Bind the method's **return type** verbatim.
 
 #### 3b. Parse Table 5 (Request Fields) — ops sub-blocks
 
