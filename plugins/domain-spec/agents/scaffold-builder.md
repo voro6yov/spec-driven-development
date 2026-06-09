@@ -64,7 +64,7 @@ For each non-exception class, write `<output_dir>/<snake_case(class_name)>.py`:
    - `<<Value Object>>` → `from {dots}shared import ValueObject`
    - `<<Event>>` (or its alias `<<Domain Event>>`) → `from {dots}shared import Event`
    - `<<Command>>` → `from {dots}shared import Command`
-   - `<<Repository>>` or `<<Service>>` → `from abc import ABC`
+   - `<<Repository>>` or `<<Service>>` (or its alias `<<Interface>>`) → `from abc import ABC`
    - `<<TypedDict>>` → `from typing import TypedDict`
 
 2. *Sibling module imports* — from the dependency map: every class B that A composes or depends on → `from .<snake_case(B)> import B`
@@ -87,7 +87,7 @@ class ClassName(Event): ...
 # <<Command>>:
 class ClassName(Command): ...
 
-# <<Repository>> / <<Service>>:
+# <<Repository>> / <<Service>> / <<Interface>>:
 class ClassName(ABC): ...
 
 # <<TypedDict>>:

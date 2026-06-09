@@ -157,6 +157,7 @@ STEREOTYPE_TO_CATEGORY = {
     "<<Entity>>": "aggregates",
     "<<Repository>>": "repositories-services",
     "<<Service>>": "repositories-services",
+    "<<Interface>>": "repositories-services",  # accepted alias of <<Service>>; specs treat it as a domain-service port
 }
 CANON = ["data-structures", "value-objects", "domain-events",
          "commands", "aggregates", "repositories-services"]

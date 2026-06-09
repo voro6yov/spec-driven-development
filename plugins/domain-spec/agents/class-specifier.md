@@ -24,7 +24,7 @@ You are a DDD class specification writer for a specific category of classes. You
 | `domain-events` | `<<Event>>` (or its alias `<<Domain Event>>`) and classes inferred as events (see inference rules below) |
 | `commands` | `<<Command>>` and classes inferred as commands (see inference rules below) |
 | `aggregates` | `<<Aggregate Root>>`, `<<Entity>>` |
-| `repositories-services` | `<<Repository>>`, `<<Service>>` |
+| `repositories-services` | `<<Repository>>`, `<<Service>>`, `<<Interface>>` (alias of `<<Service>>`) |
 
 ## Workflow
 
@@ -34,7 +34,7 @@ Read `<domain_diagram>`. Extract:
 
 1. **Description**: all prose text outside the Mermaid code block — use as context for method flows, invariants, preconditions, and business rules
 2. **Diagram**: parse the Mermaid `classDiagram` block and extract:
-   - Each class name and stereotype (`<<Aggregate Root>>`, `<<Entity>>`, `<<Value Object>>`, `<<Event>>` (alias `<<Domain Event>>`), `<<TypedDict>>`, `<<Command>>`, `<<Service>>`, `<<Repository>>`)
+   - Each class name and stereotype (`<<Aggregate Root>>`, `<<Entity>>`, `<<Value Object>>`, `<<Event>>` (alias `<<Domain Event>>`), `<<TypedDict>>`, `<<Command>>`, `<<Service>>` (alias `<<Interface>>`), `<<Repository>>`)
    - Attributes with types (visibility prefix `+`/`-` indicates public/private)
    - Methods with signatures
    - Relationships: composition `*--`, dependency `-->`, realization `--()`, including multiplicity labels and emits annotations
@@ -63,7 +63,7 @@ The class-spec-template skill is loaded in your context and is the **single sour
 | `<<Event>>` | Domain Event | Fields only, no methods. The alias `<<Domain Event>>` maps here too; render the spec heading with the canonical `<<Event>>` literal regardless of which the diagram used. |
 | `<<TypedDict>>` | TypedDict | Fields only, no methods |
 | `<<Command>>` | Command | Include Success/Failure reply types |
-| `<<Repository>>` / `<<Service>>` | Repository / Service | Methods only |
+| `<<Repository>>` / `<<Service>>` / `<<Interface>>` | Repository / Service | Methods only. `<<Interface>>` is an alias of `<<Service>>` — use the same template, but preserve the `<<Interface>>` literal in the rendered heading. |
 
 Fill each spec using the description to enrich method specs with flows, invariants, preconditions, and business rules.
 
@@ -89,7 +89,7 @@ Format each relationship using the same standard verbs as the `### Dependencies`
 |---|---|
 | `*--` | **ClassA** composes **ClassB** (composition) |
 | `-->` with `: emits` annotation | **ClassA** emits **EventName** (event emission) or (command emission) |
-| `--()` without `: emits`, source is `<<Service>>` | **ServiceName** depends on **ClassA** (service input) |
+| `--()` without `: emits`, source is `<<Service>>` or `<<Interface>>` | **ServiceName** depends on **ClassA** (service input) |
 | `--()` without `: emits`, source is `<<Repository>>` | **RepoName** depends on **ClassA** (retrieve/store) |
 | `--()` without `: emits`, source is anything else | **ClassA** depends on **ClassB** (optional association) |
 | `-->` without emits | **ClassA** depends on **ClassB** (optional association) |

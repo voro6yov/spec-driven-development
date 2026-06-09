@@ -94,7 +94,7 @@ From `updates.md`:
   - `class = <ClassName>` from the heading.
   - **Kind dispatch** by stereotype:
     - `<<Aggregate Root>>` → `kind = per-member-edit`
-    - Any other stereotype (`<<Entity>>`, `<<Value Object>>`, `<<Event>>`, `<<Command>>`, `<<TypedDict>>`, `<<Repository>>`, `<<Service>>`) → `kind = whole-module-impl`
+    - Any other stereotype (`<<Entity>>`, `<<Value Object>>`, `<<Event>>`, `<<Command>>`, `<<TypedDict>>`, `<<Repository>>`, `<<Service>>`, `<<Interface>>`) → `kind = whole-module-impl`
     - Empty stereotype on the per-class block (rare; happens for inferred classes) → fall through to `whole-module-impl` and append note `"inferred stereotype"`
   - `action = modify`.
   - `members` = verbatim list of bullets from the **`**Members:**`** sub-section of the per-class block (e.g. `Attribute added: ...`, `Method changed: ...`). Empty when the class block has no Members sub-section. Phase 2 uses this to drive surgical method-level edits; Phase 3 verifies row-by-row against it.

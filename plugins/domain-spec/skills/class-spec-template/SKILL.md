@@ -191,7 +191,7 @@ Purpose statement describing what action this command triggers and which method 
 Methods only. Same method fields as Aggregate Root minus `Emits`.
 
 ```
-**`ClassName`** `<<Repository>>`   (or <<Service>>)
+**`ClassName`** `<<Repository>>`   (or <<Service>> or <<Interface>>)
 
 - **Pattern**: Pattern1; ...
 

@@ -310,6 +310,7 @@ STEREOTYPE_TO_CATEGORY = {
     "<<Entity>>": "aggregates",
     "<<Repository>>": "repositories-services",
     "<<Service>>": "repositories-services",
+    "<<Interface>>": "repositories-services",  # accepted alias of <<Service>> (diagram may declare either)
 }
 
 # --- Validate inputs ----------------------------------------------------------

@@ -42,6 +42,7 @@ For each class block in the file (identified by a `**ClassName** <<Stereotype>>`
    - `<<Command>>` → `domain-spec:commands`
    - `<<Repository>>` → `domain-spec:repositories`
    - `<<Service>>` → `domain-spec:domain-services`
+   - `<<Interface>>` (alias of `<<Service>>`) → `domain-spec:domain-services`
    - `<<TypedDict>>` → `domain-spec:domain-typed-dicts`
    - `<<Query DTO>>` → `domain-spec:query-dtos`
 2. **Attributes** → supporting patterns (apply only to `<<Aggregate Root>>`, `<<Entity>>`, `<<Value Object>>`):
@@ -68,7 +69,7 @@ Build the result as a semicolon-separated list of skill names from the **Skill**
 
 `<<Event>>`, `<<Command>>`, `<<Query DTO>>`, and `<<TypedDict>>` classes receive **only** the primary pattern from Step 1 — Steps 2 (attributes), 3 (methods), and 4 (partial dependencies) do not contribute additional patterns to these stereotypes. Their `Pattern` line must still be filled with the single primary pattern; it must **not** be left as `—`.
 
-`<<Repository>>` and `<<Service>>` classes likewise typically receive only their primary pattern; Steps 2–4 contribute nothing extra in the standard case.
+`<<Repository>>`, `<<Service>>`, and `<<Interface>>` classes likewise typically receive only their primary pattern; Steps 2–4 contribute nothing extra in the standard case.
 
 The only stereotypes whose `Pattern` line may legitimately remain `—` are categories that are not assigned patterns at all by this pipeline (none, currently). If you find yourself wanting to leave a class with `<<Event>>`, `<<Command>>`, `<<Query DTO>>`, or `<<TypedDict>>` unfilled, that is a bug — fill it with the single primary pattern.
 

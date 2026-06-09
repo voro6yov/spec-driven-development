@@ -40,6 +40,7 @@ For each class in the specification:
 | `<<Command>>` | Commands | `domain-spec:commands` |
 | `<<Repository>>` | Repository | `domain-spec:repositories` |
 | `<<Service>>` | Domain Service | `domain-spec:domain-services` |
+| `<<Interface>>` | Domain Service (alias of `<<Service>>`) | `domain-spec:domain-services` |
 | `<<TypedDict>>` | Domain TypedDict | `domain-spec:domain-typed-dicts` |
 | `<<Query DTO>>` | Query DTO | `domain-spec:query-dtos` |
 

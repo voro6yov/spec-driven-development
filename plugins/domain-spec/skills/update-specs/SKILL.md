@@ -37,7 +37,7 @@ Same as `/generate-specs`. Used when iterating affected categories in canonical 
 | `domain-events` | `<<Event>>` / `<<Domain Event>>` (alias) or inferred events (`-->` with `: emits`) |
 | `commands` | `<<Command>>` or inferred commands (`--()` with `: emits`) |
 | `aggregates` | `<<Aggregate Root>>`, `<<Entity>>` |
-| `repositories-services` | `<<Repository>>`, `<<Service>>` |
+| `repositories-services` | `<<Repository>>`, `<<Service>>`, `<<Interface>>` (alias of `<<Service>>`) |
 
 Canonical order for fan-out, dispatch, and reporting:
 
