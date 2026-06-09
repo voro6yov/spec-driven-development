@@ -1,7 +1,7 @@
 ---
 name: request-fields-writer
 description: "Fills Table 5 (Request Fields) inside every `## Surface: <name>` section of an existing `<dir>/<stem>.rest-api/spec.md`. Invoke with: @request-fields-writer <domain_diagram>"
-tools: Read, Edit, Skill
+tools: Read, Edit, Bash, Skill
 model: sonnet
 skills:
   - spec-core:naming-conventions

@@ -1,7 +1,7 @@
 ---
 name: endpoint-tables-writer
 description: "Fills Tables 2 and 3 (Query and Command Endpoints) in each `## Surface:` section by reading application-service diagrams and partitioning methods by surface marker. Invoke with: @endpoint-tables-writer <domain_diagram>"
-tools: Read, Edit, Skill
+tools: Read, Edit, Bash, Skill
 model: sonnet
 skills:
   - spec-core:naming-conventions

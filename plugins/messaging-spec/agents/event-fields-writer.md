@@ -1,7 +1,7 @@
 ---
 name: event-fields-writer
 description: "Fills Table 3 (Event Parameter Mapping) of a messaging consumer input spec by matching handler parameters against source event class attributes. Invoke with: @event-fields-writer <commands_diagram> <consumer_name>"
-tools: Read, Write
+tools: Read, Write, Bash
 model: sonnet
 skills:
   - spec-core:naming-conventions

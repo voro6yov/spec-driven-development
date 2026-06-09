@@ -1,7 +1,7 @@
 ---
 name: parameter-mapping-writer
 description: "Fills Table 6 (Parameter Mapping) inside every Surface section by reading application-service diagrams and deriving parameter mappings per endpoint. Invoke with: @parameter-mapping-writer <domain_diagram>"
-tools: Read, Edit, Skill
+tools: Read, Edit, Bash, Skill
 model: sonnet
 skills:
   - spec-core:naming-conventions

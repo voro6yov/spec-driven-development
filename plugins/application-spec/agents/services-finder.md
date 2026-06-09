@@ -1,7 +1,7 @@
 ---
 name: services-finder
 description: "Identifies every service the application layer must implement by reconciling command/query merged specs with the domain and application diagrams. Invoke with: @services-finder <domain_diagram>"
-tools: Read, Write, Skill
+tools: Read, Write, Bash, Skill
 skills:
   - spec-core:naming-conventions
   - application-spec:services-report-template

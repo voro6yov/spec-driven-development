@@ -1,7 +1,7 @@
 ---
 name: exceptions-implementer
 description: "Implements application-layer exception classes from merged commands, queries, and per-service ops exceptions specs to the domain aggregate's `exceptions.py`. Invoke with: @application-spec:exceptions-implementer <domain_diagram> <locations_report_text>"
-tools: Read, Write, Edit, Skill
+tools: Read, Write, Edit, Bash, Skill
 skills:
   - spec-core:naming-conventions
   - domain-spec:domain-exceptions

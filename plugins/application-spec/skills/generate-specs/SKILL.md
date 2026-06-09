@@ -2,7 +2,7 @@
 name: generate-specs
 description: "Orchestrates application spec generation (commands + queries dependencies, method specifications, and application exceptions) for an aggregate. Invoke with: /application-spec:generate-specs <domain_diagram>"
 argument-hint: <domain_diagram>
-allowed-tools: Read, Agent, Skill
+allowed-tools: Read, Bash, Agent, Skill
 ---
 
 You are an application spec generation orchestrator. Generate the commands- and queries-side application service specs for the aggregate described by `$ARGUMENTS[0]` (the domain diagram) by running the writer agents in parallel, then enriching the exceptions sibling files. Sibling diagram paths (`<commands_diagram>`, `<queries_diagram>`) are derived internally per `spec-core:naming-conventions`; agents accept only `<domain_diagram>` (plus an `<op-name>` discriminator for ops services) and derive the rest themselves.

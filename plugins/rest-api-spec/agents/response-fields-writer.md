@@ -1,7 +1,7 @@
 ---
 name: response-fields-writer
 description: "Fills Table 4 (Response Fields) inside every `## Surface: <name>` section by deriving response-fields sub-blocks per query endpoint. Invoke with: @response-fields-writer <domain_diagram>"
-tools: Read, Edit, Skill
+tools: Read, Edit, Bash, Skill
 model: sonnet
 skills:
   - spec-core:naming-conventions

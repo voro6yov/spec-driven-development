@@ -1,7 +1,7 @@
 ---
 name: application-exceptions-specifier
 description: Enriches Application Exceptions sections in commands, queries, and every ops service file with full class specs for each exception raised by application services. Invoke with: @application-exceptions-specifier <domain_diagram>
-tools: Read, Write
+tools: Read, Write, Bash
 model: sonnet
 skills:
   - spec-core:naming-conventions

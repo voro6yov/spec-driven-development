@@ -1,7 +1,7 @@
 ---
 name: event-tables-writer
 description: "Fills Table 2 (Events to Consume) of a messaging consumer input spec by parsing the \`%% Messaging - <consumer_name>\` block(s) inside the Mermaid commands diagram and any sibling ops diagrams. Invoke with: @event-tables-writer <commands_diagram> <consumer_name>"
-tools: Read, Write
+tools: Read, Write, Bash
 model: haiku
 skills:
   - spec-core:naming-conventions
