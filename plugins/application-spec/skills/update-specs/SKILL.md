@@ -282,7 +282,13 @@ If a merger reports a failure, abort and emit a single `ERROR:` line repeating i
 
 ### Step 6 — Re-run services-finder
 
-After all merger(s) return, invoke `application-spec:services-finder` with prompt `$ARGUMENTS[0]`. It re-reads the freshly merged specs plus the domain diagram and rewrites `<plugin_dir>/services.md`.
+After all merger(s) return, enumerate the aggregate's ops services so the finder can preserve them. This update flow is commands/queries-only and never modifies the ops specs, but `services-finder` rewrites `services.md` **in full** and no longer self-discovers ops — so it must be handed the op-names, or every ops-contributed service and consumer would be dropped from the report. Glob the surviving merged ops specs via Bash:
+
+```bash
+ls "<plugin_dir>"/ops.*.specs.md 2>/dev/null
+```
+
+For each match, derive `<op-name>` by stripping the `ops.` prefix and the `.specs.md` suffix from the basename (both `<stem>` and `<op-name>` are dot-free kebab, so the split is unambiguous). Then invoke `application-spec:services-finder` with prompt `$ARGUMENTS[0] <op-name-1> <op-name-2> …` — the domain diagram followed by every enumerated `<op-name>`, space-separated (when there are none, just `$ARGUMENTS[0]`). It re-reads the freshly merged commands/queries specs, each passed side's `ops.<op-name>.specs.md`, and the domain diagram, and rewrites `<plugin_dir>/services.md`.
 
 This step always runs after Step 5 (regardless of which sides were dirty). Reasons:
 

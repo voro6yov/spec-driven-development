@@ -1,7 +1,7 @@
 ---
 name: services-finder
-description: "Identifies every service the application layer must implement by reconciling command/query merged specs with the domain and application diagrams. Invoke with: @services-finder <domain_diagram>"
-tools: Read, Write, Bash, Skill
+description: "Identifies every service the application layer must implement by reconciling command/query merged specs with the domain and application diagrams. Invoke with: @services-finder <domain_diagram> [<op-name>...]"
+tools: Read, Write, Skill
 skills:
   - spec-core:naming-conventions
   - application-spec:services-report-template
@@ -29,8 +29,9 @@ skill — follow it exactly when assembling the report.
 ## Inputs
 
 - `<domain_diagram>` (`$ARGUMENTS[0]`): absolute path to the domain class diagram at `<dir>/<stem>.md`. Holds `<<Service>>` ABC classes (e.g., `SubjectDetection`).
+- `<op-name>...` (`$ARGUMENTS[1..]`): zero or more ops service discriminators (dot-free kebab, space-separated), one per ops orchestration service the aggregate declares. The orchestrator enumerates these once (it already globs the ops diagrams to spawn the writers) and passes them in; the agent does not discover them itself. When none are passed, only the commands and queries sides contribute.
 
-If the input is missing, unreadable, or contains no `classDiagram` block,
+If `<domain_diagram>` is missing, unreadable, or contains no `classDiagram` block,
 abort with a one-sentence error.
 
 ## Path resolution
@@ -53,13 +54,18 @@ If either `<plugin_dir>/commands.specs.md` or `<plugin_dir>/queries.specs.md` is
 missing or empty, abort with a one-sentence error naming the missing
 sibling — the merger must run first.
 
-In addition, glob `<plugin_dir>/ops.*.specs.md` to discover every ops
-orchestration merged spec (zero, one, or many). Each is read for its
-`## Dependencies` collaborators; none is written. Ops specs are
-**optional** — if none exist, contribute nothing from the ops track and
-do not abort. The application diagrams are **not** consulted to find ops
-consumers: the ops consumer class name is read from the spec's own
-`# <X>` heading (see Step 2).
+In addition, for each `<op-name>` passed in `$ARGUMENTS[1..]`, read the
+merged ops spec `<plugin_dir>/ops.<op-name>.specs.md`. Each is read for
+its `## Dependencies` collaborators; none is written. The op-name set is
+**passed in, not discovered** — the agent never globs or lists
+`<plugin_dir>`; the orchestrator (which already enumerated the ops
+diagrams to spawn the writers) is the single source of truth. Ops are
+**optional** — when no op-names are passed, contribute nothing from the
+ops track and do not abort. The application diagrams are **not** consulted
+to find ops consumers: the ops consumer class name is read from the spec's
+own `# <X>` heading (see Step 2). If a passed `<op-name>`'s
+`ops.<op-name>.specs.md` is missing or unreadable, abort with a
+one-sentence error naming it.
 
 ## Workflow
 
@@ -77,8 +83,8 @@ whose name ends in `Queries`. Record `<CommandConsumer>` and
 ### Step 2 — Collect bullets from the Dependencies section
 
 Process three sources of merged specs: the commands spec, the queries
-spec, and every ops spec discovered by the `ops.*.specs.md` glob. Each
-source contributes one **consumer** class name:
+spec, and one ops spec per passed `<op-name>`. Each source contributes
+one **consumer** class name:
 
 - `<plugin_dir>/commands.specs.md` → consumer is `<CommandConsumer>`.
 - `<plugin_dir>/queries.specs.md` → consumer is `<QueryConsumer>`.
@@ -88,6 +94,8 @@ source contributes one **consumer** class name:
   ops spec has no such heading, abort with a one-sentence error naming
   the file. `<X>` may be any application-service class name (e.g.
   `MappingRulesInferencing`) and carries no `Commands`/`Queries` suffix.
+  Record the `<op-name>` → `<X>` association — Step 4 uses the originating
+  `<op-name>` to locate this consumer's ops diagram.
 
 For each spec, with its consumer fixed as above:
 
@@ -143,11 +151,12 @@ For every `(attr_name, InterfaceClass, subsection, consumer)` tuple:
     - `consumer == <CommandConsumer>` → `<commands_diagram>`.
     - `consumer == <QueryConsumer>` → `<queries_diagram>`.
     - `consumer` is an ops `<X>` → `<dir>/<stem>.ops.<op-name>.md`, where
-      `<op-name>` is `kebab-case(<X>)` (lowercase the PascalCase class
-      name, inserting a hyphen before each interior uppercase letter, so
-      `MappingRulesInferencing` → `mapping-rules-inferencing`). External
-      interfaces appear in the ops diagram as plain-arrow link endpoints
-      from the `<X>` node.
+      `<op-name>` is the argument token whose `ops.<op-name>.specs.md`
+      produced this consumer (the association recorded in Step 2) — **not**
+      re-derived from the class name, since the diagram filename and the
+      class name are independent and need not kebab into each other.
+      External interfaces appear in the ops diagram as plain-arrow link
+      endpoints from the `<X>` node.
 
   If `InterfaceClass` is missing from the matching diagram, abort with a
   one-sentence error naming the interface and the expected diagram.

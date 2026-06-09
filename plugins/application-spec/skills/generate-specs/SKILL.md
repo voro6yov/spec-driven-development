@@ -74,7 +74,7 @@ Each commands/queries merger consolidates its side's `<side>.deps.md`, `<side>.m
 
 ### Step 4 — Enumerate services
 
-After all mergers return, spawn `application-spec:services-finder` with prompt `$ARGUMENTS[0]`. It reads the freshly merged `<plugin_dir>/commands.specs.md`, `<plugin_dir>/queries.specs.md`, and every `<plugin_dir>/ops.<op-name>.specs.md` plus the domain diagram and writes `<plugin_dir>/services.md`. Step 4 must wait for Step 3 because the finder reads the consolidated specs.
+After all mergers return, spawn `application-spec:services-finder` with prompt `$ARGUMENTS[0] <op-name-1> <op-name-2> …` — the domain diagram followed by every `<op-name>` enumerated in Step 1, space-separated (when N is zero, the prompt is just `$ARGUMENTS[0]`). It reads the freshly merged `<plugin_dir>/commands.specs.md`, `<plugin_dir>/queries.specs.md`, and each passed side's `<plugin_dir>/ops.<op-name>.specs.md` plus the domain diagram and writes `<plugin_dir>/services.md`. It does **not** discover the ops specs itself — this orchestrator (the single source of truth for the op-name set) must hand it the list. Step 4 must wait for Step 3 because the finder reads the consolidated specs.
 
 ### Step 5 — Report
 

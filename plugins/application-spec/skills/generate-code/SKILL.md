@@ -97,11 +97,11 @@ All invocations launch in parallel — do not sequence them. Wait for every invo
 Emit both `Agent` calls in a single message — do not sequence them:
 
 - `application-spec:queries-settings-implementer` with prompt `<locations_report_text>`.
-- `application-spec:exceptions-implementer` with prompt `$ARGUMENTS[0] <locations_report_text>`.
+- `application-spec:exceptions-implementer` with prompt `$ARGUMENTS[0] <locations_report_text> <op-name-1> <op-name-2> …` — the domain diagram, the locations report, then every `<op-name>` in `<ops_services>` (Step 1), space-separated and trailing the report (when `<ops_services>` is empty, just `$ARGUMENTS[0] <locations_report_text>`).
 
 Both invocations MUST appear as two tool calls in the same assistant turn. Issuing them across two turns is a violation of this step's contract.
 
-Wait for both to complete. The settings implementer fills every `<aggregate>_queries_settings.py` stub under the application package; the exceptions implementer appends fully implemented application exception classes (and updates the `..shared` import + `__all__` and the aggregate `__init__.py` wiring) on the domain aggregate's `exceptions.py`. The exceptions implementer self-discovers and covers ops-raised application exceptions too — it reads every `ops.<op-name>.exceptions.md` sibling alongside the commands/queries exceptions, so no ops-specific wiring is needed here.
+Wait for both to complete. The settings implementer fills every `<aggregate>_queries_settings.py` stub under the application package; the exceptions implementer appends fully implemented application exception classes (and updates the `..shared` import + `__all__` and the aggregate `__init__.py` wiring) on the domain aggregate's `exceptions.py`. The exceptions implementer covers ops-raised application exceptions too — for each `<op-name>` passed from Step 1 it reads the `## Application Exceptions` section of the merged `ops.<op-name>.specs.md` alongside the commands/queries specs (the merger already inlined and deleted the `ops.<op-name>.exceptions.md` fragments), folding them into the same `exceptions.py`.
 
 These two agents touch disjoint files and are safe to run concurrently. They must run after Step 4 only loosely (they do not depend on service-implementer output) but before Step 6, because the commands/queries implementers consume the settings class and the application exceptions.
 
