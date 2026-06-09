@@ -263,7 +263,7 @@ If any writer reports a failure, abort the workflow and emit a single `ERROR:` l
 
 ### Step 4 — Enrich application exceptions
 
-After all Step 3 writers return successfully, invoke `application-spec:application-exceptions-specifier` with prompt `$ARGUMENTS[0]`. The agent processes both sides in one call but auto-skips a side whose `<side>.exceptions.md` is absent (its existing disk-presence contract).
+After all Step 3 writers return successfully, invoke `application-spec:application-exceptions-specifier` with prompt `$ARGUMENTS[0]` — no `<op-name>` arguments, since this update flow is commands/queries-only and never regenerates ops fragments. The agent processes both fixed sides in one call but auto-skips a side whose `<side>.exceptions.md` is absent (its existing disk-presence contract). Passing no op-names deliberately keeps the ops `*.exceptions.md` files out of scope so the updater does not rewrite ops specs it never regenerated.
 
 Because Step 3 only writes fragments for the dirty side, the unaffected side's `<side>.exceptions.md` is not on disk (deleted by the prior `generate-specs` run's merger), and the enricher leaves the unaffected side's `<side>.specs.md` untouched. This is the load-bearing reason per-side regen requires no contract change to existing agents — the disk-presence check the enricher already performs is exactly the per-side scoping the updater needs.
 

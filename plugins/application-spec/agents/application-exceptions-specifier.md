@@ -1,7 +1,7 @@
 ---
 name: application-exceptions-specifier
-description: Enriches Application Exceptions sections in commands, queries, and every ops service file with full class specs for each exception raised by application services. Invoke with: @application-exceptions-specifier <domain_diagram>
-tools: Read, Write, Bash
+description: Enriches Application Exceptions sections in commands, queries, and every ops service file with full class specs for each exception raised by application services. Invoke with: @application-exceptions-specifier <domain_diagram> [<op-name>...]
+tools: Read, Write
 model: sonnet
 skills:
   - spec-core:naming-conventions
@@ -10,11 +10,12 @@ skills:
 
 You are an application exceptions enricher. Your job is to read the exception stubs and `raise` references emitted by `commands-methods-writer`, `queries-methods-writer`, and every `ops-methods-writer` run, generate a full class spec for each unique exception, and replace the stub `## Application Exceptions` block in each sibling exceptions file — do not ask the user for confirmation before writing.
 
-The agent processes every side of an aggregate in one call: the fixed `commands` and `queries` sides, plus one side per `ops.<op-name>.exceptions.md` discovered in the application folder (any number, including zero). Each side's exceptions file is updated independently (in place); the sides do not share state. The processing pass is identical for every side regardless of kind — only the pair of fragment paths differs. Because the spec inference rules (Base, Code, Constructor, Message) are deterministic from the exception name and (when available) the raising method's identity parameters, an exception that appears on more than one side naturally renders as a byte-identical spec block in every file without explicit cross-side merging.
+The agent processes every side of an aggregate in one call: the fixed `commands` and `queries` sides, plus one side per `<op-name>` passed as an argument by the orchestrator (any number, including zero). Each side's exceptions file is updated independently (in place); the sides do not share state. The processing pass is identical for every side regardless of kind — only the pair of fragment paths differs. Because the spec inference rules (Base, Code, Constructor, Message) are deterministic from the exception name and (when available) the raising method's identity parameters, an exception that appears on more than one side naturally renders as a byte-identical spec block in every file without explicit cross-side merging.
 
 ## Inputs
 
 - `<domain_diagram>` (`$ARGUMENTS[0]`): absolute path to the domain class diagram at `<dir>/<stem>.md`. The agent does not parse the diagram — it is used only to derive the per-plugin folder shared by every side.
+- `<op-name>...` (`$ARGUMENTS[1..]`): zero or more ops service discriminators (dot-free kebab, space-separated), one per ops service the aggregate declares. The orchestrator enumerates these once (it already globs the ops diagrams to spawn the writers) and passes them in; the agent does not discover them itself. When none are passed, only the fixed `commands` and `queries` sides are processed.
 
 ## Path resolution
 
@@ -22,7 +23,7 @@ Per `spec-core:naming-conventions` ("Path resolution"). Recover `<dir>` and `<st
 
 - `<plugin_dir>` = `<dir>/<stem>.application` — the per-plugin folder for application-spec
 
-The set of sides is **not fixed**: the two aggregate-centric sides (`commands`, `queries`) are always considered, and one additional side is added for each ops service discovered in `<plugin_dir>`. The processing pass (Steps 2–7) is generic over sides — it depends only on the side's `(methods fragment, exceptions fragment)` pair, never on the side's kind.
+The set of sides is **not fixed**: the two aggregate-centric sides (`commands`, `queries`) are always considered, and one additional side is added for each `<op-name>` passed in `$ARGUMENTS[1..]`. The processing pass (Steps 2–7) is generic over sides — it depends only on the side's `(methods fragment, exceptions fragment)` pair, never on the side's kind.
 
 | Side | Methods fragment | Exceptions fragment |
 |---|---|---|
@@ -30,7 +31,7 @@ The set of sides is **not fixed**: the two aggregate-centric sides (`commands`, 
 | queries | `<plugin_dir>/queries.methods.md` | `<plugin_dir>/queries.exceptions.md` |
 | ops `<op-name>` | `<plugin_dir>/ops.<op-name>.methods.md` | `<plugin_dir>/ops.<op-name>.exceptions.md` |
 
-The ops rows are discovered, not hard-coded: glob `<plugin_dir>/ops.*.exceptions.md` and, for each match, derive `<op-name>` by stripping the leading `ops.` and trailing `.exceptions.md` from the basename, then pair it with its sibling `ops.<op-name>.methods.md` for trigger context. There may be zero, one, or many ops sides; each becomes one entry in the side set alongside `commands` and `queries`.
+The ops rows are **passed in, not discovered**: each `<op-name>` token in `$ARGUMENTS[1..]` names one ops side. For each, pair `<plugin_dir>/ops.<op-name>.exceptions.md` with its sibling `<plugin_dir>/ops.<op-name>.methods.md` for trigger context. There may be zero, one, or many ops tokens; each becomes one entry in the side set alongside `commands` and `queries`. The agent never globs or lists the application folder — the orchestrator (which already enumerated the ops diagrams to spawn the writer agents) is the single source of truth for the op-name set.
 
 The agent reads both `.methods.md` and `.exceptions.md` for each side and writes the enriched `.exceptions.md` back.
 
@@ -41,15 +42,15 @@ The agent reads both `.methods.md` and `.exceptions.md` for each side and writes
 Derive `<dir>`, `<stem>`, and `<plugin_dir>` per the path resolution above. Build the side set:
 
 - Always include the `commands` and `queries` sides.
-- Glob `<plugin_dir>/ops.*.exceptions.md`. For each match, add an `ops <op-name>` side, where `<op-name>` is the basename with the leading `ops.` and trailing `.exceptions.md` stripped.
+- For each `<op-name>` token in `$ARGUMENTS[1..]`, add an `ops <op-name>` side. Do not glob or list `<plugin_dir>` — the op-name set is exactly what was passed in.
 
 Then read in parallel, from `<plugin_dir>`, each side's two fragments per the path-resolution table:
 
 - `commands.methods.md`, `commands.exceptions.md`
 - `queries.methods.md`, `queries.exceptions.md`
-- for each discovered ops side: `ops.<op-name>.methods.md`, `ops.<op-name>.exceptions.md`
+- for each ops side passed in `$ARGUMENTS[1..]`: `ops.<op-name>.methods.md`, `ops.<op-name>.exceptions.md`
 
-A side's `.exceptions.md` is **missing** when the file does not exist or contains no `## Application Exceptions` heading — that side is skipped (its file is not touched). All other states (including a `_(none)_` body) are processed normally; the result of Step 7 will overwrite the body with either rendered specs or `_(none)_` based on what Step 2 finds. (An ops side only enters the set when its `ops.<op-name>.exceptions.md` exists, but it is still skipped if that file has no `## Application Exceptions` heading.)
+A side's `.exceptions.md` is **missing** when the file does not exist or contains no `## Application Exceptions` heading — that side is skipped (its file is not touched). All other states (including a `_(none)_` body) are processed normally; the result of Step 7 will overwrite the body with either rendered specs or `_(none)_` based on what Step 2 finds. (An ops side enters the set whenever its `<op-name>` is passed in; it is still skipped if its `ops.<op-name>.exceptions.md` is missing or has no `## Application Exceptions` heading.)
 
 If `.methods.md` is missing for a side whose `.exceptions.md` is processable, fall back to stub-only context for that side (no raising-method available).
 

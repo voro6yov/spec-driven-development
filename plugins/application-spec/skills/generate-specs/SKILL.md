@@ -60,7 +60,7 @@ When N is zero, this is exactly the four fixed writers — identical to the pre-
 
 ### Step 2 — Enrich application exceptions
 
-After all writer agents return, spawn `application-spec:application-exceptions-specifier` with prompt `$ARGUMENTS[0]`. This agent reads the freshly written `commands.methods.md` / `commands.exceptions.md` and `queries.methods.md` / `queries.exceptions.md` files inside `<plugin_dir>` and replaces each side's `## Application Exceptions` stub with full class specs. The same single run also self-discovers and enriches every `ops.<op-name>.exceptions.md` stub in `<plugin_dir>` (it globs the ops files itself — no extra invocation per `<op-name>` is needed). It must run after Step 1 because it depends on those siblings being on disk.
+After all writer agents return, spawn `application-spec:application-exceptions-specifier` with prompt `$ARGUMENTS[0] <op-name-1> <op-name-2> …` — the domain diagram followed by every `<op-name>` enumerated in Step 1, space-separated (when N is zero, the prompt is just `$ARGUMENTS[0]`). This agent reads the freshly written `commands.methods.md` / `commands.exceptions.md` and `queries.methods.md` / `queries.exceptions.md` files inside `<plugin_dir>` and replaces each side's `## Application Exceptions` stub with full class specs. The same single run also enriches each `ops.<op-name>.exceptions.md` stub for the op-names you pass — it does **not** discover them itself, so this orchestrator (which already enumerated the ops diagrams in Step 1 to spawn the writers) is the single source of truth for the op-name set and must hand it the full list. It must run after Step 1 because it depends on those siblings being on disk.
 
 ### Step 3 — Merge fragments per side in parallel
 
