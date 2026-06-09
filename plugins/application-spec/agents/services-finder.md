@@ -28,7 +28,7 @@ skill — follow it exactly when assembling the report.
 
 ## Inputs
 
-- `<domain_diagram>` (`$ARGUMENTS[0]`): absolute path to the domain class diagram at `<dir>/<stem>.md`. Holds `<<Service>>` ABC classes (e.g., `SubjectDetection`).
+- `<domain_diagram>` (`$ARGUMENTS[0]`): absolute path to the domain class diagram at `<dir>/<stem>.md`. Holds `<<Service>>` ABC classes (e.g., `SubjectDetection`); `<<Interface>>` is an accepted alias of `<<Service>>` (a domain-layer capability port such as `ICanRetrieveFilesInfo`).
 - `<op-name>...` (`$ARGUMENTS[1..]`): zero or more ops service discriminators (dot-free kebab, space-separated), one per ops orchestration service the aggregate declares. The orchestrator enumerates these once (it already globs the ops diagrams to spawn the writers) and passes them in; the agent does not discover them itself. When none are passed, only the commands and queries sides contribute.
 
 If `<domain_diagram>` is missing, unreadable, or contains no `classDiagram` block,
@@ -140,11 +140,14 @@ Group all tuples by `attr_name`. For each group:
 For every `(attr_name, InterfaceClass, subsection, consumer)` tuple:
 
 - If `subsection == "domain"`: `InterfaceClass` must exist as a class
-  declaration in `<domain_diagram>` with the `<<Service>>` stereotype.
-  If it is missing, or present without `<<Service>>`, abort with a
-  one-sentence error naming the interface and the expected diagram. This
-  check is consumer-independent — it applies identically whether the
-  bullet came from a commands, queries, or ops spec.
+  declaration in `<domain_diagram>` with the `<<Service>>` stereotype or
+  its accepted alias `<<Interface>>` (per domain-spec, a domain-layer
+  capability port such as `ICanRetrieveFilesInfo` is declared `<<Interface>>`
+  yet is a domain service — same domain-services template and pattern). If
+  it is missing, or present with any stereotype other than `<<Service>>` /
+  `<<Interface>>`, abort with a one-sentence error naming the interface and
+  the expected diagram. This check is consumer-independent — it applies
+  identically whether the bullet came from a commands, queries, or ops spec.
 - If `subsection == "external"`: `InterfaceClass` must exist as a class
   declaration in the matching application diagram, selected by the
   tuple's `consumer`:
