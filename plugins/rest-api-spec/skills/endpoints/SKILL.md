@@ -73,7 +73,7 @@ def get_resource(
 )
 @inject
 def get_resources(
-    request: GetResourcesRequest = Depends(),
+    request: Annotated[GetResourcesRequest, Query()],
     queries: ResourceQueries = Depends(Provide[Containers.resource_queries]),
 ):
     return GetResourcesResponse.from_domain(
@@ -206,7 +206,7 @@ Use PATCH for partial updates or batch operations on multiple resources:
 )
 @inject
 def restart_tires(
-    request: RestartTiresRequest = Depends(),
+    request: Annotated[RestartTiresRequest, Query()],
     tire_commands: TireCommands = Depends(Provide[Containers.tire_commands]),
 ):
     return RestartTiresResponse.from_domain(
@@ -310,13 +310,19 @@ request: CreateResourceRequest  # Pydantic model
 
 ### Query Params Class (Complex Queries)
 
+A hand-written **`__init__`-style** params class (a plain class, *not* a `BaseModel` — see `rest-api-spec:query-params`) is bound via `Depends()`:
+
 ```python
 request: QueryResourcesParams = Depends()
 ```
 
+A generated **`BaseModel` query-params model** (`<Operation>Request(ConfiguredRequestSerializer)`) is instead bound via `Annotated[<Model>, Query()]` — a `BaseModel` consumed via `Depends()` is parsed as a request body (`422`), not query params. See `rest-api-spec:request-serializers` § Query Parameters.
+
 ## Example
 
 ```python
+from typing import Annotated
+
 from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, Path, Query, status
 
@@ -380,7 +386,7 @@ def get_conveyor(
 )
 @inject
 def get_conveyors(
-    request: GetConveyorsRequest = Depends(),
+    request: Annotated[GetConveyorsRequest, Query()],
     conveyor_queries: ConveyorQueries = Depends(Provide[Containers.conveyor_queries]),
 ):
     return GetConveyorsResponse.from_domain(

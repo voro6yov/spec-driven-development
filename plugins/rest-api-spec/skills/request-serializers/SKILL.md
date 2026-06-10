@@ -104,6 +104,26 @@ tags: list[str] = Field(default_factory=list)
 ids: list[str] | None = Field(default=None)
 ```
 
+**Single-value coercion (query-param models only).** When a `list[...]` field is bound from the **query string** (a query-params model, per § Query Parameters), a single occurrence (`?ids=A`) arrives as a scalar and Pydantic v2 rejects it with `list_type` (two or more values bind fine). Add a `mode="before"` validator that wraps a lone scalar into a one-element list:
+
+```python
+from pydantic import Field, field_validator
+
+
+class GetThingsRequest(ConfiguredRequestSerializer):
+    ids: list[str] | None = Field(default=None)
+    tags: list[str] | None = Field(default=None)
+
+    @field_validator("ids", "tags", mode="before")
+    @classmethod
+    def _wrap_scalar_in_list(cls, value):
+        if value is None or isinstance(value, list):
+            return value
+        return [value]
+```
+
+List **body** fields (a JSON array in a request body) do not need this — the JSON parser already delivers a list. Emit the validator only for query-param models.
+
 ## `to_domain()` method for nested TypedDict targets
 
 When a nested request sub-serializer mirrors the shape of a domain `<<Domain TypedDict>>` / `<<Query DTO>>` that the application service consumes, the sub-serializer exposes a `to_domain(self) -> <TypedDictName>` method. This is the canonical request→domain conversion site; the endpoint layer calls it (or list-comprehends over it for `list[T]` parameters) instead of using Pydantic's generic `model_dump()` — `to_domain()` is typed, robust to Pydantic config changes (e.g. `by_alias=True` flipping global key casing), and a single colocated place to evolve the conversion if the TypedDict diverges from the serializer's shape.
@@ -253,13 +273,22 @@ def create_resource(request: CreateResourceRequest):
     # request.id, request.name, etc.
 ```
 
-### Query Parameters via Depends
+### Query Parameters via `Annotated[..., Query()]`
+
+A `ConfiguredRequestSerializer` (a `BaseModel`) used for query parameters is bound with `Annotated[<Model>, Query()]` — **not** `Depends()`. In this FastAPI / Pydantic-v2 stack a `BaseModel` consumed via `Depends()` is parsed as a request **body** (`422 {loc: ["body"]}` on every call); `Annotated[<Model>, Query()]` is FastAPI's supported "Pydantic model as query parameters" binding (FastAPI ≥ 0.115). The model's camelCase aliases (`alias_generator=to_camel`) are honored as the query-param names.
 
 ```python
+from typing import Annotated
+
+from fastapi import Query
+
+
 @router.get("")
-def get_resources(request: GetResourcesRequest = Depends()):
+def get_resources(request: Annotated[GetResourcesRequest, Query()]):
     # request.page, request.per_page
 ```
+
+When a query-params model has any `list[...]` field, it must also coerce a single occurrence into a one-element list — see [§ List Fields](#list-fields).
 
 ## Testing Guidance
 

@@ -78,7 +78,7 @@ Nested response sub-serializer class names are derived from the corresponding `*
 | `ResultSetSerializer` | `...result_set` |
 | Domain DTOs (e.g., `LoadInfo`, `LoadsInfo`, `BriefLoadInfo`) | `<pkg>.domain.<aggregate>` (snake-case singular of Resource name) |
 | Sorting / filter enums (e.g., `LoadSorting`, `SortOrder`, `LoadFiltering`) | `<pkg>.domain.<aggregate>` (alongside DTOs) |
-| `Field`, `BaseModel` (when needed) | `pydantic` |
+| `Field`, `BaseModel`, `field_validator` (the last whenever the request model has a `list[...]` field — see [§ Request class](#request-class)) | `pydantic` |
 | `Literal` (for closed-enum response fields) | `typing` |
 
 `<pkg>` is the project package name resolved from the `Containers` path of `<locations_report_text>` — strip `<repo_path>/src/` from the front and `/containers.py` from the back. `<aggregate>` is the snake-case singular of Table 1's Resource name (e.g., `LineItem` → `line_item`).
@@ -271,6 +271,18 @@ Agent-specific rules on top of the skill template:
     - Numeric constraints (`ge=1`, `le=100`, `gt=`, `lt=`, `min_length=`, `max_length=`) are appended to `Field(...)` **only** when the Description column states them in that exact `key=value` syntax. Do not infer constraints from prose.
 - **Aliases** — never explicit; the base's `alias_generator=to_camel` handles camelCase.
 - **Sorting** — `sorting: list[str] | None = Field(default=None)`. Do not generate `__init__` / `_parse_sorting`; defer parsing to the endpoint layer.
+- **Single-value list coercion (required for `list[...]` fields)** — the endpoint binds this model via `Annotated[<Operation>Request, Query()]`, so each field is validated by Pydantic. A single query occurrence (`?statuses=open`) arrives as a scalar and Pydantic v2 rejects a `list[...]` field with `list_type` (two or more values bind fine). Collect every field whose Type — after stripping `| None` — is a collection (`list[...]`, `set[...]`, `tuple[...]`, `Sequence[...]`, `Iterable[...]`), including `sorting` and any `*_ids` filters, and emit one shared validator on the class; add `field_validator` to the `from pydantic import ...` line:
+
+    ```python
+    @field_validator("<f1>", "<f2>", mode="before")
+    @classmethod
+    def _wrap_scalar_in_list(cls, value):
+        if value is None or isinstance(value, list):
+            return value
+        return [value]
+    ```
+
+    Omit the validator entirely when the request model has no collection fields. (See `rest-api-spec:query-params` § Single-Value List Coercion.)
 
 ### Response class
 

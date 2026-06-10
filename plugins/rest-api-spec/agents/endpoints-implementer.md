@@ -83,9 +83,9 @@ The agent emits a deterministic, sorted import block. Compute the union of needs
 
 | Group | What | From |
 | --- | --- | --- |
-| stdlib | `Literal`, `IO`, etc. (only if used) | per stdlib module |
+| stdlib | `Literal`, `IO`, `Annotated`, etc. (only if used; `Annotated` whenever a query endpoint binds a `<Operation>Request` query-params model — see [§ Function parameter ordering](#function-parameter-ordering)) | per stdlib module (`Annotated` / `Literal` from `typing`) |
 | third-party | `Provide, inject` | `dependency_injector.wiring` |
-| third-party | `APIRouter, Depends, status` + any of `Path, Query, Body, File, UploadFile, Response` actually used (`Response` iff the module has ≥1 optional-return dual-status endpoint) | `fastapi` |
+| third-party | `APIRouter, Depends, status` + any of `Path, Query, Body, File, UploadFile, Response` actually used (`Query` whenever a query endpoint binds a `<Operation>Request` query-params model via `Annotated[..., Query()]` **or** a composite-key command emits `Query(...)` params; `Response` iff the module has ≥1 optional-return dual-status endpoint) | `fastapi` |
 | third-party | `StreamingResponse` (only if a binary endpoint exists) | `fastapi.responses` |
 | project | `<aggregate>_commands` / `<aggregate>_queries` application classes, **and any ops service class** `<OpsClass>` referenced by a Table 3o Domain Ref (only those referenced) | `<pkg>.application` |
 | project | `Pagination` (only if Table 6 references `→ Pagination`) | `<pkg>.domain.shared` |
@@ -128,15 +128,15 @@ Within an endpoint function signature, parameters are emitted in this fixed orde
 
 1. Aggregate root id (`id: str`) — positional, no default. Present iff the path contains `{id}`.
 2. Body model — `request: <Operation>Request` for command endpoints with a body. No default.
-3. File parameters — `<field>_file: UploadFile = File(...)` for file-upload endpoints. (Defaulted.)
-4. Body() parameters — non-bytes Table 5 fields for file-upload endpoints. (Defaulted.)
-5. Nested path ids — `<x>_id: str = Path(..., alias="<xId>")`. (Defaulted.)
-6. Command query params — `<name>: <type> = Query(..., alias="<camelName>")` for each Table 6 `Query param` row on a command endpoint (composite-key aggregates; see [§ Composite-key query parameters](#composite-key-query-parameters)). (Defaulted.) Emit in Table 6 row order.
-7. Query body model — `request: <Operation>Request = Depends()` for query endpoints with query params.
+3. Query-params model — `request: Annotated[<Operation>Request, Query()]` for query endpoints with query params. **No default** — even though the model's fields all carry defaults (so FastAPI populates it from the query string), the parameter itself is non-defaulted and must therefore precede the defaulted groups below. A query endpoint never also has a command body (item 2), so items 2 and 3 never co-occur.
+4. File parameters — `<field>_file: UploadFile = File(...)` for file-upload endpoints. (Defaulted.)
+5. Body() parameters — non-bytes Table 5 fields for file-upload endpoints. (Defaulted.)
+6. Nested path ids — `<x>_id: str = Path(..., alias="<xId>")`. (Defaulted.)
+7. Command query params — `<name>: <type> = Query(..., alias="<camelName>")` for each Table 6 `Query param` row on a command endpoint (composite-key aggregates; see [§ Composite-key query parameters](#composite-key-query-parameters)). (Defaulted.) Emit in Table 6 row order.
 8. `tenant_id: str = Depends(get_tenant_id)` — when any Table 6 row is `Auth context`.
 9. Application-service dependency — `<aggregate>_commands` / `<aggregate>_queries`, or, for a Table 3o row, the ops service `<op_snake>: <OpsClass>` (DI key `<op_snake>` = snake_case of the ops class from the Domain Ref).
 
-Python requires defaulted parameters after non-defaulted ones; the ordering above respects that. Within a group (3, 4, 5, 6), preserve the order in which the corresponding Table 5 / Table 6 / path placeholders appear.
+Python requires defaulted parameters after non-defaulted ones; the ordering above respects that (items 1–3 are non-defaulted, items 4–9 are defaulted). Within a group (4, 5, 6, 7), preserve the order in which the corresponding Table 5 / Table 6 / path placeholders appear.
 
 ### Visibility
 
@@ -220,7 +220,7 @@ Each endpoint's call to `commands.<method>(...)` or `queries.<method>(...)` is e
 | `Auth context` | `tenant_id=tenant_id` (parameter name comes from Table 6's left column verbatim — typically `tenant_id`, but if some other principal name is used, mirror it) |
 | `` Request body `<field>` `` — Table 5 Type has **no** `**Nested:**` sub-table (primitive / scalar / id) | `<field>=request.<field>` |
 | `` Request body `<field>` `` — Table 5 Type is backed by a `**Nested:**` sub-serializer (see discrimination rule below) | `<field>=request.<field>.to_domain()` (scalar) or `<field>=[item.to_domain() for item in request.<field>]` (list); wrap with `... if request.<field> is not None else None` when the Table 5 Type ends in `T \| None` |
-| `` Query param `<name>` `` — **query endpoint** (Table 2 row) | `<name>=request.<name>` — sourced from the `Depends()` query-params model |
+| `` Query param `<name>` `` — **query endpoint** (Table 2 row) | `<name>=request.<name>` — sourced from the `Annotated[<Operation>Request, Query()]` query-params model |
 | `` Query param `<name>` `` — **command endpoint** (Table 3 row; composite-key aggregate) | `<name>=<name>` — sourced from an individual `Query(...)` function parameter (see [§ Composite-key query parameters](#composite-key-query-parameters)) |
 | `` Constructed from query params `<f1>`, `<f2>`, … → `<Type>` `` | `<param>=<Type>(<f1>=request.<f1>, <f2>=request.<f2>, …)` — the kwarg name is the left-column parameter name from Table 6 (e.g., `pagination`); the `<Type>` is imported from `<pkg>.domain.shared` for `Pagination` and from `<pkg>.domain.<aggregate>` for per-aggregate composites like `<Resource>Filtering`. Append ` if any(...) else None` only when the Table 6 cell ends with `(defaults from settings if None)` AND the original parameter is `T \| None` — in that case wrap as `<param>=<Type>(...) if (request.<f1> is not None or request.<f2> is not None or ...) else None`. |
 
@@ -273,7 +273,7 @@ For non-upload endpoints:
 
 - **Command endpoints** with `<Operation>Request` (Table 5 has at least one row): emit `request: <Operation>Request` as a body param.
 - **Command endpoints** without a request class (`*No request body*` placeholder): omit the `request` parameter entirely.
-- **Query endpoints** with `<Operation>Request` (any query params per Table 4 sub-block, or `**Wish List**` include): emit `request: <Operation>Request = Depends()` (note `= Depends()` — query-params class is consumed via Depends).
+- **Query endpoints** with `<Operation>Request` (any query params per Table 4 sub-block, or `**Wish List**` include): emit `request: Annotated[<Operation>Request, Query()]`. **Do not** use `= Depends()` — in this FastAPI / Pydantic-v2 stack a `BaseModel` consumed via `Depends()` is parsed as a request **body** (`422 {loc: ["body"]}` on every call), whereas `Annotated[<Model>, Query()]` is FastAPI's supported "Pydantic model as query parameters" binding (FastAPI ≥ 0.115). Field-level camelCase aliases (`alias_generator=to_camel`) are honored either way, so the wire names are unchanged. Add `Annotated` (from `typing`) and `Query` (from `fastapi`) to the imports.
 - **Query endpoints** without a request class: omit `request` entirely.
 - **Command endpoints** whose Table 6 sub-block has `Query param` rows additionally carry one individual `Query(...)` parameter per such row (composite-key aggregates — see [§ Composite-key query parameters](#composite-key-query-parameters)). This is orthogonal to whether a body `request` model is present: a composite-key `PATCH` carries both; a composite-key `DELETE` carries the `Query(...)` params and no body.
 
@@ -287,7 +287,7 @@ For each `Query param` row in a **command** endpoint's Table 6 sub-block, emit o
 
 - Python name = the Table 6 left-column parameter name (snake_case), used verbatim.
 - Type = the parameter's declared type recovered from the commands-diagram method signature (`<command_method_params>`, parsed in Step 3.6). If the commands-diagram parse could not resolve the Domain Ref method, default the type to `str` and emit `WARNING: surface "<name>" endpoint "<HTTP> <PATH>" composite-key query param "<name>" typed as str — commands diagram unresolved`.
-- Binding = `Query(..., alias="<camelName>")` (required) or `Query(None, alias="<camelName>")` when the type ends in `| None`; omit the `alias=` argument when `<camelName>` is identical to the snake_case name (e.g. `cmf`). `<camelName>` is the camelCase form of the name — the wire name stays camelCase, matching the `Path(..., alias=...)` convention and the `Depends()` query-model alias generator.
+- Binding = `Query(..., alias="<camelName>")` (required) or `Query(None, alias="<camelName>")` when the type ends in `| None`; omit the `alias=` argument when `<camelName>` is identical to the snake_case name (e.g. `cmf`). `<camelName>` is the camelCase form of the name — the wire name stays camelCase, matching the `Path(..., alias=...)` convention and the `Annotated[..., Query()]` query-model alias generator.
 - The application-service call passes `<name>=<name>` (the bare function-parameter name), per [§ Application-service call construction](#application-service-call-construction-driven-by-table-6).
 
 `Query` is added to the `fastapi` import. These parameters never appear in `<Operation>Request` — the request body model holds only the Table 5 body fields (the non-key payload).
@@ -426,7 +426,7 @@ Two kinds have rendering rules not covered by any loaded skill:
 )
 @inject
 def <operation>(
-    # path params; request: <Operation>Request = Depends() if any query params; tenant_id if Auth context
+    # path params; request: Annotated[<Operation>Request, Query()] if any query params; tenant_id if Auth context
     <aggregate>_queries: <Resource>Queries = Depends(Provide[Containers.<aggregate>_queries]),
 ):
     return StreamingResponse(

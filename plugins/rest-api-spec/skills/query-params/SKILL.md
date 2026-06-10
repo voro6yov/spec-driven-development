@@ -113,6 +113,32 @@ warehouse_id: str = Query(default="1", alias="warehouseId")
 statuses: list[str] | None = Query(default=None)
 ```
 
+### Single-Value List Coercion (`BaseModel` query models)
+
+A `BaseModel` query-params model (`<Operation>Request(ConfiguredRequestSerializer)` — the form the generator emits) validates each field through Pydantic. A single query occurrence (`?statuses=open`) arrives as a scalar and Pydantic v2 rejects a `list[...]` field with `list_type` (two or more values bind fine). Wrap a lone scalar into a one-element list with a `mode="before"` validator over every list field:
+
+```python
+from pydantic import Field, field_validator
+
+from .configured_base_serializer import ConfiguredRequestSerializer
+
+__all__ = ["GetThingsRequest"]
+
+
+class GetThingsRequest(ConfiguredRequestSerializer):
+    statuses: list[str] | None = Field(default=None)
+    ids: list[str] | None = Field(default=None)
+
+    @field_validator("statuses", "ids", mode="before")
+    @classmethod
+    def _wrap_scalar_in_list(cls, value):
+        if value is None or isinstance(value, list):
+            return value
+        return [value]
+```
+
+The `__init__`-style params class (above) does not need this — FastAPI's own `Query()` handling on a bare `list[str]` parameter already wraps a single value.
+
 ### Parameter with Validation
 
 ```python
@@ -148,7 +174,28 @@ Common datetime alias patterns:
 
 ## Usage in Endpoints
 
-### With Depends()
+A **`BaseModel` query-params model** (`<Operation>Request(ConfiguredRequestSerializer)` — the form the generator emits) is bound with `Annotated[<Model>, Query()]`:
+
+```python
+from typing import Annotated
+
+from fastapi import Query
+
+
+@router.get("")
+@inject
+def get_conveyors(
+    request: Annotated[GetConveyorsRequest, Query()],
+    conveyor_queries: ConveyorQueries = Depends(Provide[Containers.conveyor_queries]),
+):
+    return GetConveyorsResponse.from_domain(
+        conveyor_queries.find_conveyors(request.page, request.per_page)
+    )
+```
+
+Binding a `BaseModel` via `Depends()` instead would make FastAPI parse it as a request **body** (`422` on every call). The `__init__`-style params class below is the exception — being a plain class, it is correctly bound via `Depends()`.
+
+### With Depends() (`__init__`-style params class)
 
 ```python
 @router.get("")
