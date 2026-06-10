@@ -85,7 +85,7 @@ From the domain diagram, build the following lookup tables:
 1. **Query repository finder methods** — for the primary `Query<AggregateRoot>Repository` from Step 3, find the matching class node in the domain diagram. Record its public methods (names + parameter lists + return types). If the repository is referenced from the queries diagram but missing from the domain diagram, abort with a one-sentence error naming the missing repository.
 2. **External Interface methods** — for each External Interface listed in Step 3, locate the matching class in the domain diagram and record its public methods. If a class is referenced from the queries diagram but missing from the domain diagram, abort with a one-sentence error naming the missing class.
 
-Note: query methods do **not** require `<AggregateRoot>` itself to be declared in the domain diagram — they go through DTOs, not the aggregate root. Do not abort if `<AggregateRoot>` is absent. Empty Query Repository class blocks (no public methods) are not aborted at this step — Step 5e's same-name finder check will produce a more useful error if any query method needs one.
+Note: query methods do **not** require `<AggregateRoot>` itself to be declared in the domain diagram — they go through DTOs, not the aggregate root. Do not abort if `<AggregateRoot>` is absent. Empty Query Repository class blocks (no public methods) are not aborted at this step — Step 5f's same-name finder check will produce a more useful error if any query method needs one.
 
 ### Step 5 — For each query method, choose a flow shape
 
@@ -93,10 +93,11 @@ Walk the methods recorded in Step 2 in order. For each method, classify into one
 
 1. **External-Interface** (5a)
 2. **Paginated-with-Defaults** (5b)
-3. **Not-Found-Raises** (5c)
-4. **Canonical None-tolerant** (5d) — default
+3. **Collection pass-through** (5c)
+4. **Not-Found-Raises** (5d)
+5. **Canonical None-tolerant** (5e) — default
 
-All four shapes — their flow steps and Returns lines — are defined by the auto-loaded `queries-methods-template` skill. This step picks the shape and computes the substitutions; rendering follows the skill verbatim.
+All five shapes — their flow steps and Returns lines — are defined by the auto-loaded `queries-methods-template` skill. This step picks the shape and computes the substitutions; rendering follows the skill verbatim.
 
 #### 5a. External-Interface shape
 
@@ -107,7 +108,7 @@ Match conditions (both must hold):
 
 Render the skill's *Deviation: External Interface Call (two-step)* template. Substitutions sourced from the hint:
 
-- `<resolve_method>` ← the hint's `<finder>` (this **overrides** Step 5e's same-named rule for this method only). Params are the query method's params verbatim.
+- `<resolve_method>` ← the hint's `<finder>` (this **overrides** Step 5f's same-named rule for this method only). Params are the query method's params verbatim.
 - `<external_interface>` ← the hint's `<interface>`, converted to `snake_case` with any leading `i_` prefix stripped (e.g. `ICanQueryFiles` → `can_query_files`, `IFileStorage` → `file_storage`).
 - `<operation>` ← the hint's `<operation>`.
 - The transform step is rendered in present tense from the hint's optional transform description, or omitted when absent. When the transform step is rendered, it must define a named local (e.g. `redacted_path`).
@@ -124,29 +125,41 @@ Match conditions (one must hold):
 
 Render the skill's *Deviation: Paginated List with Defaults* template. Substitutions:
 
-- `<list_method>` ← same-named finder per Step 5e; pass all method params verbatim in declaration order.
+- `<list_method>` ← same-named finder per Step 5f; pass all method params verbatim in declaration order.
 - In the skill's first flow step, replace **every** literal `pagination` token (the conditional check, the assignment target, and the call argument) with the actual parameter name from the method signature (e.g. `paging`).
 - When the signature instead uses `page: int | None` and `per_page: int | None` (no `Pagination | None` parameter), replace the single defaults step with two adjacent steps: `If page is None, page = settings.pagination.default_page` and `If per_page is None, per_page = settings.pagination.default_per_page`.
 
-#### 5c. Not-Found-Raises shape
+#### 5c. Collection pass-through shape
+
+Match condition:
+
+- The declared return type is a **bare collection** — its source string, after stripping any `Optional[...]` / `| None` wrapper, begins with one of `list[`, `set[`, `frozenset[`, `tuple[`, `Sequence[`, `Iterable[`, or `Collection[`. A paginated `<Aggregate>ListResult` DTO is **not** a bare collection (it is matched earlier by 5b); a `dict[...]` return is **not** a collection (it falls through to 5d / 5e).
+
+Used for bulk finders — e.g. `find_<plural>_by_codes(codes: list[str]) -> list[<Aggregate>Info]` — that return every matching record and an **empty collection** when nothing matches. Absence is not an error, so **no raise is emitted**: a `<Aggregate>NotFound` branch here would be dead code (the repository returns `[]`, never `None`) and any generated `__not_found` test would fail against a correct implementation.
+
+Render the skill's *Deviation: Collection Pass-Through* template. Substitutions:
+
+- `<lookup_method>` ← same-named finder per Step 5f; pass all method params verbatim in declaration order.
+
+#### 5d. Not-Found-Raises shape
 
 Match conditions:
 
-- The declared return type is **not** Optional. A return type counts as Optional iff its source string ends in `| None`, equals `None`, or is wrapped in `Optional[...]`. (Plain `dict[str, Any]`, DTO names like `<Aggregate>Info`, primitives like `bytes` are non-Optional and qualify here.)
+- The declared return type is **not** Optional **and not a bare collection** (collections are handled by 5c). A return type counts as Optional iff its source string ends in `| None`, equals `None`, or is wrapped in `Optional[...]`; it counts as a bare collection iff it matches the 5c rule. (Plain `dict[str, Any]`, DTO names like `<Aggregate>Info`, primitives like `bytes` are non-Optional, non-collection and qualify here.)
 
 Render the skill's *Deviation: Not-Found Raises* template. Substitutions:
 
-- `<lookup_method>` ← same-named finder per Step 5e; pass all method params verbatim in declaration order.
+- `<lookup_method>` ← same-named finder per Step 5f; pass all method params verbatim in declaration order.
 
-#### 5d. Canonical None-tolerant shape
+#### 5e. Canonical None-tolerant shape
 
 Default match — used when the return type is Optional. Render the skill's *Canonical Method Shape* flow. Substitutions:
 
-- `<lookup_method>` ← same-named finder per Step 5e; pass all method params verbatim in declaration order.
+- `<lookup_method>` ← same-named finder per Step 5f; pass all method params verbatim in declaration order.
 
-#### 5e. Choosing the repository finder
+#### 5f. Choosing the repository finder
 
-For shapes 5b, 5c, and 5d, pick the finder method on the primary `Query<AggregateRoot>Repository` (recorded in Step 3) by **same-name match**: the finder must have the same name as the query method. Validate that the repository's domain-diagram class block declares a public method with that exact name; if no matching method exists, abort with a one-sentence error naming the query method and the repository. Pass the query method's parameters through to the finder call verbatim, in declaration order, by name only (do not echo types).
+For shapes 5b, 5c, 5d, and 5e, pick the finder method on the primary `Query<AggregateRoot>Repository` (recorded in Step 3) by **same-name match**: the finder must have the same name as the query method. Validate that the repository's domain-diagram class block declares a public method with that exact name; if no matching method exists, abort with a one-sentence error naming the query method and the repository. Pass the query method's parameters through to the finder call verbatim, in declaration order, by name only (do not echo types).
 
 Shape 5a (External-Interface) does **not** use this rule — it sources the finder name from the prose hint instead, so a method like `find_file_redacted_content` can legitimately load via `find_file_path`.
 

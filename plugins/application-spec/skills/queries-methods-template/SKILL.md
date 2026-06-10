@@ -35,6 +35,24 @@ The dominant shape is `load → return`. Use it as the default and only deviate 
 
 ---
 
+## Deviation: Collection Pass-Through
+
+Used when a method returns a **collection** of records — a bulk / "by `<plural>`" finder — and an empty collection is the natural "nothing matched" result. Absence is not an error, so there is **no raise** (contrast *Not-Found Raises*, which is for single-record lookups). Adding an `is None` → raise step here would be dead code: the repository returns `[]`, never `None`.
+
+```
+**Method Flow**:
+
+1. Call `query_repository.<lookup_method>(<params>)` to retrieve the matching records
+2. Return the result
+
+**Returns**:
+
+- The declared collection type (e.g. `list[<ItemDTO>]`) — every record matching the lookup keys
+- Empty list when no record matches
+```
+
+---
+
 ## Deviation: Not-Found Raises
 
 Used when the absence of a record is an error condition. Adds an explicit raise step between load and return.
@@ -99,7 +117,7 @@ Used when the method combines a repository lookup with a call to an injected ext
 
 ## Worked examples
 
-The four examples below cover the canonical shape and each deviation. Each example shows the **Method Flow** block only; the surrounding Purpose and Returns subsections follow the canonical template.
+The five examples below cover the canonical shape and each deviation. Each example shows the **Method Flow** block only; the surrounding Purpose and Returns subsections follow the canonical template.
 
 ### Example 1 — Canonical, None-tolerant (`find_file_text` on `FileQueries`)
 
@@ -134,4 +152,11 @@ The four examples below cover the canonical shape and each deviation. Each examp
    (e.g. `s3://bucket/docs/file.pdf` → `s3://bucket/docs/file-redacted.pdf`)
 4. Call `file_storage.download(redacted_path)` to retrieve the binary content
 5. Return the `bytes` result
+```
+
+### Example 5 — Collection pass-through (`find_cache_types_by_codes` on `CacheTypeQueries`)
+
+```
+1. Call `query_repository.find_cache_types_by_codes(cache_type_codes)` to retrieve the matching cache types
+2. Return the `list[CacheTypeInfo]` result
 ```

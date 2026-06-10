@@ -173,7 +173,7 @@ For each method, bind:
   "param_names": [<name>, ...],
   "return_type": <ReturnType>,
   "flow": [<step_1>, <step_2>, ...],
-  "shape": "external_interface" | "paginated" | "not_found_raises" | "canonical",
+  "shape": "external_interface" | "paginated" | "collection" | "not_found_raises" | "canonical",
   "external_attr": <attr> | None,
   "external_op": <op> | None,
   "raised_not_found": <ClassName> | None,
@@ -186,12 +186,13 @@ Apply rules in the same order as `@queries-implementer` Step 5; **first match wi
 
 1. **`external_interface`** — at least one flow step matches the regex `\b(?P<attr>[a-z_]+)\.(?P<op>[a-z_]+)\(` where `<attr>` is one of the values in `{a for (a, _) in <external_interfaces>}`. Bind `external_attr` to the matched `<attr>` and `external_op` to the matched `<op>`.
 2. **`paginated`** — the signature contains a parameter typed `Pagination | None` (or `Optional[Pagination]`) regardless of name; OR the signature contains both `page: int | None` and `per_page: int | None` (any order, with or without `= None` defaults). No further state needed.
-3. **`not_found_raises`** — any flow step matches `(?i)^if the result is\s+`?None`?,\s+raise\s+`?(?P<x>[A-Z][A-Za-z0-9_]*)`?`. Bind `raised_not_found` to the captured class.
-4. **`canonical`** — default. `raised_not_found` stays `None`.
+3. **`collection`** — the return type, after stripping `Optional[...]` / `| None`, begins with one of `list[`, `set[`, `frozenset[`, `tuple[`, `Sequence[`, `Iterable[`, or `Collection[` (and the method did not already match `paginated`). Bulk finders that return an empty collection on no matches — `raised_not_found` stays `None`.
+4. **`not_found_raises`** — any flow step matches `(?i)^if the result is\s+`?None`?,\s+raise\s+`?(?P<x>[A-Z][A-Za-z0-9_]*)`?`. Bind `raised_not_found` to the captured class.
+5. **`canonical`** — default. `raised_not_found` stays `None`.
 
-For shape `external_interface`, **also** scan the flow for the load+raise pair (same regex as rule 3 above) and bind `raised_not_found` if present. The canonical external-interface flow (template Example 4) always pairs the resolve step with a raise; if missing, leave `raised_not_found` as `None` and Step 8 will skip the `__not_found` scenario.
+For shape `external_interface`, **also** scan the flow for the load+raise pair (same regex as the `not_found_raises` rule above) and bind `raised_not_found` if present. The canonical external-interface flow (template Example 4) always pairs the resolve step with a raise; if missing, leave `raised_not_found` as `None` and Step 8 will skip the `__not_found` scenario.
 
-For shape `paginated`, do not scan for `raised_not_found` — paginated lists never raise on empty results.
+For shapes `paginated` and `collection`, do not scan for `raised_not_found` — list / collection results never raise on empty results.
 
 #### 6b. External-interface validation
 
@@ -264,6 +265,7 @@ For each method, emit scenarios per the table below. Skip any scenario whose `de
 | canonical | n/a | `__success` |
 | not_found_raises | yes | `__success` + `__not_found` |
 | paginated | n/a | `__success` |
+| collection | n/a | `__success` |
 | external_interface | yes | `__success` + `__not_found` |
 | external_interface | no | `__success` |
 
@@ -290,6 +292,7 @@ For shape `external_interface`, the same `<args>` is reused for both `__success`
 | canonical `__success` | `<aggregate>_queries, <fix>, add_<plural>` |
 | not_found_raises `__success` | `<aggregate>_queries, <fix>, add_<plural>` |
 | paginated `__success` | `<aggregate>_queries, <fix>, add_<plural>` |
+| collection `__success` | `<aggregate>_queries, <fix>, add_<plural>` |
 | external_interface `__success` | `<aggregate>_queries, fake_<external_attr>, <fix>, add_<plural>` |
 | any `__not_found` | `<aggregate>_queries, <fix>` |
 
@@ -338,6 +341,21 @@ def test_<method>__success(<aggregate>_queries, <fix>, add_<plural>):
 ```
 
 `<items_key>` = `<items_key[<method_name>]>` from Step 7. If Step 7 left the default and emitted a warning, the line still renders with the defaulted key — the warning surfaces it for the user.
+
+##### Collection `__success`
+
+```python
+def test_<method>__success(<aggregate>_queries, <fix>, add_<plural>):
+    # GIVEN <aggregate>s exist in DB
+    # WHEN calling <method>
+    result = <aggregate>_queries.<method>(<args>)
+
+    # THEN matching records are returned
+    assert result is not None
+    assert any(item["id"] == <fix>.id for item in result)
+```
+
+The collection is iterated directly — the return type is a bare `list[...]` (not a paginated DTO), so there is no items-list key (`result` is the list, not `result["<items_key>"]`). The `item["id"]` access assumes each element DTO carries an `id` key (the convention for `<Aggregate>Info` / `Brief<Aggregate>Info`); if a project's element DTO keys differ, the user adapts by hand. No `__not_found` / `__no_matches` scenario is generated — collections return `[]`, never raise — so the user adds an empty-collection assertion by hand if the DTO surface justifies one (mirrors the paginated empty-list policy in *Constraints*).
 
 ##### External-interface `__success`
 
@@ -461,7 +479,7 @@ These warnings are non-fatal — the agent still writes the file.
 - Never modify `<tests_dir>/conftest.py` or `<tests_dir>/integration/conftest.py`.
 - Method dispatch is signature- and flow-driven; do not infer scenarios from method names alone.
 - Skip raised-exception scenarios other than `<Aggregate>NotFound` (or the explicit class captured from the load+raise pair) — the user writes domain-error tests by hand because invalid-state fixtures are project-specific.
-- Skip empty-list paginated scenarios — the user adds those by hand if the project's DTO surface justifies a separate test.
+- Skip empty-list paginated / collection scenarios — the user adds those by hand if the project's DTO surface justifies a separate test.
 
 ## Failure modes summary
 

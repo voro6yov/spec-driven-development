@@ -26,7 +26,7 @@ Each per-layer agent writes its own sibling artifact:
 | 2.5 (implement, query-side) | `<dir>/<stem>.persistence/query-code-changes.md` + source edits | `@persistence-spec:query-code-change-writer` |
 | 3 (review) | `<dir>/<stem>.<layer>/code-review.md` | `@<plugin>:code-review-writer` |
 
-Phase 2.5 is **persistence-only** and **runs only when** the domain `updates.md` carries at least one `### \`Query<X>Repository\` \`<<Repository>>\`` block. Its agent reads `<stem>.domain/updates.md` directly — query-side behavior (default filters, soft-delete exclusion) is expressed as prose invariants in the domain diagram, **not** in any spec sibling, so the standard brief / change-writer chain has no input signal for it.
+Phase 2.5 is **persistence-only** and **runs only when** the domain `updates.md` carries at least one `### \`Query<X>Repository\` \`<<Repository>>\`` block (emitted for *any* member, relationship, or prose change on a query repository — so it fires for a finder add/remove just as it does for an invariant-prose edit). Its agent reads `<stem>.domain/updates.md` directly and owns two query-side concerns the command-side persistence chain never sees: (1) **structural method deltas** — a finder added to / removed from `Query<X>Repository` (Wave A propagates it to the abstract ABC, but only Phase 2.5 implements the concrete `SqlAlchemyQuery<X>Repository` method, so the class stays instantiable and the application call resolves); and (2) **invariant behavior** (default filters, soft-delete exclusion) expressed as prose invariants in the domain diagram, **not** in any spec sibling. The standard brief / change-writer chain has no input signal for either.
 
 The orchestrator itself writes nothing to disk — its only emission is the final summary table to chat.
 
@@ -186,7 +186,7 @@ $DIAGRAM
 
 Phase 2.5 runs strictly after Wave C — when persistence is active, Wave B's `@persistence-spec:code-change-writer` may have touched the same `SqlAlchemyQuery<X>Repository` file (alt-lookup adds/removes, signature changes), and the query-code-change-writer must see that settled state before layering its own surgical patches.
 
-The agent reads `<dir>/<stem>.domain/updates.md` directly (not any persistence spec or brief) and writes `<dir>/<stem>.persistence/query-code-changes.md`. Per-patch failures are recorded in that log as `Status: failed: <reason>` and **do not** abort the orchestrator. Only an agent-level hard-fail (the agent prints `ERROR:`) is terminal — surface its line and skip to Step 8.
+The agent reads `<dir>/<stem>.domain/updates.md` directly (not any persistence spec or brief) and writes `<dir>/<stem>.persistence/query-code-changes.md`. It applies both **structural method deltas** (implement / remove the concrete `SqlAlchemyQuery<X>Repository` method for each `Query<X>Repository` `Method added` / `Method removed` bullet) and **invariant clause** patches, in that order. Per-delta failures are recorded in that log as `Status: failed: <reason>` and **do not** abort the orchestrator. Only an agent-level hard-fail (the agent prints `ERROR:`) is terminal — surface its line and skip to Step 8.
 
 ### Step 8 — Phase 3: review (opt-in)
 
@@ -251,7 +251,7 @@ Inactive layers do not appear in the table. The `persistence (query)` row is omi
 
 - Every step that aborts the orchestrator emits exactly one `ERROR:` line and stops at that point. Subsequent steps are skipped, but the summary block (Step 9) still prints, reflecting whatever artifacts exist on disk.
 - Per-row / per-patch failures inside a Phase 2 / Phase 2.5 agent are recorded with `Status: failed: <reason>` in `code-changes.md` / `query-code-changes.md` and do **not** abort the orchestrator. Only an agent-level hard-fail does.
-- Phase 2.5 is independent of Phase 2's outcome: a Phase 2 persistence hard-fail still allows Phase 2.5 to run (the orchestrator surfaces both lines), and vice versa. The two share the `SqlAlchemyQuery<X>Repository` file but operate on non-overlapping concerns (structural vs invariant); the ordering (Phase 2 before Phase 2.5) is the load-bearing safety.
+- Phase 2.5 is independent of Phase 2's outcome: a Phase 2 persistence hard-fail still allows Phase 2.5 to run (the orchestrator surfaces both lines), and vice versa. Both may touch the `SqlAlchemyQuery<X>Repository` file — Wave B for any query alt-lookups recorded in the persistence spec, Phase 2.5 for domain-ABC method deltas and invariant clauses. The ordering (Phase 2 before Phase 2.5) plus Phase 2.5's per-method idempotence pre-check (`def <name>(` already present → `no-op`) keeps the two from double-adding the same method; that ordering is the load-bearing safety.
 - Each phase is idempotent on stable inputs. Re-running `/update-code` re-derives the briefs (writers overwrite), re-applies the edits (writers overwrite), and (when `--review`) re-derives the review reports. The brief/change/review siblings survive every abort path.
 - A no-op early exit (Step 3) is a success — exit cleanly, no agents spawned, no plan-mode prompt.
 
