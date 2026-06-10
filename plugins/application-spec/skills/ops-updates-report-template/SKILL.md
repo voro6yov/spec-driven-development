@@ -1,6 +1,6 @@
 ---
 name: ops-updates-report-template
-description: Reference template for the ops-axis updates report (`<stem>.application/ops-updates.md`) emitted by ops-updates-detector and consumed by the messaging-spec and rest-api-spec update flows. Use when generating, parsing, or reviewing this report.
+description: Reference template for the ops-axis updates report (`<stem>.application/ops-updates.md`) emitted by ops-updates-detector and consumed by the application-spec code-update flow plus the messaging-spec and rest-api-spec update flows. Use when generating, parsing, or reviewing this report.
 user-invocable: false
 disable-model-invocation: false
 ---
@@ -11,8 +11,9 @@ disable-model-invocation: false
 
 This template describes the report that diffs **every** ops application-service diagram of one aggregate against `git HEAD`. Unlike the commands/queries axis — one diagram, one anchor — the ops axis has **N diagrams per aggregate** (`<dir>/<stem>.ops.<op-name>.md`, one per service, name-discriminated by `<op-name>`). The report therefore wraps the familiar per-anchor section vocabulary in one `## Service: \`<op-name>\`` block per touched service, plus an aggregate-wide `## Summary` and `## Affected Categories` footer.
 
-It is the single source of truth for the schema both downstream update flows parse:
+It is the single source of truth for the schema every downstream flow parses:
 
+- `application-spec` (`code-brief-writer`, the `/update-code` Phase-1 gather agent) reads the aggregate-wide **Affected Artifacts** table (to enumerate the ops impl / exceptions / test files Phase 2 must touch) plus the per-service **Per-Method Changes** and **Raised Exceptions** blocks (for the member bullets).
 - `messaging-spec` (`messaging-updates-writer`) reads the per-service **Messaging Markers** and **Per-Method Changes** blocks.
 - `rest-api-spec` (`rest-api-updates-writer`) reads the per-service **Per-Method Changes** and **Surface Markers** blocks plus the `## Affected Categories` footer.
 
@@ -147,6 +148,14 @@ Diff:
 ## Affected Categories
 
 - <category>
+
+## Affected Artifacts
+
+| Path | Action | Driving section |
+|---|---|---|
+| application/<agg>/<op_snake>.py | modify | Service: `<op-name>` (Per-Method Changes; Dependencies) |
+| domain/<agg>/exceptions.py | modify | Service: `<op-name>` (Raised Exceptions) |
+| tests/integration/<agg>/test_<op_snake>.py | modify | Service: `<op-name>` (Per-Method Changes: Added/Removed) |
 ````
 
 ---
@@ -155,9 +164,9 @@ Diff:
 
 ### Top-level sections
 
-- `## Summary` and `## Affected Categories` are **always emitted**, regardless of content.
+- `## Summary`, `## Affected Categories`, and `## Affected Artifacts` are **always emitted**, regardless of content.
 - One `## Service: \`<op-name>\`` block is emitted **per touched service** — a service whose diagram was added, removed, or changed against HEAD. A byte-stable ops diagram emits **no** service block. Services render in `<op-name>` lexicographic order.
-- When no ops diagram changed (every service byte-stable, or the aggregate has zero ops diagrams), render the `## Summary` body as the single line `No changes detected.`, the footer as `_None._`, and emit no service blocks.
+- When no ops diagram changed (every service byte-stable, or the aggregate has zero ops diagrams), render the `## Summary` body as the single line `No changes detected.`, the `## Affected Categories` footer as `_None._`, the `## Affected Artifacts` table as the header row only (no data rows), and emit no service blocks.
 
 ### Service-block lifecycle annotation
 
@@ -219,6 +228,39 @@ When listing categories, use this sequence (omit categories whose triggers did n
 6. `messaging-markers`
 
 If the set is empty, render the single line `_None._`.
+
+---
+
+## `## Affected Artifacts` computation
+
+This table is the **application code-update** consumer's enumeration of the on-disk files Phase 2 must touch for the ops axis — the ops counterpart of the `## Affected Artifacts` table `application-spec:application-updates-report-template` derives for the commands/queries axis. It is **mechanically derived** from the per-service structural deltas (Step 4 of `ops-updates-detector`); orphan prose never contributes a row.
+
+### Path placeholders
+
+Per `spec-core:naming-conventions`, given aggregate stem `<stem>` and a touched service `<op-name>`:
+
+- `<agg>` = `<stem>` with every `-` replaced by `_` (the aggregate Python package dir name).
+- `<op_snake>` = `<op-name>` with every `-` replaced by `_` (the ops service module name; the braced anchor class `<X>` lives in `application/<agg>/<op_snake>.py`).
+
+All paths are **repo-package-root-relative** (they begin with `application/`, `domain/`, or `tests/`), exactly as the commands/queries `updates.md` table renders them.
+
+### Derivation rules (per touched service `<op-name>`)
+
+Let the service lifecycle be `added` (new at HEAD-absent), `removed` (deleted), or `changed` (present both versions). The per-row **Action** is `add` for an added service, `remove` for a removed service, and `modify` for a changed service — except the shared `exceptions.py` row, which is always `modify`.
+
+| Rule | Trigger (any of) | Row |
+|---|---|---|
+| O1 — impl module | the service has ≥1 Per-Method delta (added / removed / signature / surface / messaging / prose), **or** ≥1 Dependencies or External-Interfaces delta, **or** the service was added/removed | `application/<agg>/<op_snake>.py` — action per lifecycle — Driving `Service: \`<op-name>\` (<sub-sections that fired, ';'-joined>)` |
+| O2 — integration tests | the service has a **structural** method `added` or `removed`, **or** the service was added/removed | `tests/integration/<agg>/test_<op_snake>.py` — action per lifecycle — Driving `Service: \`<op-name>\` (Per-Method Changes: <Added/Removed>)` |
+| O3 — application exceptions | the service has ≥1 Raised Exceptions `Added` or `Removed` | `domain/<agg>/exceptions.py` — action `modify` — Driving `Service: \`<op-name>\` (Raised Exceptions)` |
+
+**Coalescing.** `domain/<agg>/exceptions.py` is a single shared file across every ops service (and across the commands/queries `updates.md`). Emit it **at most once** in this table even when several services add/remove exceptions; the Driving cell lists every contributing `Service: \`<op-name>\``, `; `-joined. The application `code-brief-writer` further coalesces this row with the same path in the commands/queries `updates.md`.
+
+**Deliberately not emitted.** Ops dependency/interface churn that adds or removes a **service** (a new collaborator `<<Interface>>` / domain-service) also moves `services.md`, and the commands/queries `application-updates-writer` already derives the `containers.py` / `tests/conftest.py` / `infrastructure/services/<x>/…` / `tests/fakes/…` rows from that `services.md` diff (its `services-finder` includes ops services). This ops table therefore emits **only** the three ops-owned artifacts above — the ops impl module (whose own `__init__` constructor is rewired for the dependency change via the O1 row), its raised exceptions, and its integration tests — and never duplicates the DI/fake wiring rows.
+
+### Ordering
+
+Render rows grouped by service in `<op-name>` lexicographic order, and within a service in the rule order O1, O3, O2 (impl, exceptions, tests) — matching the commands/queries table's impl-before-tests convention. The coalesced `exceptions.py` row renders once at the position of the first contributing service.
 
 ---
 

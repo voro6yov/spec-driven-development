@@ -5,19 +5,20 @@ argument-hint: <domain_diagram>
 allowed-tools: Read, Bash, Agent, Skill
 ---
 
-You are an application spec **update** orchestrator. Given a domain diagram and its sibling commands/queries application-service diagrams, refresh the existing `<dir>/<stem>.application/commands.specs.md`, `<dir>/<stem>.application/queries.specs.md`, and `<dir>/<stem>.application/services.md` in place — invoke the two app-service-axis update detectors, re-run only the dirty side's writers, re-enrich application exceptions, re-run `services-finder`, and emit `<dir>/<stem>.application/updates.md`. Then **re-cascade the app-service-axis change** to `/rest-api-spec:update-specs` and `/messaging-spec:update-specs` in parallel (Step 9). Do not rerun the full `/application-spec:generate-specs` pipeline, do not touch the diagram files, and do not ask for confirmation before writing.
+You are an application spec **update** orchestrator. Given a domain diagram and its sibling commands/queries application-service diagrams (plus any `<dir>/<stem>.ops.<op-name>.md` ops orchestration diagrams), refresh the existing `<dir>/<stem>.application/commands.specs.md`, `<dir>/<stem>.application/queries.specs.md`, every dirty `<dir>/<stem>.application/ops.<op-name>.specs.md`, and `<dir>/<stem>.application/services.md` in place — invoke the three app-service-axis update detectors (commands, queries, ops), re-run only the dirty side's / dirty ops service's writers, re-enrich application exceptions, re-run `services-finder`, and emit `<dir>/<stem>.application/updates.md` (plus the ops detector's `<dir>/<stem>.application/ops-updates.md`). Then **re-cascade the app-service-axis change** to `/rest-api-spec:update-specs` and `/messaging-spec:update-specs` in parallel (Step 9). Do not rerun the full `/application-spec:generate-specs` pipeline, do not touch the diagram files, and do not ask for confirmation before writing.
 
 This skill is the application-side counterpart to `/update-specs` (domain) and `/persistence-spec:update-specs`. Design rationale lives in `notes/spec-updater-approach.md`, `notes/update-types.md`, `notes/updates-report.md`, `notes/commands-queries-detectors-approach.md`, `notes/commands-queries-update-types.md`, `notes/commands-queries-updates-report.md`, and `notes/commands-queries-integration-approach.md`; the load-bearing idea is **per-side snapshot regen** — every section of `<side>.specs.md` is a pure snapshot, so the surgical unit of work is one full side, not one method block. Commands and queries are independent; a delta on any of the three input axes touches at most one or both.
 
-The orchestrator consumes three update reports — one per axis — and unions their dispatch signals:
+The orchestrator consumes four update reports — one per axis — and unions their dispatch signals:
 
 - **Domain axis** — `<dir>/<stem>.domain/updates.md`, produced by `domain-spec:updates-detector` (consumed **if present**; **absent ⇒ the domain axis is treated as no-change** per Step 0a — never invoked or produced here).
 - **Commands-diagram axis** — `<dir>/<stem>.application/commands-updates.md`, produced by `application-spec:commands-updates-detector` (invoked at Step 0 below).
 - **Queries-diagram axis** — `<dir>/<stem>.application/queries-updates.md`, produced by `application-spec:queries-updates-detector` (invoked at Step 0 below).
+- **Ops-diagram axis** — `<dir>/<stem>.application/ops-updates.md`, produced by `application-spec:ops-updates-detector` (invoked at Step 0h below). One aggregate-wide report covering every `<dir>/<stem>.ops.<op-name>.md`; absent/empty when the aggregate declares no ops services. This skill is the **producer** of the ops report — the rest-api / messaging children re-invoke the detector under `--detectors-fresh` and fast-path on its digest sentinel.
 
 The orchestrator never re-diffs any diagram itself.
 
-This skill is also the **owner of the app-service-axis cascade**. After refreshing its own specs it fans out `/rest-api-spec:update-specs` and `/messaging-spec:update-specs` in parallel (Step 9), handing them `--detectors-fresh` so they reuse the two detector reports this skill produced at Step 0. It is invoked two ways, with **identical behaviour** either way: standalone (for a commands/queries-diagram-only change, where it is the entry point) and as one of the two downstream skills fanned out by domain `/update-specs`'s Step 10 (alongside `/persistence-spec:update-specs`). Domain no longer pre-produces the detector reports or invokes rest-api / messaging directly — that whole subtree is rooted here.
+This skill is also the **owner of the app-service-axis cascade**. After refreshing its own specs it fans out `/rest-api-spec:update-specs` and `/messaging-spec:update-specs` in parallel (Step 9), handing them `--detectors-fresh` so they reuse the two commands/queries detector reports this skill produced at Step 0 (and fast-path on the ops report it produced at Step 0h). It is invoked two ways, with **identical behaviour** either way: standalone (for a commands/queries/ops-diagram change, where it is the entry point) and as one of the two downstream skills fanned out by domain `/update-specs`'s Step 10 (alongside `/persistence-spec:update-specs`). Domain no longer pre-produces the detector reports or invokes rest-api / messaging directly — that whole subtree is rooted here.
 
 ## Output path convention
 
@@ -32,12 +33,15 @@ Per `spec-core:naming-conventions`, given `<domain_diagram>` at `<dir>/<stem>.md
 | `<dir>/<stem>.domain/updates.md` | input — domain delta report (**optional** — absent ⇒ domain axis treated as no-change, see Step 0a) | not modified |
 | `<dir>/<stem>.commands.md` | input — hand-authored commands diagram (must already exist) | not modified |
 | `<dir>/<stem>.queries.md` | input — hand-authored queries diagram (must already exist) | not modified |
+| `<dir>/<stem>.ops.<op-name>.md` | input — hand-authored ops diagram(s), zero or more (optional) | not modified |
 | `<plugin_dir>/commands-updates.md` | input — commands-diagram delta report | produced by `commands-updates-detector` at Step 0 |
 | `<plugin_dir>/queries-updates.md` | input — queries-diagram delta report | produced by `queries-updates-detector` at Step 0 |
+| `<plugin_dir>/ops-updates.md` | input+output — ops-diagram delta report (one aggregate-wide file) | produced by `ops-updates-detector` at Step 0h |
 | `<plugin_dir>/commands.specs.md` | spec being updated (must already exist) | `commands-deps-writer` + `commands-methods-writer` (per-side fragments) → `application-exceptions-specifier` → `specs-merger commands` (when commands dirty) |
 | `<plugin_dir>/queries.specs.md` | spec being updated (must already exist) | `queries-deps-writer` + `queries-methods-writer` (per-side fragments) → `application-exceptions-specifier` → `specs-merger queries` (when queries dirty) |
-| `<plugin_dir>/services.md` | spec being updated (must already exist) | `services-finder` (when at least one side was dirty) |
-| `<plugin_dir>/updates.md` | output — application delta report | `application-updates-writer` |
+| `<plugin_dir>/ops.<op-name>.specs.md` | spec being updated, one per dirty ops service | `ops-deps-writer` + `ops-methods-writer` (per-service fragments) → `application-exceptions-specifier` → `specs-merger ops <op-name>` (when that ops service is dirty); deleted when its diagram was removed |
+| `<plugin_dir>/services.md` | spec being updated (must already exist) | `services-finder` (always — Step 6) |
+| `<plugin_dir>/updates.md` | output — application delta report (commands/queries axis) | `application-updates-writer` |
 
 `<domain_diagram>`, `<commands_diagram>`, and `<queries_diagram>` are read by the invoked agents; this orchestrator never modifies them. Every agent derives `<dir>` / `<stem>` from `$ARGUMENTS[0]` per `spec-core:naming-conventions` — pass `$ARGUMENTS[0]` verbatim as the prompt to each.
 
@@ -114,11 +118,17 @@ This skill is the **single producer** of these two reports: whether invoked stan
 
 If either detector hard-fails, abort the orchestrator with that detector's `ERROR:` line repeated verbatim. The other detector's output (if it completed) is left on disk for the next run; no rollback is performed. The same `/application-spec:generate-specs <domain_diagram>` recovery path the detectors themselves direct to applies here.
 
-Wait for both detectors to return successfully before proceeding to Step 1.
+Wait for both detectors to return successfully before proceeding to Step 0h.
+
+#### 0h. Invoke the ops-diagram detector
+
+Invoke `application-spec:ops-updates-detector` with prompt `$ARGUMENTS[0]`. This skill is the **producer** of `<plugin_dir>/ops-updates.md`. The detector globs `<dir>/<stem>.ops.*.md`, diffs each against HEAD, and writes the aggregate-wide report — fast-pathing on its digest sentinel when no ops diagram changed and writing a header-only no-op report (`No changes detected.` / `_None._` / empty Affected Artifacts) when the aggregate declares zero ops diagrams. It hard-fails with an `ERROR:` line on a structural problem (anchor renamed, multi-anchor, unreadable diagram); on hard-fail, abort the orchestrator with that line verbatim. Producing the report here (rather than leaving it to the Step-9 rest-api / messaging children) is what lets **this** skill regenerate the dirty ops specs at Steps 3/5 and lets `/update-code`'s application brief-writer see the ops deltas; the children re-invoke the detector under `--detectors-fresh` and fast-path on the now-current sentinel.
+
+This step runs sequentially after 0g (it shares `<plugin_dir>` and uses `mkdir -p` idempotently). Wait for it to return before proceeding to Step 1.
 
 ### Step 1 — Preflight (per-axis-scoped)
 
-`Read` all three reports — `<dir>/<stem>.domain/updates.md`, `<plugin_dir>/commands-updates.md`, `<plugin_dir>/queries-updates.md`. They are the orchestrator's single source of truth for this step — do not re-derive anything from any diagram. When `domain_report_absent` (Step 0a) is true, **skip the domain report read entirely** and bind every domain-axis value below to its empty default (the 1.dom gates then cannot fire); the commands/queries reports are still read. Use `Bash` (`grep`) and `Read` to extract, per axis:
+`Read` all four reports — `<dir>/<stem>.domain/updates.md`, `<plugin_dir>/commands-updates.md`, `<plugin_dir>/queries-updates.md`, `<plugin_dir>/ops-updates.md`. They are the orchestrator's single source of truth for this step — do not re-derive anything from any diagram. When `domain_report_absent` (Step 0a) is true, **skip the domain report read entirely** and bind every domain-axis value below to its empty default (the 1.dom gates then cannot fire); the commands/queries/ops reports are still read. Use `Bash` (`grep`) and `Read` to extract, per axis:
 
 **Domain axis** (from `<stem>.domain/updates.md`):
 
@@ -140,6 +150,11 @@ Wait for both detectors to return successfully before proceeding to Step 1.
 
 - **`queries.degraded_baseline`** — whether the `## Summary` block contains a line beginning `_warning: HEAD `.
 - **`queries.affected_categories`** — bullets under `## Affected Categories`. The literal body `_None._` means empty.
+
+**Ops-diagram axis** (from `<plugin_dir>/ops-updates.md`; schema owned by `application-spec:ops-updates-report-template`):
+
+- **`ops.degraded_baseline`** — whether the `## Summary` block contains any line beginning `_warning: HEAD `.
+- **`ops.touched_services`** — one entry per `## Service: \`<op-name>\`` block present in the report. Capture `(<op-name>, lifecycle)` where `lifecycle` is `removed` when the heading is annotated `(service removed)`, `added` when annotated `(service added)`, else `changed`. A report whose Summary is `No changes detected.` (or which has zero service blocks) yields an empty list. This is the orchestrator's ops dispatch input — the ops report wraps per-service blocks, so (unlike the aggregate-wide commands/queries `## Affected Categories`) the dirty unit is the service, not a category.
 
 The structural hard-fails the detectors themselves enforce (anchor missing/renamed, multi-anchor, stereotype change inside the app-service diagram) never reach the orchestrator — the detector aborts at Step 0 and the orchestrator surfaces its `ERROR:` verbatim. The orchestrator only sees a `_warning:_` on an app-service axis when HEAD was degraded.
 
@@ -176,17 +191,27 @@ Each gate **disables only the queries axis** and emits a `WARNING:`.
 |---|---|---|
 | 1.qry.a | `queries.degraded_baseline` true | Set `queries_axis_disabled = true`; emit `WARNING: queries-diagram axis disabled — HEAD baseline is degraded (multiple or missing Mermaid blocks at HEAD per <stem>.application/queries-updates.md). Queries-diagram-driven dispatch is skipped for this run.` |
 
+#### 1.ops — Ops-axis gates
+
+Each gate **disables only the ops axis** and emits a `WARNING:`.
+
+| Gate | Trigger | Action |
+|---|---|---|
+| 1.ops.a | `ops.degraded_baseline` true | Set `ops_axis_disabled = true`; emit `WARNING: ops-diagram axis disabled — an ops diagram's HEAD baseline is degraded (multiple or missing Mermaid blocks at HEAD per <stem>.application/ops-updates.md). Ops-diagram-driven regeneration is skipped for this run.` |
+
+When `ops_axis_disabled` is true, bind `ops.touched_services` to the empty list for dispatch (the ops-updates.md report is still emitted by Step 0h and still consumed by the Step-9 rest-api / messaging cascade and `/update-code`; only this skill's own ops-spec regeneration is suppressed).
+
 #### 1.all — Total-abort gate
 
-If `domain_axis_disabled` AND `commands_axis_disabled` AND `queries_axis_disabled` are all true, abort the orchestrator with:
+If `domain_axis_disabled` AND `commands_axis_disabled` AND `queries_axis_disabled` are all true **and** `ops.touched_services` is empty (after the 1.ops gate), abort the orchestrator with:
 
 ```
-ERROR: all three input axes are disabled by preflight gates (see WARNING lines above). The orchestrator
+ERROR: all input axes are disabled by preflight gates (see WARNING lines above). The orchestrator
 cannot regenerate any side. Resolve the underlying conditions or run /application-spec:generate-specs
 <domain_diagram> to rebuild the application specs from scratch.
 ```
 
-No writes; no downstream agents are invoked.
+No writes; no downstream agents are invoked. (A live ops axis — `ops.touched_services` non-empty with `ops_axis_disabled` false — keeps the run alive even when all three commands/queries-feeding axes are disabled: the orchestrator can still regenerate the dirty ops specs.)
 
 ### Step 2 — Dispatch tier (three-way union)
 
@@ -212,6 +237,10 @@ queries_axis_triggers  = ∅ if queries_axis_disabled else
 # Union
 commands_dirty = (domain_commands_triggers ∪ commands_axis_triggers) != ∅
 queries_dirty  = (domain_queries_triggers  ∪ queries_axis_triggers ) != ∅
+
+# Ops axis (per-service by construction — one ops report block per touched service; no category union)
+dirty_ops   = [] if ops_axis_disabled else [op for (op, life) in ops.touched_services if life in {"added", "changed"}]
+removed_ops = [] if ops_axis_disabled else [op for (op, life) in ops.touched_services if life == "removed"]
 ```
 
 Rationale (category-level dispatch):
@@ -230,9 +259,14 @@ Rationale (category-level dispatch):
 - **Queries-diagram axis** drives only the queries side, symmetrically.
 - The `surface-markers` and `messaging-markers` categories that may appear on a commands report are owned by `/rest-api-spec:update-specs` and `/messaging-spec:update-specs` respectively; this orchestrator silently ignores them (no `commands_dirty` contribution, no log line).
 
-If neither flag is true → **Tier 4 no-op**. Skip Steps 3–6 and jump straight to Step 7 (emit the report) so a `<stem>.application/updates.md` always exists after a successful run; the writer sees the working-tree specs unchanged versus HEAD and emits an all-`_no changes_` report. Then run Step 8 (the no-op summary line) **and Step 9 (the rest-api / messaging re-cascade — which still runs on a no-op**, because a domain-axis change that is byte-neutral for the application specs can still be live for rest-api or messaging: a pure domain-event attribute change is a Tier-4 no-op here but fires the messaging updater, and a domain `<<Command>>` parameter-type change is a no-op here but can fire the rest-api request-fields writer). Then exit.
+**Ops axis (per-service by construction):**
 
-If at least one flag is true, proceed to Step 3.
+- The ops report carries one `## Service:` block per touched service, so dispatch is **per-service, not per-category**: every service whose diagram changed against HEAD (lifecycle `added` or `changed`) is regenerated wholesale, exactly as a dirty commands/queries side is regenerated wholesale. This mirrors the commands/queries "regenerate the whole side" philosophy — a surface- or messaging-only ops change (which leaves the ops *spec* byte-stable) re-runs the ops writers and produces byte-stable output modulo LLM prose drift, the same accepted diff-noise cost the commands/queries side already pays. A `removed` service is not regenerated — its `ops.<op-name>.specs.md` is deleted (Step 3).
+- Ops dependency/interface churn that adds or removes a collaborator service also moves `services.md` (Step 6's `services-finder` includes ops services), so the DI/fake/containers/conftest wiring for ops dependency changes flows through `updates.md` via the commands/queries Affected-Artifacts derivation — this skill does not special-case it.
+
+If `commands_dirty` and `queries_dirty` are both false **and** `dirty_ops` and `removed_ops` are both empty → **Tier 4 no-op**. Skip Steps 3–6 and jump straight to Step 7 (emit the report) so a `<stem>.application/updates.md` always exists after a successful run; the writer sees the working-tree specs unchanged versus HEAD and emits an all-`_no changes_` report. Then run Step 8 (the no-op summary line) **and Step 9 (the rest-api / messaging re-cascade — which still runs on a no-op**, because a domain-axis change that is byte-neutral for the application specs can still be live for rest-api or messaging: a pure domain-event attribute change is a Tier-4 no-op here but fires the messaging updater, and a domain `<<Command>>` parameter-type change is a no-op here but can fire the rest-api request-fields writer). Then exit.
+
+If at least one of `commands_dirty` / `queries_dirty` is true, **or** `dirty_ops` / `removed_ops` is non-empty, proceed to Step 3.
 
 ### Step 3 — Per-side regen (parallel where both sides fire)
 
@@ -248,7 +282,23 @@ If `queries_dirty`:
 - `application-spec:queries-deps-writer` with prompt `$ARGUMENTS[0]`.
 - `application-spec:queries-methods-writer` with prompt `$ARGUMENTS[0]`.
 
-When both sides are dirty, all four writers fan out together in a single message — the same parallel pattern `/application-spec:generate-specs` uses today. Wait for every selected writer to complete before proceeding.
+For **each** `<op-name>` in `dirty_ops` (one writer pair per dirty ops service — same fan-out the ops half of `/application-spec:generate-specs` uses):
+
+- `application-spec:ops-deps-writer` with prompt `$ARGUMENTS[0] <op-name>`.
+- `application-spec:ops-methods-writer` with prompt `$ARGUMENTS[0] <op-name>`.
+
+Fan out **all** selected writers — the commands pair, the queries pair, and the 2×N ops writers — together in a single message (the same parallel pattern `/application-spec:generate-specs` uses today). Wait for every selected writer to complete before proceeding.
+
+**Removed ops services.** For each `<op-name>` in `removed_ops` (its diagram was deleted at HEAD→working-tree), no writer runs — instead delete the stale merged spec and any leftover fragments via Bash so Step 6's `services-finder` glob and the downstream `/update-code` brief no longer see it:
+
+```bash
+rm -f "<plugin_dir>/ops.<op-name>.specs.md" \
+      "<plugin_dir>/ops.<op-name>.deps.md" \
+      "<plugin_dir>/ops.<op-name>.methods.md" \
+      "<plugin_dir>/ops.<op-name>.exceptions.md"
+```
+
+(The `ops-updates.md` report from Step 0h already records the service as `(service removed)`, which is what drives `/update-code` to remove the on-disk `application/<agg>/<op_snake>.py` and its tests — this Bash deletion only cleans up the spec siblings.)
 
 Each writer regenerates its fragment from current inputs (the domain diagram + its side's application-service diagram) and writes `<plugin_dir>/<side>.deps.md` / `<plugin_dir>/<side>.methods.md` / `<plugin_dir>/<side>.exceptions.md` (stub) inside `<dir>/<stem>.application/`. The writers do not read the prior `<side>.specs.md`. A side's `## Dependencies` is byte-stable on any domain-only change (it's a pure function of the application-service diagram); re-running the deps writer is an LLM-drift cost we accept rather than a correctness requirement, but is required because the merger consumes the on-disk fragment.
 
@@ -258,31 +308,33 @@ The methods writers may abort with a one-sentence error rather than producing a 
 
 - `commands-methods-writer` aborts when an aggregate-root method that a command method resolves to has been renamed/removed (Step 5c match fails), when the chosen load-step finder has no remaining subset (Step 5d), or when a domain `<<Service>>` referenced by the commands diagram is missing/stereotype-changed (Step 4).
 - `queries-methods-writer` aborts when a `Query<AggregateRoot>Repository` finder a query method needs has been renamed/removed (Step 5e same-name match fails), or when an external-interface operation a hint references no longer resolves (Step 5a).
+- `ops-deps-writer` / `ops-methods-writer` abort with their own one-sentence error when the named `<op-name>`'s ops diagram is malformed (missing/duplicate brace-body anchor, an unresolvable collaborator/`<<Service>>` reference, or a method-flow that cannot be parsed). The orchestrator surfaces that error verbatim — the operator reconciles the indicated `<stem>.ops.<op-name>.md` and re-runs.
 
-If any writer reports a failure, abort the workflow and emit a single `ERROR:` line repeating its message verbatim. Do not run downstream agents — the spec is left partially regenerated and re-running `/application-spec:update-specs` after the operator reconciles the indicated application-service diagram idempotently completes the update. The other side's writers (if launched in parallel) may have completed; their fragments are left on disk to be re-consumed (or replaced) on a subsequent successful run.
+If any writer reports a failure, abort the workflow and emit a single `ERROR:` line repeating its message verbatim. Do not run downstream agents — the spec is left partially regenerated and re-running `/application-spec:update-specs` after the operator reconciles the indicated application-service diagram (or ops diagram) idempotently completes the update. The other writers (if launched in parallel) may have completed; their fragments are left on disk to be re-consumed (or replaced) on a subsequent successful run.
 
 ### Step 4 — Enrich application exceptions
 
-After all Step 3 writers return successfully, invoke `application-spec:application-exceptions-specifier` with prompt `$ARGUMENTS[0]` — no `<op-name>` arguments, since this update flow is commands/queries-only and never regenerates ops fragments. The agent processes both fixed sides in one call but auto-skips a side whose `<side>.exceptions.md` is absent (its existing disk-presence contract). Passing no op-names deliberately keeps the ops `*.exceptions.md` files out of scope so the updater does not rewrite ops specs it never regenerated.
+After all Step 3 writers return successfully, invoke `application-spec:application-exceptions-specifier` with prompt `$ARGUMENTS[0] <op-name-1> <op-name-2> …` — the domain diagram followed by every `<op-name>` in `dirty_ops`, space-separated (when `dirty_ops` is empty, just `$ARGUMENTS[0]`). The agent processes both fixed commands/queries sides in one call and additionally enriches each passed `ops.<op-name>.exceptions.md` stub; it auto-skips any side or ops service whose `<side>.exceptions.md` / `ops.<op-name>.exceptions.md` is absent (its existing disk-presence contract). Pass **only** the `dirty_ops` op-names (not every ops service on disk) so the enricher rewrites exactly the ops services Step 3 just regenerated — a clean ops service has no fragment on disk and is correctly skipped.
 
-Because Step 3 only writes fragments for the dirty side, the unaffected side's `<side>.exceptions.md` is not on disk (deleted by the prior `generate-specs` run's merger), and the enricher leaves the unaffected side's `<side>.specs.md` untouched. This is the load-bearing reason per-side regen requires no contract change to existing agents — the disk-presence check the enricher already performs is exactly the per-side scoping the updater needs.
+Because Step 3 only writes fragments for the dirty side and the dirty ops services, an unaffected side's / clean ops service's `<side>.exceptions.md` / `ops.<op-name>.exceptions.md` is not on disk (deleted by the prior `generate-specs` / merger run), and the enricher leaves that side's `<side>.specs.md` / `ops.<op-name>.specs.md` untouched. This is the load-bearing reason per-side / per-service regen requires no contract change to existing agents — the disk-presence check the enricher already performs is exactly the per-side scoping the updater needs.
 
 If the enricher reports a failure, abort and emit a single `ERROR:` line repeating its message.
 
 ### Step 5 — Merge fragments per dirty side (parallel)
 
-After the enricher returns, fan out the merger(s) in parallel for the dirty side(s) only. Emit the selected `Agent` calls in a single message:
+After the enricher returns, fan out the merger(s) in parallel for the dirty side(s) and every dirty ops service. Emit the selected `Agent` calls in a single message:
 
 - `application-spec:specs-merger` with prompt `$ARGUMENTS[0] commands` (if `commands_dirty`).
 - `application-spec:specs-merger` with prompt `$ARGUMENTS[0] queries` (if `queries_dirty`).
+- `application-spec:specs-merger` with prompt `$ARGUMENTS[0] ops <op-name>` for **each** `<op-name>` in `dirty_ops`.
 
-Each merger consolidates its side's `<side>.deps.md` + `<side>.methods.md` + `<side>.exceptions.md` into `<plugin_dir>/<side>.specs.md` (overwriting the prior file) and deletes the consumed fragments. The unaffected side's `<side>.specs.md` is left byte-identical.
+Each commands/queries merger consolidates its side's `<side>.deps.md` + `<side>.methods.md` + `<side>.exceptions.md` into `<plugin_dir>/<side>.specs.md` (overwriting the prior file) and deletes the consumed fragments. Each ops merger does the same for its `ops.<op-name>.{deps,methods,exceptions}.md` fragments, writing `<plugin_dir>/ops.<op-name>.specs.md` with top heading `# <X>` (the verbatim braced class name read from `<dir>/<stem>.ops.<op-name>.md`). Any unaffected side / clean ops service's `.specs.md` is left byte-identical.
 
-If a merger reports a failure, abort and emit a single `ERROR:` line repeating its message. The other merger (if running in parallel) may complete; the orchestrator does not roll back.
+If a merger reports a failure, abort and emit a single `ERROR:` line repeating its message. The other mergers (if running in parallel) may complete; the orchestrator does not roll back.
 
 ### Step 6 — Re-run services-finder
 
-After all merger(s) return, enumerate the aggregate's ops services so the finder can preserve them. This update flow is commands/queries-only and never modifies the ops specs, but `services-finder` rewrites `services.md` **in full** and no longer self-discovers ops — so it must be handed the op-names, or every ops-contributed service and consumer would be dropped from the report. Glob the surviving merged ops specs via Bash:
+After all merger(s) return, enumerate the aggregate's ops services so the finder can preserve them. `services-finder` rewrites `services.md` **in full** and no longer self-discovers ops — so it must be handed the op-names, or every ops-contributed service and consumer would be dropped from the report. Glob the **surviving** merged ops specs via Bash — this reflects the current set after Step 3 deleted any `removed_ops` specs and Step 5 (re)wrote the `dirty_ops` specs, so a removed ops service correctly drops out of `services.md` and a regenerated one is re-read with its (possibly changed) dependency/consumer set:
 
 ```bash
 ls "<plugin_dir>"/ops.*.specs.md 2>/dev/null
@@ -314,20 +366,20 @@ If the writer reports a failure, abort and emit a single `ERROR:` line repeating
 
 Print one summary line. The shape depends on the dispatch outcome.
 
-Build `<axis_summary>` first — a comma-separated list (in canonical order: `domain`, `commands-diagram`, `queries-diagram`) of axes that contributed at least one trigger to a dirty-side flag. An axis whose flag-contribution was the empty set (either disabled, or its triggers all resolved to empty) does not appear in `<axis_summary>`.
+Build `<axis_summary>` first — a comma-separated list (in canonical order: `domain`, `commands-diagram`, `queries-diagram`, `ops-diagram`) of axes that contributed at least one dirty signal. The `ops-diagram` axis appears when `dirty_ops` or `removed_ops` is non-empty. An axis whose contribution was the empty set (disabled, or its triggers all resolved to empty) does not appear.
 
-- **Tier 4 no-op**:
+- **Tier 4 no-op** (commands/queries clean **and** `dirty_ops`/`removed_ops` both empty):
   - If `domain.orphan_prose` is true: `No application spec updates required. Orphan prose changes detected — review <stem>.domain/updates.md. Emitted <stem>.application/updates.md.`
   - Otherwise: `No application spec updates required (no application-relevant changes on any axis). Emitted <stem>.application/updates.md.`
 
-- **At least one side dirty**:
+- **At least one side or ops service dirty**:
   ```
   Updated <stem>.application/{<files>} (<dispatch_clause>; triggers: <axis_summary>) and emitted <stem>.application/updates.md.
   ```
   Where:
-  - `<files>` is a comma-separated list, in canonical order: `commands.specs.md` (when commands_dirty), `queries.specs.md` (when queries_dirty), `services.md` (always — Step 6 always runs).
-  - `<dispatch_clause>` is one of `regenerated commands side`, `regenerated queries side`, or `regenerated both sides`, matching the dirty-flag combination.
-  - `<axis_summary>` examples: `domain`, `commands-diagram`, `queries-diagram`, `domain + commands-diagram`, `commands-diagram + queries-diagram`, `domain + commands-diagram + queries-diagram`. Use ` + ` (space-plus-space) as the separator.
+  - `<files>` is a comma-separated list, in canonical order: `commands.specs.md` (when commands_dirty), `queries.specs.md` (when queries_dirty), one `ops.<op-name>.specs.md` per `<op-name>` in `dirty_ops`, `services.md` (always — Step 6 always runs).
+  - `<dispatch_clause>` joins the active sub-clauses with `; `: `regenerated commands side` / `regenerated queries side` / `regenerated both sides` (matching the commands/queries dirty-flag combination, omitted when neither fired), `regenerated <N> ops service(s)` (when `dirty_ops` non-empty), and `removed <M> ops service(s)` (when `removed_ops` non-empty). At least one sub-clause is always present on this path.
+  - `<axis_summary>` examples: `domain`, `commands-diagram`, `ops-diagram`, `domain + ops-diagram`, `commands-diagram + queries-diagram`, `domain + commands-diagram + queries-diagram + ops-diagram`. Use ` + ` (space-plus-space) as the separator.
 
 If any preflight axis was disabled (Step 1.dom / 1.cmd / 1.qry fired), the `WARNING:` line(s) for those gates are emitted before the summary so the operator sees what got skipped. The summary itself still runs.
 
@@ -354,14 +406,14 @@ This orchestrator does not print a consolidated cascade summary — each chained
 
 ## Failure semantics
 
-- **Step 0 detector hard-fail** (0g): orchestrator aborts with the detector's `ERROR:` line repeated verbatim. The other detector's report (if it completed) is left on disk. Re-running after fixing the trigger re-runs both detectors. No rollback.
+- **Step 0 detector hard-fail** (0g / 0h): orchestrator aborts with the detector's `ERROR:` line repeated verbatim. Any detector report that completed (including the ops report from 0h, or the commands/queries reports from 0g) is left on disk. Re-running after fixing the trigger re-runs all three detectors. No rollback.
 - **Total preflight abort (1.all)**: no writes; the WARNING lines for each disabled axis are emitted before the aggregated ERROR. Operator runs `/application-spec:generate-specs`.
 - **Partial preflight disable (1.dom xor 1.cmd xor 1.qry)**: the enabled axis (or axes) regenerate as normal; the disabled axis's WARNING is surfaced before the Step 8 summary. This is a success path, so the Step 9 re-cascade still runs.
 - **Step 3+ agent failure**: every step that aborts emits exactly one `ERROR:` line and exits the workflow. Do not chain further agents on top of a failed step. The orchestrator does not roll back partial writes.
 - **Step 9 cascade**: reached only on the application-side success path. An application-side hard-fail (the Step 0 missing-input cases, the 1.all total-abort, or any Step 3–7 agent abort) `return`s before Step 9, so **rest-api and messaging are not run** on that invocation — the accepted coupling of rooting the app-service-axis subtree here. Within Step 9 the two downstream skills are independent: one's `ERROR:` neither aborts the other nor fails the already-completed application-side update. Re-run `/application-spec:update-specs` after reconciling the application-side trigger to propagate to rest-api / messaging.
 - **Re-running `/application-spec:update-specs` after fixing the trigger is the supported recovery path** — every step is idempotent on stable inputs:
-  - **Step 0 detectors** regenerate their reports wholesale on every call (output stable modulo LLM nondeterminism in prose-summary blocks).
-  - **Step 3** writers regenerate their fragments wholesale from current diagrams on every call (output stable modulo LLM nondeterminism).
+  - **Step 0 detectors** (0g commands/queries + 0h ops) regenerate their reports wholesale on every call (the ops detector fast-paths on its digest sentinel when no ops diagram changed; output otherwise stable modulo LLM nondeterminism in prose-summary blocks).
+  - **Step 3** writers regenerate their fragments wholesale from current diagrams on every call — the commands/queries pair plus one `ops-deps-writer`/`ops-methods-writer` pair per dirty ops service, and a Bash deletion of each removed ops service's spec siblings (output stable modulo LLM nondeterminism).
   - **Step 4** (`application-exceptions-specifier`) is deterministic from method flows + raising-method identity params; idempotent on stable input.
   - **Step 5** (`specs-merger`) is mechanical — concatenates fragments in a fixed order, deletes consumed fragments. Re-running on identical fragments yields identical output.
   - **Step 6** (`services-finder`) regenerates `services.md` from current inputs; byte-stable on stable inputs modulo LLM prose drift.
@@ -387,5 +439,5 @@ There are no sentinel comments in `<plugin_dir>/updates.md` beyond those the wri
 - It does not itself act on the `surface-markers` or `messaging-markers` categories that may appear on the commands-diagram updates report — those drive `/rest-api-spec:update-specs` and `/messaging-spec:update-specs` respectively. This orchestrator ignores them for its *own* dispatch (no `commands_dirty` contribution) but **delegates** them by re-cascading to both skills at Step 9.
 - It does not pre-check the narrower abort conditions of the methods writers (a missing `save(...)` on the command repo, an aggregate-root method renamed under the application diagrams' canonical shape, a referenced `<<Service>>` removed, a query-repo finder rename that breaks a same-name match, an external-interface operation rename). The methods writers abort with their own one-sentence errors and the orchestrator surfaces them verbatim from Step 3.
 - It does not preserve hand-edits inside the spec — the writer/merger contract is that the spec is regenerated from the diagrams, not curated. The unaffected side's `<side>.specs.md` is preserved byte-identically (the chosen approach's main payoff); inside a regenerated side, manual edits are wholesale replaced.
-- It does not auto-update generated application code (`<aggregate>_commands.py`, `<aggregate>_queries.py`, infrastructure stubs, test fakes, DI providers, conftest fixtures, application exception classes appended to the domain aggregate's `exceptions.py`, integration tests) — that is the cross-layer `/update-code` skill (`domain-spec:update-code`), which consumes the `<stem>.application/updates.md` this skill emits.
-- It is independently invocable (the entry point for a commands/queries-diagram-only change), **and** is one of the two downstream skills fanned out in parallel by domain `/update-specs`'s Step 10 (alongside `/persistence-spec:update-specs`). Its behaviour is **identical** either way: it always produces the two app-service-axis detector reports at Step 0g and always re-cascades to rest-api / messaging at Step 9. It does **not** receive `--detectors-fresh` (it is the producer), but it does **pass** `--detectors-fresh` down to rest-api / messaging. Domain no longer pre-produces the detector reports and no longer invokes rest-api / messaging directly — that subtree is rooted here.
+- It does not auto-update generated application code (`<aggregate>_commands.py`, `<aggregate>_queries.py`, the ops service modules `<op_snake>.py`, infrastructure stubs, test fakes, DI providers, conftest fixtures, application exception classes appended to the domain aggregate's `exceptions.py`, integration tests) — that is the cross-layer `/update-code` skill (`domain-spec:update-code`), which consumes the `<stem>.application/updates.md` **and** `<stem>.application/ops-updates.md` this skill emits.
+- It is independently invocable (the entry point for a commands/queries/ops-diagram change), **and** is one of the two downstream skills fanned out in parallel by domain `/update-specs`'s Step 10 (alongside `/persistence-spec:update-specs`). Its behaviour is **identical** either way: it always produces the two commands/queries detector reports at Step 0g and the ops report at Step 0h, regenerates every dirty ops service's spec, and always re-cascades to rest-api / messaging at Step 9. It does **not** receive `--detectors-fresh` (it is the producer of all three reports), but it does **pass** `--detectors-fresh` down to rest-api / messaging (which fast-path on the ops report's digest sentinel). Domain no longer pre-produces the detector reports and no longer invokes rest-api / messaging directly — that subtree is rooted here.

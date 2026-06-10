@@ -11,7 +11,7 @@ This is the execution analog of `/update-specs`. Where `/update-specs` propagate
 
 ## Inputs
 
-Given `<domain_diagram>` at `<dir>/<stem>.md`, the orchestrator reads only the four candidate `<stem>.<layer>/updates.md` files via `test -f` probes to determine active layers, plus the domain `updates.md` itself for the preflight gates. The brief, implement, and review agents own every other read.
+Given `<domain_diagram>` at `<dir>/<stem>.md`, the orchestrator reads only the four candidate `<stem>.<layer>/updates.md` files via `test -f` probes to determine active layers, plus the application layer's `<stem>.application/ops-updates.md` (the ops-axis report — a second activeness/no-op signal for the application layer), plus the domain `updates.md` itself for the preflight gates. The brief, implement, and review agents own every other read.
 
 `--review` is an optional flag that may appear in any position in `$ARGUMENTS`. When present, Phase 3 runs after Phase 2; when absent, Phase 3 is skipped entirely. There is no global risky-count threshold gating review — the flag is the only switch.
 
@@ -58,13 +58,17 @@ ERROR: Degraded baseline in <stem>.domain/updates.md. Re-run `/update-specs` aft
 
 ### Step 2 — Probe per-layer activeness
 
-For each of `persistence`, `application`, `rest-api`, `messaging`, probe via `Bash` (`test -f <dir>/<stem>.<layer>/updates.md`). Mark the layer **active** iff its `updates.md` exists. The `domain` layer is always active (Step 1 already read it).
+For each of `persistence`, `application`, `rest-api`, `messaging`, probe via `Bash` (`test -f <dir>/<stem>.<layer>/updates.md`). Mark the layer **active** iff its `updates.md` exists. Additionally probe `test -f <dir>/<stem>.application/ops-updates.md`; mark the `application` layer **active** iff **either** `<stem>.application/updates.md` **or** `<stem>.application/ops-updates.md` exists (the ops axis can carry work even when the commands/queries `updates.md` is absent — though in practice `/application-spec:update-specs` emits both). The `domain` layer is always active (Step 1 already read it).
 
 Bind `<active_layers>` to the ordered list of active layers in canonical order: `domain, persistence, application, rest-api, messaging` (filtered to those marked active).
 
 ### Step 3 — No-op early exit
 
-For each active layer, parse its `updates.md` and check whether its body sections all read `_no changes_` AND its `## Affected Artifacts` table is empty or absent. (Refer to each plugin's `updates-report-template` skill for the exact body markers.) Bind `<all_layers_noop>` to that result.
+For each active layer, parse its `updates.md` and check whether its body sections all read `_no changes_` AND its `## Affected Artifacts` table is empty or absent. (Refer to each plugin's `updates-report-template` skill for the exact body markers.)
+
+**Application-layer ops sub-check.** The `application` layer is no-op only when **both** its `updates.md` (commands/queries axis) **and** its `ops-updates.md` (ops axis) are no-op. Treat `ops-updates.md` as no-op when it is absent, or its `## Summary` reads `No changes detected.`, or its `## Affected Artifacts` table has zero data rows (no `## Service:` blocks) — per `application-spec:ops-updates-report-template`. If `ops-updates.md` carries any `## Service:` block / Affected-Artifacts row, the application layer is **active and non-no-op** even when its `updates.md` reads all-`_no changes_` (the common case: an ops-diagram-only edit leaves commands/queries byte-stable). The application brief/change/review agents already consume `ops-updates.md`, so no extra orchestrator wiring is needed beyond keeping the layer out of the no-op set.
+
+Bind `<all_layers_noop>` to the AND across active layers (using the application layer's combined two-axis result).
 
 In parallel, grep `<dir>/<stem>.domain/updates.md` for any `### \`Query[A-Z][A-Za-z0-9]*Repository\` \`<<Repository>>\`` heading. Bind `<query_signal>` to `true` iff at least one such heading is present. (This signal drives Phase 2.5; it is independent of per-layer no-op state because query-side invariants can land alongside otherwise-no-op layers.)
 

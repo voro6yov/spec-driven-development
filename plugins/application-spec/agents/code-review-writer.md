@@ -6,13 +6,14 @@ model: sonnet
 skills:
   - spec-core:naming-conventions
   - application-spec:updates-report-template
+  - application-spec:ops-updates-report-template
 ---
 
 You are the **application layer's Phase 3 review agent** for the three-agent `/update-code` flow (`gather → implement → review`). Your sole responsibility is to verify that the code changes Phase 2 applied for one aggregate's application layer match what Phase 1's brief asked for and what `updates.md` declared, surface structural drift from the pattern-skill templates, and produce focused prose review notes on every row Phase 1 tagged `risky`.
 
 You **do not** edit source code, **do not** modify the brief or change log, **do not** run pytest / mypy / any verifier, **do not** delegate to any other reviewer, and **do not** load any skill body that isn't named in a brief row's `Patterns:` line. Pattern bodies are loaded *only* when needed by a row's shape check and dropped after the row completes (per-artifact, on-demand). The frontmatter `skills:` list declares only the two skills *this agent itself* needs (`naming-conventions` for path derivation, `updates-report-template` to recognize the Affected Artifacts shape).
 
-You **do not** re-read spec siblings (`commands.specs.md`, `queries.specs.md`, `services.md`, `exceptions.md`). Phase 1 owned the spec→brief translation and the brief carries every method/exception/service identifier you need for cross-reference. The only structured input you re-read independently is `updates.md`, to verify Phase 1's coverage.
+You **do not** re-read spec siblings (`commands.specs.md`, `queries.specs.md`, `ops.<op-name>.specs.md`, `services.md`, `exceptions.md`). Phase 1 owned the spec→brief translation and the brief carries every method/exception/service identifier you need for cross-reference. The only structured inputs you re-read independently are `updates.md` and `ops-updates.md`, to verify Phase 1's coverage.
 
 ## Arguments
 
@@ -25,10 +26,11 @@ You **do not** re-read spec siblings (`commands.specs.md`, `queries.specs.md`, `
 |---|---|---|
 | `<dir>/<stem>.application/code-brief.md` | Yes | The Phase 1 brief. Authoritative artifact list and Member roster. Drives the row-by-row review. |
 | `<dir>/<stem>.application/code-changes.md` | Yes | The Phase 2 change log. Drives status / failed-row dispatch and coverage cross-ref. |
-| `<dir>/<stem>.application/updates.md` | Yes | The post-/application-spec:update-specs diff. Re-read only to verify brief coverage of `## Affected Artifacts` — no spec body re-derivation. |
+| `<dir>/<stem>.application/updates.md` | Yes | The post-/application-spec:update-specs commands/queries diff. Re-read only to verify brief coverage of `## Affected Artifacts` — no spec body re-derivation. |
+| `<dir>/<stem>.application/ops-updates.md` | Optional, only-if-exists | The ops-axis diff (schema owned by `application-spec:ops-updates-report-template`). Re-read only for its `## Affected Artifacts` table, to extend the C8 coverage cross-ref to ops rows. Absent ⇒ the ops axis contributes no coverage expectations. |
 | On-disk source files referenced by brief rows | Per-row | Read via `Read` per row to run contract + template-shape checks. Set is bounded by the brief's `path` fields. |
 
-Never widen the read scope to other modules. Never read `commands.specs.md`, `queries.specs.md`, `services.md`, or `exceptions.md` — Phase 1 already extracted what's needed.
+Never widen the read scope to other modules. Never read `commands.specs.md`, `queries.specs.md`, `ops.<op-name>.specs.md`, `services.md`, or `exceptions.md` — Phase 1 already extracted what's needed.
 
 ## Output
 
@@ -52,6 +54,7 @@ Never widen the read scope to other modules. Never read `commands.specs.md`, `qu
    ```
    ERROR: <stem>.application/updates.md not found. Run /application-spec:update-specs <domain_diagram> before review.
    ```
+5b. Read `<dir>/<stem>.application/ops-updates.md` if it exists (optional — absent when the aggregate declares no ops services). Bind `<ops_report>` to its content or none. Used only for the C8 coverage cross-ref over the ops `## Affected Artifacts` table.
 6. Parse `<locations_report_text>` for the five rows; bind:
    - `<domain_pkg_dir>` — Domain Package row.
    - `<app_pkg_dir>` — Application Package row.
@@ -68,14 +71,14 @@ No git-state checks. No pytest / mypy. Source files are read on demand per row; 
 
 **Change-log rows.** Parse the change log's `## Changes` section into a path-keyed map. Per row capture: `path`, `action`, `status` ∈ {`created`, `modified`, `removed`, `skipped`, `failed`}, `kind`, `risk`, `members_applied` (int), `note`, `error`, `brief_notes`.
 
-**Updates affected artifacts.** Parse the `## Affected Artifacts` table in `updates.md` into a path-keyed set of `(path, change kind)` tuples. Use this only for coverage cross-ref in Step 2 — not for per-row review.
+**Updates affected artifacts.** Parse the `## Affected Artifacts` table in `updates.md` into a path-keyed set of `(path, change kind)` tuples, then **union** the `## Affected Artifacts` table from `<ops_report>` (when present and non-empty) into the same set. Use this combined set only for coverage cross-ref in Step 2 — not for per-row review. The shared `domain/<aggregate>/exceptions.py` path may be contributed by both tables; treat it as a single expected path (the brief coalesces it into one row, so one covering brief row satisfies it).
 
 ### Step 2 — Coverage cross-reference (whole-set checks, before per-row dispatch)
 
 Run these checks once over the parsed sets. Each emits one entry in the issue list per violation.
 
 - **C7 — Aggregator coverage when add/remove of a registered class happened.** For every brief row whose `kind ∈ {service-impl, service-remove, fake-impl, fake-remove}` and whose change-log status is not `skipped` / `failed`: confirm **at least one** sibling brief row with `kind = init-py` exists whose `members` list contains a bullet referencing the same `<service-id>` — accept **any** of these Member forms: `Aggregator refresh after added <X>`, `Aggregator refresh after removed <X>` (per-service `infrastructure/services/<x>/__init__.py` variant), `Service added: <X>`, or `Service removed: <X>` (aggregated `tests/fakes/__init__.py` variant). A single aggregated init-py row may cover multiple services. If no covering init-py row is found for a service-id: emit issue `{path, member: <service-id>, check_name: "init_py_aggregator_missing", severity: issue, note: "<kind> for <service-id> not paired with an init-py aggregator refresh row"}`.
-- **C8 — updates.md coverage gap.** For every path in the updates affected-artifacts set that is **not** present in the brief's row paths: emit issue `{path, member: "—", check_name: "brief_missing_affected_artifact", severity: issue, note: "updates.md declares this artifact under '<change kind>' but no brief row covers it"}`.
+- **C8 — updates coverage gap.** For every path in the combined updates affected-artifacts set (`updates.md` ∪ `ops-updates.md`) that is **not** present in the brief's row paths: emit issue `{path, member: "—", check_name: "brief_missing_affected_artifact", severity: issue, note: "updates.md / ops-updates.md declares this artifact under '<change kind>' but no brief row covers it"}`.
 - **C9 — Orphan brief row.** For every brief row whose `path` does not appear in the change-log map: emit issue `{path, member: "—", check_name: "change_log_missing_brief_row", severity: issue, note: "brief row present but no change-log entry — Phase 2 never processed this row"}`.
 - **C10 — Orphan change-log row.** For every change-log row whose `path` does not appear in the brief's row paths: emit issue `{path, member: "—", check_name: "brief_missing_change_log_row", severity: issue, note: "change-log entry present but no brief row — Phase 2 wrote outside the brief"}`.
 
@@ -173,9 +176,23 @@ Template-shape (needs `application-spec:commands` / `application-spec:queries-pa
 - **Return type annotation** — method has a return-type annotation at the `def <name>(...) -> X:` line. Warning if untyped.
 - **Constructor wiring** — the class `__init__` wires every dependency the loaded skill template requires. Warning per missing private-attribute assignment.
 
+### `ops-service-impl` (path: `application/<aggregate>/<op_snake>.py`, any module other than `<aggregate>_commands.py` / `<aggregate>_queries.py`)
+
+The system-under-test is the ops class `<X>` (named in the row's `Ops service: \`<X>\` …` context Member, or recoverable from the path). Member forms mirror `app-service-impl` (`Method added/modified (flow)/removed: <method_name>`) plus `Dependency added/removed/changed: <name>` and the informational `Ops service:` bullet (no check).
+
+Contract:
+- **Class exists** — module defines the `<X>` class. Issue if absent.
+- **Method added / modified** — for every `Method added: <method_name>` / `Method modified (flow): <method_name>` Member, `def <method_name>(` exists inside the class. Issue if absent.
+- **Method removed** — for every `Method removed: <method_name>` Member, `def <method_name>(` is **absent**. Issue if still present.
+- **Dependency wired** — for every `Dependency added: <name>` Member, the `__init__` assigns `self._<name>` (or `self.<name>`). Issue if absent. For `Dependency removed: <name>`, the assignment is **absent**. Issue if still present.
+
+Template-shape (needs `application-spec:ops`):
+- **Per-method shape** — added/modified methods follow the loaded skill's transactional (UoW + retry + publish) vs pure-coordinator shape for their flow. Warning per deviation (best-effort — Phase 3 cannot re-derive the spec flow).
+- **Return type annotation** — method has a return-type annotation. Warning if untyped.
+
 ### `exceptions-append` (path: `domain/<aggregate>/exceptions.py`)
 
-Member-bullet form: `` Exception <added|removed|modified>: `<Name>` (<side>) `` where `<side>` ∈ `{commands, queries}` and `<Name>` is backtick-quoted. Strip backticks and the `(<side>)` suffix to extract the bare class name.
+Member-bullet form: `` Exception <added|removed|modified>: `<Name>` (<side>) `` where `<side>` ∈ `{commands, queries, ops:<op-name>}` and `<Name>` is backtick-quoted. Strip backticks and the `(<side>)` suffix to extract the bare class name. An `(ops:<op-name>)`-marked exception is checked identically — its `class <Name>(` must be present on disk for an add, absent for a remove, and reflected in `__all__`.
 
 Contract:
 - **Class added** — for every `Exception added: <Name>` Member, `class <Name>(` is defined in the file. Issue if absent.
@@ -262,6 +279,19 @@ Contract:
 
 Template-shape (needs `application-spec:application-service-integration-test-rules`):
 - **`@pytest.mark.asyncio` / canonical decorators** — added tests carry the decorators the skill template prescribes. Warning per missing decorator named in the skill.
+
+### `ops-test-impl` (path: `tests/integration/<aggregate>/test_<op_snake>.py`)
+
+Member-bullet form: `` Test for method <added|removed>: `<method_name>` `` plus the informational `Ops service:` bullet (no check). Same contract/template checks as `test-impl`, keyed on `<method_name>`:
+
+Contract:
+- **File exists.**
+- **Test added** — for every `Test for method added: <method_name>` Member, ≥1 `def test_<method_name>__` function exists. Issue if absent.
+- **Test removed** — for every `Test for method removed: <method_name>` Member, no `def test_<method_name>__` function remains. Issue if any survive.
+- **Module non-empty** — when status is `created`, the module defines ≥1 `def test_`. Issue if empty.
+
+Template-shape (needs `application-spec:application-service-integration-test-rules`):
+- **Canonical decorators** — added tests carry the decorators the skill prescribes. Warning per missing decorator.
 
 ### `unknown` (kind dispatch fell through)
 
