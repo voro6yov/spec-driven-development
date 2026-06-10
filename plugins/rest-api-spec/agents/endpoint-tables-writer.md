@@ -54,13 +54,13 @@ Parse Table 1 of the target file. Record:
 
 For each application-service class body — the commands class, the queries class, **and every ops class** in `<ops_classes>` — walk the lines top-to-bottom and apply the **surface-markers parsing rules** (per `rest-api-spec:surface-markers`):
 
-- Initialize current surface to `v1`.
+- Initialize the current surface set to `{v1}`.
 - For each line inside the class body:
-    - If it matches the marker regex `^\s*%%\s+([A-Za-z][A-Za-z0-9_-]*)\s*$`, set the current surface to the captured name lowercased; continue (do not record this line as a method).
+    - If it matches the marker regex `^\s*%%\s+([A-Za-z][A-Za-z0-9_-]*(?:\s*,\s*[A-Za-z][A-Za-z0-9_-]*)*)\s*$`, set the current surface set to the captured comma-separated list (split on commas, trim, lowercase each, dedupe preserving order); continue (do not record this line as a method).
     - If it is any other `%%` line, treat it as a regular comment and skip.
-    - If it is a public method declaration (line starts with `+` or has no visibility prefix; method syntax is `[+|-|#|~]?<name>(<param>: <type>, ...) <return_type>`), record it under the current surface. Lines starting with `-` or `#` are skipped.
+    - If it is a public method declaration (line starts with `+` or has no visibility prefix; method syntax is `[+|-|#|~]?<name>(<param>: <type>, ...) <return_type>`), record it under **every** surface in the current surface set. Lines starting with `-` or `#` are skipped.
 
-Preserve declaration order within each surface. Record name, ordered parameter list (name + type), and return type verbatim.
+Preserve declaration order within each surface. Record name, ordered parameter list (name + type), and return type verbatim. A method declared under a multi-name marker (e.g. `%% v1, internal`) is recorded once per surface it names, so it yields one row in each of those surfaces' tables.
 
 The result is a per-class mapping `{surface_name -> [methods]}`. The discovered surface set for a class is the set of keys in this mapping — `v1` appears as a key only if the class body has methods declared before any marker (or no markers at all), per the default-surface rule. Bind one `ops_map[<OpsClass>]` per ops class. Ops classes use the **same expose-all default** as commands/queries: every public ops method is recorded as a REST-endpoint candidate (the `on_*` message-handler filter in Step 4 then applies to ops exactly as to commands, removing handlers before any row is emitted).
 

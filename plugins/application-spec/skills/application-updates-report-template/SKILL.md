@@ -82,7 +82,7 @@ _Baseline: git HEAD. Working tree compared against `HEAD:<application_service_di
 
 **Signature:** `<old signature>` → `<new signature>`
 
-**Surface:** `<old surface>` → `<new surface>`
+**Surface:** `<old surface set>` → `<new surface set>`
 
 **Messaging:** Added handler binding `<Event> via (<SourceDest>, <on_method>)`
 
@@ -125,7 +125,7 @@ Diff:
 - Removed: `<surface>`
 
 ### Method Membership
-- `<method_name>`: `<old surface>` → `<new surface>`
+- `<method_name>`: `<old surface set>` → `<new surface set>`
 
 ## Messaging Markers
 
@@ -228,7 +228,7 @@ Emit one `### \`<method_name>\`` block per touched method of the anchor class. A
 
 Block shape is uniform across lifecycle states; emit only the sub-section fields that have content:
 
-- **Added method:** `**Signature:**` renders as `_new method_ — <new signature>`. `**Surface:**` (when on a non-default surface) renders as `_new method on surface \`<surface>\`_`. `**Messaging:**` and `**Prose —`** render only when the added method shipped with those.
+- **Added method:** `**Signature:**` renders as `_new method_ — <new signature>`. `**Surface:**` (when on a non-default surface set) renders as `_new method on surface(s) \`<surface set>\`_`, where `<surface set>` is the method's surfaces in canonical order, comma-joined (e.g. `v1, internal`). `**Messaging:**` and `**Prose —`** render only when the added method shipped with those.
 - **Removed method:** `**Signature:**` renders as `<old signature> → _removed_`. Other sub-section fields render only when the removal entailed dropping a messaging binding or a prose section keyed to this method.
 - **Modified method:** every changed sub-section field renders with its `<old> → <new>` form.
 
@@ -236,7 +236,7 @@ Sub-section order within a per-method block is fixed: **Signature**, then **Surf
 
 Inside a **Prose** sub-section, the `Summary:` and `Diff:` labels are rendered as plain (not bolded) lines, mirroring the in-class prose convention of the domain template. The diff fenced block uses ```` ```diff ````.
 
-A method's surface shift across the default-fallback boundary is rendered as `default → <surface>` or `<surface> → default` for clarity.
+Each side of a `**Surface:**` (and `### Method Membership`) change is a **surface set** rendered in canonical order (per `rest-api-spec:surface-markers`), comma-joined inside a single backtick pair — e.g. `` `v1, internal` ``; a single-surface set renders as `` `v1` `` (identical to the legacy scalar form). The implicit-default singleton (`{v1}` reached with no explicit marker) renders as `default`. So a default-fallback boundary shift reads `default → v1` or `v1 → default`, while a method that gains or loses a surface reads `v1 → v1, internal` (or `v1, internal → v1`).
 
 ### `## External Interfaces`
 
@@ -256,7 +256,7 @@ A method's surface shift across the default-fallback boundary is rendered as `de
 Three sub-sections capture the three levels of surface delta:
 
 - `### Surface Set` — surfaces added to or removed from the diagram's overall surface set. Omit when no surfaces were added or removed.
-- `### Method Membership` — per-method surface-assignment changes. Bullets render only for methods that changed surface assignment (including shifts across the default-fallback boundary). Omit when no methods were remapped.
+- `### Method Membership` — per-method surface-assignment changes, each side a surface set (see the rendering note above). Bullets render only for methods that changed surface assignment (a set gain/loss, or a shift across the default-fallback boundary). Omit when no methods were remapped.
 
 Each sub-section is **omitted when empty**. The parent `## Surface Markers` is omitted when both are empty.
 

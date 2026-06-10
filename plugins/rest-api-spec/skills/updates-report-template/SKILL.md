@@ -260,7 +260,7 @@ Source delta: (unknown source)
     | Method added | `method <method_name> added` |
     | Method removed | `method <method_name> removed` |
     | Signature changed | `method <method_name> signature changed` |
-    | Surface remapped (`v1 → internal`) | `method <method_name> remapped from <old_surface> to <new_surface>` |
+    | Surface remapped (`v1 → internal`, or a set change like `v1 → v1, internal`) | `method <method_name> remapped from <old_surface_set> to <new_surface_set>` (each side rendered verbatim from the detector, comma-joined when a set) |
     | Prose changed (per-method) | `method <method_name> prose changed` |
 
     Multiple deltas on one method (e.g. signature changed + surface remapped) → emit the first in canonical order: `signature changed` > `remapped` > `prose changed`. Single-tag rule mirrors the application-spec writer.
@@ -271,7 +271,7 @@ Source delta: (unknown source)
     |---|---|
     | Surface added | `surface <name> added` |
     | Surface removed | `surface <name> removed` |
-    | Method membership change | `method <method_name> moved to surface <name>` |
+    | Method membership change | `method <method_name> moved to surface(s) <new_surface_set>` (the method's new surfaces, comma-joined when more than one) |
 
     A `surface-markers` delta that produces both a surface-set change AND method-membership shifts → emit the surface-set change first (it's the upstream cause; method membership is the projection).
 

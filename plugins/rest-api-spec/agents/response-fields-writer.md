@@ -56,11 +56,11 @@ Locate every `## Surface: <name>` H2 section in the target file. For each, recor
 
 Partition queries methods, **commands methods**, **and every ops class's methods** by surface per the **surface-markers parsing rules** (`rest-api-spec:surface-markers`):
 
-- Initialize current surface to `v1` at the start of each class body.
+- Initialize the current surface set to `{v1}` at the start of each class body.
 - For each line inside the class body:
-    - If it matches the marker regex `^\s*%%\s+([A-Za-z][A-Za-z0-9_-]*)\s*$`, set the current surface to the captured name lowercased; continue.
+    - If it matches the marker regex `^\s*%%\s+([A-Za-z][A-Za-z0-9_-]*(?:\s*,\s*[A-Za-z][A-Za-z0-9_-]*)*)\s*$`, set the current surface set to the captured comma-separated list (split on commas, trim, lowercase each, dedupe preserving order); continue.
     - If it is any other `%%` line, skip.
-    - If it is a public method declaration (line starts with `+` or has no visibility prefix; method syntax is `[+|-|#|~]?<name>(<param>: <type>, ...) <return_type>`), record it under the current surface. Lines starting with `-` or `#` are skipped.
+    - If it is a public method declaration (line starts with `+` or has no visibility prefix; method syntax is `[+|-|#|~]?<name>(<param>: <type>, ...) <return_type>`), record it under **every** surface in the current surface set. Lines starting with `-` or `#` are skipped.
 
 Preserve declaration order within each surface. Record name, ordered parameter list (name + type), and return type verbatim. Bind `commands_methods[surface]` for the commands class and `ops_methods[<OpsClass>][surface]` per ops class.
 

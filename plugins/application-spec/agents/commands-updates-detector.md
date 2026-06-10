@@ -106,10 +106,10 @@ For each version, extract:
    - `--> <Target>` with no label or any label, where `<Target>` is a class with stereotype `<<Domain Event>>` in the same version's class map, and the edge is **not** inside a `%% Messaging - <C>` block → **informational external-event arrow**. Silently filter — do not record. The event's lifecycle (Step 4's class-level diff) is the primary signal.
    - Edges inside a `%% Messaging - <C>` block are messaging rows, captured in sub-point 6 below, not here.
 
-5. **Surface marker map** — keyed `anchor_method_name → surface_name`, derived by parsing the anchor class body line-by-line:
-   - Default surface is `v1` (lowercase) at the start of the class body.
-   - A line matching the regex `^\s*%%\s+([A-Za-z][A-Za-z0-9_-]*)\s*$` opens a new surface scope. The captured name is normalized to lowercase and replaces the current scope for the rest of the class body. (Lines matching `%% Messaging - <name>` are messaging markers, *not* surface markers — they appear at top level outside class bodies, not inside the anchor body, but if one ever appears inside the anchor body it must be ignored for surface scoping: the marker name fails the `[A-Za-z][A-Za-z0-9_-]*` shape because of the embedded ` - `.)
-   - Subsequent `+method(...)` declarations are tagged with the current scope.
+5. **Surface marker map** — keyed `anchor_method_name → surface_set` (a method may belong to **one or more** surfaces), derived by parsing the anchor class body line-by-line:
+   - The default surface set is `{v1}` (lowercase) at the start of the class body; methods reached before any marker are flagged `from_default = true`.
+   - A line matching the regex `^\s*%%\s+([A-Za-z][A-Za-z0-9_-]*(?:\s*,\s*[A-Za-z][A-Za-z0-9_-]*)*)\s*$` opens a new surface scope. Its captured group is a comma-separated list — split on commas, trim, lowercase each, dedupe preserving order — and the resulting surface set replaces the current scope for the rest of the class body. (Lines matching `%% Messaging - <name>` are messaging markers, *not* surface markers — they appear at top level outside class bodies, not inside the anchor body, but if one ever appears inside the anchor body it must be ignored for surface scoping: the marker name fails the surface-marker shape because of the embedded ` - `.)
+   - Subsequent `+method(...)` declarations are tagged with the current scope (`from_default = false` once an explicit marker has been seen).
    - Any other `%% ...` comment line inside the class body that fails the surface-marker shape is treated as a regular comment and ignored.
    - Methods are keyed by name; if a method name appears more than once under different surface scopes (unusual but legal), keep the first scope it appears under and surface a `_warning:_` only if the orchestrator asks (not required at v1).
 
@@ -150,8 +150,8 @@ Pure set-difference logic, no LLM reasoning. **Renames are not detected** at any
     - `: raises` deltas → `## Raised Exceptions` (added / removed only — a `: raises` edge with a label change to something else is unusual; treat as remove + add).
     - All other labels → `## Application Class Relationships`.
 - **Surface-level**:
-  - `surface_set` deltas — symmetric difference of the set of surface names discovered across the anchor's body in each version. Yields `surface_added` / `surface_removed`.
-  - `method_surface_changed` for methods present in both versions whose surface assignment differs. Render as `<old_surface> → <new_surface>`; the default-fallback boundary is rendered explicitly as `default → <s>` or `<s> → default` only when one side actually used the implicit default — otherwise compare on the normalized surface name. New methods on a non-default surface are flagged inline in the per-method block, not in `### Method Membership` (see template skill rendering rules).
+  - `surface_set` deltas — symmetric difference of the diagram-wide surface set (the union of every method's surface set) discovered across the anchor's body in each version. Yields `surface_added` / `surface_removed`.
+  - `method_surface_changed` for methods present in both versions whose surface assignment differs. Compare the **rendered surface token** per side: the method's effective surface set in canonical order, comma-joined (e.g. `v1, internal`), except that the implicit-default singleton (`from_default = true`, set `{v1}`) renders as `default`. A method is remapped iff its rendered token differs between versions — covering both a set that gained/lost a surface (`v1 → v1, internal`) and the default-fallback boundary (`default → <s>` / `<s> → default`). New methods on a non-default surface are flagged inline in the per-method block, not in `### Method Membership` (see template skill rendering rules).
 - **Messaging-marker-level**:
   - `consumer_added` / `consumer_removed` from the messaging-block-name set diff.
   - For consumers present in both versions, compute the symmetric difference of their row tuples; classify each delta as `row_added` / `row_removed`. A row tuple sharing the same `(class, event)` pair but differing in `(arrow, source, method)` is rendered as `row_changed` (old → new).

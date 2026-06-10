@@ -74,11 +74,11 @@ For each `<ops_diagrams>` entry, find the **unique brace-body class** `<OpsClass
 
 Apply the **surface-markers parsing rules** (per `rest-api-spec:surface-markers`) to each application-service class body independently — the commands class, the queries class, **and every ops class** (one per `<ops_diagrams>` entry):
 
-- Initialize current surface to `v1`.
+- Initialize the current surface set to `{v1}`.
 - For each line inside the class body:
-    - If it matches the marker regex `^\s*%%\s+([A-Za-z][A-Za-z0-9_-]*)\s*$`, set the current surface to the captured name lowercased; continue (the marker line is not a method).
+    - If it matches the marker regex `^\s*%%\s+([A-Za-z][A-Za-z0-9_-]*(?:\s*,\s*[A-Za-z][A-Za-z0-9_-]*)*)\s*$`, set the current surface set to the captured comma-separated list (split on commas, trim, lowercase each, dedupe preserving order); continue (the marker line is not a method).
     - If it is any other `%%` line, treat it as a regular comment and skip.
-    - If it is a public method declaration (line starts with `+` or has no visibility prefix; method syntax is `[+|-|#|~]?<name>(<param>: <type>, ...) <return_type>`), record the method under the current surface. Lines starting with `-` or `#` are skipped.
+    - If it is a public method declaration (line starts with `+` or has no visibility prefix; method syntax is `[+|-|#|~]?<name>(<param>: <type>, ...) <return_type>`), record the method under **every** surface in the current surface set. Lines starting with `-` or `#` are skipped.
 
 The result is a per-class mapping `{surface_name -> [methods]}`. The discovered surface set for a class is the set of keys in this mapping — `v1` appears as a key only if the class body has methods declared before any marker (or no markers at all), per the default-surface rule. Ops classes use the **same expose-all default** as commands/queries: every public ops method belongs to a surface (`v1` when before any marker), so every ops method becomes a REST endpoint.
 

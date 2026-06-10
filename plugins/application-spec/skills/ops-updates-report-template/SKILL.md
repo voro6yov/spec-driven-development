@@ -89,7 +89,7 @@ _Class: `<X>`._
 
 **Signature:** `<old signature>` → `<new signature>`
 
-**Surface:** `<old surface>` → `<new surface>`
+**Surface:** `<old surface set>` → `<new surface set>`
 
 **Messaging:** Added handler binding `<Event> via (<SourceDest>, <method>)`
 
@@ -110,7 +110,7 @@ Diff:
 - Removed: `<surface>`
 
 #### Method Membership
-- `<method_name>`: `<old surface>` → `<new surface>`
+- `<method_name>`: `<old surface set>` → `<new surface set>`
 
 ### Messaging Markers
 
@@ -188,7 +188,7 @@ Inside each `## Service:` block, the `###` sub-sections render in this fixed ord
 7. `### Application Class Relationships`
 8. `### Orphan Prose Changes`
 
-The per-method block shape, the Added/Removed/Changed within-section ordering, the `**Signature:**`/`**Surface:**`/`**Messaging:**`/`**Prose —**` sub-field rules, the default-fallback surface rendering (`default → <s>`), and the prose `Summary:`/`Diff:` convention are **identical to `application-spec:application-updates-report-template`** — apply that skill's "Per-Method Changes", "Surface Markers", "Raised Exceptions", "Application Class Relationships", and "Orphan Prose Changes" rendering rules verbatim, one level deeper (its `##` → this skill's `###`, its `###` → `####`, its `####` method blocks → `#####`). The only ops parameterization: **Messaging Markers use the relaxed binding form** — the source class is the free-form `<OpsClass>` (no `Commands` suffix) and the bound method is a **free name** (not `on_<event>`); rows render verbatim from the diagram's `<OpsClass> --() <Event> : handles (<SourceDest>, <method>)` form.
+The per-method block shape, the Added/Removed/Changed within-section ordering, the `**Signature:**`/`**Surface:**`/`**Messaging:**`/`**Prose —**` sub-field rules, the surface-set rendering (each side a canonical-ordered comma-joined surface set, with the implicit-default singleton rendered as `default` — e.g. `default → <s>`, `v1 → v1, internal`), and the prose `Summary:`/`Diff:` convention are **identical to `application-spec:application-updates-report-template`** — apply that skill's "Per-Method Changes", "Surface Markers", "Raised Exceptions", "Application Class Relationships", and "Orphan Prose Changes" rendering rules verbatim, one level deeper (its `##` → this skill's `###`, its `###` → `####`, its `####` method blocks → `#####`). The only ops parameterization: **Messaging Markers use the relaxed binding form** — the source class is the free-form `<OpsClass>` (no `Commands` suffix) and the bound method is a **free name** (not `on_<event>`); rows render verbatim from the diagram's `<OpsClass> --() <Event> : handles (<SourceDest>, <method>)` form.
 
 ### `## Summary`
 

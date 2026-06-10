@@ -114,11 +114,11 @@ For each version, extract:
    - `kind = composition (*--)` and `kind = inheritance (<|--)` — parsed for completeness but rare in queries diagrams.
    - Label is the full `: <text>` segment after the arrow, with the leading colon stripped (e.g. `uses`, `raises`, `returns`, `takes as argument`).
 
-4. **Surface marker map** — `method_name → surface_name`:
-   - The default surface is `v1` when no marker is present.
-   - Each line of the form `^\s*%%\s+([A-Za-z][A-Za-z0-9_-]*)\s*$` inside the anchor class body opens a new surface scope; every subsequent method line is assigned that surface until another `%% <name>` marker (or the closing `}` of the class) appears.
-   - Parsing rules are owned by `rest-api-spec:surface-markers` — that skill is the single source of truth for marker syntax. Defer to it when unsure.
-   - The **surface set** is the set of distinct surface names assigned by the marker map (plus `v1` if any methods fall under the default-fallback).
+4. **Surface marker map** — `method_name → surface_set` (a method may belong to **one or more** surfaces):
+   - The default surface set is `{v1}` when no marker governs the method; flag such methods `from_default = true`.
+   - Each line of the form `^\s*%%\s+([A-Za-z][A-Za-z0-9_-]*(?:\s*,\s*[A-Za-z][A-Za-z0-9_-]*)*)\s*$` inside the anchor class body opens a new surface scope. Its captured group is a comma-separated list — split on commas, trim, lowercase each, dedupe preserving order — and the resulting **surface set** replaces the current scope for every subsequent method line until the next `%% <names>` marker (or the closing `}` of the class). Methods governed by an explicit marker have `from_default = false`.
+   - Parsing rules are owned by `rest-api-spec:surface-markers` — that skill is the single source of truth for marker syntax (including the multi-name comma form). Defer to it when unsure.
+   - The diagram-wide **surface set** is the union of every method's surface set (which includes `v1` whenever any method falls under the default-fallback).
 
 5. **Prose section map** — `heading_text → body_lines`:
    - Split the prose body by ATX-style Markdown headings at levels 1–3 (`#`, `##`, `###`). Headings at level 4 or deeper are treated as part of their parent section's body, not as section keys.
@@ -157,9 +157,9 @@ Pure set-difference logic, no LLM reasoning. Renames are **not** detected at any
   - Relationships between non-anchor classes (rare in practice) are parsed but not rendered.
 
 - **Surface-level** (Surface Markers):
-  - `surface_added` = surface-marker-name set: working-tree minus HEAD.
-  - `surface_removed` = surface-marker-name set: HEAD minus working-tree.
-  - `method_surface_changed` = methods present in both versions whose surface assignment differs. A method's shift across the default-fallback boundary (a method that was implicit `v1` and is now under an explicit `%% v1` marker, or vice versa) is rendered as `default → v1` or `v1 → default` for clarity.
+  - `surface_added` = diagram-wide surface set (union of every method's surface set): working-tree minus HEAD.
+  - `surface_removed` = diagram-wide surface set: HEAD minus working-tree.
+  - `method_surface_changed` = methods present in both versions whose surface assignment differs. Compare the **rendered surface token** per side: the method's effective surface set in canonical order, comma-joined (e.g. `v1, internal`), except that the implicit-default singleton (`from_default = true`, set `{v1}`) renders as `default`. A method is remapped iff its rendered token differs between versions — this covers a set that gained or lost a surface (`v1 → v1, internal`) as well as the default-fallback boundary shift (`default → v1` / `v1 → default`).
 
 ### Step 5 — Compute the prose diff section-by-section
 
