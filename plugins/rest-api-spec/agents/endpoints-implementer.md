@@ -85,7 +85,7 @@ The agent emits a deterministic, sorted import block. Compute the union of needs
 | --- | --- | --- |
 | stdlib | `Literal`, `IO`, etc. (only if used) | per stdlib module |
 | third-party | `Provide, inject` | `dependency_injector.wiring` |
-| third-party | `APIRouter, Depends, status` + any of `Path, Query, Body, File, UploadFile` actually used | `fastapi` |
+| third-party | `APIRouter, Depends, status` + any of `Path, Query, Body, File, UploadFile, Response` actually used (`Response` iff the module has ≥1 optional-return dual-status endpoint) | `fastapi` |
 | third-party | `StreamingResponse` (only if a binary endpoint exists) | `fastapi.responses` |
 | project | `<aggregate>_commands` / `<aggregate>_queries` application classes, **and any ops service class** `<OpsClass>` referenced by a Table 3o Domain Ref (only those referenced) | `<pkg>.application` |
 | project | `Pagination` (only if Table 6 references `→ Pagination`) | `<pkg>.domain.shared` |
@@ -152,6 +152,7 @@ Always emit `openapi_extra={"visibility": Visibility.<X>}`. `<X>` = `INTERNAL` w
 | All Table 2 rows | `HTTP_200_OK` |
 | Table 3o (ops) row whose method's return type is `None` (Table 4 sub-block is the `*No response body — returns `204 No Content`.*` placeholder) | `HTTP_204_NO_CONTENT` |
 | All other Table 3o (ops) rows | `HTTP_200_OK` |
+| Table 3 / Table 3o row carrying the **optional-response marker** (Table 4 sub-block begins `*Optional response —` and contains `204`) | **dual-status** — keep the row's declared status above + add a runtime `204` branch (see [§ Optional-return (dual-status) endpoints](#optional-return-dual-status-endpoints)) |
 
 An ops `204` endpoint follows the same no-`response_model`, no-`from_domain`, returns-`None` carve-out as a DELETE (below). An ops `200` endpoint wraps `<Operation>Response.from_domain(<result>)` where `<result>` is the ops method's return value — except when the ops serializer emitted no `<Operation>Response` module (a `None`/204 return), in which case it is a 204.
 
@@ -165,6 +166,48 @@ def delete_load(id: str, tenant_id: str = Depends(get_tenant_id), commands: Load
 ```
 
 For binary streaming endpoints emit no `response_model` either (return type is `StreamingResponse`).
+
+### Optional-return (dual-status) endpoints
+
+A Table 3 (command) or Table 3o (ops) row whose **Table 4 sub-block carries the optional-response marker** — its body begins `*Optional response —` and contains the literal `204` (per `rest-api-spec:endpoint-io-template` § *Optional response (204-on-None)*) — maps to a **runtime-conditional status**: the declared success status when the application-service method returns a value, or `204 No Content` when it returns `None`. Detect this in Step 3 (parse Table 4) and record `optional_return = true` for the row. This is **distinct** from the *static* DELETE / ops-`None` 204 carve-out above (those always return 204 and never serialize).
+
+Render it as a **dual-status** endpoint:
+
+- Keep the row's normal `status_code=` (the value branch — `HTTP_200_OK`, or `HTTP_201_CREATED` for a factory `POST /`) and keep `response_model=<Operation>Response`.
+- Add `responses={status.HTTP_204_NO_CONTENT: {"description": "..."}}` to the decorator so the alternate status is documented in OpenAPI (a short phrase, e.g. `"Target no longer exists; idempotent no-op."`).
+- Bind the application-service call (built per [§ Application-service call construction](#application-service-call-construction-driven-by-table-6)) to a local `result`, then branch:
+
+```python
+@rulesets_router.post(
+    "/{id}/mapping-rules",
+    status_code=status.HTTP_200_OK,
+    openapi_extra={"visibility": Visibility.INTERNAL},
+    response_model=AddMappingRulesResponse,
+    responses={status.HTTP_204_NO_CONTENT: {"description": "Ruleset no longer exists; idempotent no-op."}},
+)
+@inject
+def add_mapping_rules(
+    id: str,
+    request: AddMappingRulesRequest,
+    ruleset_commands: RulesetCommands = Depends(Provide[Containers.ruleset_commands]),
+):
+    result = ruleset_commands.add_mapping_rules(
+        id,
+        mapping_rules=[item.to_domain() for item in request.mapping_rules],
+        epoch_token=request.epoch_token,
+    )
+    if result is None:
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    return AddMappingRulesResponse.from_domain(result)
+```
+
+Mechanics:
+
+- Returning a bare `fastapi.Response` instance **bypasses `response_model`** (FastAPI sends it as-is), so the 204 branch is valid even with `response_model` declared. Do **not** instead inject `response: Response` and `return None` — `None` against a non-Optional `response_model` raises `ResponseValidationError`.
+- The value branch wraps `result` with the same `<Operation>Response.from_domain(...)` a non-optional row would use; the Table 6 call construction is unchanged — only the assignment-to-`result` + branch wraps it.
+- `Response` is added to the `fastapi` import group whenever the module has ≥1 dual-status endpoint (see [§ Imports](#imports)).
+- The dual-status modifier is **orthogonal to the endpoint kind**: a command-action `POST /{id}/<kebab>`, a plain `POST /`, a composite-key `PATCH /`, or an ops `POST /{id}/<op>` all take the same `result = …; if result is None: return Response(204); return <Op>Response.from_domain(result)` body when `optional_return` is true. The kind still determines the decorator/params; the optional flag only reshapes the body, adds the `responses=` entry, and pulls in the `Response` import.
+- **Ops:** for an ops row whose return is `<X> | None`, `@ops-serializers-implementer` emits `<Operation>Response` for the `<X>` branch exactly as a `200` ops row, so the dual-status body is identical with the ops dependency (`<op_snake>` from the Domain Ref).
 
 ### Application-service call construction (driven by Table 6)
 
@@ -298,7 +341,7 @@ For each surface in canonical order, within its bounded section (from `## Surfac
 1. **Parse Table 2** (Query Endpoints). If the empty placeholder `*No query endpoints in this surface.*` is present, record zero query endpoints. Otherwise collect every data row as `(http, path, operation, description, domain_ref)`. Validate `http == "GET"`.
 2. **Parse Table 3** (Command Endpoints). If the empty placeholder `*No command endpoints in this surface.*` is present, record zero command endpoints. Otherwise collect every data row as `(http, path, operation, description, domain_ref)`. Validate `http ∈ {POST, PUT, PATCH, DELETE}`. Drop rows whose Domain Ref method name starts with `on_`.
 2o. **Parse Table 3o** (Ops Endpoints). If the empty placeholder `*No ops endpoints in this surface.*` is present, record zero ops endpoints. Otherwise collect every data row as `(http, path, operation, description, domain_ref)`. Validate `http == "POST"`. Each Domain Ref has the form `<OpsClass>.<method>`; bind `<op_snake>` = snake_case(`<OpsClass>`) for the dependency. Drop rows whose Domain Ref method name starts with `on_` (defensive — `endpoint-tables-writer` already excludes ops `on_*` message handlers). These rows are processed identically to command rows (kind dispatch, function ordering, DI) except for the dependency key and the free-return response handling.
-3. **Parse Table 4** (Response Fields) — sub-block per Table 2 row **and per Table 3o row**. For Table 2 rows: detect `**Wish List**` (`(includable)`) and **binary** (`*Binary response*`). For Table 3o rows: detect the response shape — the `*No response body — returns `204 No Content`.*` placeholder ⇒ 204 (no `response_model`, no wrap); otherwise the `<Operation>Response` serializer (emitted by `@ops-serializers-implementer`) is wrapped via `from_domain`.
+3. **Parse Table 4** (Response Fields) — sub-block per Table 2 row, **per Table 3o row, and per optional Table 3 row**. For Table 2 rows: detect `**Wish List**` (`(includable)`) and **binary** (`*Binary response*`). For Table 3o rows: detect the response shape — the `*No response body — returns `204 No Content`.*` placeholder ⇒ static 204 (no `response_model`, no wrap); otherwise the `<Operation>Response` serializer (emitted by `@ops-serializers-implementer`) is wrapped via `from_domain`. **For every Table 3 and Table 3o row, also detect the optional-response marker:** a sub-block whose body begins `*Optional response —` and contains the literal `204` sets `optional_return = true` for that row (dual-status render per [§ Optional-return (dual-status) endpoints](#optional-return-dual-status-endpoints)). A Table 3 row with **no** Table 4 sub-block — the common case — has `optional_return = false`. (`optional_return` is orthogonal to the static-204 ops placeholder: an ops row is *either* the bare-`None` static-204 placeholder *or* the optional marker, never both.)
 4. **Parse Table 5** (Request Fields) — sub-block per Table 3 row **and per Table 3o row**. Used to detect (a) presence of any field rows (drives whether the endpoint has a request body), and (b) any `bytes` field (file-upload — not applicable to ops endpoints).
 5. **Parse Table 6** (Parameter Mapping) — sub-block per Table 2, Table 3, **and Table 3o** row. Used to drive the application-service call signature row-by-row. If a Table 2, Table 3, or Table 3o row has no Table 6 sub-block, abort with: `Error: surface "<name>" endpoint "<HTTP> <PATH>" has no Table 6 sub-block.`
 6. **Collision check.** Across the combined Table 2 + Table 3 + **Table 3o** rows of the surface, every Operation value must be distinct and every `(HTTP, Path)` pair must be distinct. If either invariant fails, **abort without writing any module** — do not silently keep the first row of a colliding group. Abort with: `Error: surface "<name>" has <N> endpoint rows colliding on <Operation '<op>' | (HTTP,Path) '<http> <path>'>: <DomainRef1>, <DomainRef2>, …. The rest-api spec is internally inconsistent — re-run @endpoint-tables-writer (and fix the colliding command/ops names in the diagrams) before implementing endpoints.` A duplicate Operation produces clashing function names; a duplicate `(HTTP, Path)` is a FastAPI route conflict. Both must be resolved in the spec, not papered over here.
@@ -369,6 +412,7 @@ The agent owns these substitutions on top of the skill template:
 - **Visibility** — per §Visibility.
 - **Request / body / query parameter** — per §Plain endpoint request body / query params and §File-upload endpoint specifics.
 - **Application-service call** — per §Application-service call construction (driven by Table 6).
+- **Optional return (dual-status)** — when the row's `optional_return` is true, reshape the body per §Optional-return (dual-status) endpoints: bind the call to `result`, `if result is None: return Response(status_code=status.HTTP_204_NO_CONTENT)`, else `return <Operation>Response.from_domain(result)`; keep `response_model`, add the `responses={status.HTTP_204_NO_CONTENT: {...}}` decorator entry, and pull in the `Response` import. Applies on top of whatever kind was dispatched (command-action, plain, composite-key, or ops).
 - **Domain Ref → dependency** — Domain Ref `<Resource>Commands.<method>` → parameter `<aggregate>_commands: <Resource>Commands = Depends(Provide[Containers.<aggregate>_commands])`. Same shape for `<Resource>Queries`. For a **Table 3o** row, Domain Ref `<OpsClass>.<method>` → parameter `<op_snake>: <OpsClass> = Depends(Provide[Containers.<op_snake>])`, where `<op_snake>` = snake_case(`<OpsClass>`) (the same DI key `application-spec`'s `ops-implementer` registers, and the same import module `<pkg>.application`). The `<method_name>` invoked on the dependency is the bare method name from Domain Ref (after the `.`), used verbatim — never the Operation column (which may be verb-stripped). For an ops `200` endpoint, bind the call result to a local (`result = <op_snake>.<method_name>(...)`) and wrap it: `return <Operation>Response.from_domain(result)`. For an ops `204` endpoint (no `<Operation>Response` was emitted), call `<op_snake>.<method_name>(...)` and fall through (no wrap, no return).
 
 Two kinds have rendering rules not covered by any loaded skill:

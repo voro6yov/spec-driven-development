@@ -104,6 +104,8 @@ Match each Table 3o row to its `**Endpoint:** <HTTP> <PATH>` sub-block in Table 
 - `*Response fields could not be resolved for `<Type>` — TODO: fill manually.*` → `<resp_shape> = todo`, capturing `<Type>` from the message.
 - A single-row table whose only field is `value` → `<resp_shape> = scalar`, capturing the `<return_type>`.
 
+**Optional (`<X> | None`) ops return.** When the sub-block's **first line** is the optional-response note `*Optional response — the table below when `<OpsClass>.<op>` returns `<X>`; `204 No Content` when it returns `None`.*` (response-fields-writer Step 3o, union case), set `<optional_return> = true`, **strip that note line**, and classify the remaining body (the `<X>` table) through the rules above to get the value-branch `<resp_shape>` (`id_only` / `dto` / `dto_list` / `scalar`). Emit the response serializer exactly as for that underlying shape — the `None`/`204` branch needs no serializer (it is handled at the endpoint layer by `@endpoints-implementer`). `<optional_return>` defaults to `false` for every other sub-block; it does **not** suppress the serializer, so an optional ops return is never classified as `none`.
+
 ### Step 4 — Per-endpoint module emission
 
 For each surface, for each ops endpoint in Table 3o order: compute `<module_path>` = `<api_pkg>/serializers/<surface>/<aggregate>/<operation>.py`. If it exists, record `skipped: exists`. Otherwise render and write.

@@ -197,6 +197,22 @@ Note: the method spec is silent about `updated_at`, about event accumulation, an
 - The single declaration site is the aggregate root's class-level `### <Aggregate>` block under `## Invariants`. A cross-cutting rule stated in scattered prose elsewhere (e.g., in the Description preamble, or only inside one method) does **not** receive this suppression — the reviewer is free to evaluate per-method completeness as usual.
 - The cross-cutting invariant is free-form prose. Universal-quantifier language ("every", "all", "on each") is the clearest signal, but any bullet under the aggregate's invariants block that reads as a global rule qualifies.
 
+### Application-service methods may return `<Aggregate> | None` (idempotent no-op)
+
+**Convention.** A method on an `<<Application>>` service class — a `<Resource>Commands`, or a free-form ops class on a `<stem>.ops.<op-name>.md` diagram — may declare a return type of `<AggregateRoot> | None` (an *optional aggregate*). The `None` arm signals an **idempotent no-op**: the operation's target no longer exists (e.g. it was concurrently deleted by another message handler while work was in flight), so there is nothing to persist and the call returns without error rather than raising a not-found exception. The value arm returns the aggregate as usual.
+
+This is the deliberate alternative to raising `<Aggregate>NotFound` on a missing target, used when a missing target must be a benign success — typically a write-back consumed by a message handler that would otherwise retry forever on a `404`. At the REST layer (`rest-api-spec`) it maps to a runtime-conditional `200`/`201`-or-`204 No Content` status; the optionality is intentional, not an oversight.
+
+**Recognition cues.** The shape is canonical when **all** hold:
+
+1. The diagram is a commands (`<stem>.commands.md`) or ops (`<stem>.ops.<op-name>.md`) diagram, and the class carries `<<Application>>`.
+2. A public method's return type is `<X> | None`, where `<X>` is the aggregate root (or, on an ops class, any return DTO / value object).
+3. The method's `## Invariants` Flow describes the missing-target branch as a *return without error* / no-op (often symmetric to an `on_*` handler's missing-aggregate no-op), not as a raise.
+
+**Suppression.** Before flagging an `<<Application>>` method's `<X> | None` return as "inconsistent optionality", "should raise NotFound instead", or "missing error handling", check the three cues. If they hold, **do not flag** — the optional return is the project's idempotent-no-op convention. (A reviewer may still raise a substantive concern if the Flow's no-op rationale is genuinely absent — this suppression governs only the optional-return-type shape itself.)
+
+**Scope.** Applies to commands and ops application-service diagrams only. A `<<Query>>` / `Queries` method returning `<DTO> | None` is a different, ordinary case (a nullable lookup) and is not the subject of this convention.
+
 ---
 
 ## Maintenance notes

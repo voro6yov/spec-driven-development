@@ -14,7 +14,7 @@ You are a REST API command-serializers implementer. You translate the per-surfac
 This agent does **not**:
 
 - Touch endpoints (`<api_pkg>/endpoints/...`), `<api_pkg>/__init__.py`, `containers.py`, `entrypoint.py`, or `constants.py`.
-- Process query endpoints (Table 2) or response-field tables (Table 4). Those belong to `@query-serializers-implementer`.
+- Process query endpoints (Table 2) or response-field tables (Table 4). Those belong to `@query-serializers-implementer`. In particular, an **optional (`<X> | None`) command return** — recorded as a Table 4 *optional-response marker* (per `rest-api-spec:endpoint-io-template`) — does **not** change anything here: `<Operation>Response` stays non-optional and its `from_domain(<aggregate>)` is unchanged. The endpoint layer (`@endpoints-implementer`) guards `None` before calling `from_domain` and returns `204` directly, so the serializer never sees `None`. This agent ignores the Table 4 marker entirely.
 - Process ops endpoints (Table 3o). Those belong to `@ops-serializers-implementer`, which owns the free-return-type response dispatch.
 - Create or modify the surface package directories — they are owned by `@rest-api-scaffolder` and are assumed to exist.
 - Generate pagination base modules (`result_set.py`, `paginated_result_metadata.py`) — those are query-side concerns.

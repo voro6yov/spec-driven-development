@@ -96,9 +96,10 @@ For each spec version, extract:
 
    - **Table 2 (Query Endpoints) / Table 3 (Command Endpoints) / Table 3o (Ops Endpoints)** — under `### Table 2: Query Endpoints` / `### Table 3: Command Endpoints` / `### Table 3o: Ops Endpoints`. Each is either the italic placeholder (`*No query endpoints in this surface.*` / `*No command endpoints in this surface.*` / `*No ops endpoints in this surface.*`) → empty, or a `| HTTP | Path | Operation | Description | Domain Ref |` table. Bind a **single combined dict** keyed by `(http, path)` (path verbatim, including backtick stripping and `{id}`): `{ (http, path): { "operation": ..., "description": ..., "domain_ref": ..., "kind": "query"|"command"|"ops" } }`. Table 3o rows get `kind = "ops"` and a Domain Ref of the form `<OpsClass>.<method>`. All three tables feed the one endpoint dict, so Endpoint Inventory Changes (4.2) diffs them together.
 
-   - **Table 4 (Response Fields)** — under `### Table 4: Response Fields`. Either the surface placeholder (`*No response fields in this surface — no query endpoints.*`) → empty, or a sequence of per-endpoint groups, each opened by a `**Endpoint:** <HTTP> <PATH>` line (optionally with a trailing ` (<operation>)`). For each group bind, keyed by `(http, path)`:
+   - **Table 4 (Response Fields)** — under `### Table 4: Response Fields`. Either the surface placeholder (any `*No response fields in this surface — …*` italic line) → empty, or a sequence of per-endpoint groups, each opened by a `**Endpoint:** <HTTP> <PATH>` line (optionally with a trailing ` (<operation>)`). For each group bind, keyed by `(http, path)`:
      - `endpoint_header` — the verbatim `<HTTP> <PATH>` (drop the ` (<operation>)` suffix; keep the operation separately as `operation` when present).
      - `binary` — `True` iff the group's body is the `*Binary response* — returns raw \`bytes\` …` italic placeholder (then `fields` is empty).
+     - `optional` — `True` iff the group's body begins with the `*Optional response —` marker (per `rest-api-spec:endpoint-io-template` § Optional response) and contains `204`. For an optional **command** endpoint the marker is the whole body (`fields` empty); for an optional **ops** endpoint the `<X>` field table still parses into `fields` / `nested` below the note line. Table 4 now carries optional command (Table 3) and ops (Table 3o) endpoints in addition to query endpoints.
      - `fields` — dict keyed by Field Name: `{ "type": <type cell verbatim, backticks stripped>, "source": <Source cell verbatim>, "includable": <bool, True iff Source carries the `(includable)` annotation> }`. The Type/Source columns are from the `| Field Name | Type | Source |` table directly under the `**Endpoint:**` line.
      - `nested` — dict keyed by nested-type name (from each `**Nested:** <TypeName>` sub-table inside this group, in first-mention order): `{ <TypeName>: { <Field Name>: { "type": ..., "source": ... } } }`.
      - `query_params` — `None` iff the group's `**Query Parameters:** GET <path>` block is the `*No query parameters …*` italic line; otherwise a dict keyed by Param Name: `{ "type": ..., "default": <Default cell verbatim>, "description": <Description cell verbatim> }`.
@@ -143,10 +144,11 @@ For each surface present in `<pre_spec>` or `<post_spec>`: merge that surface's 
 
 For each surface present in `<pre_spec>` or `<post_spec>`, walk that surface's Table-4 endpoint groups (keyed by `(http, path)`). Set-diff against the HEAD surface:
 
-- **Added** — endpoint group in post not pre. Carry the group's full shape (the `fields` / `nested` / `query_params` dicts, or the `binary` flag) so the renderer can emit the compact full shape.
+- **Added** — endpoint group in post not pre. Carry the group's full shape (the `fields` / `nested` / `query_params` dicts, or the `binary` / `optional` flag) so the renderer can emit the compact full shape. An Added group that is `optional` and command-kind (a newly-optional command endpoint) carries only the `optional` flag.
 - **Removed** — endpoint group in pre not post. Carry nothing beyond the endpoint key.
-- **Modified** — endpoint group in both, with any difference in `binary`, `fields`, `nested`, or `query_params`. Classify the changes into the skill's delta-type set:
+- **Modified** — endpoint group in both, with any difference in `binary`, `optional`, `fields`, `nested`, or `query_params`. Classify the changes into the skill's delta-type set:
   - `binary` flipped → a binary-placeholder switch.
+  - `optional` flipped → an optional-return switch (the method's return type gained or lost a `| None`): False→True = optional return added (the endpoint becomes dual-status `200/201`-or-`204`); True→False = optional return removed.
   - `fields` — set-diff keys → field added / removed (note each field's `includable`); a Both-field whose `type` differs → field retyped; a Both-field with unchanged `type` but a toggled `includable` → field modified (includable annotation); a pure `source`-cell text change with no `type` / `includable` change is writer-regen noise — classify nothing.
   - `nested` — set-diff keys → nested type added (carry its field dict) / removed; for a Both-nested-type, recurse over its inner field dict → nested-type field added / removed / retyped.
   - `query_params` — set-diff keys → query parameter added (carry `type` + `default`) / removed; a Both-param whose `type` differs → retyped; a Both-param with unchanged `type` but a changed `default` or `description` → modified — and for the `include` Wish List row, parse the comma-separated backticked field-name enumeration out of the old/new `description` text so the renderer can show the heavy-field-list change.
@@ -214,7 +216,7 @@ For each delta entry, probe the axes in the order **kind-appropriate app-service
 | Endpoint Inventory entry — Table 2 row | query | queries → domain (commands not probed) |
 | Endpoint Inventory entry — Table 3 row | command | commands → domain (queries not probed) |
 | Endpoint Inventory entry — Table 3o row (`kind == "ops"`) | ops | ops → domain (commands/queries not probed). Look up the endpoint's `<operation>` in `ops.methods`; on a match emit `[ops-diagram] methods: <phrase>` per the `methods`-category single-tag rule. A surface remap of an ops method probes `ops.surface_membership`. |
-| Response Fields entry | query (Table 4 only ever has query endpoints) | queries → domain |
+| Response Fields entry | by the matching endpoint's `kind` in the combined Table 2/3/3o dict — `query` (Table 2), `command` (Table 3 optional-return), or `ops` (Table 3o) | kind-appropriate app-service axis → domain |
 | Request Fields entry | command (Table 5 only ever has command endpoints) | commands → domain |
 | Parameter Mapping entry | by `left_column` header — `Query Parameter` → query; `Command Parameter` → command | matching side → domain |
 
@@ -261,7 +263,9 @@ For a **Modified** endpoint where only the Description cell changed: there is no
 
 Key: the endpoint's `(<HTTP>, <PATH>, <operation>)` triple plus, when needed, the response DTO type name and per-delta-bullet entity names (a field name, a nested-type name).
 
-Probe order — queries axis → domain axis:
+**Kind dispatch.** Table 4 now carries query (Table 2), optional-return command (Table 3), and ops (Table 3o) endpoints. Determine the entry's kind from the combined endpoint dict and probe the kind-appropriate app-service axis first — `queries.methods` for a query entry, `commands.methods` for a command entry, `ops.methods` for an ops entry — then domain. An `optional`-flip delta on a command/ops entry attributes to that axis's `methods` category (the return type changed). The query-axis description below is the query-kind case; the command/ops cases substitute their axis symmetrically.
+
+Probe order (query-kind) — queries axis → domain axis:
 
 1. **Queries axis**: look up the endpoint's `<operation>` in `queries.methods`. A match means the method itself changed (e.g. signature or returns-type updated, which often follows a DTO field change downstream). On match, emit `[queries-diagram] methods: <phrase>` per the `methods`-category table. This is the explanation when the endpoint *appeared* (Added entry: a new method, hence a new Table 4 block) or *moved between surfaces* (Modified entry — the per-method Source delta notes the surface remap).
 2. **Domain axis** — this is where field-level deltas come from. The v1 probe rules apply unchanged:
@@ -346,6 +350,8 @@ All four sentinels are emitted as consecutive comment lines at the top of the fi
 When the byte-identical short-circuit fired in Step 2.3 (working tree == HEAD), render every section after `## Summary` as `_no changes_` and emit the `## Affected Artifacts` table header with no data rows.
 
 Compute the `## Affected Artifacts` rows mechanically per the skill's "Affected Artifacts computation" rules. Substitute `<surface>` per changed surface, `<operation>` per changed endpoint (from the `**Endpoint:**` line's `(operation)` suffix, or by matching `(http, path)` against the surface's Table 2/3/3o), `<plural>` = Table 1's Plural cell, `<resource>` = snake_case of Table 1's Resource name. Leave `<pkg>` / `<api_pkg>` symbolic. A changed **ops** endpoint (`kind == "ops"`) contributes the same two artifact rows as a command endpoint — the per-operation serializer module `api/serializers/<surface>/<resource>/<operation>.py` (owned by `@ops-serializers-implementer`) and the surface router `api/endpoints/<surface>/<plural>.py` — plus its integration test; the `/update-code` consumer dispatches the serializer edit to the ops serializer implementer.
+
+An **optional-return switch** (a Table 4 `optional` flip on a command or ops endpoint) affects the surface router `api/endpoints/<surface>/<plural>.py` (the endpoint becomes / ceases to be dual-status) and the integration test (`__no_content` ↔ `__not_found`). For a **command** endpoint the command serializer is **unchanged** — the optional branch is handled at the endpoint layer — so it contributes **no** serializer artifact row; an **ops** optional endpoint still contributes its ops serializer row for the value branch.
 
 ### Step 8 — Write and confirm
 

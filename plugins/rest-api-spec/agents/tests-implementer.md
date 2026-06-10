@@ -138,8 +138,8 @@ For each surface name `<surface>` in `<surfaces>`, locate its `## Surface: <surf
 Within the surface's bounded section (from `## Surface: <surface>` to the next `## Surface:` or EOF):
 
 1. **Parse Table 2** (Query Endpoints). Treat `*No query endpoints in this surface.*` as zero rows. Otherwise capture each row as `(http, path, operation, description, domain_ref)`.
-2. **Parse Table 3** (Command Endpoints). Treat `*No command endpoints in this surface.*` as zero rows. Otherwise capture rows; drop rows whose Domain Ref method name starts with `on_`.
-2o. **Parse Table 3o** (Ops Endpoints). Treat `*No ops endpoints in this surface.*` as zero rows. Otherwise capture each row as `(http, path, operation, description, domain_ref)` (`http` is always `POST`; Domain Ref is `<OpsClass>.<method>`); drop rows whose Domain Ref method name starts with `on_` (defensive — `endpoint-tables-writer` already excludes ops `on_*` message handlers). Bind `<resp_204>` per ops row by reading its Table 4 sub-block: `True` when the sub-block is the `*No response body — returns `204 No Content`.*` placeholder, `False` otherwise. Ops rows are tested exactly like command rows of the same path shape, except the success status assertion is 204 vs 200 per `<resp_204>`.
+2. **Parse Table 3** (Command Endpoints). Treat `*No command endpoints in this surface.*` as zero rows. Otherwise capture rows; drop rows whose Domain Ref method name starts with `on_`. Bind `<resp_optional>` per command row by reading Table 4 (a command has a Table 4 sub-block **only** when its return is optional): `True` when a `**Endpoint:** <HTTP> <PATH>` sub-block matching the row exists in this surface's Table 4 whose body begins `*Optional response —` and contains `204`, else `False`.
+2o. **Parse Table 3o** (Ops Endpoints). Treat `*No ops endpoints in this surface.*` as zero rows. Otherwise capture each row as `(http, path, operation, description, domain_ref)` (`http` is always `POST`; Domain Ref is `<OpsClass>.<method>`); drop rows whose Domain Ref method name starts with `on_` (defensive — `endpoint-tables-writer` already excludes ops `on_*` message handlers). Bind `<resp_204>` per ops row by reading its Table 4 sub-block: `True` when the sub-block is the `*No response body — returns `204 No Content`.*` placeholder, `False` otherwise. Also bind `<resp_optional>` per ops row: `True` when its Table 4 sub-block begins `*Optional response —` and contains `204` (a `<X> | None` ops return), else `False`. `<resp_204>` is the *static* 204 (the `__success` itself asserts 204); `<resp_optional>` is the *conditional* 204 (a separate `__no_content` scenario) — an ops row is at most one of them. Ops rows are tested exactly like command rows of the same path shape, except the success status assertion is 204 vs 200 per `<resp_204>`.
 3. **Parse Table 5** (Request Fields) — sub-block per Table 3 row **and per Table 3o row**. Bind `has_body` per row:
    - `has_body == False` if the Table 5 sub-block begins with `*No request body` (any variant) or is empty / absent.
    - `has_body == True` otherwise. Capture each field row as `(name, type, required?, description)`; a field is **required** iff its Type cell does not contain `| None`.
@@ -168,7 +168,14 @@ The `__missing_required_field` test sends an **empty JSON body** (`json={}`) and
 
 **Ops success status.** An ops endpoint's `__success` asserts `HTTPStatus.NO_CONTENT` (204) when `<resp_204>` is `True`, else `HTTPStatus.OK` (200). Ops endpoints resolve through the real `containers` fixture (the ops service is DI-keyed `<op_snake>`, wired by `application-spec`'s `ops-implementer`), so no per-test mock is needed — the body is built from Table 5 fields exactly like a command endpoint, and the path `{id}` / not-found handling is identical.
 
-When `has_body == False` for a mutating endpoint (e.g. `POST /{id}/start-receiving` with `*No request body*`), the emitted `__success` and `__not_found` tests **omit the `json=` keyword entirely**.
+**Optional return (204-on-None).** When `<resp_optional>` is `True` for a command or ops row (its Table 4 sub-block carries the `*Optional response — … 204 …*` marker), the endpoint returns its declared success status with a body when the service returns a value, or `204 No Content` when it returns `None`. Add a `__no_content` scenario (asserts `HTTPStatus.NO_CONTENT`) per these rules:
+
+- **Endpoint with a not-found precondition** — `{id}` in path, or a non-empty `<cmd_query_params>` (composite key), or an ops `POST /{id}/<op>`: the missing-target call deterministically yields `None`, so the `__no_content` test is real. It **replaces** the `__not_found` (404) scenario for that row — a missing id/key now means 204, not 404. `__success` (seeded fixture → value → declared status) and `__missing_required_field` are unchanged.
+- **Endpoint with no not-found precondition** — factory `POST /`, or a collection-rooted ops `POST /<op>`: the precondition under which the method returns `None` is domain-specific and cannot be derived from the spec, so a naive call would create/act and return the success status, failing a 204 assertion. **Add** the `__no_content` scaffold but emit it `@pytest.mark.skip(...)` (see § `__no_content` template) so it exists for the author to complete without reddening CI. `__success` / `__already_exists` / `__missing_required_field` are unchanged.
+
+A row is never given both `__not_found` and `__no_content`.
+
+When `has_body == False` for a mutating endpoint (e.g. `POST /{id}/start-receiving` with `*No request body*`), the emitted `__success`, `__not_found`, and `__no_content` tests **omit the `json=` keyword entirely**.
 
 Composite-key command endpoints (no `{id}` in path — e.g. `PATCH /evo-version`, `DELETE /`) are identified by composite-key query parameters rather than a path id. Their `__success` test resolves the key from `<aggregate>_1` (per § Query parameter resolution) and keeps `<aggregate>_1` and `add_<plural_agg>` in its function args; their `__not_found` test substitutes a non-existent key and seeds nothing (see § `__not_found`); their `__missing_required_field` test, when applicable, reuses the `__success` URL with an empty body (see § `__missing_required_field`).
 
@@ -201,7 +208,7 @@ Apply the rules from `rest-api-spec:api-endpoint-test-rules` exactly:
 - Assert `response.status_code` first, before any body inspection (Rule 3).
 - Public attributes only on fixtures.
 
-Test function naming: `test_<operation>__<scenario>` where `<operation>` is the Table 2/3 Operation column verbatim (snake-case) and `<scenario>` ∈ `{success, not_found, already_exists, missing_required_field}`.
+Test function naming: `test_<operation>__<scenario>` where `<operation>` is the Table 2/3 Operation column verbatim (snake-case) and `<scenario>` ∈ `{success, not_found, no_content, already_exists, missing_required_field}`.
 
 The HTTP method on `client.<method>(...)` is the Table 2/3 HTTP cell **lowercased** (`get`, `post`, `put`, `patch`, `delete`).
 
@@ -564,6 +571,48 @@ Body emission for `__not_found` follows the same **Body resolution** rules as `_
 
 **Composite-key command endpoints.** When the endpoint has a non-empty `<cmd_query_params>` (no `{id}` in path), `__not_found` cannot substitute a path id — instead it substitutes **each** composite-key query parameter with the literal value `non-existent`, so no persisted aggregate matches the key. The URL is `f"{<api_prefix_const>}<router_prefix><path>?<camelKey1>=non-existent&<camelKey2>=non-existent&…"` (camelCase keys per § Query parameter resolution; `<path>` carries no `{id}`). No aggregate is seeded — `add_<plural_agg>` and `<aggregate>_1` are **not** in the function args. Body emission is unchanged: omit `json=` for DELETE / `has_body == False`; otherwise build the dict from `<body_fix>` so body validation passes and the request reaches the not-found branch (inject `<body_fix>` into the args when a field resolves to a fixture). The `# GIVEN` comment reads `# GIVEN no <aggregate> matches the composite key`.
 
+##### `__no_content` (optional return — 204 on None)
+
+Emitted only when `<resp_optional>` is `True` for the row (per § Per-endpoint scenario dispatch). Two shapes, keyed on whether the endpoint has a deterministic not-found precondition:
+
+**(a) Deterministic — endpoint with a not-found precondition** (`{id}` in path, composite key, or ops `POST /{id}/<op>`). Identical to `__not_found` but asserts 204 — a missing target is a benign no-op, not an error. It **replaces** the row's `__not_found` scenario:
+
+```python
+def test_<operation>__no_content(client, request_headers):
+    # GIVEN no <aggregate> exists in DB
+    # WHEN calling the endpoint with a non-existent id
+    response = client.<method>(
+        f"{<api_prefix_const>}<router_prefix><path_with_non_existent_id>",
+        headers=request_headers{, json=<body>},
+    )
+
+    # THEN idempotent no-op — empty success
+    assert response.status_code == HTTPStatus.NO_CONTENT
+```
+
+Path-id / composite-key substitution, body emission, and `<body_fix>` injection follow the **same rules as `__not_found`** (omit `json=` for `has_body == False`; otherwise build the dict from `<body_fix>` so body validation passes and the request reaches the no-op branch). No aggregate is seeded.
+
+**(b) Skipped scaffold — endpoint with no not-found precondition** (factory `POST /`, collection-rooted ops `POST /<op>`). The state under which the method returns `None` cannot be derived from the spec, so a `__success`-shaped call would create/act and return the declared status — failing a 204 assertion. Emit the scaffold `@pytest.mark.skip`-marked so it exists but does not red CI:
+
+```python
+@pytest.mark.skip(
+    reason="arrange the precondition under which <operation> returns None "
+    "(idempotent no-op) — cannot be derived from the spec"
+)
+def test_<operation>__no_content(client, request_headers{, <body_fix>}):
+    # GIVEN a state in which <operation> is a no-op (author must arrange)
+    # WHEN calling the endpoint
+    response = client.<method>(
+        f"{<api_prefix_const>}<router_prefix><path>",
+        headers=request_headers{, json=<body>},
+    )
+
+    # THEN idempotent no-op — empty success
+    assert response.status_code == HTTPStatus.NO_CONTENT
+```
+
+The body mirrors `__success` (all Table 5 rows; fixture-attribute references with type-stub fallback); keep `<body_fix>` in the args only when body resolution emitted a fixture reference. When at least one `@pytest.mark.skip` scaffold is emitted in the file, add `import pytest` to the imports (Step 8).
+
 ##### `__already_exists` (factory POST `/` only)
 
 ```python
@@ -617,8 +666,12 @@ For composite-key command endpoints (non-empty `<cmd_query_params>`), include `<
 ```python
 from http import HTTPStatus
 
+import pytest  # only when the file emits ≥1 @pytest.mark.skip scaffold (optional factory / collection-rooted-ops __no_content)
+
 from <pkg>.constants import <api_prefix_const>
 ```
+
+`import pytest` belongs to the third-party group (its own block, after the stdlib `from http import HTTPStatus` and before the project `from <pkg>.constants` import). Omit it entirely when no skipped scaffold is emitted. When appending to an existing file that gains its first skip scaffold, insert `import pytest` if not already present, preserving the three-group ordering.
 
 When the file already exists and a newly added scenario references an `<api_prefix_const>` not present in the existing import:
 

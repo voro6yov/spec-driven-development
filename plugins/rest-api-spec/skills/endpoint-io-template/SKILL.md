@@ -18,7 +18,7 @@ Defines the canonical shape of **Table 4: Response Fields**, **Table 5: Request 
 
 The three tables are filled together because they share the same per-endpoint dispatch:
 
-- Table 4 is filled per **query** endpoint (Table 2) **and per ops** endpoint (Table 3o). It describes the response body and any query-string inputs. An ops endpoint's sub-block is dispatched on the ops method's free return type: `*No response body — returns `204 No Content`.*` for a `None` return; an id-only single-row table for an aggregate return; a full resolved table for a `*Info` / TypedDict / value-object return; or `*Response fields could not be resolved for `<Type>` — TODO: fill manually.*` when the return type is unresolvable on the domain diagram. Ops endpoints carry **no** Query Parameters sub-block (they take a request body, not query params).
+- Table 4 is filled per **query** endpoint (Table 2) and per **ops** endpoint (Table 3o), **and** per **command** endpoint (Table 3) whose method has an optional (`<X> \| None`) return. It describes the response body and any query-string inputs. An ops endpoint's sub-block is dispatched on the ops method's free return type: `*No response body — returns `204 No Content`.*` for a bare `None` return; an id-only single-row table for an aggregate return; a full resolved table for a `*Info` / TypedDict / value-object return; or `*Response fields could not be resolved for `<Type>` — TODO: fill manually.*` when the return type is unresolvable on the domain diagram. A method whose return type is a **union with `None`** (`<X> \| None`) maps to a runtime-conditional status — see [Optional response (204-on-None)](#optional-response-204-on-none). A **command** endpoint gets a Table 4 sub-block **only** when its return is optional (otherwise commands have no Table 4 entry — their response is the Table 3 response serializer); that sub-block is the optional-response marker alone, with no field table. Ops endpoints carry **no** Query Parameters sub-block (they take a request body, not query params).
 - Table 5 is filled per **command** endpoint (Table 3) **and per ops** endpoint (Table 3o). It describes the request body — an ops endpoint's parameters minus the aggregate `id` (path), `tenant_id` (auth), and path-bound `*_id` become body fields, exactly like a command (ops endpoints are never composite-key).
 - Table 6 is filled per **endpoint** that calls into the application service (query, command, **and ops**). It maps each application-service method parameter to its HTTP source. Ops endpoints use the **command-endpoint** classification (path / auth / body) with the `Command Parameter` header.
 
@@ -28,12 +28,12 @@ Each table is a **per-endpoint group** — repeat the sub-table once per endpoin
 
 Tables 4, 5, and 6 always live inside a `## Surface: <name>` H2 section (see `resource-spec-template`). A resource with N surfaces has N copies of each of Tables 4, 5, and 6 — one per surface — each describing only the endpoints exposed on that surface (i.e., the rows of that surface's Tables 2 and 3).
 
-When a surface has zero query endpoints **and** zero ops endpoints (both Table 2 and Table 3o are placeholders), its Table 4 is replaced with the placeholder line:
+When a surface has zero query endpoints, zero ops endpoints, **and** no optional-return command endpoints (Table 2 + Table 3o are placeholders and no Table 3 command has a `<X> | None` return), its Table 4 is replaced with the placeholder line:
 
 ```
 ### Table 4: Response Fields
 
-*No response fields in this surface — no query or ops endpoints.*
+*No response fields in this surface — no query, ops, or optional-command endpoints.*
 ```
 
 When a surface has zero command endpoints **and** zero ops endpoints (both Table 3 and Table 3o are placeholders), its Table 5 is replaced with:
@@ -149,6 +149,32 @@ The matching `include` query param must appear in the Query Parameters block:
 
 `(includable)` is the **only** trailing annotation permitted in the Source column. Streaming or binary semantics are conveyed by the [Binary endpoint placeholder](#italic-placeholder-rules), not by an inline note.
 
+### Optional response (204-on-None)
+
+When an application-service method's return type is a **union with `None`** — `<X> | None` — the endpoint maps to a **runtime-conditional status**: the serialized body with its normal success status when a value is returned, or `204 No Content` (empty body) when the method returns `None`. This is distinct from a *static* 204 (a `DELETE`, or an ops method whose return type is bare `None`), where the status is fixed at generation time.
+
+Record it with the **optional-response marker** as the entire body of the endpoint's Table 4 sub-block:
+
+```
+**Endpoint:** `<HTTP> <PATH>`
+
+*Optional response — `<SuccessStatus>` with the serialized `<AggregateRoot>` (per the Table 3 response serializer), or `204 No Content` when `<DomainRef>` returns `None`.*
+```
+
+- `<SuccessStatus>` is the endpoint's normal success status — `200 OK` for an action / update, `201 Created` for a factory `POST /`.
+- `<DomainRef>` is the `<AggregateRoot>Commands.<op>` (or `<OpsClass>.<op>`) reference from the endpoint's Table 3 / Table 3o row.
+- `<AggregateRoot>` is the value-branch type — the token left of `| None`, with `list[...]` / generic wrappers stripped.
+
+For a **command** endpoint the marker is the **entire** sub-block — no field table (the 200 body is whatever the Table 3 response serializer already produces, id-only by convention).
+
+For an **ops** endpoint whose return is `<DTO> | None`, render the normal resolved field table for `<DTO>` (the 200 branch) **preceded** by the note line:
+
+```
+*Optional response — the table below when `<OpsClass>.<op>` returns `<DTO>`; `204 No Content` when it returns `None`.*
+```
+
+The machine signal consumed downstream by `endpoints-implementer` and `tests-implementer` is the `*Optional response —` prefix together with the literal `204` — **keep this phrasing stable**.
+
 ### Italic placeholder rules
 
 Italic single-line placeholders replace a sub-table when the table would otherwise be empty. They make the absence explicit instead of implicit.
@@ -159,6 +185,7 @@ Italic single-line placeholders replace a sub-table when the table would otherwi
   ```
 - **No query parameters.** See above.
 - **No request body** (Table 5). See [Table 5](#table-5-request-fields).
+- **Optional response (204-on-None).** When a command/ops method returns `<X> | None`, use the optional-response marker. See [Optional response (204-on-None)](#optional-response-204-on-none). (For a command this is the whole sub-block; for an ops `<DTO> | None` return it is a note line above the `<DTO>` field table.)
 
 The italic line must be the entire content of that sub-section — never mix italic placeholder with a real table.
 
@@ -292,6 +319,8 @@ Two condensed end-to-end examples — File and Document — covering responses w
 - [ ] Every GET endpoint has a `**Query Parameters:**` sub-block (a real table or the italic `*No query parameters …*` line)
 - [ ] Wish List heavy fields are marked `(includable)` in Source and accompanied by an `include` query param
 - [ ] Binary endpoints use `*Binary response* — returns raw bytes …` instead of a response-field table
+- [ ] Command (Table 3) endpoints appear in Table 4 **only** when their return is optional (`<X> \| None`), carrying the `*Optional response — … 204 …*` marker as the whole sub-block; non-optional commands have no Table 4 sub-block
+- [ ] Optional (`<X> \| None`) command/ops endpoints use the `*Optional response — … 204 …*` marker — commands: marker only; ops: the marker note above the `<DTO>` field table
 
 ### Table 5 — Request Fields
 
