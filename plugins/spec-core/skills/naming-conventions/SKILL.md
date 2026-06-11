@@ -216,6 +216,8 @@ Every agent and orchestrator receives a path argument and must derive sibling pa
 
 `<stem>` must satisfy `^[a-z][a-z0-9-]*$`. If the recovered stem fails this regex, abort with a one-sentence error rather than silently producing nonsense paths.
 
+**The supplied path is authoritative.** `<dir>` and `<stem>` come *only* from the path the caller handed you — never from the aggregate-root class name, the bounded-context `title:`, or a search of the tree. Every artifact for one aggregate therefore shares a single `<dir>` and a single `<stem>`. If the aggregate root is `MappingRule` but the diagram you were given is `…/ruleset/ruleset.md`, the stem is `ruleset` and every sibling is `…/ruleset/ruleset.<suffix>`; resolving instead to `…/mapping-rule/mapping-rule.commands.md` (a like-named file in another folder) is a bug, not a fallback. See Path-hygiene rule 6.
+
 ### Deriving sibling paths from `<stem>`
 
 Once `<dir>` and `<stem>` are recovered, every other artifact path is built from this table:
@@ -263,6 +265,7 @@ These rules apply to every agent that materializes files or directories under th
 3. **Implementers never create new modules.** An agent whose contract is "read-modify-write a scaffolded file" must verify the file already exists at the supplied path before reading and again before writing. A missing file is a hard failure, not a signal to create one.
 4. **Prefer locations-report paths over re-derivation.** When an orchestrator has a locations report (e.g. from `domain-spec:target-locations-finder`), it must pass each chained agent the exact path from the report rather than passing an ancestor and letting the agent re-derive. The report is the single source of truth for where things go.
 5. **Contain side effects to an expected ancestor.** When an orchestrator fans out parallel writers across a known set of paths, each writer should sanity-check that its target is contained within the orchestrator-supplied root (e.g. every `<module_path>` must begin with `<aggregate_pkg_dir>`).
+6. **Resolve sibling diagrams from the input path only — never by search, name-match, or cross-folder substitution.** Build each sibling diagram (`<stem>.commands.md`, `<stem>.queries.md`, `<stem>.ops.<op-name>.md`) as a literal path under the **input's own `<dir>`** with the **input's own `<stem>`** — `<dir>/<stem>.<suffix>`. Do not glob the wider tree for a better-named candidate, do not re-derive the stem from the aggregate-root class name, and do not fall back to a like-named file in a different aggregate's folder. The only sanctioned glob — ops discovery — is anchored to the input's own dir and stem (`<dir>/<stem>.ops.*.md`) and never reaches outside `<dir>`. `Read` exactly the derived path; if it is **missing**, abort with an error quoting that exact absolute path (never substitute another file), and word the error so the operator can tell **file missing** (a path / scaffolding problem) from **file present but empty / no `classDiagram` block** (a content problem). A diagram sibling at a different `<dir>` or under a different `<stem>` than the input is never the right file, no matter how closely its name matches the aggregate.
 
 Agents that need to apply these rules cite this section by name (e.g. "Per `spec-core:naming-conventions`, Path hygiene rule 3, abort if the file does not exist") instead of restating them.
 

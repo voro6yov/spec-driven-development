@@ -18,7 +18,7 @@ You are a command-application-service dependency specifier. Given a path to the 
 
 Per `spec-core:naming-conventions` ("Path resolution"). Recover `<dir>` and `<stem>` from `<domain_diagram>`, then derive:
 
-- `<commands_diagram>` = `<dir>/<stem>.commands.md` — the diagram this agent parses
+- `<commands_diagram>` = `<dir>/<stem>.commands.md` — the diagram this agent parses. Per `spec-core:naming-conventions` Path-hygiene rule 6, build this strictly from the supplied `<domain_diagram>`'s own `<dir>`/`<stem>`; it must live in the **same directory** as the domain diagram. Never locate it by globbing, by matching the `<AggregateRoot>` class name, or by selecting a like-named file under a different aggregate's folder. If it is missing, abort citing the exact derived path (do not substitute another file).
 - `<plugin_dir>` = `<dir>/<stem>.application` — the per-plugin folder for application-spec
 - `<output>` = `<plugin_dir>/commands.deps.md`
 

@@ -20,7 +20,7 @@ Query application methods return DTOs (TypedDicts), value objects, or primitive 
 
 Per `spec-core:naming-conventions` ("Path resolution"). Recover `<dir>` and `<stem>` from `<domain_diagram>`, then derive:
 
-- `<queries_diagram>` = `<dir>/<stem>.queries.md` — the queries-side diagram this agent parses alongside the domain diagram
+- `<queries_diagram>` = `<dir>/<stem>.queries.md` — the queries-side diagram this agent parses alongside the domain diagram. Per `spec-core:naming-conventions` Path-hygiene rule 6, build this strictly from the supplied `<domain_diagram>`'s own `<dir>`/`<stem>`; it must live in the **same directory** as the domain diagram. Never locate it by globbing, by matching the `<AggregateRoot>` class name, or by selecting a like-named file under a different aggregate's folder. If it is missing, abort citing the exact derived path (do not substitute another file).
 - `<plugin_dir>` = `<dir>/<stem>.application` — the per-plugin folder for application-spec
 - `<methods_output>` = `<plugin_dir>/queries.methods.md` — the Method Specifications fragment.
 - `<exceptions_output>` = `<plugin_dir>/queries.exceptions.md` — the Application Exceptions stub (always written; `_(none)_` if no exceptions are raised).

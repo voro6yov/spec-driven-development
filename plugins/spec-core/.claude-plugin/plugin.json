@@ -1,7 +1,7 @@
 {
   "name": "spec-core",
   "description": "Shared base conventions for the spec-driven-development plugins (cross-plugin naming and layout)",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "author": {
     "name": "Valentin Vorobyov",
     "email": "voro6yov.valentin@gmail.com",

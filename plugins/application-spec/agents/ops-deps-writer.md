@@ -19,7 +19,7 @@ You are an ops-orchestration-application-service dependency specifier. Given a p
 
 Per `spec-core:naming-conventions` ("Path resolution"). Recover `<dir>` and `<stem>` from `<domain_diagram>`, then derive:
 
-- `<ops_diagram>` = `<dir>/<stem>.ops.<op-name>.md` — the diagram this agent parses
+- `<ops_diagram>` = `<dir>/<stem>.ops.<op-name>.md` — the diagram this agent parses. Per `spec-core:naming-conventions` Path-hygiene rule 6, build this strictly from the supplied `<domain_diagram>`'s own `<dir>`/`<stem>` plus the given `<op-name>`; it must live in the **same directory** as the domain diagram. Never locate it by globbing for a like-named file, by matching the ops service class name, or by selecting a file under a different aggregate's folder. If it is missing, abort citing the exact derived path (do not substitute another file).
 - `<plugin_dir>` = `<dir>/<stem>.application` — the per-plugin folder for application-spec
 - `<output>` = `<plugin_dir>/ops.<op-name>.deps.md`
 

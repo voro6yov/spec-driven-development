@@ -20,7 +20,7 @@ Application command methods in this codebase **always return the aggregate root*
 
 Per `spec-core:naming-conventions` ("Path resolution"). Recover `<dir>` and `<stem>` from `<domain_diagram>`, then derive:
 
-- `<commands_diagram>` = `<dir>/<stem>.commands.md` — the commands-side diagram this agent parses alongside the domain diagram
+- `<commands_diagram>` = `<dir>/<stem>.commands.md` — the commands-side diagram this agent parses alongside the domain diagram. Per `spec-core:naming-conventions` Path-hygiene rule 6, build this strictly as `<dir>/<stem>.commands.md` from the supplied `<domain_diagram>`; it **must live in the same directory** as the domain diagram. Never locate it by globbing the tree, by matching the `<AggregateRoot>` class name, or by selecting a like-named file under a different aggregate's folder (e.g. for `…/ruleset/ruleset.md` the commands diagram is `…/ruleset/ruleset.commands.md`, never `…/mapping-rule/mapping-rule.commands.md`).
 - `<plugin_dir>` = `<dir>/<stem>.application` — the per-plugin folder for application-spec
 - `<methods_output>` = `<plugin_dir>/commands.methods.md` — the Method Specifications fragment.
 - `<exceptions_output>` = `<plugin_dir>/commands.exceptions.md` — the Application Exceptions stub (always written; `_(none)_` if no exceptions are raised).
@@ -43,7 +43,9 @@ Run `mkdir -p "<plugin_dir>"` to ensure the per-plugin folder exists. The call i
 
 ### Step 1 — Read both diagrams
 
-Read `<commands_diagram>` and `<domain_diagram>` in parallel. From each, locate fenced ```mermaid blocks whose first non-empty line is `classDiagram`. If multiple such blocks exist in a file, parse all of them and treat their contents as a single concatenated body. Strip Mermaid line comments (`%% ...`) before parsing. Whitespace/indentation inside the block is not significant.
+Read `<commands_diagram>` and `<domain_diagram>` — the **exact paths derived above, nothing else**. Do not search, glob, or substitute a like-named file from another folder (Path-hygiene rule 6). If `<commands_diagram>` does **not exist** on disk, abort with: `Commands diagram not found at <commands_diagram> (derived from <domain_diagram>). Author it there or fix the path — do not substitute a like-named diagram from another aggregate's folder.` This "missing file" abort is distinct from the "present but empty / no classDiagram" abort below, so the operator can tell a path problem from a content problem.
+
+From each file, locate fenced ```mermaid blocks whose first non-empty line is `classDiagram`. If multiple such blocks exist in a file, parse all of them and treat their contents as a single concatenated body. Strip Mermaid line comments (`%% ...`) before parsing. Whitespace/indentation inside the block is not significant.
 
 Recognise both forms of declaration:
 
@@ -252,6 +254,7 @@ Reply with one sentence: "Method specifications written to `<stem>.application/c
 
 Abort with a single-sentence error in any of these cases:
 
+- `<commands_diagram>` does not exist at the path derived from `<domain_diagram>` (cite the exact path; never substitute a like-named diagram from another aggregate's folder — Path-hygiene rule 6).
 - No `classDiagram` block in either input file.
 - No `<AggregateRoot>Commands` class in commands diagram, or more than one.
 - A public method on `<AggregateRoot>Commands` declares a return type other than `<AggregateRoot>`.
