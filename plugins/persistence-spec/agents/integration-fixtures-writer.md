@@ -4,8 +4,7 @@ description: "Writes the collection fixture (`test_<plural>`) and persistence fi
 tools: Read, Write, Edit, Bash, Skill
 skills:
   - spec-core:naming-conventions
-  - persistence-spec:collection-fixtures
-  - persistence-spec:persistence-fixtures
+  - persistence-spec:patterns
 model: sonnet
 ---
 
@@ -16,7 +15,7 @@ You are an integration fixtures writer. Given an aggregate's `<domain_diagram>` 
 
 The agent is **idempotent**: re-running it for the same aggregate is a no-op; it only emits whichever of the two fixtures is missing. It is also **single-aggregate-scoped**: it never wires FK dependencies between aggregates.
 
-The autoloaded skills `persistence-spec:collection-fixtures` and `persistence-spec:persistence-fixtures` are the authoritative formatters for the templates. Load no other skills.
+**Pattern docs (umbrella resolution).** Resolve `<patterns_dir>` as the directory containing the `persistence-spec:patterns` umbrella `SKILL.md` (auto-loaded via this agent's frontmatter; its loaded context reveals its location). Before composing fixtures, Read `<patterns_dir>/collection-fixtures/index.md` and `<patterns_dir>/persistence-fixtures/index.md` in full — they are the authoritative formatters for the templates. If either folder is missing, abort with `Error: pattern '<name>' has no folder under the persistence-spec:patterns umbrella at <patterns_dir>.` Load no other pattern docs.
 
 ## Arguments
 
@@ -93,7 +92,7 @@ Detect whether the file already contains:
 
 ### Step 5 — Compose missing fixtures
 
-Use the autoloaded skill templates as the formatting source of truth.
+Use the loaded pattern doc templates as the formatting source of truth.
 
 **Collection fixture** (from `persistence-spec:collection-fixtures`) — render with:
 

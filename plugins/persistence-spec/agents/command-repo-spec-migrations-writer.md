@@ -4,8 +4,7 @@ description: "Fills the §2 Migrations sub-table of an already-scaffolded comman
 tools: Read, Edit, Skill
 skills:
   - spec-core:naming-conventions
-  - persistence-spec:implementation-roadmap
-  - persistence-spec:migration-vocabulary
+  - persistence-spec:patterns
 model: opus
 ---
 
@@ -22,7 +21,7 @@ If `<spec_file>` does not exist, stop and tell the user to run `@command-repo-sp
 
 If Section 1's `Aggregate Summary` table or Section 2's `### Tables` and `### Repository` sub-sections still contain placeholder text (any cell with `{...}` braces or `Yes / No`-style template choices), stop and tell the user to run `@command-repo-spec-pattern-selector <domain_diagram>` first — this agent reads pattern-selector's choices from Sections 1–2 to qualify Changesets and to decide whether to emit FK and Indexes rows.
 
-The `implementation-roadmap` skill is auto-loaded for context (pattern catalog, child-table-naming rule, finder classification). The Step 3 dispatch table below is authoritative — it deliberately aggregates FK and Indexes rows (one each) to match the contract `@migrations-implementer` enforces, even though the roadmap's per-artifact selection table currently phrases the rules as "one Add Foreign Key per child table" and "Add Index per non-PK lookup field".
+**Pattern docs (umbrella resolution).** Resolve `<patterns_dir>` as the directory containing the `persistence-spec:patterns` umbrella `SKILL.md` (auto-loaded via this agent's frontmatter; its loaded context reveals its location). Before Step 1, Read `<patterns_dir>/implementation-roadmap/index.md` (pattern catalog, child-table-naming rule, finder classification) and `<patterns_dir>/migration-vocabulary/index.md` (controlled Pattern list, slug-derivation rules) in full. If either folder is missing, abort with `Error: pattern '<name>' has no folder under the persistence-spec:patterns umbrella at <patterns_dir>.` The Step 3 dispatch table below is authoritative — it deliberately aggregates FK and Indexes rows (one each) to match the contract `@migrations-implementer` enforces, even though the roadmap's per-artifact selection table currently phrases the rules as "one Add Foreign Key per child table" and "Add Index per non-PK lookup field".
 
 ## Workflow
 

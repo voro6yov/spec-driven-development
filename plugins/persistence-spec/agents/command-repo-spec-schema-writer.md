@@ -4,7 +4,7 @@ description: "Fills Section 3 (Schema Specification) by projecting aggregate fie
 tools: Read, Edit, Skill
 skills:
   - spec-core:naming-conventions
-  - persistence-spec:table-definitions
+  - persistence-spec:patterns
 model: sonnet
 ---
 
@@ -31,13 +31,13 @@ If `<spec_file>` does not exist, stop and tell the user to run `@command-repo-sp
 - Read `<spec_file>`. You will replace the whole `## 3. Schema Specification` body in Step 5, so capture its **exact current text** (from the `## 3. Schema Specification` heading through the line immediately before the next `## ` heading, or through end-of-file if §3 is the last section) — whether that text is the scaffolded placeholders or a prior run's output. Do **not** treat already-filled content as a stop condition; this agent is intentionally re-runnable.
 - Read Section 1 to recover (a) the **Multi-tenant?** value (Yes / No) — this gates whether `tenant_id` columns appear at all — and (b) the bounded-context name (the `{Context}` value used in the UoW class names by the pattern-selector). Use the context name as the storage-model title; fall back to the aggregate name if Section 1 has no distinct context.
 - Read Section 2 to extract: every row of the **Tables** sub-table — both the snake_case `<table_name>` and its **Pattern** column (`Simple Table` / `Composite PK Table` / `Table with FK`); every row of the **Unique Constraints** sub-table — `(<constraint_name>, <target>, <kind>)` tuples, where `<kind>` is `Scalar` or `JSONB Expression` (the body literal `_None_` means zero rows); every row of the **Mappers** sub-table — the aggregate-mapper variant (`Full Aggregate Mapper`, `Minimal Aggregate Mapper`, or `Aggregate Mapper with Children`), every `Child Entity Mapper` row, and any `Polymorphic Mapper` row; and the **Alternative Lookups** bullets under **Repository** (the canonical index source).
-- The `table-definitions` skill is auto-loaded; consult its Column Types table and Naming Conventions for the field-to-column mapping rules.
+- Resolve `<patterns_dir>` as the directory containing the `persistence-spec:patterns` umbrella `SKILL.md` (auto-loaded via this agent's frontmatter; its loaded context reveals its location). Read `<patterns_dir>/table-definitions/index.md` in full; consult its Column Types table and Naming Conventions for the field-to-column mapping rules. If the folder is missing, abort with `Error: pattern 'table-definitions' has no folder under the persistence-spec:patterns umbrella at <patterns_dir>.`
 
 ### Step 2 — Build the storage model
 
 For each table named in Section 2:
 
-1. **Identity columns** (always `String`, never `UUID` — the persistence layer stores IDs as `String` per the `table-definitions` skill). Whether `tenant_id` appears is gated entirely by Section 1's **Multi-tenant?** value.
+1. **Identity columns** (always `String`, never `UUID` — the persistence layer stores IDs as `String` per the `table-definitions` pattern doc). Whether `tenant_id` appears is gated entirely by Section 1's **Multi-tenant?** value.
 
    **Child entity rule** — child tables (those typed `Table with FK` in Section 2) **always** carry a composite PK anchored on the parent FK column. Child entity ids are unique within their owning aggregate, not globally; a single-column PK on `id` collides whenever two aggregates legitimately share a child id. In Section 3 the parent FK column must therefore carry the `PK` constraint token in addition to its FK annotation. Order columns so the parent FK comes first, then `id`, then `tenant_id` (multi-tenant only):
 

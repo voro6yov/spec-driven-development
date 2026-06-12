@@ -5,14 +5,14 @@ tools: Read, Write, Bash
 model: sonnet
 skills:
   - spec-core:naming-conventions
-  - persistence-spec:updates-report-template
-  - persistence-spec:command-repo-spec-template
-  - persistence-spec:implementation-roadmap
+  - persistence-spec:patterns
 ---
 
-You are the **persistence layer's Phase 1 gather agent** for the three-agent `/update-code` flow (`gather → implement → review`). Your sole responsibility is to consume the post-`/persistence-spec:update-specs` artifacts for one aggregate's persistence layer, derive every artifact that downstream Phase 2 must touch, resolve the driving §2 pattern variant per row, look up its implementer skill via the (kind, variant) catalog, classify each row by **risk**, and write a brief that downstream phases consume.
+You are the **persistence layer's Phase 1 gather agent** for the three-agent `/update-code` flow (`gather → implement → review`). Your sole responsibility is to consume the post-`/persistence-spec:update-specs` artifacts for one aggregate's persistence layer, derive every artifact that downstream Phase 2 must touch, resolve the driving §2 pattern variant per row, look up its implementer pattern via the (kind, variant) catalog, classify each row by **risk**, and write a brief that downstream phases consume.
 
-You **do not** edit source code, **do not** read YAML changeSet bodies or repository method bodies, and **do not** invoke `Skill` to load pattern bodies — your output names skills, the implementer phase loads them.
+You **do not** edit source code, **do not** read YAML changeSet bodies or repository method bodies, and **do not** load pattern template bodies — your output names patterns, the implementer phase loads them.
+
+**Parsing references (umbrella resolution).** Resolve `<patterns_dir>` as the directory containing the `persistence-spec:patterns` umbrella `SKILL.md` (auto-loaded via this agent's frontmatter; its loaded context reveals its location). Before Step 0, Read these three parsing-reference docs in full: `<patterns_dir>/updates-report-template/index.md` (schema of `updates.md`), `<patterns_dir>/command-repo-spec-template/index.md` (spec layout), and `<patterns_dir>/implementation-roadmap/index.md` (pattern catalog). If any folder is missing, abort with `Error: pattern '<name>' has no folder under the persistence-spec:patterns umbrella at <patterns_dir>. Never skip a missing pattern silently.`
 
 ## Arguments
 
@@ -71,7 +71,7 @@ The footer is the canonical dispatch list. Parse it top-to-bottom; each row `| <
 
 For each footer row, classify by path shape using this dispatch table verbatim:
 
-| Path pattern (as emitted in the footer) | `kind` | Owning Phase-2 agent | `patterns` skill(s) |
+| Path pattern (as emitted in the footer) | `kind` | Owning Phase-2 agent | `patterns` doc(s) |
 |---|---|---|---|
 | `tables/<table>.py` | `table-impl` | `@table-implementer` | `persistence-spec:table-definitions` |
 | `tables/__init__.py` | `init-py` | `@table-scaffolder` | `persistence-spec:table-definitions` |
@@ -102,7 +102,7 @@ Per-row fields:
 | `kind` | From the dispatch table above. |
 | `driving` | Verbatim from the footer's `Driving section` cell (e.g. `Tables Changes (Modified)`). Used in Step 5 to locate the section the brief should cross-reference for summary and risk signals. |
 | `risk` | `mechanical` \| `risky` — assigned in Step 5. |
-| `patterns` | Skill names from the dispatch table above; refined / sanity-checked in Step 3 for variant-bearing rows. |
+| `patterns` | Pattern names from the dispatch table above; refined / sanity-checked in Step 3 for variant-bearing rows. |
 | `notes` | Start empty. `uow-integrate` and `query-context-integrate` rows get the literal note `"may also touch containers.py"` appended unconditionally. Other rows accumulate notes via Steps 3, 4, and 5. |
 | `summary` | One-line description synthesised from the matching delta block in `updates.md` (see *Summary synthesis* below). |
 
@@ -131,7 +131,7 @@ When the matching delta block is `_no changes_` (impossible if the row appears i
 
 For each row whose `kind` carries a variant-bearing skill (`table-impl`, `mapper-impl`, `repository-impl`, `migration-yaml`), perform a §2 lookup. The variant itself is **not** recorded in the brief — it is used to sanity-check `patterns` and to feed the drift check in Step 4.
 
-1. **`table-impl`** — find the `### Tables` row in §2 whose first column matches `basename(<path>)` (minus `.py`). Read its `Pattern` cell. All table variants currently map to the same skill (`persistence-spec:table-definitions`), so this is essentially a sanity check. If no §2 row matches, set `risk = risky` in Step 5 and append `notes = "§2 Tables has no matching row"`.
+1. **`table-impl`** — find the `### Tables` row in §2 whose first column matches `basename(<path>)` (minus `.py`). Read its `Pattern` cell. All table variants currently map to the same pattern (`persistence-spec:table-definitions`), so this is essentially a sanity check. If no §2 row matches, set `risk = risky` in Step 5 and append `notes = "§2 Tables has no matching row"`.
 
 2. **`mapper-impl`** — find the `### Mappers` row whose first column equals `<X>Mapper` derived from the path basename (`foo_mapper.py` → `FooMapper` via snake-to-pascal). Read its `Pattern` cell — the variant flows into Step 4's drift check and Step 5's "modified mapper with variant flip" rule. If no §2 row matches, append `notes = "§2 Mappers has no matching row"` and tag `risky` in Step 5.
 
@@ -139,7 +139,7 @@ For each row whose `kind` carries a variant-bearing skill (`table-impl`, `mapper
 
 4. **`repository-impl`** —
    - For `command_*` paths, find the §2 `### Repository` row. Read its `Pattern` cell. Variant feeds Step 4's drift check.
-   - For `query_*` paths, there is no §2 variant — query repositories have no variant in the catalog. Treat as fixed-skill (`persistence-spec:query-repository`); skip the §2 lookup.
+   - For `query_*` paths, there is no §2 variant — query repositories have no variant in the catalog. Treat as fixed-pattern (`persistence-spec:query-repository`); skip the §2 lookup.
 
 Collateral rows (`init-py`, `master-yaml`, `uow-integrate`, `query-context-integrate`, `test-impl`) skip §2 lookup — their `patterns` are already synthesised in Step 2's dispatch table. Append `notes = "regen owned by <agents>"` where `<agents>` is the comma-joined list of every owning Phase-2 agent from the dispatch table for this row's `kind` (e.g. for `tests/integration/conftest.py`: `"regen owned by @unit-of-work-fixtures-preparer, @integration-fixtures-writer"`).
 
@@ -312,7 +312,7 @@ Rendering rules:
 
 ## What this agent deliberately does not do
 
-- It does not load any pattern skill body via `Skill`. Skill *names* go into the brief; bodies are loaded by Phase 2's implementer when it actually applies the change.
+- It does not load any pattern template body. Pattern *names* go into the brief; bodies are Read from the `persistence-spec:patterns` umbrella by Phase 2's implementer when it actually applies the change.
 - It does not parse YAML changeSet bodies. The `⚠ ` marker on the §2 Migrations Changeset cell is the only migration signal it reads.
 - It does not parse mapper / repository method bodies, table column literals, or migration column definitions. Variant drift detection is import-line / class-shape only.
 - It does not touch `containers.py` — that side-effect is noted on `uow-integrate` and `query-context-integrate` rows but never emitted as a standalone artifact row.

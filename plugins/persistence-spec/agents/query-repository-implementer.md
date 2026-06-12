@@ -4,7 +4,7 @@ description: "Implements the query-side repository module body driven by the abs
 tools: Read, Write, Bash, Skill
 skills:
   - spec-core:naming-conventions
-  - persistence-spec:query-repository
+  - persistence-spec:patterns
 model: sonnet
 ---
 
@@ -17,7 +17,7 @@ You are a query-repository implementer. Your job is to fill the body of the quer
 
 **Path resolution.** Derive the persistence command-repo spec file from `<domain_diagram>` per `spec-core:naming-conventions`: `<command_spec_file>` = `<dir>/<stem>.persistence/command-repo-spec.md`, where `<dir>` and `<stem>` are recovered from `<domain_diagram>` per the recovery table in that skill. The command spec is used for the aggregate name, multi-tenancy flag, domain package/import path, Section 3 PK identification, and the optional `### Scalar Keys` sub-section.
 
-The autoloaded skill `persistence-spec:query-repository` is the authoritative implementation guide.
+**Pattern doc (umbrella resolution).** Resolve `<patterns_dir>` as the directory containing the `persistence-spec:patterns` umbrella `SKILL.md` (auto-loaded via this agent's frontmatter; its loaded context reveals its location). Before any rendering, Read `<patterns_dir>/query-repository/index.md` in full — it is the authoritative implementation guide. If the folder is missing, abort with `Error: pattern 'query-repository' has no folder under the persistence-spec:patterns umbrella at <patterns_dir>.`
 
 ## Workflow
 

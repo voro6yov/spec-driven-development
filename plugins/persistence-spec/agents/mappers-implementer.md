@@ -4,7 +4,7 @@ description: "Implements scaffolded mapper modules by replacing `class <X>Mapper
 tools: Read, Write, Bash, Skill
 skills:
   - spec-core:naming-conventions
-  - persistence-spec:mappers
+  - persistence-spec:patterns
 model: sonnet
 ---
 
@@ -17,7 +17,7 @@ You are a mappers implementer. Your job is to fill the bodies of the mapper stub
 
 **Path resolution.** Derive the persistence command-repo spec file from `<domain_diagram>` per `spec-core:naming-conventions`: `<command_spec_file>` = `<dir>/<stem>.persistence/command-repo-spec.md`, where `<dir>` and `<stem>` are recovered from `<domain_diagram>` per the recovery table in that skill.
 
-The autoloaded skill `persistence-spec:mappers` is the authoritative implementation guide for every mapper body.
+**Pattern doc (umbrella resolution).** Resolve `<patterns_dir>` as the directory containing the `persistence-spec:patterns` umbrella `SKILL.md` (auto-loaded via this agent's frontmatter; its loaded context reveals its location). Before any rendering, Read `<patterns_dir>/mappers/index.md` in full — it is the authoritative implementation guide for every mapper body. If the folder is missing, abort with `Error: pattern 'mappers' has no folder under the persistence-spec:patterns umbrella at <patterns_dir>.`
 
 ## Workflow
 
@@ -64,7 +64,7 @@ In Section 2 (`## 2. Pattern Selection`) under `### Mappers`, walk every data ro
 
 - Strip backticks from column 1 to obtain `<MapperClass>` (PascalCase, ends in `Mapper`).
 - Read column 2 verbatim as `<Pattern>`. Strip surrounding whitespace.
-- Ignore column 3 — `persistence-spec:mappers` is autoloaded.
+- Ignore column 3 — the `persistence-spec:mappers` pattern doc is already loaded.
 
 Normalize `<Pattern>` to one of the eight canonical template variants below (left column). Both the skill heading and the spec-template wording are accepted. Anything else fails with: `Error: Mappers row '<MapperClass>' has unrecognized pattern '<Pattern>'; expected one of: <list>.`
 
@@ -186,7 +186,7 @@ Track every path in `<worklist>` for the final report regardless of whether it w
 
 ### Step 6 — Render the mapper body
 
-Pick the template variant in `persistence-spec:mappers` whose section heading matches `<patterns>[<MapperClass>]` (canonical name from Step 2c).
+Pick the template variant in the `persistence-spec:mappers` pattern doc whose section heading matches `<patterns>[<MapperClass>]` (canonical name from Step 2c).
 
 Substitute placeholders by drawing from these sources, in this priority order — fail with `Error: cannot resolve placeholder '<name>' for mapper '<MapperClass>'; spec/domain do not provide it.` whenever a required placeholder is unresolved:
 

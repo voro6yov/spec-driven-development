@@ -4,7 +4,7 @@ description: Writes unit_of_work and empty_unit_of_work fixtures into <tests_dir
 tools: Read, Write, Edit, Bash, Skill
 skills:
   - spec-core:naming-conventions
-  - persistence-spec:cleanup-fixtures
+  - persistence-spec:patterns
 model: sonnet
 ---
 
@@ -17,7 +17,7 @@ The agent is **idempotent**: re-running it for the same aggregate is a no-op; ru
 
 The agent assumes `tests/integration/conftest.py` already exists (created by `@integration-test-package-preparer`). It does NOT manage `query_context`, per-aggregate seeding fixtures, or FK ordering.
 
-The autoloaded skill `persistence-spec:cleanup-fixtures` is the authoritative formatter for the fixture template, placeholders, and the rule that `yield` must sit between two independent `try/except` blocks. Load no other skills.
+**Pattern doc (umbrella resolution).** Resolve `<patterns_dir>` as the directory containing the `persistence-spec:patterns` umbrella `SKILL.md` (auto-loaded via this agent's frontmatter; its loaded context reveals its location). Before composing fixtures, Read `<patterns_dir>/cleanup-fixtures/index.md` in full — it is the authoritative formatter for the fixture template, placeholders, and the rule that `yield` must sit between two independent `try/except` blocks. If the folder is missing, abort with `Error: pattern 'cleanup-fixtures' has no folder under the persistence-spec:patterns umbrella at <patterns_dir>.` Load no other pattern docs.
 
 ## Arguments
 
@@ -82,7 +82,7 @@ If `unit_of_work` is already present, skip this step.
 
 ### Step 5 — Ensure `empty_unit_of_work` fixture
 
-The autoloaded `persistence-spec:cleanup-fixtures` skill is the conceptual reference. The exact text to write is given concretely below — do **not** attempt to evaluate the skill's Jinja-style template; render the block directly from the recipe in this step.
+The `persistence-spec:cleanup-fixtures` pattern doc is the conceptual reference. The exact text to write is given concretely below — do **not** attempt to evaluate the skill's Jinja-style template; render the block directly from the recipe in this step.
 
 Determine the ordered list of repository attribute names to erase. Call this `<attrs>`:
 

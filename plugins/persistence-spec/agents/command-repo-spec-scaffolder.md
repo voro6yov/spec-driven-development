@@ -4,7 +4,7 @@ description: Scaffolds a blank command-repo-spec sibling file from the template.
 tools: Read, Write, Bash, Skill
 skills:
   - spec-core:naming-conventions
-  - persistence-spec:command-repo-spec-template
+  - persistence-spec:patterns
 model: haiku
 ---
 
@@ -27,7 +27,9 @@ Run `mkdir -p "<plugin_dir>"` to ensure the per-plugin folder exists. The call i
 
 ### Step 3 — Write the scaffold file
 
-Write `<output>` using the template body from the loaded `command-repo-spec-template` skill. Copy the full content verbatim — sections 1 through 6 with all `{placeholder}` values intact — omitting only the skill frontmatter (the `---` block at the top).
+Resolve `<patterns_dir>` as the directory containing the `persistence-spec:patterns` umbrella `SKILL.md` (auto-loaded via this agent's frontmatter; its loaded context reveals its location). Read `<patterns_dir>/command-repo-spec-template/index.md` in full. If the folder is missing, abort with `Error: pattern 'command-repo-spec-template' has no folder under the persistence-spec:patterns umbrella at <patterns_dir>.`
+
+Write `<output>` using the template body from that pattern doc. Copy the full content verbatim — sections 1 through 6 with all `{placeholder}` values intact — omitting only the doc's frontmatter (the `---` block at the top).
 
 ### Step 4 — Pre-fill Implementation values from diagram
 

@@ -4,9 +4,7 @@ description: Appends delta-driven migration rows to an existing command reposito
 tools: Read, Edit, Bash, Skill
 skills:
   - spec-core:naming-conventions
-  - persistence-spec:implementation-roadmap
-  - persistence-spec:migration-vocabulary
-  - persistence-spec:table-definitions
+  - persistence-spec:patterns
   - domain-spec:updates-report-template
 model: opus
 ---
@@ -30,10 +28,15 @@ It is also safe to invoke standalone (outside `/persistence-spec:update-specs`):
 The autoloaded skills cover:
 
 - `spec-core:naming-conventions` — path derivation contract.
-- `persistence-spec:implementation-roadmap` — pattern catalog, child-table-naming rule, finder classification.
-- `persistence-spec:migration-vocabulary` — controlled Pattern list, ⚠ marker rule, per-row slug-derivation rule.
-- `persistence-spec:table-definitions` — Column Types vocabulary used to type `Add Column` and `Alter Column Type` rows.
 - `domain-spec:updates-report-template` — schema of the input `updates.md` file.
+
+**Pattern docs (umbrella resolution).** Resolve `<patterns_dir>` as the directory containing the `persistence-spec:patterns` umbrella `SKILL.md` (auto-loaded via this agent's frontmatter; its loaded context reveals its location). Before Step 1, Read these three pattern docs in full:
+
+- `<patterns_dir>/implementation-roadmap/index.md` — pattern catalog, child-table-naming rule, finder classification.
+- `<patterns_dir>/migration-vocabulary/index.md` — controlled Pattern list, ⚠ marker rule, per-row slug-derivation rule.
+- `<patterns_dir>/table-definitions/index.md` — Column Types vocabulary used to type `Add Column` and `Alter Column Type` rows.
+
+If any folder is missing, abort with `Error: pattern '<name>' has no folder under the persistence-spec:patterns umbrella at <patterns_dir>. Never skip a missing pattern silently.`
 
 ## Workflow
 
@@ -115,7 +118,7 @@ Read `<domain_diagram>` (the working-tree version, not HEAD). Build a small in-m
 
 Walk the `updates.md` model and emit `(table, changeset, pattern, destructive)` tuples. Preserve `updates.md`'s natural reading order (lifecycle blocks first, then per-class blocks alphabetically, then orphan-relationship bullets, finally the § 6.7 uniqueness-delta pass) so the resulting migration log is causally readable.
 
-The shared skill `persistence-spec:migration-vocabulary` defines the controlled Pattern list and the per-target Changeset shape. Refer to it for the exact text format of every row produced below.
+The shared `persistence-spec:migration-vocabulary` pattern doc defines the controlled Pattern list and the per-target Changeset shape. Refer to it for the exact text format of every row produced below.
 
 In addition to the `updates.md`-driven dispatch (§ 6.1 through § 6.5), § 6.7 reads the spec's own `### Unique Constraints` sub-section in working tree vs HEAD and emits uniqueness delta rows. The orchestrator runs `@command-repo-spec-pattern-selector` (Step 2 of `/persistence-spec:update-specs`) before invoking this agent, so by the time § 6.7 fires the working-tree `### Unique Constraints` already reflects the diagram's invariants.
 

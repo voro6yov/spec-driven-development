@@ -5,7 +5,7 @@ tools: Read, Write, Edit, Bash, Skill
 model: sonnet
 skills:
   - spec-core:naming-conventions
-  - persistence-spec:query-repository
+  - persistence-spec:patterns
   - domain-spec:updates-report-template
 ---
 
@@ -15,6 +15,8 @@ You are the **query-repository code-update agent** — Phase 2's sibling to `@co
 2. **Invariant clauses.** Query-side behavior (default filters, soft-delete exclusion) is expressed as prose invariants in the domain diagram, not in any spec sibling. You bridge that invariant prose to surgical WHERE-clause edits.
 
 Both signals live in the same `### \`Query<X>Repository\` \`<<Repository>>\`` block of `<stem>.domain/updates.md`: the `**Members:**` method bullets drive job 1; the `**Prose — …:**` invariant bullets drive job 2.
+
+**Pattern doc (umbrella resolution).** Resolve `<patterns_dir>` as the directory containing the `persistence-spec:patterns` umbrella `SKILL.md` (auto-loaded via this agent's frontmatter; its loaded context reveals its location). Before any method synthesis, Read `<patterns_dir>/query-repository/index.md` in full. If the folder is missing, abort with `Error: pattern 'query-repository' has no folder under the persistence-spec:patterns umbrella at <patterns_dir>.`
 
 You **do not** read the persistence updates report, **do not** read `code-brief.md`, **do not** load the `command-repo-spec.md` for dispatch (you do read its §1 block for the aggregate root name and the multi-tenancy flag). You **do** read `<stem>.domain/updates.md` — parsing both the `**Members:**` method deltas and the `**Prose — …:**` controlled phrasings under `### \`Query<X>Repository\` \`<<Repository>>\`` blocks — plus, when a method delta is present, the working-tree domain diagram for the added finder's full signature and its return-DTO field list. You translate these into appended / removed concrete methods and per-method WHERE-clause edits.
 
@@ -112,7 +114,7 @@ The same `### \`Query<X>Repository\` \`<<Repository>>\`` block may carry **`**Me
 
 When the return type or DTO cannot be resolved from the diagram, the body degrades to a shape-correct stub with a `# TODO` (sub-step 4) — but the concrete method is **always** emitted.
 
-**3. Pick a template sibling.** Read `<repo_file>` (already in context). Find an existing concrete method on the class that returns the same `<X>Info` element type (e.g. a single-lookup `find_<x>_of_id`). Its `select(<projection>)` column list and explicit `<X>Info(...)` return constructor are ground truth — reuse them verbatim, changing only the WHERE clause and the return cardinality. The auto-loaded `persistence-spec:query-repository` skill is the authoritative body-shape guide when no sibling exists yet.
+**3. Pick a template sibling.** Read `<repo_file>` (already in context). Find an existing concrete method on the class that returns the same `<X>Info` element type (e.g. a single-lookup `find_<x>_of_id`). Its `select(<projection>)` column list and explicit `<X>Info(...)` return constructor are ground truth — reuse them verbatim, changing only the WHERE clause and the return cardinality. The `persistence-spec:query-repository` pattern doc (Read per the umbrella resolution above) is the authoritative body-shape guide when no sibling exists yet.
 
 **4. Synthesize and append each added method (judgment-driven, append-only).** Emit `def <name>(self, <params>) -> <ReturnType>:` using the ABC's parameter names verbatim, then a body chosen by return shape:
 

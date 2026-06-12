@@ -4,7 +4,7 @@ description: "Implements scaffolded Liquibase migration YAML files by replacing 
 tools: Read, Write, Bash, Skill
 skills:
   - spec-core:naming-conventions
-  - persistence-spec:migration
+  - persistence-spec:patterns
 model: sonnet
 ---
 
@@ -17,7 +17,7 @@ You are a migrations implementer. Your job is to fill the bodies of the Liquibas
 
 **Path resolution.** Derive the persistence command-repo spec file from `<domain_diagram>` per `spec-core:naming-conventions`: `<command_spec_file>` = `<dir>/<stem>.persistence/command-repo-spec.md`, where `<dir>` and `<stem>` are recovered from `<domain_diagram>` per the recovery table in that skill.
 
-The autoloaded skill `persistence-spec:migration` is the authoritative implementation guide for every changeSet body.
+**Pattern doc (umbrella resolution).** Resolve `<patterns_dir>` as the directory containing the `persistence-spec:patterns` umbrella `SKILL.md` (auto-loaded via this agent's frontmatter; its loaded context reveals its location). Before any rendering, Read `<patterns_dir>/migration/index.md` in full — it is the authoritative implementation guide for every changeSet body. If the folder is missing, abort with `Error: pattern 'migration' has no folder under the persistence-spec:patterns umbrella at <patterns_dir>.`
 
 ## Workflow
 
@@ -57,7 +57,7 @@ In Section 2 (`## 2. Pattern Selection`) under `### Migrations`, walk every data
   3. Replace every run of non-alphanumeric characters with a single `-`.
   4. Trim leading and trailing `-`.
 - Read the `Pattern` cell verbatim as `<Pattern>`. Strip surrounding whitespace.
-- Ignore the `Template` cell — `persistence-spec:migration` is autoloaded.
+- Ignore the `Template` cell — the `persistence-spec:migration` pattern doc is already loaded.
 
 `<Pattern>` must match exactly one of the eight supported variants (no aliases, no fuzzy matching):
 
@@ -72,7 +72,7 @@ In Section 2 (`## 2. Pattern Selection`) under `### Migrations`, walk every data
 
 Anything else fails with: `Error: Migrations row '<slug>' has unrecognized pattern '<Pattern>'; expected one of: <list>.`
 
-The skill `persistence-spec:migration` documents four additional evolution variants (`Add Column`, `Add Column with Default`, `Rename Column`, `Add Not Null Constraint`). They are intentionally rejected here: the spec template carries no per-changeset detail rows for column-level evolutions, and slug-based inference is too brittle to derive `(table, column, type, default, old_name)` reliably. Extend this agent only after the spec template grows the necessary structure.
+The `persistence-spec:migration` pattern doc documents four additional evolution variants (`Add Column`, `Add Column with Default`, `Rename Column`, `Add Not Null Constraint`). They are intentionally rejected here: the spec template carries no per-changeset detail rows for column-level evolutions, and slug-based inference is too brittle to derive `(table, column, type, default, old_name)` reliably. Extend this agent only after the spec template grows the necessary structure.
 
 Build `<patterns>` = an ordered mapping `<slug> -> <Pattern>` and `<changesets>` = mapping `<slug> -> <changeset_raw>`. If two rows produce the same slug, keep only the first occurrence (matching `@migrations-scaffolder`).
 
@@ -148,7 +148,7 @@ ChangeSet `id` rule:
 - If the stub emits exactly one changeSet, its `id` is `<filename_stem>` (no suffix).
 - If the stub emits N > 1 changeSets, their `id` values are `<filename_stem>-1`, `<filename_stem>-2`, … in emission order.
 
-Render each changeSet by following the corresponding template variant in `persistence-spec:migration`. The variant-specific resolution rules below tell you (a) how many changeSets to emit, (b) which placeholders to fill from the spec, and (c) which `tableName` to use.
+Render each changeSet by following the corresponding template variant in the `persistence-spec:migration` pattern doc. The variant-specific resolution rules below tell you (a) how many changeSets to emit, (b) which placeholders to fill from the spec, and (c) which `tableName` to use.
 
 Variant resolution requires resolving `<table_name>` from the slug. The convention from `@migrations-scaffolder` is that the slug encodes the table — e.g. `create-order-table` → `order`, `create-order-item-table` → `order_item`. Resolve as follows:
 

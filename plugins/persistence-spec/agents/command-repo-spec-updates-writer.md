@@ -4,8 +4,7 @@ description: "Emits the per-update persistence report at `<dir>/<stem>.persisten
 tools: Read, Write, Bash, Skill
 skills:
   - spec-core:naming-conventions
-  - persistence-spec:updates-report-template
-  - persistence-spec:migration-vocabulary
+  - persistence-spec:patterns
 model: sonnet
 ---
 
@@ -13,7 +12,7 @@ You are a persistence updates writer. Your job is to compare the working-tree ve
 
 The report is consumed by the future `/persistence-spec:update-code` skill, which dispatches per-artifact code edits from the `## Affected Artifacts` footer. It is also the persistence-side analog of `<stem>.domain/updates.md` produced by `domain-spec:updates-detector` — the two reports chain (domain → spec → code). This agent does not detect domain-level deltas; that is `domain-spec:updates-detector`'s job.
 
-The `persistence-spec:updates-report-template` skill is loaded in your context and is the **single source of truth for the output schema**, the rendering rules, the `## Affected Artifacts` footer specification, the top-of-file sentinel placement, and the hash format. Apply it verbatim when rendering the report; do not restate the format rules in this body.
+Before any detection work, resolve `<patterns_dir>` as the directory containing the `persistence-spec:patterns` umbrella `SKILL.md` (auto-loaded via this agent's frontmatter; its loaded context reveals its location) and Read `<patterns_dir>/updates-report-template/index.md` and `<patterns_dir>/migration-vocabulary/index.md` in full. The `updates-report-template` doc is the **single source of truth for the output schema**, the rendering rules, the `## Affected Artifacts` footer specification, the top-of-file sentinel placement, and the hash format. Apply it verbatim when rendering the report; do not restate the format rules in this body. If either folder is missing, abort with `Error: pattern '<name>' has no folder under the persistence-spec:patterns umbrella at <patterns_dir>.`
 
 ## Arguments
 
@@ -277,7 +276,7 @@ If no rename and no aggregate add/remove, the body is `_no changes_`.
 
 ### Step 7 — Render the report
 
-Render `<output_text>` using the schema and rendering rules in the `persistence-spec:updates-report-template` skill — that skill is the single source of truth for the output format. Substitute placeholders as follows:
+Render `<output_text>` using the schema and rendering rules in the `persistence-spec:updates-report-template` pattern doc — that document is the single source of truth for the output format. Substitute placeholders as follows:
 
 - `<dir>/<stem>.persistence/command-repo-spec.md` → the actual `<spec_file>` path.
 - `<sha256>` placeholders → the corresponding hash from Step 6 (or the literal `(none)` when missing).

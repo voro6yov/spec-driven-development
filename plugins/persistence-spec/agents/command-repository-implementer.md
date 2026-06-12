@@ -4,7 +4,7 @@ description: "Implements the command-side repository stub driven by `Command<Agg
 tools: Read, Write, Bash, Skill
 skills:
   - spec-core:naming-conventions
-  - persistence-spec:command-repository
+  - persistence-spec:patterns
 model: sonnet
 ---
 
@@ -17,7 +17,7 @@ You are a command-repository implementer. Your job is to fill the body of the re
 
 **Path resolution.** Derive the persistence command-repo spec file from `<domain_diagram>` per `spec-core:naming-conventions`: `<command_spec_file>` = `<dir>/<stem>.persistence/command-repo-spec.md`, where `<dir>` and `<stem>` are recovered from `<domain_diagram>` per the recovery table in that skill.
 
-The autoloaded skill `persistence-spec:command-repository` is the authoritative implementation guide for the repository body.
+**Pattern doc (umbrella resolution).** Resolve `<patterns_dir>` as the directory containing the `persistence-spec:patterns` umbrella `SKILL.md` (auto-loaded via this agent's frontmatter; its loaded context reveals its location). Before any rendering, Read `<patterns_dir>/command-repository/index.md` in full — it is the authoritative implementation guide for the repository body. If the folder is missing, abort with `Error: pattern 'command-repository' has no folder under the persistence-spec:patterns umbrella at <patterns_dir>.`
 
 ## Workflow
 
@@ -178,7 +178,7 @@ In words: an `__all__` line naming exactly `<ConcreteRepositoryClass>`, then a `
 
 ### Step 6 — Dispatch each abstract method to a body template
 
-For each `(<method_name>, <params>, <return_annotation>)` in `<methods>`, classify the method into one of the canonical body templates from `persistence-spec:command-repository`. Dispatch is **signature-driven**, with method-name match used only as a tiebreaker. Bullets in `<alt_hints>` are not consulted for dispatch — they appear only in error messages.
+For each `(<method_name>, <params>, <return_annotation>)` in `<methods>`, classify the method into one of the canonical body templates from the `persistence-spec:command-repository` pattern doc. Dispatch is **signature-driven**, with method-name match used only as a tiebreaker. Bullets in `<alt_hints>` are not consulted for dispatch — they appear only in error messages.
 
 **Pre-pass — identify the primary lookup.** Before dispatch, scan `<methods>` for the unique method whose return annotation unwraps to `<Aggregate> | None` and whose parameter list (after `self`) has exactly one non-`tenant_id` parameter that maps to the aggregate table's PK column via the column-mapping rule below. Bind `<primary_lookup_method>` to that method's name. If zero such methods exist, leave `<primary_lookup_method>` unbound (rules 5 and 6 will then fail when they fire). If more than one, fail with: `Error: '<AbstractRepositoryClass>' declares multiple PK-shaped lookup methods (<list>); cannot identify a unique primary lookup.`
 
@@ -263,7 +263,7 @@ class <ConcreteRepositoryClass>(<AbstractRepositoryClass>):
 
 **Column property contents.** `<aggregate>_columns` enumerates every column from `<columns[<aggregate>]>` in declaration order (Step 2f). When `<multi_tenant>` is false, omit `tenant_id` (and fail if it appears in the table). When true, include it. Likewise for each child table — `<child>_columns` lists every column from `<columns[<child_table>]>`.
 
-**Method bodies.** Substitute the placeholders from `persistence-spec:command-repository` using these sources:
+**Method bodies.** Substitute the placeholders from the `persistence-spec:command-repository` pattern doc using these sources:
 
 | Placeholder | Source |
 | --- | --- |

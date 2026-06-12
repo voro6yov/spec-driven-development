@@ -4,7 +4,7 @@ description: "Fills (or refreshes) Section 1 (Aggregate Analysis) and Section 2 
 tools: Read, Edit, Skill
 skills:
   - spec-core:naming-conventions
-  - persistence-spec:implementation-roadmap
+  - persistence-spec:patterns
 model: opus
 ---
 
@@ -27,7 +27,7 @@ If `<spec_file>` does not exist, stop and tell the user to run `@command-repo-sp
 
 - Read `<domain_diagram>` to extract the aggregate root, its collaborators, and the repository interface.
 - Read `<spec_file>`. You will need the **exact current text** of each sub-section you replace in Step 5 (it may be the scaffolded placeholders or a prior run's output — either way, you replace it), so capture those blocks now. Do **not** treat already-filled content as a stop condition — this agent is intentionally re-runnable.
-- The `implementation-roadmap` skill is auto-loaded; consult its Pattern Selection Guide and per-artifact tables.
+- Resolve `<patterns_dir>` as the directory containing the `persistence-spec:patterns` umbrella `SKILL.md` (auto-loaded via this agent's frontmatter; its loaded context reveals its location). Read `<patterns_dir>/implementation-roadmap/index.md` in full; consult its Pattern Selection Guide and per-artifact tables. If the folder is missing, abort with `Error: pattern 'implementation-roadmap' has no folder under the persistence-spec:patterns umbrella at <patterns_dir>.`
 
 ### Step 2 — Determine aggregate characteristics
 

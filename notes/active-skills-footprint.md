@@ -142,6 +142,29 @@ skill-context path resolution, 2/2 patterns):
 - Footprint: domain-spec registered skills 31 → **15** (6 commands + umbrella + 8 dual-homed);
   agents 23 → 22. domain-spec `plugin.json` 0.51.0 → 0.52.0.
 
+**Wave 1, persistence-spec (2026-06-13).** Same shape replicated:
+
+- **13 intra-plugin reference skills deleted** (deregistered): cleanup-fixtures,
+  collection-fixtures, command-repo-spec-template, command-repository, implementation-roadmap,
+  mappers, migration, migration-vocabulary, query-context, query-repository,
+  repository-test-rules, table-definitions, updates-report-template. The umbrella copies under
+  `skills/patterns/` are now the only copy. All 15 refs are single-file (no
+  `template.md`/`examples.md` companions in this plugin).
+- **2 cross-plugin-consumed refs kept registered** (dual-homed twins): persistence-fixtures and
+  unit-of-work — both cited by `messaging-spec:messaging-handler-fixtures` (table cells, the
+  only foreign consumer found by an exact-token re-scan). Umbrella copies byte-identical;
+  Wave 3 demotes them.
+- **Bucket-E stale ref `persistence-spec:persistence-dtos`** was already gone from the tree
+  (zero hits anywhere) — nothing to delete.
+- **All 19 persistence-spec consumer agents rewired** uniformly: frontmatter loads
+  `persistence-spec:patterns`, bodies Read `<patterns_dir>/<name>/index.md` with a
+  hard-fail-on-missing guard. The brief-mediated union loaders (`code-change-writer`,
+  `code-review-writer`) keep their dedup logic over Reads. Token vocabulary
+  (`persistence-spec:<name>` in briefs/dispatch tables) unchanged. References to other plugins'
+  skills (`spec-core:naming-conventions`, `domain-spec:updates-report-template`) untouched.
+- Footprint: persistence-spec registered skills 20 → **8** (5 commands + umbrella +
+  2 dual-homed); agents unchanged at 32. persistence-spec `plugin.json` 0.67.0 → 0.68.0.
+
 ### 0.6 Residual gap demotion does not close
 
 Even after full demotion (~35 registered skills incl. umbrellas + 133 agents), the remaining
