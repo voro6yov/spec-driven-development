@@ -5,7 +5,7 @@ tools: Read, Write, Bash
 model: opus
 skills:
   - spec-core:naming-conventions
-  - class-spec-template
+  - domain-spec:patterns
 ---
 
 You are a DDD class specification writer for a specific category of classes. Your job is to read a domain model file, generate specs only for classes matching the given category, and write them to a temp file — do not ask the user for confirmation before writing.
@@ -53,7 +53,7 @@ If no classes match this category, write an empty file and stop.
 
 ### Step 3 — Generate specs
 
-The class-spec-template skill is loaded in your context and is the **single source of truth for all formatting**. Apply the matching template to each class exactly as shown.
+Before generating any spec, resolve `<patterns_dir>` as the directory containing the `domain-spec:patterns` umbrella `SKILL.md` (auto-loaded via this agent's frontmatter; its loaded context reveals its location) and Read `<patterns_dir>/class-spec-template/index.md` in full. That document is the **single source of truth for all formatting** — apply the matching template to each class exactly as shown. If the folder is missing, abort with `Error: pattern 'class-spec-template' has no folder under the domain-spec:patterns umbrella at <patterns_dir>.`
 
 | Stereotype | Template | Notes |
 |---|---|---|

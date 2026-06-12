@@ -119,7 +119,30 @@ already exercises daily (the 18 `template.md` companions work this way):
   can write its resolved root to a well-known location. The umbrella-load route should make
   this unnecessary.
 
-### 0.5 Residual gap demotion does not close
+### 0.5 Wave 1 executed (2026-06-13) — domain-spec demoted
+
+The §0.4 shape shipped for domain-spec (after the live `@pattern-loader` probe confirmed
+skill-context path resolution, 2/2 patterns):
+
+- **16 intra-plugin reference skills deleted** (deregistered): aggregate-data-fixtures,
+  aggregate-root, aggregate-unit-tests, class-spec-template, commands,
+  delegation-and-event-propagation, domain-events, domain-pattern-selection, domain-services,
+  domain-typed-dicts, entity, guards-and-checks, query-dtos, repositories, statuses,
+  value-object. The umbrella copies under `skills/patterns/` are now the only copy.
+- **8 cross-plugin-consumed refs kept registered** (deliberate deviation from a full Wave-1
+  demotion, to avoid touching foreign plugins): aggregate-fixtures, collection-value-objects,
+  constructor-guard-type-mapping, domain-exceptions, flat-constructor-arguments,
+  optional-values, package-layout, updates-report-template. They are **dual-homed** — the
+  standalone skill stays authoritative for foreign consumers; the umbrella copy (used by
+  domain-spec's own loaders) must be re-synced byte-identically on edit. Wave 3 demotes them.
+- **All 13 domain-spec consumer agents rewired** uniformly: frontmatter loads `domain-spec:patterns`,
+  bodies Read `<patterns_dir>/<name>/index.md` (+ companions) with a hard-fail-on-missing guard.
+  Token vocabulary (`domain-spec:<name>` in specs/briefs/pattern-assigner tables) unchanged.
+- **`pattern-loader` probe agent deleted** (served its diagnostic purpose).
+- Footprint: domain-spec registered skills 31 → **15** (6 commands + umbrella + 8 dual-homed);
+  agents 23 → 22. domain-spec `plugin.json` 0.51.0 → 0.52.0.
+
+### 0.6 Residual gap demotion does not close
 
 Even after full demotion (~35 registered skills incl. umbrellas + 133 agents), the remaining
 description bytes still exceed a default 1%-of-context budget for marketplace consumers. The
@@ -615,7 +638,7 @@ STEP 2  Umbrella-skill demotion (§0.4 shape — replaces the old Wave-1..3 mech
         GATE 2c: /doctor + re-measure. Target: ~35 registered skills (29 commands + ~6 umbrellas).
 
 STEP 3  Description trimming on everything still registered (commands + umbrellas + agents)
-        - /trim-descriptions per plugin. This closes the §0.5 residual-bytes gap that
+        - /trim-descriptions per plugin. This closes the §0.6 residual-bytes gap that
           demotion alone cannot.
 
 STEP 4  If agent-side symptoms persist after Steps 1–3: FIRST establish empirically whether
