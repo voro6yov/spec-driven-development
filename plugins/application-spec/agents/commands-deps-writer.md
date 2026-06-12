@@ -4,11 +4,13 @@ description: Writes the Dependencies section of an `<AggregateRoot>Commands` app
 tools: Read, Write, Bash, Skill
 skills:
   - spec-core:naming-conventions
-  - application-spec:commands-dependencies-template
+  - application-spec:patterns
 model: sonnet
 ---
 
-You are a command-application-service dependency specifier. Given a path to the domain class diagram, you derive the sibling commands diagram, parse its `classDiagram` describing the `<AggregateRoot>Commands` application service, and produce a per-plugin sibling spec file containing only the **Dependencies** section, formatted per the auto-loaded `commands-dependencies-template` skill.
+You are a command-application-service dependency specifier. Given a path to the domain class diagram, you derive the sibling commands diagram, parse its `classDiagram` describing the `<AggregateRoot>Commands` application service, and produce a per-plugin sibling spec file containing only the **Dependencies** section, formatted per the `commands-dependencies-template` pattern doc.
+
+**Pattern doc (umbrella resolution).** Resolve `<patterns_dir>` as the directory containing the `application-spec:patterns` umbrella `SKILL.md` (auto-loaded via this agent's frontmatter; its loaded context reveals its location). Before parsing, Read `<patterns_dir>/commands-dependencies-template/index.md` in full — it is the authoritative format reference for the Dependencies section. If the folder is missing, abort with `Error: pattern 'commands-dependencies-template' has no folder under the application-spec:patterns umbrella at <patterns_dir>.`
 
 ## Inputs
 
@@ -56,7 +58,7 @@ If there is no `class <AggregateRoot>Commands { ... }` block (only link-only ref
 
 ### Step 5 — Classify outgoing links
 
-For each link whose **source** is the `<AggregateRoot>Commands` node, classify the target into one of the four categories per the syntax table in the `commands-dependencies-template` skill. Recognise repositories by the `Command` prefix + `Repository` suffix on the target class name, and message publishers by an exact class-name match against `DomainEventPublisher` or `CommandProducer`; any other lollipop (`--()` / `()--`) target is a Domain Service. Any plain-arrow (`-->` / `<--`) target is an External Interface, regardless of name prefix. Ignore links whose syntax does not match one of these forms (e.g. `..>`, composition, inheritance).
+For each link whose **source** is the `<AggregateRoot>Commands` node, classify the target into one of the four categories per the syntax table in the `commands-dependencies-template` pattern doc. Recognise repositories by the `Command` prefix + `Repository` suffix on the target class name, and message publishers by an exact class-name match against `DomainEventPublisher` or `CommandProducer`; any other lollipop (`--()` / `()--`) target is a Domain Service. Any plain-arrow (`-->` / `<--`) target is an External Interface, regardless of name prefix. Ignore links whose syntax does not match one of these forms (e.g. `..>`, composition, inheritance).
 
 Normalisation rules:
 
@@ -92,7 +94,7 @@ Examples: `Order` → `uow.orders`, `Customer` → `uow.customers`, `OrderItem` 
 
 ### Step 8 — Render the Dependencies section
 
-Render the section using the skeleton and category semantics defined by the `commands-dependencies-template` skill. Domain Services and External Interfaces are rendered as `- <attr_name>: <ClassName>` bullets using the attribute names resolved in Step 6. Within each category, preserve the order in which targets first appeared in the Mermaid diagram (after deduplication in Step 5).
+Render the section using the skeleton and category semantics defined by the `commands-dependencies-template` pattern doc. Domain Services and External Interfaces are rendered as `- <attr_name>: <ClassName>` bullets using the attribute names resolved in Step 6. Within each category, preserve the order in which targets first appeared in the Mermaid diagram (after deduplication in Step 5).
 
 ### Step 9 — Write the sibling file
 

@@ -4,7 +4,7 @@ description: "Emits the per-update application report at `<dir>/<stem>.applicati
 tools: Read, Write, Bash, Skill
 skills:
   - spec-core:naming-conventions
-  - application-spec:updates-report-template
+  - application-spec:patterns
 model: sonnet
 ---
 
@@ -12,7 +12,9 @@ You are an application updates writer. Your job is to compare the working-tree v
 
 The report is consumed by the cross-layer `/update-code` skill (`domain-spec:update-code`), which dispatches per-artifact code edits from the `## Affected Artifacts` footer. It is also the application-side analog of `<stem>.domain/updates.md` and `<stem>.persistence/updates.md` — the three reports chain (domain → persistence/application). This agent does not detect any axis's deltas; those are `domain-spec:updates-detector`, `application-spec:commands-updates-detector`, and `application-spec:queries-updates-detector`'s jobs respectively.
 
-The `application-spec:updates-report-template` skill is loaded in your context and is the **single source of truth for the output schema**, the rendering rules, the `## Affected Artifacts` footer specification, the top-of-file sentinel placement, and the hash format. Apply it verbatim when rendering the report; do not restate the format rules in this body.
+**Pattern doc (umbrella resolution).** Resolve `<patterns_dir>` as the directory containing the `application-spec:patterns` umbrella `SKILL.md` (auto-loaded via this agent's frontmatter; its loaded context reveals its location). Before any diffing, Read `<patterns_dir>/updates-report-template/index.md` in full. If the folder is missing, abort with `Error: pattern 'updates-report-template' has no folder under the application-spec:patterns umbrella at <patterns_dir>.`
+
+The `application-spec:updates-report-template` pattern doc is the **single source of truth for the output schema**, the rendering rules, the `## Affected Artifacts` footer specification, the top-of-file sentinel placement, and the hash format. Apply it verbatim when rendering the report; do not restate the format rules in this body.
 
 ## Arguments
 
@@ -137,7 +139,7 @@ The HEAD-side specs are parsed with the same parser. Tolerate missing sub-sectio
 
 ### Step 4 — Compute per-section deltas
 
-Render four delta dicts that the renderer feeds into the schema templates of `application-spec:updates-report-template`.
+Render four delta dicts that the renderer feeds into the schema templates of the `application-spec:updates-report-template` pattern doc.
 
 #### 4.1 Commands Methods Changes
 
@@ -297,14 +299,14 @@ The Summary intentionally omits a `Generated at:` line — a wall-clock timestam
 
 ### Step 7 — Render the report
 
-Render `<output_text>` using the schema and rendering rules in the `application-spec:updates-report-template` skill — that skill is the single source of truth for the output format. Substitute placeholders as follows:
+Render `<output_text>` using the schema and rendering rules in the `application-spec:updates-report-template` pattern doc — that pattern doc is the single source of truth for the output format. Substitute placeholders as follows:
 
 - `<dir>/<stem>.application/...` → the actual paths.
 - `<sha256>` placeholders → the corresponding hash from Step 6 (or the literal `(none)` when missing).
 - `<dir>/<stem>.domain/updates.md` → the actual `<domain_updates_file>` path; render the entire `Domain updates source` value as `_none_` when the file is missing.
 - `<dir>/<stem>.application/commands-updates.md` → the actual `<commands_updates_file>` path; render the `Commands-diagram updates source` value as `_none_` when the file is missing.
 - `<dir>/<stem>.application/queries-updates.md` → the actual `<queries_updates_file>` path; render the `Queries-diagram updates source` value as `_none_` when the file is missing.
-- Every section body driven by Step 4 / Step 5 dicts → render per the section-specific rules in the skill. Each `Source delta` value is the axis-tagged form `[<axis>] <category>: <human_phrase>` (or the literal `(unknown source)`) emitted by Step 5.
+- Every section body driven by Step 4 / Step 5 dicts → render per the section-specific rules in the pattern doc. Each `Source delta` value is the axis-tagged form `[<axis>] <category>: <human_phrase>` (or the literal `(unknown source)`) emitted by Step 5.
 - The `<!-- domain-updates-hash:<sha256> -->` sentinel → the `domain_updates_hash` from Step 6 (or `(none)`).
 - The `<!-- commands-updates-hash:<sha256> -->` sentinel → the `commands_updates_hash` from Step 6 (or `(none)`).
 - The `<!-- queries-updates-hash:<sha256> -->` sentinel → the `queries_updates_hash` from Step 6 (or `(none)`).
@@ -313,7 +315,7 @@ All three sentinels are emitted as consecutive comment lines at the top of the f
 
 When the byte-identical short-circuit fired in Step 2.3 (working trees == HEAD for all three files), render every section after `## Summary` as `_no changes_` and emit the `## Affected Artifacts` table header with no data rows.
 
-Compute the `## Affected Artifacts` rows mechanically per the skill's "Affected Artifacts computation" rules. Substitute `<aggregate>` = snake_case form of `<stem>` (replace `-` with `_`). Substitute `<attr_name>` per service from its `## <ServiceIdentifier>` block in the post-services spec.
+Compute the `## Affected Artifacts` rows mechanically per the pattern doc's "Affected Artifacts computation" rules. Substitute `<aggregate>` = snake_case form of `<stem>` (replace `-` with `_`). Substitute `<attr_name>` per service from its `## <ServiceIdentifier>` block in the post-services spec.
 
 ### Step 8 — Write and confirm
 

@@ -165,6 +165,41 @@ skill-context path resolution, 2/2 patterns):
 - Footprint: persistence-spec registered skills 20 → **8** (5 commands + umbrella +
   2 dual-homed); agents unchanged at 32. persistence-spec `plugin.json` 0.67.0 → 0.68.0.
 
+**Wave 1, application-spec (2026-06-13).** Same shape replicated:
+
+- **13 intra-plugin reference skills deleted** (deregistered):
+  application-service-integration-test-rules, commands, commands-dependencies-template,
+  commands-methods-template, dependency-injection-patterns, interfaces, ops,
+  queries-dependencies-template, queries-methods-template, queries-pattern, retry-transaction,
+  settings, updates-report-template. The umbrella copies under `skills/patterns/` are now the
+  only copy. All 18 refs are single-file (no companions in this plugin).
+- **5 cross-plugin-consumed refs kept registered** (dual-homed twins):
+  application-updates-report-template (rest-api-spec + messaging-spec),
+  fake-implementations (messaging-spec), fake-override-fixtures (messaging-spec),
+  ops-updates-report-template (rest-api-spec + messaging-spec + domain-spec:update-code), and
+  services-report-template (messaging-spec) — all foreign hits are format/vocabulary citations,
+  found by an exact-token re-scan. **The set differs from §2.3's prediction:** `commands` has
+  **zero** foreign hits with exact-token boundaries (§2.3's hit was the
+  `application-spec:commands-deps-writer` agent-name false-match — the same trap the
+  persistence wave documented), while `ops-updates-report-template` (8 foreign hits, post-ops
+  extension) joins the set. Umbrella copies byte-identical; Wave 3 demotes them.
+- **Bucket-E stale refs `application-spec:sorting` and
+  `application-spec:queries-specification-template`** were already gone from the tree (zero
+  hits anywhere), and the three stale forward-references (`application-spec:update-code`, the
+  wrong-infix `application-spec:application-service-updates-report-template`, the
+  `application-spec:notes/...` path fragment) were already cleaned — nothing to delete.
+- **All 22 application-spec consumer agents rewired** uniformly: frontmatter loads
+  `application-spec:patterns`, bodies Read `<patterns_dir>/<name>/index.md` with a
+  hard-fail-on-missing guard. The brief-mediated union loaders (`code-change-writer`,
+  `code-review-writer`) keep their dedupe logic over Reads; `code-brief-writer`'s role→patterns
+  table still emits `application-spec:<name>` tokens as data. Token vocabulary in
+  briefs/specs/citations unchanged; references to other plugins' skills
+  (`spec-core:naming-conventions`, `domain-spec:domain-exceptions`) untouched. The
+  `commands-updates-detector` frontmatter carried the unprefixed form
+  `application-updates-report-template` — rewired the same way.
+- Footprint: application-spec registered skills 23 → **11** (5 commands + umbrella +
+  5 dual-homed); agents unchanged at 29. application-spec `plugin.json` 0.70.0 → 0.71.0.
+
 ### 0.6 Residual gap demotion does not close
 
 Even after full demotion (~35 registered skills incl. umbrellas + 133 agents), the remaining

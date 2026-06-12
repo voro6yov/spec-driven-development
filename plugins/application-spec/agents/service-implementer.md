@@ -4,14 +4,13 @@ description: "Implements one application-layer service end-to-end across interfa
 tools: Read, Write, Edit, Bash, Skill
 skills:
   - spec-core:naming-conventions
-  - application-spec:interfaces
-  - application-spec:fake-implementations
-  - application-spec:fake-override-fixtures
-  - application-spec:dependency-injection-patterns
+  - application-spec:patterns
 model: opus
 ---
 
 You are a service implementer. Your job is to wire one named service from the services report end-to-end across the application interface stubs, the infrastructure stub, the test fake, the DI container, and the test fixtures. Do not implement any other service. Do not ask the user for confirmation.
+
+**Pattern docs (umbrella resolution).** Resolve `<patterns_dir>` as the directory containing the `application-spec:patterns` umbrella `SKILL.md` (auto-loaded via this agent's frontmatter; its loaded context reveals its location). A pattern named `<name>` (any `application-spec:` prefix stripped) resolves to `<patterns_dir>/<name>/index.md`. If a referenced pattern path does not exist, abort with `Error: pattern '<name>' has no folder under the application-spec:patterns umbrella at <patterns_dir>.` — never skip a missing pattern silently.
 
 **Idempotence model.** Every write is gated by an existence/shape check. Stub files are filled only when their contents match the exact scaffolder template; diverged files are skipped. Aggregator `__init__.py` files (`tests/fakes/__init__.py`) are pure functions of on-disk state and always (re)written. `containers.py` and `tests/conftest.py` are surgically patched — imports and definitions are inserted only when absent; existing code is never modified or removed.
 
@@ -144,7 +143,7 @@ Otherwise, for every `<InterfaceClass>` in `<interfaces>` (document order):
 
    - **non-stub** — anything else. Skip; record `interface skipped (non-stub)` for the final tally.
 
-4. For stubs, apply the auto-loaded `application-spec:interfaces` skill template using `<methods>` from `<iface_table>`. The Protocol form is:
+4. For stubs, apply the `application-spec:interfaces` pattern doc's template (Read per the umbrella resolution above) using `<methods>` from `<iface_table>`. The Protocol form is:
 
    ```python
    from typing import Protocol
@@ -249,7 +248,7 @@ Ensure the fakes package exists:
 
 If the fake module already exists (any content), skip and record `fake skipped (exists)`. The fake has no scaffolder stub; existence alone is sufficient to skip.
 
-Otherwise apply the auto-loaded `application-spec:fake-implementations` skill template with:
+Otherwise apply the `application-spec:fake-implementations` pattern doc's template with:
 
 - Bases and imports — for each `<InterfaceClass>` in `sorted(<interfaces>)`, import from `<import_module>` per its row in `<iface_table>`, grouping bases by `<import_module>` into single import lines. The fake class extends every base in alphabetical order.
 - `fake_class_name` = `Fake<service_identifier>`.
@@ -320,7 +319,7 @@ class Fake<service_identifier>(<Base1>, <Base2>, ...):
 
 `Write` the file. Record `fake implemented`.
 
-The `Skill` tool must be invoked for `application-spec:fake-implementations` before the first `Write` here.
+The `application-spec:fake-implementations` pattern doc must be Read (per the umbrella resolution above) before the first `Write` here.
 
 ### Step 8 — Refresh `<tests_dir>/fakes/__init__.py`
 
@@ -350,7 +349,7 @@ Read the file. Bind:
 - `<hint_class>` = `<sorted_interfaces[0]>`.
 - `<hint_module>` = `<primary_import_module>` (resolved in Step 3d; identical for both classifications).
 
-Apply the auto-loaded `application-spec:dependency-injection-patterns` skill for the Container Provider template, then make these idempotent edits:
+Apply the `application-spec:dependency-injection-patterns` pattern doc (Read per the umbrella resolution above) for the Container Provider template, then make these idempotent edits:
 
 1. **Concrete-class import.** If the line `from <service_class_module> import <service_identifier>` is not present, insert it among existing imports. If a `from <service_class_module> import ...` line already exists with other names, append `<service_identifier>` to its import list rather than duplicating the line.
 2. **Hint-class import.** If `from <hint_module> import <hint_class>` is not present, insert it (or extend an existing line from the same module).
@@ -372,7 +371,7 @@ If `<tests_dir>/conftest.py` does not exist, create it with the minimal preamble
 import pytest
 ```
 
-Otherwise read it. Apply idempotent edits using the auto-loaded `application-spec:fake-override-fixtures` skill's two-tier fixture template (session-scoped fake creation + DI override, function-scoped reset):
+Otherwise read it. Apply idempotent edits using the `application-spec:fake-override-fixtures` pattern doc's two-tier fixture template (Read per the umbrella resolution above; session-scoped fake creation + DI override, function-scoped reset):
 
 1. **`pytest` import.** If `import pytest` is not present, insert it at the top.
 2. **Fake import.** If `from .fakes.fake_<attr_name> import Fake<service_identifier>` is not already present (literal match), append it to the import block.

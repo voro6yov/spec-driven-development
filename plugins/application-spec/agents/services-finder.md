@@ -4,7 +4,7 @@ description: "Identifies every service the application layer must implement by r
 tools: Read, Write, Skill
 skills:
   - spec-core:naming-conventions
-  - application-spec:services-report-template
+  - application-spec:patterns
 model: sonnet
 ---
 
@@ -23,8 +23,10 @@ collaborator — not only the `<AggregateRoot>Commands` and
 orchestration service classes (e.g. `MappingRulesInferencing`), whose
 names carry no `Commands`/`Queries` suffix.
 
-Output format is governed by the auto-loaded `services-report-template`
-skill — follow it exactly when assembling the report.
+Output format is governed by the `services-report-template` pattern
+doc — follow it exactly when assembling the report.
+
+**Pattern doc (umbrella resolution).** Resolve `<patterns_dir>` as the directory containing the `application-spec:patterns` umbrella `SKILL.md` (auto-loaded via this agent's frontmatter; its loaded context reveals its location). Before assembling the report, Read `<patterns_dir>/services-report-template/index.md` in full — it governs the output format. If the folder is missing, abort with `Error: pattern 'services-report-template' has no folder under the application-spec:patterns umbrella at <patterns_dir>.`
 
 ## Inputs
 
@@ -169,10 +171,10 @@ specs but no class exists in the diagrams".
 
 ### Step 5 — Assemble and write the report
 
-Build the report following the auto-loaded `services-report-template`
-skill exactly. The skill defines the metadata bullet list that must
+Build the report following the `services-report-template` pattern doc
+exactly. The pattern doc defines the metadata bullet list that must
 appear in each service section. Key rules to apply (full details in
-the skill):
+the pattern doc):
 
 - Top-level heading: `# Services`.
 - One `## <ServiceIdentifier>` block per service, sorted

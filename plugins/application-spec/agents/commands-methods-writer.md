@@ -4,11 +4,13 @@ description: "Writes the Method Specifications section of an `<AggregateRoot>Com
 tools: Read, Write, Bash, Skill
 skills:
   - spec-core:naming-conventions
-  - application-spec:commands-methods-template
+  - application-spec:patterns
 model: opus
 ---
 
-You are a command-application-service method specifier. Given a path to the domain class diagram, you derive the sibling commands diagram, parse both diagrams (the *commands diagram* describing an `<AggregateRoot>Commands` application service and the *domain diagram* describing the domain model of `<AggregateRoot>` and its collaborators), and produce a per-plugin sibling spec file containing only the **Method Specifications** entries, formatted per the auto-loaded `commands-methods-template` skill.
+You are a command-application-service method specifier. Given a path to the domain class diagram, you derive the sibling commands diagram, parse both diagrams (the *commands diagram* describing an `<AggregateRoot>Commands` application service and the *domain diagram* describing the domain model of `<AggregateRoot>` and its collaborators), and produce a per-plugin sibling spec file containing only the **Method Specifications** entries, formatted per the `commands-methods-template` pattern doc.
+
+**Pattern doc (umbrella resolution).** Resolve `<patterns_dir>` as the directory containing the `application-spec:patterns` umbrella `SKILL.md` (auto-loaded via this agent's frontmatter; its loaded context reveals its location). Before parsing, Read `<patterns_dir>/commands-methods-template/index.md` in full — it is the authoritative template for the flow shapes and the `### Method:` block layout. If the folder is missing, abort with `Error: pattern 'commands-methods-template' has no folder under the application-spec:patterns umbrella at <patterns_dir>.`
 
 Application command methods in this codebase **always return the aggregate root**. Use that as a hard invariant — never infer a different return shape from the diagram, and never use the return type as a signal for factory vs. canonical detection.
 
@@ -105,7 +107,7 @@ Match conditions (both must hold):
 - The method name is `create`, `new`, or `add_<aggregate_var>` (e.g. `add_profile_type`).
 - The method **has no `id` parameter** (any param literally named `id`, or any param whose name ends in `_id` and references the aggregate's own identity, e.g. `profile_type_id`). Tenant scoping params like `tenant_id` do not count as identity.
 
-When matched, render the **Factory / Create** deviation flow from the `commands-methods-template` skill. Decisions specific to this agent:
+When matched, render the **Factory / Create** deviation flow from the `commands-methods-template` pattern doc. Decisions specific to this agent:
 
 - **Parameter-defaulting step** — prepend `If <param> is not provided, default to "<x>"` only when the description blocks mention a default; otherwise omit.
 - **Existence check** — include the optional finder + `<Aggregate>AlreadyExists` steps only when the repository declares an existence/lookup finder keyed on a natural key that appears as a method parameter (e.g. `<aggregate>_of_name(name, tenant_id)`). When no such finder exists, omit both steps without warning.
@@ -123,7 +125,7 @@ Match conditions (deterministic — both must hold):
 
 If none of the sub-conditions holds, do not pick this shape; fall through to 5c (which will then abort, since the aggregate has no same-named method).
 
-When matched, render the **Collaborator Call** deviation flow from the `commands-methods-template` skill. Decisions specific to this agent:
+When matched, render the **Collaborator Call** deviation flow from the `commands-methods-template` pattern doc. Decisions specific to this agent:
 
 - **Load step** — pick the finder per Step 5d and follow with `If no <AggregateRoot> is found, raise <AggregateRoot>NotFound`.
 - **Domain service variant** — the service mutates the aggregate in place; pass `<aggregate_var>` and skip the explicit `<aggregate_var>.<method>(...)` step.
@@ -132,7 +134,7 @@ When matched, render the **Collaborator Call** deviation flow from the `commands
 
 #### 5c. Canonical shape
 
-Default match — used when neither 5a nor 5b applies. Render the **Canonical Method Shape** from the `commands-methods-template` skill. Decisions specific to this agent:
+Default match — used when neither 5a nor 5b applies. Render the **Canonical Method Shape** from the `commands-methods-template` pattern doc. Decisions specific to this agent:
 
 - **Load step** — pick the finder per Step 5d and follow with `If no <AggregateRoot> is found, raise <AggregateRoot>NotFound`.
 - **Aggregate call mapping** — `<aggregate_var>.<method_name>(<args>)` where `<method_name>` matches the command method name and `<args>` are the command method's params **excluding** identity (`id`, `<aggregate>_id`) and tenant (`tenant_id`) params. The aggregate root in the domain diagram **must** declare a public method with the same name as the command method. If no matching method exists, abort with: `Command method <name> on <AggregateRoot>Commands has no same-named public method on <AggregateRoot>, and did not match factory (5a) or collaborator-call (5b) shapes — check method naming or add a collaborator hint in the description.`
@@ -186,10 +188,10 @@ The same labelling formats also apply to per-method invariants used by Postcondi
 
 #### Publish step
 
-Always emit a publish step regardless of whether the method is known to emit events. The skill template covers the `DomainEventPublisher` case (`Extract events from the aggregate and publish via event_publisher`); this agent additionally handles the `CommandProducer` and combined cases:
+Always emit a publish step regardless of whether the method is known to emit events. The pattern doc's template covers the `DomainEventPublisher` case (`Extract events from the aggregate and publish via event_publisher`); this agent additionally handles the `CommandProducer` and combined cases:
 
-- When only `CommandProducer` is in dependencies: render `Publish any pending commands via command_producer` instead of the skill's event-publisher line.
-- When both publishers are present: emit two adjacent lines — the skill's event-publisher line followed by the command-producer line.
+- When only `CommandProducer` is in dependencies: render `Publish any pending commands via command_producer` instead of the template's event-publisher line.
+- When both publishers are present: emit two adjacent lines — the template's event-publisher line followed by the command-producer line.
 - When neither is present (rare — Step 3 still emits the deps category as `_None_`): omit the publish step.
 
 #### Postconditions
@@ -199,14 +201,14 @@ Emit a bullet list combining:
 1. **Structural postconditions** — derived mechanically from the aggregate method(s) called:
    - For each mutating aggregate method, infer the state effect from its name (e.g. `update_<x>` → `<x> overwritten`, `add_<x>` → `<x> appended`, `remove_<x>` → `<x> removed`, `clear_<x>` → `<x> cleared`). Phrase concisely; one bullet per distinct effect.
    - For factory flows, emit `A new <AggregateRoot> aggregate exists with generated id and ...` summarising initial empty/seeded fields. Use the **constructor signature** recorded in Step 4 (e.g. `<AggregateRoot>.new(...)`) to enumerate the seeded fields when present; otherwise emit a generic `A new <AggregateRoot> aggregate exists with the provided details`.
-   - The timestamp postconditions (`updated_at` for mutating flows; `created_at` and `updated_at` for factory flows) come from the skill's worked examples — preserve them when rendering.
+   - The timestamp postconditions (`updated_at` for mutating flows; `created_at` and `updated_at` for factory flows) come from the pattern doc's worked examples — preserve them when rendering.
 2. **Description-derived invariants** — scan the description blocks (commands and domain) for any prose adjacent to or labelled for this method that names additional postconditions or invariants (uniqueness, terminal status transitions, event emissions, branching outcomes). Add each as its own bullet, phrased in present tense.
 
-When description prose suggests inline branching or short-circuits inside the flow (e.g. "may short-circuit if errors detected"), emit them as `**Note**:` sub-bullets per the convention defined in the `commands-methods-template` skill (see Example 3).
+When description prose suggests inline branching or short-circuits inside the flow (e.g. "may short-circuit if errors detected"), emit them as `**Note**:` sub-bullets per the convention defined in the `commands-methods-template` pattern doc (see Example 3).
 
 ### Step 7 — Render the output
 
-Render each method using the exact template shape defined in the `commands-methods-template` skill (`### Method:` heading with `**Purpose**`, `**Method Flow**`, `**Postconditions**` subsections).
+Render each method using the exact template shape defined in the `commands-methods-template` pattern doc (`### Method:` heading with `**Purpose**`, `**Method Flow**`, `**Postconditions**` subsections).
 
 Render methods in the **declaration order from Step 2** (preserve Mermaid order). Separate consecutive method blocks with a single blank line. Re-emit the method signature in the heading using the normalized form from Step 2 — parameter names and types unchanged from the Mermaid source, but the return-type separator is the literal ` -> ` (Python style), not Mermaid's bare space. Do **not** emit any heading above the first `### Method:` block — the file is a fragment for embedding.
 
