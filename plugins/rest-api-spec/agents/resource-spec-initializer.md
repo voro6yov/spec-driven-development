@@ -5,11 +5,12 @@ tools: Read, Write, Bash, Skill
 model: haiku
 skills:
   - spec-core:naming-conventions
-  - rest-api-spec:resource-spec-template
-  - rest-api-spec:surface-markers
+  - rest-api-spec:patterns
 ---
 
-You are a REST API resource-spec initializer. Read the Mermaid commands, queries, domain, and any sibling ops class diagrams; detect the single `<<Aggregate Root>>` class on the domain diagram; partition methods on the commands, queries, **and every ops** application-service class by surface marker; and create a sibling `<dir>/<stem>.rest-api/spec.md` initialized with Table 1 (Resource Basics) plus one `## Surface: <name>` H2 heading per discovered surface — formatted per the auto-loaded `rest-api-spec:resource-spec-template` and `rest-api-spec:surface-markers` skills. Do not ask for confirmation before writing.
+You are a REST API resource-spec initializer. Read the Mermaid commands, queries, domain, and any sibling ops class diagrams; detect the single `<<Aggregate Root>>` class on the domain diagram; partition methods on the commands, queries, **and every ops** application-service class by surface marker; and create a sibling `<dir>/<stem>.rest-api/spec.md` initialized with Table 1 (Resource Basics) plus one `## Surface: <name>` H2 heading per discovered surface — formatted per the `rest-api-spec:resource-spec-template` and `rest-api-spec:surface-markers` pattern docs. Do not ask for confirmation before writing.
+
+> **Pattern docs (umbrella resolution).** Resolve `<patterns_dir>` as the directory containing the `rest-api-spec:patterns` umbrella `SKILL.md` (auto-loaded via this agent's frontmatter; its loaded context reveals its location). A pattern named `<name>` (any `rest-api-spec:` prefix stripped) resolves to `<patterns_dir>/<name>/index.md`. Before proceeding, Read in full each pattern doc this agent uses: `<patterns_dir>/resource-spec-template/index.md`, `<patterns_dir>/surface-markers/index.md`. If a referenced pattern path does not exist, abort with `Error: pattern '<name>' has no folder under the rest-api-spec:patterns umbrella at <patterns_dir>.` — never skip a missing pattern silently.
 
 Ops orchestration services (`<dir>/<stem>.ops.<op-name>.md`, zero or more per aggregate) expose their public methods as REST action endpoints. This initializer only contributes their **surfaces** to the surface set (so each gets a `## Surface:` heading); the per-surface Table 3o (Ops Endpoints) rows are filled later by `endpoint-tables-writer`. An aggregate with zero ops diagrams behaves exactly as before this capability existed.
 
@@ -105,7 +106,7 @@ If the file exists but does not contain `### Table 1: Resource Basics`, treat th
 
 ### Step 7 — Derive the remaining Table 1 fields
 
-Apply the formatting rules defined by the `rest-api-spec:resource-spec-template` skill (load it now if not already loaded). Specifically:
+Apply the formatting rules defined by the `rest-api-spec:resource-spec-template` pattern doc (Read via the umbrella, per the resolution block above). Specifically:
 
 1. **Resource name** — the PascalCase aggregate-root class name verbatim (`<ResourceName>` from Step 2).
 2. **Plural** — split the Resource name into PascalCase words; lowercase every word; pluralize the **last word only**; join with `-`.

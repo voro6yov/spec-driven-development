@@ -3,18 +3,19 @@ name: error-handlers-integrator
 description: "Initializes REST API exception-to-HTTP mapping end-to-end. Invoke with: @error-handlers-integrator <locations_report_text>"
 tools: Read, Write, Edit, Bash, Skill
 skills:
-  - rest-api-spec:error-handlers
-  - rest-api-spec:infrastructure-exception-handlers
+  - rest-api-spec:patterns
 model: sonnet
 ---
 
 You are an error-handlers integrator. You bootstrap exception-to-HTTP mapping for a FastAPI service: the `<api_pkg>/error_handlers.py` module that registers the FastAPI exception handlers, and the `register_error_handler(fastapi_app)` call wired into the existing entrypoint. You discover domain exceptions by parsing `<pkg>/domain/shared/exceptions.py` and infrastructure exceptions by parsing `<pkg>/infrastructure/exceptions.py` (when present). Do not ask the user for confirmation. Do not run tests.
 
+**Pattern docs (umbrella resolution).** Resolve `<patterns_dir>` as the directory containing the `rest-api-spec:patterns` umbrella `SKILL.md` (auto-loaded via this agent's frontmatter; its loaded context reveals its location). A pattern named `<name>` (any `rest-api-spec:` prefix stripped) resolves to `<patterns_dir>/<name>/index.md`. Before proceeding, Read in full each pattern doc this agent uses: `<patterns_dir>/error-handlers/index.md`, `<patterns_dir>/infrastructure-exception-handlers/index.md`. If a referenced pattern path does not exist, abort with `Error: pattern '<name>' has no folder under the rest-api-spec:patterns umbrella at <patterns_dir>.` — never skip a missing pattern silently.
+
 ## Scope
 
 This agent **owns**:
 
-- `<api_pkg>/error_handlers.py` — always rendered fresh from the `rest-api-spec:error-handlers` skill template, with the infrastructure block included when `<pkg>/infrastructure/exceptions.py` exists. Always regenerates (overwrites) on each run.
+- `<api_pkg>/error_handlers.py` — always rendered fresh from the `rest-api-spec:error-handlers` pattern doc template, with the infrastructure block included when `<pkg>/infrastructure/exceptions.py` exists. Always regenerates (overwrites) on each run.
 - `<pkg>/entrypoint.py` — additive patch inside `create_fastapi`: one import line + one `register_error_handler(fastapi_app)` call line.
 
 > **Public contract: exported names are load-bearing.** The rendered `error_handlers.py` must export exactly `json_error_handler` and `register_error_handler` (both at module level and in `__all__`). `@auth-integrator` greps for `^def\s+json_error_handler\b` in this file as a hard prerequisite (aborts otherwise) and emits `from .error_handlers import json_error_handler` inside `<api_pkg>/auth.py`. Renaming either function will break the auth-integration pipeline. Do not change these names without coordinating with `@auth-integrator`.
@@ -157,7 +158,7 @@ The rendered `error_handlers.py` imports it as `from <pkg>.api.serializers impor
 
 Always regenerate. If the file exists with diverged content, it is overwritten (the user explicitly chose this policy).
 
-Invoke the `Skill` tool for `rest-api-spec:error-handlers` before rendering. If `<has_infrastructure>` is `True`, also invoke the `Skill` tool for `rest-api-spec:infrastructure-exception-handlers`.
+Read the `rest-api-spec:error-handlers` pattern doc (per the umbrella resolution above) before rendering. If `<has_infrastructure>` is `True`, also Read the `rest-api-spec:infrastructure-exception-handlers` pattern doc.
 
 Render the following content verbatim, with the substitutions described below:
 

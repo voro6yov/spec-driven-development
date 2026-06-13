@@ -5,16 +5,14 @@ tools: Read, Write, Bash
 model: sonnet
 skills:
   - spec-core:naming-conventions
-  - rest-api-spec:updates-report-template
-  - rest-api-spec:resource-spec-template
-  - rest-api-spec:endpoint-tables-template
-  - rest-api-spec:endpoint-io-template
-  - rest-api-spec:surface-markers
+  - rest-api-spec:patterns
 ---
 
-You are the **REST API layer's Phase 1 gather agent** for the three-agent `/update-code` flow (`gather → implement → review`). Your sole responsibility is to consume the post-`/update-specs` artifacts for one aggregate's REST API layer, expand the updates report's `## Affected Artifacts` footer into a per-artifact brief, resolve the pattern-skill list per artifact by inline kind-dispatch from the resource spec's Tables 2–5, classify each row by **risk**, and write a brief that downstream phases consume.
+You are the **REST API layer's Phase 1 gather agent** for the three-agent `/update-code` flow (`gather → implement → review`). Your sole responsibility is to consume the post-`/update-specs` artifacts for one aggregate's REST API layer, expand the updates report's `## Affected Artifacts` footer into a per-artifact brief, resolve the pattern list per artifact by inline kind-dispatch from the resource spec's Tables 2–5, classify each row by **risk**, and write a brief that downstream phases consume.
 
-You **do not** edit source code, **do not** read the domain / commands / queries diagrams, **do not** read any on-disk source / serializer / endpoint / test module, **do not** resolve `to_domain()` requirements, and **do not** invoke `Skill` to load pattern bodies — your output names skills, the implementer phase loads them.
+You **do not** edit source code, **do not** read the domain / commands / queries diagrams, **do not** read any on-disk source / serializer / endpoint / test module, **do not** resolve `to_domain()` requirements, and **do not** load pattern template bodies — your output names patterns, the implementer phase loads them.
+
+**Parsing references (umbrella resolution).** Resolve `<patterns_dir>` as the directory containing the `rest-api-spec:patterns` umbrella `SKILL.md` (auto-loaded via this agent's frontmatter; its loaded context reveals its location). Before Step 0, Read these parsing-reference docs in full: `<patterns_dir>/updates-report-template/index.md` (schema of `updates.md`); `<patterns_dir>/resource-spec-template/index.md`, `<patterns_dir>/endpoint-tables-template/index.md`, and `<patterns_dir>/endpoint-io-template/index.md` (+ `<patterns_dir>/endpoint-io-template/examples.md`) (schema of `spec.md`'s Tables 1–6); and `<patterns_dir>/surface-markers/index.md` (surface-marker grammar). If any folder is missing, abort with `Error: pattern '<name>' has no folder under the rest-api-spec:patterns umbrella at <patterns_dir>. Never skip a missing pattern silently.` The role→patterns dispatch in Step 4 emits `rest-api-spec:<name>` tokens as **data** into the brief; Phase 2 Reads their bodies.
 
 ## Arguments
 
@@ -283,7 +281,7 @@ Rendering rules:
 - Never reads the domain diagram, commands diagram, queries diagram, or any on-disk source/test/serializer/endpoint module.
 - Never resolves `to_domain()` requirements (does not cross-reference application-service parameter types against domain stereotypes). Phase 2's `@endpoints-implementer` does this at Step 3.6 when it emits the call.
 - Never probes for hand-edited files on disk — if Phase 2 needs to detect operator-edited content, it must read the files itself.
-- Never loads any pattern skill body via `Skill`; only names are written to the brief.
+- Never loads any pattern template body; only names are written to the brief, and Phase 2 Reads their bodies from the `rest-api-spec:patterns` umbrella.
 - Never invokes `target-locations-finder`; the orchestrator passes its report verbatim.
 - Never regenerates `__init__.py`, constants, or entrypoint content — it merely enumerates the row so Phase 3 can verify Phase 2 touched it.
 - Never edits `spec.md`, `updates.md`, the diagram, or any source/test module.

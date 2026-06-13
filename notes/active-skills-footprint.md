@@ -244,6 +244,54 @@ demotion** (the only wave so far with an empty dual-homed set):
 - Footprint: messaging-spec registered skills 20 → **6** (5 commands + umbrella; **no
   dual-homed**); agents unchanged at 17. messaging-spec `plugin.json` 0.42.0 → 0.43.0.
 
+**Wave 1, rest-api-spec (2026-06-13).** Same shape replicated — the **largest** reference set, and
+the only wave outside domain-spec exercising both a **multi-file reference** and a **dual-homed
+twin**:
+
+- **27 intra-plugin reference skills deleted** (deregistered): api-client-fixtures,
+  api-endpoint-test-rules, auth-middleware, command-action-endpoint, constants,
+  endpoint-io-template, endpoint-tables-template, endpoints, entrypoint, error-handlers,
+  file-upload-endpoint, infrastructure-exception-handlers, internal-router, literal-type-fields,
+  nested-resource-endpoints, nested-response-serializers, pagination-serializers,
+  polymorphic-response-serializers, query-params, request-serializers, resource-spec-template,
+  response-serializers, result-set-serializer, simple-command-response, static-response-serializer,
+  updates-report-template, version-router. Each `SKILL.md` was **moved** to
+  `skills/patterns/<name>/index.md`; the umbrella copies are now the **only** copy.
+  **`endpoint-io-template` is multi-file** — it carries an `examples.md` companion pulled in by a
+  relative markdown link; its **directory was moved intact** (SKILL.md → index.md, examples.md
+  alongside, link still resolves), never flattened. It is the only multi-file reference outside
+  domain-spec.
+- **1 cross-plugin-consumed ref kept registered** (dual-homed twin): `surface-markers` — cited by
+  application-spec as the single source of truth for surface-marker syntax (`queries-updates-detector`
+  prose "Defer to it when unsure" + the `application-updates-report-template` doc's canonical-order
+  citation), matching §2.3's foreign-count-1 prediction. The standalone
+  `rest-api-spec:surface-markers` skill stays authoritative; the umbrella copy
+  (`patterns/surface-markers/index.md`) is byte-identical and **copied** (not moved), marked ✦ in
+  the catalog; Wave 3 demotes it. An exact-token re-scan confirmed the set is exactly this one twin
+  — the other foreign rest-api-spec tokens are the `update-specs` / `generate-code` /
+  `init-rest-api` command skills (stay registered) and the agent names
+  (`target-locations-finder`, `code-brief-writer`, `code-change-writer`, `code-review-writer` —
+  fan-out edges, not skills).
+- **Bucket-E stale ref `rest-api-spec:container-wiring`** and the stale forward-reference
+  `rest-api-spec:update-code` were already gone from the tree (zero hits, no skill dirs) — nothing
+  to delete. There was no wrong-infix token and no `notes/...` path fragment to clean.
+- **All 18 rest-api-spec consumer agents rewired** uniformly: frontmatter loads
+  `rest-api-spec:patterns`, bodies Read `<patterns_dir>/<name>/index.md` (+ `examples.md` for
+  `endpoint-io-template`) with a hard-fail-on-missing guard. The brief-mediated dynamic loaders —
+  `code-change-writer` (Phase 2, seeds `loaded_patterns` with the four parsing-schema docs in
+  Step 0.2 then lazy-Reads each artifact's serializer/endpoint patterns) and `code-review-writer`
+  (Phase 3) — keep their per-run dedupe set over Reads; `code-brief-writer`'s kind-derived
+  role→patterns table still emits `rest-api-spec:<name>` tokens as data. This brief-mediated union
+  (`code-brief-writer` → `code-change-writer`) is the heaviest rewire site in the plugin — the
+  serializer/endpoint patterns (`literal-type-fields`, `polymorphic-response-serializers`,
+  `nested-response-serializers`, …) flow through the brief, not through `code-change-writer`
+  frontmatter. The loaders read `surface-markers`'s umbrella copy too (uniform — no
+  intra-vs-dual split). Token vocabulary in specs/briefs/prose citations unchanged; references to
+  other plugins' skills (`spec-core:naming-conventions`, `domain-spec:*`, `application-spec:*`)
+  untouched.
+- Footprint: rest-api-spec registered skills 33 → **7** (5 commands + umbrella + 1 dual-homed
+  twin); agents unchanged at 23. rest-api-spec `plugin.json` 0.60.0 → 0.61.0.
+
 ### 0.6 Residual gap demotion does not close
 
 Even after full demotion (~35 registered skills incl. umbrellas + 133 agents), the remaining
