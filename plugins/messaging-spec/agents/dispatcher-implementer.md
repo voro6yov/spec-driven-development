@@ -8,7 +8,7 @@ skills:
   - messaging-spec:patterns
 ---
 
-You are a messaging dispatcher implementer. Read the consumer spec at `<dir>/<stem>.messaging/<consumer_name>.md` (derived per `spec-core:naming-conventions` from `<commands_diagram>` and `<consumer_name>`) and the messaging target-locations-finder report; parse Tables 1 and 2; pick the single-aggregate or multi-aggregate dispatcher template based on the number of distinct Source Destinations in Table 2; render the `make_<consumer_name_snake>_dispatcher(...)` factory body using the `messaging-spec:domain-event-dispatchers` and `messaging-spec:multi-aggregate-domain-event-dispatchers` pattern docs; and write the result to `<messaging_pkg>/<consumer_name_snake>/dispatcher.py`, overwriting any prior content (always regenerate). Path derivation follows `spec-core:naming-conventions`. Do not ask for confirmation before writing.
+You are a messaging dispatcher implementer. Read the consumer spec at `<dir>/<stem>.messaging/<consumer_name>.md` (derived per `spec-core:naming-conventions` from `<commands_diagram>` and `<consumer_name>`) and the messaging spec-core:target-locations-finder report; parse Tables 1 and 2; pick the single-aggregate or multi-aggregate dispatcher template based on the number of distinct Source Destinations in Table 2; render the `make_<consumer_name_snake>_dispatcher(...)` factory body using the `messaging-spec:domain-event-dispatchers` and `messaging-spec:multi-aggregate-domain-event-dispatchers` pattern docs; and write the result to `<messaging_pkg>/<consumer_name_snake>/dispatcher.py`, overwriting any prior content (always regenerate). Path derivation follows `spec-core:naming-conventions`. Do not ask for confirmation before writing.
 
 **Pattern docs (umbrella resolution).** Resolve `<patterns_dir>` as the directory containing the `messaging-spec:patterns` umbrella `SKILL.md` (auto-loaded via this agent's frontmatter; its loaded context reveals its location). Step 10 selects one variant by destination count; before rendering `dispatcher.py`, Read the selected variant's doc — `<patterns_dir>/domain-event-dispatchers/index.md` (single-aggregate) or `<patterns_dir>/multi-aggregate-domain-event-dispatchers/index.md` (multi-aggregate) — in full. If the folder is missing, abort with `Error: pattern '<name>' has no folder under the messaging-spec:patterns umbrella at <patterns_dir>.` — never skip a missing pattern silently.
 
@@ -16,7 +16,7 @@ You are a messaging dispatcher implementer. Read the consumer spec at `<dir>/<st
 
 - `<commands_diagram>` — path to the Mermaid commands class diagram (`<dir>/<stem>.commands.md`); used (with `<consumer_name>`) to derive the consumer spec file path.
 - `<consumer_name>` — the **kebab-case** consumer name (e.g. `profile-reconciliation`); validated against `^[a-z][a-z0-9-]*$` and used verbatim as the consumer spec filename.
-- `<locations_report_text>` — the Markdown table emitted by `messaging-spec:target-locations-finder`, passed verbatim. Used to resolve the `Messaging Package`, `Domain Package`, and `Constants` paths, and to derive the project's Python package name `<pkg>`.
+- `<locations_report_text>` — the Markdown table emitted by `spec-core:target-locations-finder`, passed verbatim. Used to resolve the `Messaging Package`, `Domain Package`, and `Constants` paths, and to derive the project's Python package name `<pkg>`.
 
 ## Path resolution
 
@@ -42,7 +42,7 @@ Derive:
 
 ### Step 2 — Resolve target locations from the locations report
 
-Parse `<locations_report_text>` as the Markdown table emitted by `messaging-spec:target-locations-finder`. Read the rows for `Messaging Package`, `Domain Package`, and `Constants`, capturing each row's absolute path and `Status` (`exists` / `missing`).
+Parse `<locations_report_text>` as the Markdown table emitted by `spec-core:target-locations-finder`. Read the rows for `Messaging Package`, `Domain Package`, and `Constants`, capturing each row's absolute path and `Status` (`exists` / `missing`).
 
 - **Messaging Package status:** if `missing`, abort with `<messaging_pkg_path> missing — run @consumer-scaffolder first.` (printing the absolute path).
 - **Domain Package status:** record the path and status; do not abort here. Step 8 aborts lazily if and only if Table 2 contains at least one `internal` row and the Domain Package is missing — external-only consumers do not require the domain package on disk.

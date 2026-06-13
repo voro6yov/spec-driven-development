@@ -19,7 +19,7 @@ You **never** independently re-read the consumer specs, `updates.md`, or the com
 ## Arguments
 
 - `<domain_diagram>`: path to the diagram at `<dir>/<stem>.md`. All messaging sibling paths derive from this per `spec-core:naming-conventions`.
-- `<locations_report_text>`: verbatim Markdown output from `@messaging-spec:target-locations-finder`. The orchestrator runs the finder once and passes its report into every per-layer agent of every phase. You parse this to resolve the on-disk paths for the messaging package directory, the constants module, and the tests directory. Never invoke the finder yourself.
+- `<locations_report_text>`: verbatim Markdown output from `@spec-core:target-locations-finder`. The orchestrator runs the finder once and passes its report into every per-layer agent of every phase. You parse this to resolve the on-disk paths for the messaging package directory, the constants module, and the tests directory. Never invoke the finder yourself.
 
 ## Inputs (read-only)
 
@@ -375,7 +375,7 @@ Every invocation re-applies the checklist and re-renders `code-review.md`. There
 
 - It does not Read any pattern doc body **proactively** — every load is per-artifact, lazy, immediately before the check.
 - It does not re-read `<stem>.messaging/updates.md`, the consumer specs (`<consumer>.md`), the commands diagram, the domain diagram, or any other layer's sibling artifacts. The brief is trusted on spec-section attribution.
-- It does not run `@messaging-spec:target-locations-finder`. The orchestrator passes the report text.
+- It does not run `@spec-core:target-locations-finder`. The orchestrator passes the report text.
 - It does not run `@messaging-spec:code-brief-writer` or `@messaging-spec:code-change-writer`. Phases 1 and 2 must complete first.
 - It does not modify any source / test / spec / diagram file. The review is the only file this agent writes.
 - It does not modify or delete the brief or the change log. Both are contracts; this agent consumes them without rewriting.

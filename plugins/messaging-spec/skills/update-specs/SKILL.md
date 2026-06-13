@@ -319,7 +319,7 @@ Process the consumers in `affected` (the `aborted` ones are skipped — Step 3 a
 
 2. **Round 2 — `event-fields-writer` (Table 3 regen).** Emit one `Agent` call per affected consumer **in a single message** — `messaging-spec:event-fields-writer` with prompt `<commands_diagram> <C>`. It rebuilds Table 3 wholesale: the `Command Parameter` column from `<AggregateRoot>Commands.on_<event>` signatures in the commands diagram, the `external`-row `Event Field` values from the foreign `<<Domain Event>>` decls in the commands diagram, and the `internal`-row `Event Field` values by best-match against the current `<<Domain Event>>` attribute lists in the domain diagram — re-flagging low-confidence sub-blocks in italic prose. Wait for every call to complete.
 
-Neither writer needs a `target-locations-finder` report — that is a code-gen concern; the spec writers operate purely on the diagrams and the consumer-spec file.
+Neither writer needs a `spec-core:target-locations-finder` report — that is a code-gen concern; the spec writers operate purely on the diagrams and the consumer-spec file.
 
 If a writer aborts on a given consumer, record it (its consumer spec is left in whatever partial state the writer reached) and continue with the remaining consumers — the updater does not roll back already-processed consumers, and re-running `/messaging-spec:update-specs` after the operator reconciles the indicated diagram idempotently completes the update. Do **not** abort the whole skill for a per-consumer writer failure; surface it as a `WARNING:` line in Step 7.
 

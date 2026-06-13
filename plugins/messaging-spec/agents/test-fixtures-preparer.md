@@ -33,7 +33,7 @@ It **does**:
 
 1. `<commands_diagram>` — path to the Mermaid commands class diagram (`<dir>/<stem>.commands.md`); used (with `<consumer_name>`) to derive the consumer spec file path.
 2. `<consumer_name>` — the **kebab-case** consumer name (e.g. `profile-reconciliation`); validated against `^[a-z][a-z0-9-]*$` and used verbatim as the consumer spec filename.
-3. `<locations_report_text>` — Markdown table emitted by `messaging-spec:target-locations-finder`. Parse as text. Required rows:
+3. `<locations_report_text>` — Markdown table emitted by `spec-core:target-locations-finder`. Parse as text. Required rows:
    - `Tests` row → `<tests_dir>` (absolute path, expected to exist).
    - At least one of `Domain Package`, `Application Package`, `Messaging Package`, `Containers`, `Entrypoint`, or `Constants` (any non-Tests row) → used to derive `<pkg>`. Locate the **rightmost** occurrence of the literal segment `/src/` in the row's absolute path; `<pkg>` is the substring between that `/src/` and the next `/`. If multiple eligible rows disagree on `<pkg>`, abort with a malformed-report error.
 

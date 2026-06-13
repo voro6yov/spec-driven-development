@@ -26,7 +26,7 @@ If the command repository spec is missing the downstream agents abort with their
 
 ### Step 1 — Find target locations
 
-Invoke `persistence-spec:target-locations-finder` with an empty prompt. Wait for completion.
+Invoke `spec-core:target-locations-finder` with the prompt `persistence`. Wait for completion.
 
 Capture the agent's full Markdown table output verbatim as `<locations_report_text>`. This text is the locations argument passed to every downstream code-phase agent in Steps 2–4. Pass it verbatim — do not trim, summarize, or reformat it.
 

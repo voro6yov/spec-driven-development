@@ -45,7 +45,7 @@ These bindings are used by Step 6's report and as a sanity reference; downstream
 
 ### Step 2 — Find target locations
 
-Spawn `messaging-spec:target-locations-finder` (via the `Agent` tool) with an empty prompt. Wait for completion.
+Spawn `spec-core:target-locations-finder` (via the `Agent` tool) with the prompt `messaging`. Wait for completion.
 
 Capture the agent's full Markdown table output verbatim as `<locations_report_text>`. This text is the locations argument passed to the initializer in Step 3. Pass it verbatim — do not trim, summarize, or reformat it.
 

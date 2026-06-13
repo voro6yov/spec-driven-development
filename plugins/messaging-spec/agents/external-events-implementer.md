@@ -16,7 +16,7 @@ You are a messaging external-events implementer. Read the consumer spec's Table 
 
 - `<commands_diagram>` — path to the Mermaid commands class diagram (`<dir>/<stem>.commands.md`); used to derive both `<dir>` and the aggregate stem `<stem>`. Source of truth for **external** event class declarations and their typed attributes.
 - `<consumer_name>` — the **kebab-case** consumer name (e.g. `profile-reconciliation`). Drives the consumer spec filename verbatim and is cross-checked against Table 1 of the spec.
-- `<locations_report_text>` — the Markdown table emitted by `messaging-spec:target-locations-finder`, passed verbatim. Used to resolve the `Messaging Package` (target submodule directory) and `Domain Package` (type-import scan root) paths, and to derive the project's Python package name `<pkg>` for fully-qualified imports.
+- `<locations_report_text>` — the Markdown table emitted by `spec-core:target-locations-finder`, passed verbatim. Used to resolve the `Messaging Package` (target submodule directory) and `Domain Package` (type-import scan root) paths, and to derive the project's Python package name `<pkg>` for fully-qualified imports.
 
 ## Sibling and output paths
 
@@ -35,7 +35,7 @@ Derive `<consumer_name_snake>` = `<consumer_name>` with every `-` replaced by `_
 
 ### Step 2 — Resolve target locations from the locations report
 
-Parse `<locations_report_text>` as the Markdown table emitted by `messaging-spec:target-locations-finder`. Read the rows for `Messaging Package` and `Domain Package`, capturing each row's absolute path and `Status` (`exists` / `missing`).
+Parse `<locations_report_text>` as the Markdown table emitted by `spec-core:target-locations-finder`. Read the rows for `Messaging Package` and `Domain Package`, capturing each row's absolute path and `Status` (`exists` / `missing`).
 
 - **Messaging Package status:** if `missing`, abort with `<messaging_pkg_path> missing — run @consumer-scaffolder first.` (printing the absolute path).
 - **Domain Package status:** `missing` is acceptable — the type-import scan in Step 7 will short-circuit to "no domain", and every PascalCase token will fall through to the unresolved branch.

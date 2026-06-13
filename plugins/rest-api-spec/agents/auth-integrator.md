@@ -34,7 +34,7 @@ This agent does **not**:
 
 One positional argument:
 
-1. `<locations_report_text>` — the Markdown table emitted by `@target-locations-finder`. Parse as text; do not re-run the finder.
+1. `<locations_report_text>` — the Markdown table emitted by `@spec-core:target-locations-finder`. Parse as text; do not re-run the finder.
 
 If the argument is missing, abort with `Error: missing locations report argument.`
 

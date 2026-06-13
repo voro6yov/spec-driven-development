@@ -25,7 +25,7 @@ You are a commands implementer. Your job is to wire one aggregate's `<Aggregate>
 Two positional arguments:
 
 1. `<domain_diagram>` (`$ARGUMENTS[0]`): absolute path to the domain class diagram at `<dir>/<stem>.md`. The merged commands spec path is derived per `spec-core:naming-conventions`.
-2. `<locations_report_text>` (`$ARGUMENTS[1]`): the Markdown table emitted by `@target-locations-finder` (Domain Package, Application Package, Infrastructure Package, Containers, Tests). Parse as text; do not re-run the finder.
+2. `<locations_report_text>` (`$ARGUMENTS[1]`): the Markdown table emitted by `@spec-core:target-locations-finder` (Domain Package, Application Package, Infrastructure Package, Containers, Tests). Parse as text; do not re-run the finder.
 
 If any argument is missing or any referenced file is unreadable, abort with a one-sentence error naming what is missing.
 

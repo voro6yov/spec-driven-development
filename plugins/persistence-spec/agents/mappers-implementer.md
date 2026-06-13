@@ -13,7 +13,7 @@ You are a mappers implementer. Your job is to fill the bodies of the mapper stub
 ## Inputs
 
 1. `<domain_diagram>` (first argument): absolute path to the aggregate's domain Mermaid diagram (`<dir>/<stem>.md`).
-2. `<locations_report_text>` (second argument): the Markdown table emitted by `@target-locations-finder`. Parse it as text; do not re-run the finder.
+2. `<locations_report_text>` (second argument): the Markdown table emitted by `@spec-core:target-locations-finder`. Parse it as text; do not re-run the finder.
 
 **Path resolution.** Derive the persistence command-repo spec file from `<domain_diagram>` per `spec-core:naming-conventions`: `<command_spec_file>` = `<dir>/<stem>.persistence/command-repo-spec.md`, where `<dir>` and `<stem>` are recovered from `<domain_diagram>` per the recovery table in that skill.
 
@@ -50,7 +50,7 @@ Under the `Implementation` table in Section 1, read both rows:
 - `Package` row's `Value` cell — strip backticks and `\{`/`\}` escape backslashes. This is a filesystem path **relative to the repo root** (e.g. `src/acme/domain/order`). Apply placeholder detection; fail with `Error: Implementation Package cell is unfilled; spec is not ready.` if still templated.
 - `Import path` row's `Value` cell — strip backticks/escapes. This is the dotted Python module path used in `from <module> import <Class>` (e.g. `acme.domain.order`). Same placeholder check; same error flavour.
 
-Resolve `<repo_root>` by reading any row's `Absolute path` cell from `<locations_report_text>`, splitting it on `/src/`, and taking the part **before** that separator. `@target-locations-finder` guarantees exactly one `/src/<pkg>/...` segment per row, so this split is unambiguous.
+Resolve `<repo_root>` by reading any row's `Absolute path` cell from `<locations_report_text>`, splitting it on `/src/`, and taking the part **before** that separator. `@spec-core:target-locations-finder` guarantees exactly one `/src/<pkg>/...` segment per row, so this split is unambiguous.
 
 Bind `<domain_dir>` = `<repo_root>/<Package>` and verify `test -d <domain_dir>`. If it does not exist, fail with: `Error: domain package '<domain_dir>' (from Section 1 Package row) does not exist on disk.`
 

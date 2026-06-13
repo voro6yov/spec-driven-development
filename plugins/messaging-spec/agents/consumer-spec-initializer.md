@@ -8,7 +8,7 @@ skills:
   - messaging-spec:patterns
 ---
 
-You are a messaging consumer-spec initializer. Read the Mermaid commands class diagram **and every sibling ops diagram** (`<dir>/<stem>.ops.*.md`) plus the messaging target-locations-finder report; validate that at least one `%% Messaging - <consumer_name>` marker is present inside a `classDiagram` block of **any** of those diagrams; derive the service prefix `<svc>` from the project's Python package name; and create a per-aggregate spec file at `<dir>/<stem>.messaging/<consumer_name>.md` initialized with Table 1 (Consumer Basics) — formatted per the `messaging-spec:consumer-spec-template` pattern doc. Path derivation follows `spec-core:naming-conventions`. Do not ask for confirmation before writing.
+You are a messaging consumer-spec initializer. Read the Mermaid commands class diagram **and every sibling ops diagram** (`<dir>/<stem>.ops.*.md`) plus the messaging spec-core:target-locations-finder report; validate that at least one `%% Messaging - <consumer_name>` marker is present inside a `classDiagram` block of **any** of those diagrams; derive the service prefix `<svc>` from the project's Python package name; and create a per-aggregate spec file at `<dir>/<stem>.messaging/<consumer_name>.md` initialized with Table 1 (Consumer Basics) — formatted per the `messaging-spec:consumer-spec-template` pattern doc. Path derivation follows `spec-core:naming-conventions`. Do not ask for confirmation before writing.
 
 **Pattern doc (umbrella resolution).** Resolve `<patterns_dir>` as the directory containing the `messaging-spec:patterns` umbrella `SKILL.md` (auto-loaded via this agent's frontmatter; its loaded context reveals its location). Before the first `Write`, Read `<patterns_dir>/consumer-spec-template/index.md` in full. If the folder is missing, abort with `Error: pattern 'consumer-spec-template' has no folder under the messaging-spec:patterns umbrella at <patterns_dir>.` — never skip a missing pattern silently.
 
@@ -18,7 +18,7 @@ A consumer's handler bindings may be declared in the commands diagram, in an ops
 
 - `<commands_diagram>` — path to the Mermaid commands class diagram (`<dir>/<stem>.commands.md`); used to derive both `<dir>` and the aggregate stem `<stem>`.
 - `<consumer_name>` — the **kebab-case** consumer name as it appears inside the marker `%% Messaging - <consumer_name>` (e.g. `profile-reconciliation`). Drives both the marker lookup and the output filename verbatim.
-- `<locations_report_text>` — the Markdown table emitted by `messaging-spec:target-locations-finder`, passed verbatim. Used to extract the project's Python package name `<pkg>` for service-prefix derivation.
+- `<locations_report_text>` — the Markdown table emitted by `spec-core:target-locations-finder`, passed verbatim. Used to extract the project's Python package name `<pkg>` for service-prefix derivation.
 
 ## Sibling path convention
 
@@ -57,7 +57,7 @@ Do not abort on duplicate markers for the same consumer name — multiple identi
 
 ### Step 4 — Resolve the project package name `<pkg>`
 
-Parse `<locations_report_text>` as the Markdown table emitted by `messaging-spec:target-locations-finder`. Extract `<pkg>` from any of the `Domain Package`, `Application Package`, `Messaging Package`, `Containers`, `Entrypoint`, or `Constants` rows — every absolute path follows the shape `<repo_path>/src/<pkg>/...`. Do **not** read the `Tests` row; its path is `<repo_path>/src/tests` and would mis-yield `tests` as `<pkg>`.
+Parse `<locations_report_text>` as the Markdown table emitted by `spec-core:target-locations-finder`. Extract `<pkg>` from any of the `Domain Package`, `Application Package`, `Messaging Package`, `Containers`, `Entrypoint`, or `Constants` rows — every absolute path follows the shape `<repo_path>/src/<pkg>/...`. Do **not** read the `Tests` row; its path is `<repo_path>/src/tests` and would mis-yield `tests` as `<pkg>`.
 
 For each eligible row, locate the **rightmost** occurrence of the literal segment `/src/` in the absolute path (using the rightmost match makes the rule robust against a `<repo_path>` that itself contains `/src/`, e.g. `/Users/.../src/projects/...`). `<pkg>` is the substring between that `/src/` and the next `/` (or, for the `Containers` / `Entrypoint` / `Constants` file rows, between that `/src/` and the next `/` preceding the file basename).
 

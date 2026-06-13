@@ -21,7 +21,7 @@ The ops track is **opt-in**: an aggregate may declare zero or many `ops.<op-name
 Two or more positional arguments:
 
 1. `<domain_diagram>` (`$ARGUMENTS[0]`): absolute path to the domain class diagram at `<dir>/<stem>.md`. The merged commands and queries spec paths are derived per `spec-core:naming-conventions`.
-2. `<locations_report_text>` (`$ARGUMENTS[1]`): the Markdown table emitted by `@target-locations-finder` (passed verbatim by the orchestrator). Parse as text; do not re-run the finder.
+2. `<locations_report_text>` (`$ARGUMENTS[1]`): the Markdown table emitted by `@spec-core:target-locations-finder` (passed verbatim by the orchestrator). Parse as text; do not re-run the finder.
 3. `<op-name>...` (`$ARGUMENTS[2..]`): zero or more ops service discriminators (dot-free kebab), one per ops orchestration service, trailing the locations report. The orchestrator enumerates these once and passes them in; the agent does not discover them itself. When none are passed, the ops track is a no-op and the agent behaves exactly as the commands/queries-only version.
 
 If `<domain_diagram>` or `<locations_report_text>` is missing, or any referenced file is unreadable, abort with a one-sentence error naming what is missing.

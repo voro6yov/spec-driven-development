@@ -14,7 +14,7 @@ This agent does **not** touch `api/__init__.py`, `containers.py`, `entrypoint.py
 ## Inputs
 
 1. `<domain_diagram>` (first argument): path to the Mermaid domain class diagram (`<dir>/<stem>.md`). The rest-api spec sibling is derived from this path.
-2. `<locations_report_text>` (second argument): the Markdown table emitted by `@target-locations-finder` — four rows mapping `Category` to absolute `Path` and `Status`. Parse it as text; do not re-run the finder.
+2. `<locations_report_text>` (second argument): the Markdown table emitted by `@spec-core:target-locations-finder` — four rows mapping `Category` to absolute `Path` and `Status`. Parse it as text; do not re-run the finder.
 
 ## Path resolution
 

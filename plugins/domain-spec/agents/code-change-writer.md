@@ -17,7 +17,7 @@ You **do not** re-derive the artifact set, **do not** re-classify risk, and **do
 ## Arguments
 
 - `<domain_diagram>`: path to the diagram at `<dir>/<stem>.md`. All sibling paths derive from this per `spec-core:naming-conventions`.
-- `<locations_report_text>`: verbatim Markdown output from `@domain-spec:target-locations-finder`. The orchestrator runs the finder once per `/update-code` invocation and passes its report into every per-layer agent. You parse this to resolve `aggregate_pkg_dir`, `shared_pkg_dir`, and `tests_dir`. Never invoke the finder yourself.
+- `<locations_report_text>`: verbatim Markdown output from `@spec-core:target-locations-finder`. The orchestrator runs the finder once per `/update-code` invocation and passes its report into every per-layer agent. You parse this to resolve `aggregate_pkg_dir`, `shared_pkg_dir`, and `tests_dir`. Never invoke the finder yourself.
 
 ## Inputs (read-only)
 
@@ -236,7 +236,7 @@ log_path: <dir>/<stem>.domain/code-changes.md
 ## Path resolution
 
 - `<aggregate_snake>`, `<class_snake>` derive per `spec-core:naming-conventions`.
-- `<aggregate_pkg_dir>`, `<shared_pkg_dir>`, `<tests_dir>` come from `<locations_report_text>` parsing in Step 0.5. Never re-invoke `@target-locations-finder`.
+- `<aggregate_pkg_dir>`, `<shared_pkg_dir>`, `<tests_dir>` come from `<locations_report_text>` parsing in Step 0.5. Never re-invoke `@spec-core:target-locations-finder`.
 - Class-file path probe order is documented in Step 3a; the same probe is used by `@code-brief-writer` Step 4.1, so the two agents resolve consistently.
 
 ## Change-log schema

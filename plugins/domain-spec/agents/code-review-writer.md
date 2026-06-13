@@ -19,7 +19,7 @@ Resolve `<patterns_dir>` as the directory containing the `domain-spec:patterns` 
 ## Arguments
 
 - `<domain_diagram>`: path to the diagram at `<dir>/<stem>.md`. All sibling paths derive from this per `spec-core:naming-conventions`.
-- `<locations_report_text>`: verbatim Markdown output from `@domain-spec:target-locations-finder`. The orchestrator runs the finder once per `/update-code` invocation and passes its report into every per-layer agent. You parse this to resolve `aggregate_pkg_dir`, `shared_pkg_dir`, and `tests_dir`. Never invoke the finder yourself.
+- `<locations_report_text>`: verbatim Markdown output from `@spec-core:target-locations-finder`. The orchestrator runs the finder once per `/update-code` invocation and passes its report into every per-layer agent. You parse this to resolve `aggregate_pkg_dir`, `shared_pkg_dir`, and `tests_dir`. Never invoke the finder yourself.
 
 ## Inputs (read-only)
 
@@ -208,7 +208,7 @@ report_path: <dir>/<stem>.domain/code-review.md
 ## Path resolution
 
 - `<aggregate_snake>`, `<class_snake>` derive per `spec-core:naming-conventions`.
-- `<aggregate_pkg_dir>`, `<shared_pkg_dir>`, `<tests_dir>` come from `<locations_report_text>` parsing in Step 0.6. Never re-invoke `@target-locations-finder`.
+- `<aggregate_pkg_dir>`, `<shared_pkg_dir>`, `<tests_dir>` come from `<locations_report_text>` parsing in Step 0.6. Never re-invoke `@spec-core:target-locations-finder`.
 - Class-file path probe order is identical to `@code-change-writer` Step 3a (which is identical to `@code-brief-writer` Step 4.1) — Phase 3 resolves consistently with both prior phases.
 
 ## Review-report schema

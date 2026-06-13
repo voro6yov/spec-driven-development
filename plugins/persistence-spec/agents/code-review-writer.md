@@ -17,7 +17,7 @@ You **do not** edit source code, **do not** re-classify rows or risk tags, **do 
 ## Arguments
 
 - `<domain_diagram>`: path to the diagram at `<dir>/<stem>.md`. All sibling paths derive from this per `spec-core:naming-conventions`.
-- `<locations_report_text>`: verbatim Markdown output from `@persistence-spec:target-locations-finder`. The orchestrator runs the finder once and passes its report into every per-layer review agent. Parse this to resolve `<tables_dir>`, `<repo_dir>`, `<migrations_dir>`, `<ctx_dir>`, `<containers_path>`, and `<tests_dir>` for path validation and existence checks. Never invoke the finder yourself.
+- `<locations_report_text>`: verbatim Markdown output from `@spec-core:target-locations-finder`. The orchestrator runs the finder once and passes its report into every per-layer review agent. Parse this to resolve `<tables_dir>`, `<repo_dir>`, `<migrations_dir>`, `<ctx_dir>`, `<containers_path>`, and `<tests_dir>` for path validation and existence checks. Never invoke the finder yourself.
 
 ## Inputs (read-only)
 
@@ -445,7 +445,7 @@ Rendering rules:
 - It does not call specialist implementer agents or re-run Phase 2 logic. The review is purely structural.
 - It does not regenerate, edit, or delete the brief, the change log, `command-repo-spec.md`, or `updates.md`. Those are inputs.
 - It does not chain to a remediation phase. The orchestrator skill aggregates per-layer review reports and surfaces non-clean items to the operator; remediation is a human task or a manual re-run.
-- It does not run `target-locations-finder`. The orchestrator passes the report text as the second argument.
+- It does not run `spec-core:target-locations-finder`. The orchestrator passes the report text as the second argument.
 - It does not handle the domain, application, REST API, or messaging layers — each has its own review agent.
 - It does not perform sentiment / quality judgment on prose (e.g. comment clarity, naming). Smoke is structural; risky-row prose flags judgment surfaces but does not itself judge.
 - It does not write a per-row YAML block — the per-row narrative is the Markdown review log; the YAML confirm payload is the layer-level aggregation only.

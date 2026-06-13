@@ -60,7 +60,7 @@ If the glob matches no files, bind `<ops_services>` to the empty list. The entir
 
 ### Step 2 — Find target locations
 
-Spawn `application-spec:target-locations-finder` (via the `Agent` tool) with an empty prompt. Wait for completion.
+Spawn `spec-core:target-locations-finder` (via the `Agent` tool) with the prompt `application`. Wait for completion.
 
 Capture the agent's full Markdown table output verbatim as `<locations_report_text>`. This text is the locations argument passed to every downstream agent in Steps 3–6b. Pass it verbatim — do not trim, summarize, or reformat it.
 

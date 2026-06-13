@@ -84,13 +84,13 @@ Otherwise proceed to Step 4. Note `<query_signal>` for Step 7.5 — when `true`,
 
 ### Step 4 — Find target locations (parallel)
 
-Spawn one `target-locations-finder` per active layer. **Send all invocations in a single message** so they run in parallel:
+Spawn one `spec-core:target-locations-finder` per active layer, passing the layer name as the first prompt token. **Send all invocations in a single message** so they run in parallel:
 
-- `@domain-spec:target-locations-finder $DIAGRAM` — the domain finder takes the diagram.
-- `@persistence-spec:target-locations-finder` — no arg; auto-discovers from cwd.
-- `@application-spec:target-locations-finder` — no arg.
-- `@rest-api-spec:target-locations-finder` — no arg.
-- `@messaging-spec:target-locations-finder` — no arg.
+- `@spec-core:target-locations-finder domain $DIAGRAM` — the domain layer also takes the diagram.
+- `@spec-core:target-locations-finder persistence` — layer name only; auto-discovers from cwd.
+- `@spec-core:target-locations-finder application` — layer name only.
+- `@spec-core:target-locations-finder rest-api` — layer name only.
+- `@spec-core:target-locations-finder messaging` — layer name only.
 
 Skip the finder for any inactive layer.
 

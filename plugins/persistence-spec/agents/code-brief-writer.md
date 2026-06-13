@@ -17,7 +17,7 @@ You **do not** edit source code, **do not** read YAML changeSet bodies or reposi
 ## Arguments
 
 - `<domain_diagram>`: path to the diagram at `<dir>/<stem>.md`. All sibling paths derive from this per `spec-core:naming-conventions`.
-- `<locations_report_text>`: verbatim Markdown output from `@persistence-spec:target-locations-finder`. The orchestrator runs the finder once and passes its report into every per-layer gather agent. You parse this to resolve the on-disk paths for tables, mappers, the repository directory, migrations, the context-integration package, containers, and tests. Never invoke the finder yourself.
+- `<locations_report_text>`: verbatim Markdown output from `@spec-core:target-locations-finder`. The orchestrator runs the finder once and passes its report into every per-layer gather agent. You parse this to resolve the on-disk paths for tables, mappers, the repository directory, migrations, the context-integration package, containers, and tests. Never invoke the finder yourself.
 
 ## Inputs (read-only)
 
@@ -317,7 +317,7 @@ Rendering rules:
 - It does not parse mapper / repository method bodies, table column literals, or migration column definitions. Variant drift detection is import-line / class-shape only.
 - It does not touch `containers.py` — that side-effect is noted on `uow-integrate` and `query-context-integrate` rows but never emitted as a standalone artifact row.
 - It does not regenerate `master.yaml` registration order — it emits the row so Phase 2 can delegate to `@migrations-scaffolder`.
-- It does not run `target-locations-finder`. The orchestrator passes the report text as the second argument.
+- It does not run `spec-core:target-locations-finder`. The orchestrator passes the report text as the second argument.
 - It does not edit `command-repo-spec.md`, `updates.md`, the diagram, or any source/test module.
 - It does not chain to Phase 2 or Phase 3. The orchestrator skill aggregates per-layer briefs and spawns the next phase.
 - It does not handle the domain, application, REST API, or messaging layers — each has its own gather agent.

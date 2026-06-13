@@ -362,7 +362,7 @@ Tracks Table 6 deltas, per surface, per endpoint — the parameter→source rows
 
 ## `## Affected Artifacts` computation
 
-The footer is a flat dispatch table. The code updater walks it top-to-bottom and resolves each path against the `target-locations-finder` report it runs first. Compute as follows:
+The footer is a flat dispatch table. The code updater walks it top-to-bottom and resolves each path against the `spec-core:target-locations-finder` report it runs first. Compute as follows:
 
 Resolve `<A>` = snake-case singular of the resource's `**Resource name**` (Table 1) for use in the per-aggregate sub-path.
 
@@ -405,12 +405,12 @@ The `Action` column is a closed set: `add`, `modify`, `remove`. No other values 
 
 ### Path conventions and placeholder substitution
 
-- `api/...` paths are relative to the API package root (`<api_pkg>/`); `tests/...` and `<pkg>/...` paths are relative to the project root. The code updater resolves both against the `target-locations-finder` report.
+- `api/...` paths are relative to the API package root (`<api_pkg>/`); `tests/...` and `<pkg>/...` paths are relative to the project root. The code updater resolves both against the `spec-core:target-locations-finder` report.
 - `<surface>` — the surface name verbatim (e.g. `v1`, `internal`).
 - `<operation>` — the operation/method name of the changed endpoint (the `(operation)` from the `**Endpoint:**` line, or the matching Table 2/3 row).
 - `<plural>` — Table 1's Plural value (e.g. `files`).
 - `<resource>` — the snake_case form of Table 1's Resource name (e.g. `File` → `file`, `InventoryItem` → `inventory_item`).
-- `<pkg>` / `<api_pkg>` are left symbolic — they appear only in commands/queries-axis rows (Endpoint Inventory / Resource Basics), and the code updater fills them from `target-locations-finder`.
+- `<pkg>` / `<api_pkg>` are left symbolic — they appear only in commands/queries-axis rows (Endpoint Inventory / Resource Basics), and the code updater fills them from `spec-core:target-locations-finder`.
 
 ---
 

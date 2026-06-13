@@ -18,7 +18,7 @@ You are an application files scaffolder. Your job is to create the per-aggregate
 ## Inputs
 
 1. `<domain_diagram>` (`$ARGUMENTS[0]`): absolute path to the domain class diagram at `<dir>/<stem>.md`. Both merged spec files are derived from this path per `spec-core:naming-conventions`.
-2. `<locations_report_text>` (`$ARGUMENTS[1]`): the Markdown table emitted by `@target-locations-finder` — four rows mapping `Category` to absolute `Path` and `Status`. Parse it as text; do not re-run the finder.
+2. `<locations_report_text>` (`$ARGUMENTS[1]`): the Markdown table emitted by `@spec-core:target-locations-finder` — four rows mapping `Category` to absolute `Path` and `Status`. Parse it as text; do not re-run the finder.
 
 ## Path resolution
 

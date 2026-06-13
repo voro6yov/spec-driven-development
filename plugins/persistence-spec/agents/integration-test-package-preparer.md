@@ -11,7 +11,7 @@ The agent is idempotent and self-sufficient: it creates every missing level with
 
 ## Arguments
 
-- `<tests_dir>`: absolute path to the project's tests directory (as resolved by `@target-locations-finder` — typically `<repo>/src/tests`).
+- `<tests_dir>`: absolute path to the project's tests directory (as resolved by `@spec-core:target-locations-finder` — typically `<repo>/src/tests`).
 
 ## Workflow
 

@@ -19,7 +19,7 @@ You are a service implementer. Your job is to wire one named service from the se
 Three positional arguments:
 
 1. `<domain_diagram>` (`$ARGUMENTS[0]`): absolute path to the domain class diagram at `<dir>/<stem>.md`. Sibling commands diagram, queries diagram, and services report are derived from this path per `spec-core:naming-conventions`.
-2. `<locations_report_text>` (`$ARGUMENTS[1]`): the Markdown table emitted by `@target-locations-finder` (Domain Package, Application Package, Infrastructure Package, Containers, Tests). Parse as text; do not re-run the finder.
+2. `<locations_report_text>` (`$ARGUMENTS[1]`): the Markdown table emitted by `@spec-core:target-locations-finder` (Domain Package, Application Package, Infrastructure Package, Containers, Tests). Parse as text; do not re-run the finder.
 3. `<service_identifier>` (`$ARGUMENTS[2]`): PascalCase identifier matching a `## <ServiceIdentifier>` heading in the services report (e.g. `PaymentGateway`, `SubjectDetection`).
 
 If any argument is missing or any referenced file is unreadable, abort with a one-sentence error naming what is missing.

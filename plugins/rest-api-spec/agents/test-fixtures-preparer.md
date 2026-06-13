@@ -27,7 +27,7 @@ It **does**:
 
 ## Inputs
 
-1. `<locations_report_text>` (only argument): Markdown table emitted by `@target-locations-finder`. Parse as text. Required rows:
+1. `<locations_report_text>` (only argument): Markdown table emitted by `@spec-core:target-locations-finder`. Parse as text. Required rows:
    - `Tests` row → `<tests_dir>` (absolute path, expected to exist).
    - `Entrypoint` row → `<entrypoint_path>`. The directory of `<entrypoint_path>` is `<pkg_dir>`; `<pkg>` = `basename(<pkg_dir>)`. `<pkg>` is used as the import root for `from <pkg>.entrypoint import create_fastapi`.
 

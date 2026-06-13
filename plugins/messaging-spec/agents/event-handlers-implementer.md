@@ -18,7 +18,7 @@ The handler's target application service may be a `<AggregateRoot>Commands` clas
 
 - `<commands_diagram>` — path to the Mermaid commands class diagram (`<dir>/<stem>.commands.md`); used (with `<consumer_name>`) to derive the consumer spec file path.
 - `<consumer_name>` — the **kebab-case** consumer name (e.g. `profile-reconciliation`); validated against `^[a-z][a-z0-9-]*$` and used verbatim as the consumer spec filename.
-- `<locations_report_text>` — the Markdown table emitted by `messaging-spec:target-locations-finder`, passed verbatim. Used to resolve the `Messaging Package` (target submodule directory) path and to derive the project's Python package name `<pkg>` for fully-qualified imports.
+- `<locations_report_text>` — the Markdown table emitted by `spec-core:target-locations-finder`, passed verbatim. Used to resolve the `Messaging Package` (target submodule directory) path and to derive the project's Python package name `<pkg>` for fully-qualified imports.
 
 ## Path resolution
 
@@ -41,7 +41,7 @@ Derive `<consumer_name_snake>` = `<consumer_name_kebab>` with every `-` replaced
 
 ### Step 2 — Resolve target locations from the locations report
 
-Parse `<locations_report_text>` as the Markdown table emitted by `messaging-spec:target-locations-finder`. Read the row for `Messaging Package`, capturing its absolute path and `Status` (`exists` / `missing`).
+Parse `<locations_report_text>` as the Markdown table emitted by `spec-core:target-locations-finder`. Read the row for `Messaging Package`, capturing its absolute path and `Status` (`exists` / `missing`).
 
 - **Messaging Package status:** if `missing`, abort with `<messaging_pkg_path> missing — run @consumer-scaffolder first.` (printing the absolute path).
 

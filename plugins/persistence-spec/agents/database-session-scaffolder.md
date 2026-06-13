@@ -9,7 +9,7 @@ You are a database-session scaffolder. Your job is to install the database_sessi
 
 ## Inputs
 
-1. `<locations_report_text>` (first and only argument): the Markdown table emitted by `@target-locations-finder` — eight rows mapping `Category` to absolute `Path` and `Status`. Parse it as text; do not re-run the finder.
+1. `<locations_report_text>` (first and only argument): the Markdown table emitted by `@spec-core:target-locations-finder` — eight rows mapping `Category` to absolute `Path` and `Status`. Parse it as text; do not re-run the finder.
 
 This agent does **not** take a spec file. It does not need the aggregate name or table list.
 

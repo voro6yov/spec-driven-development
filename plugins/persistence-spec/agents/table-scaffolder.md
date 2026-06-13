@@ -1,6 +1,6 @@
 ---
 name: table-scaffolder
-description: "Scaffolds the per-aggregate table modules and the surrounding `__init__.py` aggregators from a command-repo-spec file and a target-locations-finder report. Invoke with: @table-scaffolder <domain_diagram> <locations_report_text>"
+description: "Scaffolds the per-aggregate table modules and the surrounding `__init__.py` aggregators from a command-repo-spec file and a spec-core:target-locations-finder report. Invoke with: @table-scaffolder <domain_diagram> <locations_report_text>"
 tools: Read, Write, Bash, Skill
 skills:
   - spec-core:naming-conventions
@@ -17,7 +17,7 @@ You are a table modules scaffolder. Your job is to create the `tables/<aggregate
 ## Inputs
 
 1. `<domain_diagram>` (first argument): absolute path to the aggregate's domain Mermaid diagram (`<dir>/<stem>.md`).
-2. `<locations_report_text>` (second argument): the Markdown table emitted by `@target-locations-finder`. Parse it as text; do not re-run the finder.
+2. `<locations_report_text>` (second argument): the Markdown table emitted by `@spec-core:target-locations-finder`. Parse it as text; do not re-run the finder.
 
 **Path resolution.** Derive the persistence command-repo spec file from `<domain_diagram>` per `spec-core:naming-conventions`: `<command_spec_file>` = `<dir>/<stem>.persistence/command-repo-spec.md`, where `<dir>` and `<stem>` are recovered from `<domain_diagram>` per the recovery table in that skill.
 
@@ -30,7 +30,7 @@ From `<locations_report_text>`, extract the absolute `Path` value for the `Table
 Bind `<tables_dir>` = that path. Verify it exists with `test -d <tables_dir>`. If it does not, fail with:
 
 ```
-Error: Tables directory '<tables_dir>' does not exist; re-run @target-locations-finder or fix the report before scaffolding.
+Error: Tables directory '<tables_dir>' does not exist; re-run @spec-core:target-locations-finder or fix the report before scaffolding.
 ```
 
 ### Step 2 — Parse the spec

@@ -17,7 +17,7 @@ You **load pattern doc bodies dynamically** — for every artifact whose `Patter
 ## Arguments
 
 - `<domain_diagram>`: path to the diagram at `<dir>/<stem>.md`. All messaging sibling paths derive from this per `spec-core:naming-conventions`.
-- `<locations_report_text>`: verbatim Markdown output from `@messaging-spec:target-locations-finder`. The orchestrator runs the finder once and passes its report into every per-layer agent of every phase. You parse this to resolve the on-disk paths for the messaging package directory, the constants module, the entrypoint module, the messaging aggregator, and the tests directory. Never invoke the finder yourself.
+- `<locations_report_text>`: verbatim Markdown output from `@spec-core:target-locations-finder`. The orchestrator runs the finder once and passes its report into every per-layer agent of every phase. You parse this to resolve the on-disk paths for the messaging package directory, the constants module, the entrypoint module, the messaging aggregator, and the tests directory. Never invoke the finder yourself.
 
 ## Inputs (read-only)
 
@@ -330,7 +330,7 @@ If the brief itself changed (re-run of `@code-brief-writer` after a spec edit), 
 ## What this agent deliberately does not do
 
 - It does not Read any pattern doc body **proactively** (beyond the two parsing references) — every pattern load is per-artifact, lazy, immediately before the edit.
-- It does not run `@messaging-spec:target-locations-finder`. The orchestrator passes the report text.
+- It does not run `@spec-core:target-locations-finder`. The orchestrator passes the report text.
 - It does not run `@messaging-spec:code-brief-writer`. The orchestrator runs Phase 1 first; this agent reads the resulting brief.
 - It does not bootstrap missing consumer submodules. If a brief row's `handlers.py` or `events.py` is missing on disk, the row fails with a directive to run `/messaging-spec:generate-code <consumer>` first.
 - It does not remove orphan event classes, dispatcher bindings, aggregator exports, or constants. The sweep is add-only.

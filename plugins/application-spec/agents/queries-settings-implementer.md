@@ -13,7 +13,7 @@ You are a queries-settings implementer. Your job is to fill in every `<aggregate
 
 ## Inputs
 
-1. `<locations_report_text>` (only argument): the Markdown table emitted by `@target-locations-finder` — four rows mapping `Category` to absolute `Path` and `Status`. Parse it as text; do not re-run the finder.
+1. `<locations_report_text>` (only argument): the Markdown table emitted by `@spec-core:target-locations-finder` — four rows mapping `Category` to absolute `Path` and `Status`. Parse it as text; do not re-run the finder.
 
 ## Workflow
 

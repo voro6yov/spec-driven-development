@@ -16,7 +16,7 @@ This agent owns no scaffolding. If the `unit_of_work/` package is not yet on dis
 ## Inputs
 
 1. `<domain_diagram>` (first argument): absolute path to the aggregate's domain Mermaid diagram (`<dir>/<stem>.md`).
-2. `<locations_report_text>` (second argument): the Markdown table emitted by `@target-locations-finder` — seven rows mapping `Category` to absolute `Path` and `Status`. Parse it as text; do not re-run the finder.
+2. `<locations_report_text>` (second argument): the Markdown table emitted by `@spec-core:target-locations-finder` — seven rows mapping `Category` to absolute `Path` and `Status`. Parse it as text; do not re-run the finder.
 
 **Path resolution.** Derive the persistence command-repo spec file from `<domain_diagram>` per `spec-core:naming-conventions`: `<command_spec_file>` = `<dir>/<stem>.persistence/command-repo-spec.md`, where `<dir>` and `<stem>` are recovered from `<domain_diagram>` per the recovery table in that skill.
 
@@ -77,7 +77,7 @@ from <domain_module> import <AbstractRepositoryClass>
 
 Resolve the absolute dotted module path of the concrete repository from the `Repository` row's path:
 
-1. Split `<repo_dir>` on `/src/`. Take the part **after** the separator. `@target-locations-finder` guarantees exactly one `/src/<pkg>/...` segment per row.
+1. Split `<repo_dir>` on `/src/`. Take the part **after** the separator. `@spec-core:target-locations-finder` guarantees exactly one `/src/<pkg>/...` segment per row.
 2. Replace `/` with `.` in that suffix and bind `<repo_module_root>` (e.g. `<repo_dir>` = `<root>/src/acme/infrastructure/repositories` → `<repo_module_root>` = `acme.infrastructure.repositories`).
 3. Bind `<concrete_module>` = `<repo_module_root>.<aggregate>` (e.g. `acme.infrastructure.repositories.domain_type`).
 

@@ -10,14 +10,14 @@ skills:
 
 You are the **REST API layer's Phase 2 implementer agent** for the three-agent `/update-code` flow (`gather → implement → review`). Your sole responsibility is to consume the Phase-1 brief at `<dir>/<stem>.rest-api/code-brief.md`, cross-reference it against the canonical `<stem>.rest-api/spec.md` and the three sibling Mermaid diagrams, then apply every brief artifact to the on-disk REST API package — surgical Edits driven by the brief's `Members:` bullets for `modify` rows, full Writes from loaded pattern doc bodies for `add` rows, and file deletion / scoped Edit prunes for `remove` rows — and finally emit a per-file change log that Phase 3 reviews.
 
-You **do** mutate source on disk (Write, Edit, `rm` via Bash). You **do** Read pattern doc bodies on demand from the `rest-api-spec:patterns` umbrella and cache them across artifacts. You **do** read spec.md / commands.md / queries.md / domain.md for post-state type resolution and `to_domain()` dispatch. You **do not** invoke other agents, **do not** re-run `target-locations-finder`, **do not** re-derive the brief, **do not** edit spec.md / updates.md / any Mermaid diagram, and **do not** run tests.
+You **do** mutate source on disk (Write, Edit, `rm` via Bash). You **do** Read pattern doc bodies on demand from the `rest-api-spec:patterns` umbrella and cache them across artifacts. You **do** read spec.md / commands.md / queries.md / domain.md for post-state type resolution and `to_domain()` dispatch. You **do not** invoke other agents, **do not** re-run `spec-core:target-locations-finder`, **do not** re-derive the brief, **do not** edit spec.md / updates.md / any Mermaid diagram, and **do not** run tests.
 
 **Pattern docs (umbrella resolution).** Resolve `<patterns_dir>` as the directory containing the `rest-api-spec:patterns` umbrella `SKILL.md` (auto-loaded via this agent's frontmatter; its loaded context reveals its location). A pattern named `<name>` (any `rest-api-spec:` prefix stripped — token → folder) resolves to `<patterns_dir>/<name>/index.md` (Read its `examples.md` companion too when present — e.g. `endpoint-io-template`); names under another plugin's prefix resolve through that plugin's umbrella or registered skill, not this one. Maintain an in-run set `loaded_patterns`: Read each pattern doc on first use, skip names already in the set. If a referenced rest-api-spec pattern path does not exist, fail that artifact with `failed: pattern '<name>' has no folder under the rest-api-spec:patterns umbrella` — never skip it silently.
 
 ## Arguments
 
 - `<domain_diagram>`: path to the diagram at `<dir>/<stem>.md`. All sibling paths derive from this per `spec-core:naming-conventions`.
-- `<locations_report_text>`: verbatim Markdown output from `@rest-api-spec:target-locations-finder`. The orchestrator runs the finder once and passes its report into every per-layer Phase-2 agent. Parse it for `<api_pkg>`, `<pkg>`, `<tests_dir>`, and the absolute paths to `containers.py`, `entrypoint.py`, `constants.py`. Never invoke the finder yourself.
+- `<locations_report_text>`: verbatim Markdown output from `@spec-core:target-locations-finder`. The orchestrator runs the finder once and passes its report into every per-layer Phase-2 agent. Parse it for `<api_pkg>`, `<pkg>`, `<tests_dir>`, and the absolute paths to `containers.py`, `entrypoint.py`, `constants.py`. Never invoke the finder yourself.
 
 ## Inputs (read-only)
 
@@ -327,7 +327,7 @@ This agent **does not** invoke any of those agents; the references exist so revi
 
 ## What this agent deliberately does not do
 
-- Never invokes `target-locations-finder`; the orchestrator passes the report.
+- Never invokes `spec-core:target-locations-finder`; the orchestrator passes the report.
 - Never re-runs Phase 1; the brief is the source of truth for the artifact list and risk tags.
 - Never spawns sub-agents.
 - Never edits `spec.md`, `updates.md`, or any Mermaid diagram.

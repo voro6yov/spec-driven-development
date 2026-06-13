@@ -31,7 +31,7 @@ It **does**:
 ## Inputs
 
 1. `<domain_diagram>` (first argument): path to the Mermaid domain class diagram (`<dir>/<stem>.md`). The rest-api spec sibling and the ops diagrams are derived from this path.
-2. `<locations_report_text>` (second argument): Markdown table emitted by `@target-locations-finder`. The `API Package` row supplies `<api_pkg>`; the `Containers` path supplies `<pkg>` (the directory under `src/` containing `containers.py`).
+2. `<locations_report_text>` (second argument): Markdown table emitted by `@spec-core:target-locations-finder`. The `API Package` row supplies `<api_pkg>`; the `Containers` path supplies `<pkg>` (the directory under `src/` containing `containers.py`).
 
 ## Path resolution
 

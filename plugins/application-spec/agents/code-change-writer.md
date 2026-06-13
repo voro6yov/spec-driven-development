@@ -17,7 +17,7 @@ You **do not** plan, **do not** review your own work, **do not** mutate the brie
 ## Arguments
 
 - `<domain_diagram>`: path to the diagram at `<dir>/<stem>.md`. All sibling paths derive from this per `spec-core:naming-conventions`.
-- `<locations_report_text>`: verbatim Markdown output from `@application-spec:target-locations-finder`. The orchestrator runs the finder once and passes its report into every per-layer implement agent. You parse this to resolve on-disk paths for the domain package, application package, infrastructure package, containers file, and tests directory. Never invoke the finder yourself.
+- `<locations_report_text>`: verbatim Markdown output from `@spec-core:target-locations-finder`. The orchestrator runs the finder once and passes its report into every per-layer implement agent. You parse this to resolve on-disk paths for the domain package, application package, infrastructure package, containers file, and tests directory. Never invoke the finder yourself.
 
 ## Inputs (read-only — except as noted)
 

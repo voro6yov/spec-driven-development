@@ -5,7 +5,7 @@ argument-hint: <domain_diagram>
 allowed-tools: Read, Bash, Agent
 ---
 
-You are a DDD implementation orchestrator. Implement the aggregate described in `$ARGUMENTS` (a Mermaid domain class diagram file). All target locations are resolved from the current repo's `src/<pkg>/` layout via the `domain-spec:target-locations-finder` agent — no other arguments are needed.
+You are a DDD implementation orchestrator. Implement the aggregate described in `$ARGUMENTS` (a Mermaid domain class diagram file). All target locations are resolved from the current repo's `src/<pkg>/` layout via the `spec-core:target-locations-finder` agent — no other arguments are needed.
 
 ## Spec-input layout
 
@@ -15,7 +15,7 @@ This orchestrator chains agents (`scaffold-builder`, `aggregate-fixtures-writer`
 
 ### Step 1 — Find target locations
 
-Invoke `domain-spec:target-locations-finder` with prompt `$ARGUMENTS`. Wait for completion.
+Invoke `spec-core:target-locations-finder` with prompt `domain $ARGUMENTS` (the `domain` layer token followed by the diagram path). Wait for completion.
 
 Capture the agent's full Markdown table output verbatim. Parse the `Absolute path` cell of each row and bind:
 

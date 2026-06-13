@@ -32,7 +32,7 @@ It **does**:
 ## Inputs
 
 1. `<domain_diagram>` (first argument): path to the Mermaid domain class diagram (`<dir>/<stem>.md`). The rest-api spec sibling is derived from this path and used only to enumerate **this aggregate's** surfaces (Table 1 → Surfaces row); per-surface aggregator content is driven by disk scan, not by the spec.
-2. `<locations_report_text>` (second argument): Markdown table emitted by `@target-locations-finder`. Parse as text. The `API Package` row supplies `<api_pkg>`. The `Containers` row's path supplies `<pkg>` (the directory immediately under `src/` containing `containers.py`) and the parent directory `<pkg_dir>` where `constants.py` and `entrypoint.py` live (sibling of `containers.py`).
+2. `<locations_report_text>` (second argument): Markdown table emitted by `@spec-core:target-locations-finder`. Parse as text. The `API Package` row supplies `<api_pkg>`. The `Containers` row's path supplies `<pkg>` (the directory immediately under `src/` containing `containers.py`) and the parent directory `<pkg_dir>` where `constants.py` and `entrypoint.py` live (sibling of `containers.py`).
 
 ## Path resolution
 

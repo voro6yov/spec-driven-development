@@ -17,7 +17,7 @@ You **do not** edit source code, **do not** read handler function bodies, and **
 ## Arguments
 
 - `<domain_diagram>`: path to the diagram at `<dir>/<stem>.md`. All messaging sibling paths derive from this per `spec-core:naming-conventions`.
-- `<locations_report_text>`: verbatim Markdown output from `@messaging-spec:target-locations-finder`. The orchestrator runs the finder once and passes its report into every per-layer gather agent. You parse this to resolve the on-disk paths for the messaging package directory and the tests directory. Never invoke the finder yourself.
+- `<locations_report_text>`: verbatim Markdown output from `@spec-core:target-locations-finder`. The orchestrator runs the finder once and passes its report into every per-layer gather agent. You parse this to resolve the on-disk paths for the messaging package directory and the tests directory. Never invoke the finder yourself.
 
 ## Inputs (read-only)
 
@@ -256,7 +256,7 @@ Rendering rules:
 
 - It does not edit any source / test / spec / diagram file.
 - It does not load any pattern doc body. Pattern *names* go into the brief; bodies are loaded by Phase 2 (which Reads them from the `messaging-spec:patterns` umbrella).
-- It does not run `target-locations-finder`. The orchestrator passes the report text.
+- It does not run `spec-core:target-locations-finder`. The orchestrator passes the report text.
 - It does not regenerate `Table 2` / `Table 3` of any consumer spec; the report is authoritative on what changed.
 - It does not open `handlers.py` / `events.py` / `dispatcher.py` / `containers.py` / `entrypoint.py` / `__main__.py` / any test module. Per-handler surgery is Phase 2's job.
 - It does not re-derive `## Affected Artifacts` from `## Consumer Changes`; it trusts the footer table.

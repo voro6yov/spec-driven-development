@@ -101,7 +101,7 @@ and stop. Do not create the file. Do not proceed to any further step.
 
 ### Step 4 — Resolve target locations
 
-Invoke `application-spec:target-locations-finder` with no prompt. Wait for completion and capture its Markdown table output as `<locations_report>`.
+Invoke `spec-core:target-locations-finder` with the prompt `application`. Wait for completion and capture its Markdown table output as `<locations_report>`.
 
 If the agent reports any error, surface it as a single `ERROR: ...` line and stop. Do not print the agent's success confirmation lines.
 

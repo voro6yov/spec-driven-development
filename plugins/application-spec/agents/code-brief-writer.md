@@ -17,7 +17,7 @@ You **do not** edit source code, **do not** read application service modules, in
 ## Arguments
 
 - `<domain_diagram>`: path to the diagram at `<dir>/<stem>.md`. All sibling paths derive from this per `spec-core:naming-conventions`.
-- `<locations_report_text>`: verbatim Markdown output from `@application-spec:target-locations-finder`. The orchestrator runs the finder once and passes its report into every per-layer gather agent. You parse this to resolve the on-disk paths for the domain package, application package, infrastructure package, containers file, and tests directory. Never invoke the finder yourself.
+- `<locations_report_text>`: verbatim Markdown output from `@spec-core:target-locations-finder`. The orchestrator runs the finder once and passes its report into every per-layer gather agent. You parse this to resolve the on-disk paths for the domain package, application package, infrastructure package, containers file, and tests directory. Never invoke the finder yourself.
 
 ## Inputs (read-only)
 

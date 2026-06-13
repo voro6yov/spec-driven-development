@@ -17,7 +17,7 @@ You **do not** re-classify rows, **do not** re-tag risk, **do not** delegate to 
 ## Arguments
 
 - `<domain_diagram>`: path to the diagram at `<dir>/<stem>.md`. All sibling paths derive from this per `spec-core:naming-conventions`.
-- `<locations_report_text>`: verbatim Markdown output from `@persistence-spec:target-locations-finder`. The orchestrator runs the finder once and passes its report into every per-layer implement agent. You parse this to resolve the on-disk paths for tables, mappers, the repository directory, migrations, the context-integration package, containers, and tests. Never invoke the finder yourself.
+- `<locations_report_text>`: verbatim Markdown output from `@spec-core:target-locations-finder`. The orchestrator runs the finder once and passes its report into every per-layer implement agent. You parse this to resolve the on-disk paths for tables, mappers, the repository directory, migrations, the context-integration package, containers, and tests. Never invoke the finder yourself.
 
 ## Inputs (read-only)
 
@@ -395,7 +395,7 @@ Rendering rules:
 - It does not regenerate `master.yaml` from a disk scan. It appends only the newly listed IDs from `updates.md → ## Summary → ### Appended`.
 - It does not synthesize migrations for unsupported multi-tenant flips. It applies the brief's table edits and emits a warning instead.
 - It does not remove stale tests for removed repository methods. It appends a note flagging that manual cleanup may be required.
-- It does not run `target-locations-finder`. The orchestrator passes the report text as the second argument.
+- It does not run `spec-core:target-locations-finder`. The orchestrator passes the report text as the second argument.
 - It does not chain to Phase 3. The orchestrator skill aggregates per-layer change logs and spawns the review phase.
 - It does not handle the domain, application, REST API, or messaging layers — each has its own implement agent.
 

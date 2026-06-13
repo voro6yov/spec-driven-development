@@ -13,7 +13,7 @@ You are a query-repository implementer. Your job is to fill the body of the quer
 ## Inputs
 
 1. `<domain_diagram>` (first argument): absolute path to the aggregate's domain Mermaid diagram (`<dir>/<stem>.md`).
-2. `<locations_report_text>` (second argument): the Markdown table emitted by `@target-locations-finder`. Parse it as text; do not re-run the finder.
+2. `<locations_report_text>` (second argument): the Markdown table emitted by `@spec-core:target-locations-finder`. Parse it as text; do not re-run the finder.
 
 **Path resolution.** Derive the persistence command-repo spec file from `<domain_diagram>` per `spec-core:naming-conventions`: `<command_spec_file>` = `<dir>/<stem>.persistence/command-repo-spec.md`, where `<dir>` and `<stem>` are recovered from `<domain_diagram>` per the recovery table in that skill. The command spec is used for the aggregate name, multi-tenancy flag, domain package/import path, Section 3 PK identification, and the optional `### Scalar Keys` sub-section.
 

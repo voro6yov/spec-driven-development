@@ -22,7 +22,7 @@ The agent assumes `tests/integration/conftest.py` already exists (created by `@i
 ## Arguments
 
 - `<domain_diagram>` (first argument): absolute path to the aggregate's domain Mermaid diagram (`<dir>/<stem>.md`).
-- `<tests_dir>` (second argument): absolute path to the project's tests directory (as resolved by `@target-locations-finder`); must contain `integration/conftest.py`.
+- `<tests_dir>` (second argument): absolute path to the project's tests directory (as resolved by `@spec-core:target-locations-finder`); must contain `integration/conftest.py`.
 
 **Path resolution.** Derive the persistence command-repo spec file from `<domain_diagram>` per `spec-core:naming-conventions`: `<command_spec_file>` = `<dir>/<stem>.persistence/command-repo-spec.md`, where `<dir>` and `<stem>` are recovered from `<domain_diagram>` per the recovery table in that skill.
 

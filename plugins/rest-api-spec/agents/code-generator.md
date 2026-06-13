@@ -30,7 +30,7 @@ If the resource input spec is missing the downstream agents abort with their own
 
 ### Step 1 — Find target locations
 
-Spawn `rest-api-spec:target-locations-finder` (via the `Agent` tool) with an empty prompt. Wait for completion.
+Spawn `spec-core:target-locations-finder` (via the `Agent` tool) with the prompt `rest-api`. Wait for completion.
 
 Capture the agent's full Markdown table output verbatim as `<locations_report_text>`. This text is the locations argument passed to every downstream agent in Steps 2–7. Pass it verbatim — do not trim, summarize, or reformat it.
 

@@ -23,7 +23,7 @@ You **do not** read the persistence updates report, **do not** read `code-brief.
 ## Arguments
 
 - `<domain_diagram>`: path to the diagram at `<dir>/<stem>.md`. All sibling paths derive from this per `spec-core:naming-conventions`.
-- `<locations_report_text>`: verbatim Markdown output from `@persistence-spec:target-locations-finder`. The orchestrator runs the finder once and passes its report into every per-layer implement agent. You parse this to resolve the `Repository` row's absolute path (the directory holding `<aggregate>/sql_alchemy_query_<aggregate>_repository.py`). Never invoke the finder yourself.
+- `<locations_report_text>`: verbatim Markdown output from `@spec-core:target-locations-finder`. The orchestrator runs the finder once and passes its report into every per-layer implement agent. You parse this to resolve the `Repository` row's absolute path (the directory holding `<aggregate>/sql_alchemy_query_<aggregate>_repository.py`). Never invoke the finder yourself.
 
 ## Inputs (read-only)
 
@@ -305,7 +305,7 @@ All structured signal lives inside the YAML block; no free-text addendum follows
 - It does not change the **shape** of methods it doesn't own. It appends a concrete override for a newly-added ABC method (mirroring an existing sibling's projection + DTO constructor) and deletes the override for a removed one, but it does not re-project existing methods, alter return types, or wholesale-regenerate the module — full regen from the ABC is owned by `@query-repository-implementer`. When an added finder's return shape is unrecognized, it emits a shape-correct stub with a `# TODO` rather than guessing.
 - It does not parse the `<Filtering>` TypedDict, the `<Sorting>` enum, or `Pagination`. The conditional default-filter check uses `filtering.get("<col>") is None`, which is shape-agnostic — it works for any `<Filtering>` that may or may not declare `<col>` as a key.
 - It does not introduce new controlled phrasings beyond the two listed in Step 1's recognition table. Extending the vocabulary is a documented future change; add a row, an Add-template, and a Remove-template per phrasing.
-- It does not invoke any other agent (no `@target-locations-finder`, no `@query-repository-implementer`). The orchestrator chain owns sequencing.
+- It does not invoke any other agent (no `@spec-core:target-locations-finder`, no `@query-repository-implementer`). The orchestrator chain owns sequencing.
 - It does not run tests or formatters. Behavioral verification is the operator's responsibility.
 - It does not roll back partial writes. Edited files stay edited; per-patch-unit failures are surfaced via the change log.
 - It does not handle stereotype changes, repository-class lifecycle changes, or aggregate-root changes — those would already have hard-failed upstream in `/persistence-spec:update-specs`.

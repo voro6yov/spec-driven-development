@@ -9,7 +9,7 @@ You are a test package preparer. Ensure `<tests_dir>` exists as a Python package
 
 ## Arguments
 
-- `<tests_dir>`: absolute path to the target `tests/` directory (e.g. `/path/to/my_project/src/tests`). The caller — typically `domain-spec:generate-code` — resolves this from the `Tests` row of the `domain-spec:target-locations-finder` report so the agent never has to infer the canonical tests location.
+- `<tests_dir>`: absolute path to the target `tests/` directory (e.g. `/path/to/my_project/src/tests`). The caller — typically `domain-spec:generate-code` — resolves this from the `Tests` row of the `spec-core:target-locations-finder` report so the agent never has to infer the canonical tests location.
 
 ## Preconditions (Path hygiene rules 1 and 4 of `spec-core:naming-conventions`)
 
@@ -18,7 +18,7 @@ Before touching the filesystem:
 1. **Absolute path** — `<tests_dir>` must be absolute (must start with `/`). If it does not, abort with:
 
    ```
-   Error: <tests_dir> must be an absolute path. Got: '<value>'. The caller should pass the absolute path from the 'Tests' row of the target-locations-finder report.
+   Error: <tests_dir> must be an absolute path. Got: '<value>'. The caller should pass the absolute path from the 'Tests' row of the spec-core:target-locations-finder report.
    ```
 
 2. **Parent exists** — the parent directory of `<tests_dir>` must already exist. Check with:

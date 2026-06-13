@@ -25,7 +25,7 @@ You are an ops implementer. Your job is to wire one aggregate's free-form orches
 Three positional arguments:
 
 1. `<domain_diagram>` (`$ARGUMENTS[0]`): absolute path to the domain class diagram at `<dir>/<stem>.md`. The merged ops spec path is derived per `spec-core:naming-conventions`.
-2. `<locations_report_text>` (`$ARGUMENTS[1]`): the Markdown table emitted by `@target-locations-finder` (Domain Package, Application Package, Infrastructure Package, Containers, Tests). Parse as text; do not re-run the finder.
+2. `<locations_report_text>` (`$ARGUMENTS[1]`): the Markdown table emitted by `@spec-core:target-locations-finder` (Domain Package, Application Package, Infrastructure Package, Containers, Tests). Parse as text; do not re-run the finder.
 3. `<op-name>` (`$ARGUMENTS[2]`): the kebab-case service discriminator (must satisfy the aggregate-stem regex per `spec-core:naming-conventions`), matching the `<op-name>` segment of the `<stem>.ops.<op-name>.md` diagram. The contract is `<op-name>` == kebab-case of the service class name.
 
 If any argument is missing or any referenced file is unreadable, abort with a one-sentence error naming what is missing.

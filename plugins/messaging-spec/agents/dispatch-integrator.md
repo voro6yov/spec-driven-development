@@ -16,7 +16,7 @@ This agent owns no scaffolding. If any of the three target files is missing, the
 ## Arguments
 
 - `<consumer_name>` — the **kebab-case** consumer name (e.g. `profile-reconciliation`). Validated against the regex `^[a-z][a-z0-9-]*$`. Drives the snake_case form used in every patch (factory name, provider name, runner name, click command name).
-- `<locations_report_text>` — the Markdown table emitted by `messaging-spec:target-locations-finder`, passed verbatim. The agent reads the `Containers`, `Entrypoint`, and `Messaging Package` rows; the `__main__.py` path is derived as a sibling of the `Entrypoint` row.
+- `<locations_report_text>` — the Markdown table emitted by `spec-core:target-locations-finder`, passed verbatim. The agent reads the `Containers`, `Entrypoint`, and `Messaging Package` rows; the `__main__.py` path is derived as a sibling of the `Entrypoint` row.
 
 ## Output paths
 
@@ -43,7 +43,7 @@ Derive (used throughout the rest of the workflow):
 
 ### Step 2 — Resolve target paths from the locations report
 
-Parse `<locations_report_text>` as the Markdown table emitted by `messaging-spec:target-locations-finder`. Capture absolute paths and `Status` (`exists` / `missing`) from these rows:
+Parse `<locations_report_text>` as the Markdown table emitted by `spec-core:target-locations-finder`. Capture absolute paths and `Status` (`exists` / `missing`) from these rows:
 
 - `Containers` → `<containers_path>` + `<containers_status>`.
 - `Entrypoint` → `<entrypoint_path>` + `<entrypoint_status>`.

@@ -17,7 +17,7 @@ You **do not** edit source code, **do not** read the domain / commands / queries
 ## Arguments
 
 - `<domain_diagram>`: path to the diagram at `<dir>/<stem>.md`. All sibling paths derive from this per `spec-core:naming-conventions`.
-- `<locations_report_text>`: verbatim Markdown output from `@rest-api-spec:target-locations-finder`. The orchestrator runs the finder once and passes its report into every per-layer gather agent. Parse it for `<api_pkg>` (from the `API Package` row) and `<pkg>` (strip the `<repo_path>/src/` prefix and `/containers.py` suffix from the `Containers` row). Never invoke the finder yourself.
+- `<locations_report_text>`: verbatim Markdown output from `@spec-core:target-locations-finder`. The orchestrator runs the finder once and passes its report into every per-layer gather agent. Parse it for `<api_pkg>` (from the `API Package` row) and `<pkg>` (strip the `<repo_path>/src/` prefix and `/containers.py` suffix from the `Containers` row). Never invoke the finder yourself.
 
 ## Inputs (read-only)
 
@@ -282,7 +282,7 @@ Rendering rules:
 - Never resolves `to_domain()` requirements (does not cross-reference application-service parameter types against domain stereotypes). Phase 2's `@endpoints-implementer` does this at Step 3.6 when it emits the call.
 - Never probes for hand-edited files on disk — if Phase 2 needs to detect operator-edited content, it must read the files itself.
 - Never loads any pattern template body; only names are written to the brief, and Phase 2 Reads their bodies from the `rest-api-spec:patterns` umbrella.
-- Never invokes `target-locations-finder`; the orchestrator passes its report verbatim.
+- Never invokes `spec-core:target-locations-finder`; the orchestrator passes its report verbatim.
 - Never regenerates `__init__.py`, constants, or entrypoint content — it merely enumerates the row so Phase 3 can verify Phase 2 touched it.
 - Never edits `spec.md`, `updates.md`, the diagram, or any source/test module.
 - Never handles the domain, persistence, application, or messaging layers — each has its own gather agent.

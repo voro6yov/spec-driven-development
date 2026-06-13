@@ -301,6 +301,42 @@ end-state needs demotion **plus** description trimming (`/trim-descriptions` +
 `skillListingBudgetFraction` for marketplace users. "Fewer entries" and "fits in 1% of context"
 are different finish lines; plan for both.
 
+### 0.7 First Option-D consolidation executed (2026-06-14) — target-locations-finder → spec-core
+
+Ahead of the gated STEP-4 sequence (§5), the **lowest-risk** Option-D group from §2.5 (the five
+per-layer `target-locations-finder`s, "5 → 1, saved 4") was consolidated, because it carries
+**none** of Option D's risks: it is a deterministic haiku path-resolver (no quality dilution),
+and the orchestrator runs it **once per pipeline and passes the table down as
+`<locations_report_text>`** (no parallel fan-out to serialize) — the lone multi-call site,
+`domain-spec:update-code`, stays five parallel calls of the one agent. The motive is as much
+**anti-drift** as footprint: the five copies had a byte-identical skeleton (repo/package
+resolution + existence check + report shape) and had **already** drifted (persistence's copy said
+"seven fixed paths" over an eight-row table).
+
+- **New agent `spec-core:target-locations-finder`** (spec-core's first agent; created
+  `plugins/spec-core/agents/`). Interface `<layer> [<domain_diagram>]`, `layer ∈
+  {domain, application, persistence, rest-api, messaging}`. Shared Step 1/3/4; a per-layer Step-2
+  path table emitting **exactly** that layer's original row set; the `domain` branch additionally
+  consumes the diagram and does the kebab→snake aggregate-package derivation (frontmatter loads
+  `spec-core:naming-conventions`). The persistence "seven/eight" inconsistency was fixed in passing.
+- **Deleted** the 5 per-plugin finder agents.
+- **Rewired** the ~16 load-bearing spawn sites (5 `code-generator`s + `messaging:specs-generator`
+  + the `generate-code`/`generate-specs`/`init-*` skills + `domain-spec:update-code`'s 5-way
+  fan-out) to pass the layer token (and the diagram for `domain`). The ~50 consumer provenance
+  citations (`<locations_report_text>` "verbatim output from `@…target-locations-finder`") were
+  re-pointed to `spec-core:` by a two-pass perl rename — 0 dangling `<plugin>-spec:` tokens remain,
+  129 qualified mentions, the only bare uses are the new agent's own `name:` + self-refs.
+- **Footprint:** total agents 133 → **129** (−4). Cross-plugin **agent invocation** (not file-path
+  reads) is the mechanism, so this is **not** subject to §0.2's `CLAUDE_PLUGIN_ROOT`
+  unaddressability — it works exactly like the existing cascade fan-out. Deepens the
+  already-universal spec-core hard dependency (§CLAUDE.md caveat) but adds no new *kind* of coupling.
+- **Versions:** spec-core 0.2.0→0.3.0 (+agent); domain 0.52.0→0.53.0, application 0.71.0→0.72.0,
+  persistence 0.68.0→0.69.0, rest-api 0.61.0→0.62.0, messaging 0.43.0→0.44.0 (each −agent).
+  CLAUDE.md's "spec-core ships exactly one skill" paragraph updated to record the shared agent.
+- **Caveat unchanged:** this removes **agent** entries, not **skill** entries — it does nothing for
+  the documented, ~10×-over skill-listing budget. The remaining ~38 Option-D savings (§2.5) stay
+  measurement-gated per STEP 4.
+
 ---
 
 ## 1. What changed vs the original note

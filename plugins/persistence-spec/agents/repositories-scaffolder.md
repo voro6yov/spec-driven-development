@@ -19,7 +19,7 @@ This agent owns the repository modules only. Mapper modules and `mappers/__init_
 ## Inputs
 
 1. `<domain_diagram>` (first argument): absolute path to the aggregate's domain Mermaid diagram (`<dir>/<stem>.md`).
-2. `<locations_report_text>` (second argument): the Markdown table emitted by `@target-locations-finder` — seven rows mapping `Category` to absolute `Path` and `Status`. Parse it as text; do not re-run the finder.
+2. `<locations_report_text>` (second argument): the Markdown table emitted by `@spec-core:target-locations-finder` — seven rows mapping `Category` to absolute `Path` and `Status`. Parse it as text; do not re-run the finder.
 
 **Path resolution.** Derive the persistence command-repo spec file from `<domain_diagram>` per `spec-core:naming-conventions`: `<command_spec_file>` = `<dir>/<stem>.persistence/command-repo-spec.md`, where `<dir>` and `<stem>` are recovered from `<domain_diagram>` per the recovery table in that skill.
 
@@ -32,7 +32,7 @@ From `<locations_report_text>`, extract the absolute `Path` value for the `Repos
 Verify `<repo_dir>` exists with `test -d <repo_dir>`. If it does not, fail with:
 
 ```
-Error: Repository directory '<repo_dir>' does not exist; re-run @target-locations-finder or fix the report before scaffolding.
+Error: Repository directory '<repo_dir>' does not exist; re-run @spec-core:target-locations-finder or fix the report before scaffolding.
 ```
 
 ### Step 2 — Parse the spec
