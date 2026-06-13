@@ -16,7 +16,7 @@ file:
 
 - the pattern document is always `<pattern-name>/index.md`;
 - companions, when present, sit in the same folder. Relative links inside `index.md` resolve
-  within that folder. (No application-spec pattern currently ships a companion.)
+  within that folder. (Only `domain-exceptions` ships a companion — `template.md`.)
 
 A pattern name that has no matching folder is an **error** — report it loudly; never skip it
 silently.
@@ -31,6 +31,7 @@ silently.
 | commands-dependencies-template | [commands-dependencies-template/](commands-dependencies-template/) | — | — |
 | commands-methods-template | [commands-methods-template/](commands-methods-template/) | — | — |
 | dependency-injection-patterns | [dependency-injection-patterns/](dependency-injection-patterns/) | — | — |
+| domain-exceptions | [domain-exceptions/](domain-exceptions/) | template.md | ⟵ vendored from domain-spec |
 | fake-implementations | [fake-implementations/](fake-implementations/) | — | ✦ |
 | fake-override-fixtures | [fake-override-fixtures/](fake-override-fixtures/) | — | ✦ |
 | interfaces | [interfaces/](interfaces/) | — | — |
@@ -51,3 +52,9 @@ silently.
 > because foreign plugins consume it; it remains the authoritative source until Wave 3 demotes
 > it. The umbrella copy must stay **byte-identical** to its registered twin — when editing a ✦
 > pattern, edit the standalone skill first, then re-sync `<pattern>/index.md` from it.
+>
+> **Vendored pattern.** `domain-exceptions` is a **vendored copy** of `domain-spec`'s pattern —
+> the application layer reuses the domain-exceptions codegen template (+ `template.md`) to render
+> `<<Application Exception>>` classes. It is an **independent** copy: deliberately **not** synced
+> to `domain-spec:patterns/domain-exceptions`, free to diverge as application-exception rendering
+> evolves. Edit it here directly; there is no upstream twin to re-sync.

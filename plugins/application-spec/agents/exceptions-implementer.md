@@ -4,7 +4,7 @@ description: "Implements application-layer exception classes from merged command
 tools: Read, Write, Edit, Skill
 skills:
   - spec-core:naming-conventions
-  - domain-spec:domain-exceptions
+  - application-spec:patterns
 model: sonnet
 ---
 
@@ -70,7 +70,7 @@ Otherwise parse each spec block. The exact shape (produced deterministically by 
 **`<ExceptionName>`** `<<Application Exception>>`
 - **Base**: `<BaseClass>`
 - **Code**: `<code>`
-- **Pattern**: domain-spec:domain-exceptions
+- **Pattern**: application-spec:domain-exceptions
 - **Constructor**: `(<param1>: <type1>, <param2>: <type2>)`
 - **Message**: `f"<message text with {placeholders}>"`
 ```
@@ -116,15 +116,11 @@ Drop every entry from the merged map whose `name` is in `<existing_classes>`. If
 
 Bind `<new_exceptions>` to the filtered ordered list.
 
-### Step 7 — Load the pattern skill
+### Step 7 — Load the pattern doc
 
-Invoke the skill exactly once before rendering any class:
+Read the vendored exceptions pattern doc exactly once before rendering any class. Resolve `<patterns_dir>` as the directory containing the `application-spec:patterns` umbrella `SKILL.md` (auto-loaded via this agent's frontmatter; its loaded context reveals its location), then Read `<patterns_dir>/domain-exceptions/index.md`. If that path does not exist, abort with `pattern 'domain-exceptions' has no folder under the application-spec:patterns umbrella`.
 
-```
-skill: "domain-spec:domain-exceptions"
-```
-
-The skill is the authoritative implementation guide for the class body shape (class-level `code` attribute, `__init__` signature, `super().__init__(message)` call).
+The doc is the authoritative implementation guide for the class body shape (class-level `code` attribute, `__init__` signature, `super().__init__(message)` call).
 
 ### Step 8 — Render each new exception class
 
@@ -140,7 +136,7 @@ Then render the class exactly:
 class <name>(<base>):
     """<one-line description>
 
-    Patterns: domain-spec:domain-exceptions
+    Patterns: application-spec:domain-exceptions
     """
 
     code: str = "<code>"

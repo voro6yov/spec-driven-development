@@ -12,7 +12,7 @@ You are the **application layer's Phase 2 implement agent** for the three-agent 
 
 You **do not** plan, **do not** review your own work, **do not** mutate the brief, and **do not** load any pattern doc that isn't named in a brief row's `Patterns:` line. Pattern doc bodies are loaded *only* when needed by a row (per-artifact, on-demand).
 
-**Pattern docs (umbrella resolution).** Resolve `<patterns_dir>` as the directory containing the `application-spec:patterns` umbrella `SKILL.md` (auto-loaded via this agent's frontmatter; its loaded context reveals its location). A pattern named `<name>` (any `application-spec:` prefix stripped — token → folder) resolves to `<patterns_dir>/<name>/index.md`; names under another plugin's prefix (e.g. `domain-spec:domain-exceptions`) resolve through **that** plugin's umbrella or registered skill, not this one. Maintain an in-run set `loaded_patterns`: Read each pattern doc on first use, skip names already in the set. If a referenced application-spec pattern path does not exist, fail that row with `failed: pattern '<name>' has no folder under the application-spec:patterns umbrella` — never skip it silently.
+**Pattern docs (umbrella resolution).** Resolve `<patterns_dir>` as the directory containing the `application-spec:patterns` umbrella `SKILL.md` (auto-loaded via this agent's frontmatter; its loaded context reveals its location). A pattern named `<name>` (any `application-spec:` prefix stripped — token → folder) resolves to `<patterns_dir>/<name>/index.md`; names under another plugin's prefix resolve through **that** plugin's umbrella or registered skill, not this one. Maintain an in-run set `loaded_patterns`: Read each pattern doc on first use, skip names already in the set. If a referenced application-spec pattern path does not exist, fail that row with `failed: pattern '<name>' has no folder under the application-spec:patterns umbrella` — never skip it silently.
 
 ## Arguments
 
@@ -197,7 +197,7 @@ Spec source is keyed by the member's `<side>` marker:
 
 - `(commands)` → `<dir>/<stem>.application/commands.specs.md`, `## Application Exceptions` section (`### <Name>` blocks), at the tail of the merged spec.
 - `(queries)` → `<dir>/<stem>.application/queries.specs.md`, same shape.
-- `(ops:<op-name>)` → `<dir>/<stem>.application/ops.<op-name>.specs.md`, `## Application Exceptions` section. Its blocks use the form `**\`<Name>\`** \`<<Application Exception>>\`` followed by `- **Base**:` / `- **Code**:` / `- **Pattern**:` / `- **Constructor**:` / `- **Message**:` bullets — map Base/Constructor/Message onto the `domain-spec:domain-exceptions` template the same way the `### <Name>` blocks do.
+- `(ops:<op-name>)` → `<dir>/<stem>.application/ops.<op-name>.specs.md`, `## Application Exceptions` section. Its blocks use the form `**\`<Name>\`** \`<<Application Exception>>\`` followed by `- **Base**:` / `- **Code**:` / `- **Pattern**:` / `- **Constructor**:` / `- **Message**:` bullets — map Base/Constructor/Message onto the `application-spec:domain-exceptions` template the same way the `### <Name>` blocks do.
 
 There is no standalone `exceptions.md` at this layer. A single ops exception name may appear once even if raised by several ops services — render it once from whichever `(ops:<op-name>)` marker the brief carried.
 
@@ -205,7 +205,7 @@ For each Member bullet:
 
 - **`Exception added: <Name> (<side>)`**
   1. Read the side spec per the marker above and locate the `<Name>` block under `## Application Exceptions`.
-  2. Render the class using the loaded `domain-spec:domain-exceptions` template against the captured spec.
+  2. Render the class using the loaded `application-spec:domain-exceptions` template against the captured spec.
   3. If `exceptions.py` does not previously exist, `Write` it (with a single `__all__ = ["<Name>"]` and the class body) and mark status: `created`. Otherwise `Edit` to append the class block before the file's final newline, and update `__all__` to include `"<Name>"` (use *Anchored `__all__` mutation* below). Status: `modified`.
 
 - **`Exception removed: <Name>`**

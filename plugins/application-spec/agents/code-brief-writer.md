@@ -142,7 +142,7 @@ Anything not matching → `kind = unknown` and append `notes` += `"unrecognized 
 | `app-service-impl` (queries path) | `application-spec:queries-pattern`, `application-spec:dependency-injection-patterns` |
 | `ops-service-impl` | `application-spec:ops`, `application-spec:retry-transaction`, `application-spec:dependency-injection-patterns` |
 | `ops-test-impl` | `application-spec:application-service-integration-test-rules` |
-| `exceptions-append` | `domain-spec:domain-exceptions` |
+| `exceptions-append` | `application-spec:domain-exceptions` |
 | `service-impl` | `application-spec:interfaces`, `application-spec:fake-implementations`, `application-spec:dependency-injection-patterns` |
 | `service-remove` | _(none — regen owned by `@service-implementer` removal path; brief notes that)_ |
 | `fake-impl` | `application-spec:fake-implementations`, `application-spec:fake-override-fixtures` |

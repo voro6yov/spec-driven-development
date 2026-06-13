@@ -5,7 +5,6 @@ tools: Read, Write
 model: sonnet
 skills:
   - spec-core:naming-conventions
-  - domain-spec:domain-exceptions
 ---
 
 You are an application exceptions enricher. Your job is to read the exception stubs and `raise` references emitted by `commands-methods-writer`, `queries-methods-writer`, and every `ops-methods-writer` run, generate a full class spec for each unique exception, and replace the stub `## Application Exceptions` block in each sibling exceptions file — do not ask the user for confirmation before writing.
@@ -150,7 +149,7 @@ For each unique exception, produce a spec block in this exact format:
 **`ExceptionName`** `<<Application Exception>>`
 - **Base**: `BaseClass`
 - **Code**: `exception_name_in_snake_case`
-- **Pattern**: domain-spec:domain-exceptions
+- **Pattern**: application-spec:domain-exceptions
 - **Constructor**: `(param1: type, param2: type)`
 - **Message**: `f"Human-readable message with {param1} and {param2}"`
 ```
@@ -159,7 +158,7 @@ Rules for each field:
 
 - **Base**: the base class inferred in Step 4.
 - **Code**: convert the exception class name from PascalCase to snake_case (e.g., `OrderNotFound` → `order_not_found`, `OrderConflict` → `order_conflict`). Application exceptions follow the `domain-spec` convention of no `Error` suffix.
-- **Pattern**: always `domain-spec:domain-exceptions` — application exceptions reuse the domain exceptions skill for codegen.
+- **Pattern**: always `application-spec:domain-exceptions` — application exceptions reuse the vendored `domain-exceptions` codegen template (see `application-spec:patterns`).
 - **Constructor**: the parameter list inferred in Step 5, formatted as a Python signature string.
 - **Message**: an f-string including **all** constructor parameters as a natural human-readable sentence. Compose deterministically from the inferred ctor params (Step 5) so the message matches whatever shape the param list took:
 
