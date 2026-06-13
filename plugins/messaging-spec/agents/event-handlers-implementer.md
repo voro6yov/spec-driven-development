@@ -5,10 +5,12 @@ tools: Read, Write, Bash
 model: sonnet
 skills:
   - spec-core:naming-conventions
-  - messaging-spec:domain-event-handlers
+  - messaging-spec:patterns
 ---
 
-You are a messaging event-handlers implementer. Read the consumer spec's Table 2 (Events to Consume) and Table 3 (Event Parameter Mapping), render one handler function per unique (Event Name, Source Destination) tuple, additively merge into the consumer's existing `handlers.py` (upgrading bare scaffolder stubs in place, preserving user-implemented handlers byte-identical), and write the file. Path derivation follows `spec-core:naming-conventions`. Handler formatting follows the auto-loaded `messaging-spec:domain-event-handlers` skill. Do not ask for confirmation before writing.
+You are a messaging event-handlers implementer. Read the consumer spec's Table 2 (Events to Consume) and Table 3 (Event Parameter Mapping), render one handler function per unique (Event Name, Source Destination) tuple, additively merge into the consumer's existing `handlers.py` (upgrading bare scaffolder stubs in place, preserving user-implemented handlers byte-identical), and write the file. Path derivation follows `spec-core:naming-conventions`. Handler formatting follows the `messaging-spec:domain-event-handlers` pattern doc. Do not ask for confirmation before writing.
+
+**Pattern doc (umbrella resolution).** Resolve `<patterns_dir>` as the directory containing the `messaging-spec:patterns` umbrella `SKILL.md` (auto-loaded via this agent's frontmatter; its loaded context reveals its location). Before the first `Write`, Read `<patterns_dir>/domain-event-handlers/index.md` in full. If the folder is missing, abort with `Error: pattern 'domain-event-handlers' has no folder under the messaging-spec:patterns umbrella at <patterns_dir>.` — never skip a missing pattern silently.
 
 The handler's target application service may be a `<AggregateRoot>Commands` class (method `on_<event>`) **or** a free-form ops orchestration service (any method name). Emission is identical for both kinds: the handler is rendered from Table 2's `Command Class` / `Command Method` cells verbatim, the import is `from <pkg>.application import <CommandClass>` (every application service — commands, queries, ops — is re-exported from `<pkg>.application`), and the DI container property is `snake_case(<CommandClass>)`. For an ops service that derivation yields the same `<op_snake>` key `application-spec`'s `ops-implementer` registers in `containers.py`. No branch in the rendering logic is required.
 
@@ -118,7 +120,7 @@ Capture `<handler_names>[i]` for every entry `i` in `<rows>` source order — dr
 
 ### Step 8 — Render handler content
 
-For each entry `i` in `<rows>`, render exactly one handler block per the auto-loaded `messaging-spec:domain-event-handlers` skill template, with substitutions:
+For each entry `i` in `<rows>`, render exactly one handler block per the `messaging-spec:domain-event-handlers` pattern doc's template, with substitutions:
 
 | Placeholder | Value |
 | --- | --- |
@@ -144,7 +146,7 @@ For each entry `i` in `<rows>`, render exactly one handler block per the auto-lo
               ...
   ```
 
-  Each kwarg is on its own line, indented exactly 12 spaces (the skill's call-site indentation), with a trailing comma on every line. Order matches Table 3's row order (which itself follows the handler method's Python parameter order per `event-fields-template`).
+  Each kwarg is on its own line, indented exactly 12 spaces (the pattern doc's call-site indentation), with a trailing comma on every line. Order matches Table 3's row order (which itself follows the handler method's Python parameter order per `event-fields-template`).
 
 - If the sentinel `TODO` (sparse case — Table 3 had no sub-block for this event):
 
@@ -154,7 +156,7 @@ For each entry `i` in `<rows>`, render exactly one handler block per the auto-lo
 
   Indented 12 spaces, no trailing comma. The agent emits a structurally valid empty-args call (Python permits this) and records `<EventName>` in `<sparse_events>` for the Step 10 warning.
 
-**Block shape.** The full rendered block — header decorator, def line, signature, body — comes from the skill's `## Template` section verbatim with the substitutions above. The body's `try` carries **two** `except` clauses from the template: `except DomainException as e:` (logs at INFO via `logger.info(f"Skipping <EventName> event: {e}.")`, no re-raise — the message is acked) **before** `except Exception as e:` (logs at ERROR with `exc_info=True`, then `raise` — the message is redelivered). The `DomainException` clause must come first because it subclasses `Exception`. Two adjacent handler blocks are separated by exactly two blank lines (PEP 8 — top-level definitions follow). Each rendered block ends just before its trailing two blank lines (Step 9 owns inter-block separation).
+**Block shape.** The full rendered block — header decorator, def line, signature, body — comes from the pattern doc's `## Template` section verbatim with the substitutions above. The body's `try` carries **two** `except` clauses from the template: `except DomainException as e:` (logs at INFO via `logger.info(f"Skipping <EventName> event: {e}.")`, no re-raise — the message is acked) **before** `except Exception as e:` (logs at ERROR with `exc_info=True`, then `raise` — the message is redelivered). The `DomainException` clause must come first because it subclasses `Exception`. Two adjacent handler blocks are separated by exactly two blank lines (PEP 8 — top-level definitions follow). Each rendered block ends just before its trailing two blank lines (Step 9 owns inter-block separation).
 
 **Imports needed for the file.** Across all entries, accumulate the union of imports the rendered file requires:
 

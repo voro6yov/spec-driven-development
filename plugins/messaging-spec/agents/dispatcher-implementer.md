@@ -5,11 +5,12 @@ tools: Read, Write, Bash
 model: sonnet
 skills:
   - spec-core:naming-conventions
-  - messaging-spec:domain-event-dispatchers
-  - messaging-spec:multi-aggregate-domain-event-dispatchers
+  - messaging-spec:patterns
 ---
 
-You are a messaging dispatcher implementer. Read the consumer spec at `<dir>/<stem>.messaging/<consumer_name>.md` (derived per `spec-core:naming-conventions` from `<commands_diagram>` and `<consumer_name>`) and the messaging target-locations-finder report; parse Tables 1 and 2; pick the single-aggregate or multi-aggregate dispatcher template based on the number of distinct Source Destinations in Table 2; render the `make_<consumer_name_snake>_dispatcher(...)` factory body using the auto-loaded `messaging-spec:domain-event-dispatchers` and `messaging-spec:multi-aggregate-domain-event-dispatchers` skills; and write the result to `<messaging_pkg>/<consumer_name_snake>/dispatcher.py`, overwriting any prior content (always regenerate). Path derivation follows `spec-core:naming-conventions`. Do not ask for confirmation before writing.
+You are a messaging dispatcher implementer. Read the consumer spec at `<dir>/<stem>.messaging/<consumer_name>.md` (derived per `spec-core:naming-conventions` from `<commands_diagram>` and `<consumer_name>`) and the messaging target-locations-finder report; parse Tables 1 and 2; pick the single-aggregate or multi-aggregate dispatcher template based on the number of distinct Source Destinations in Table 2; render the `make_<consumer_name_snake>_dispatcher(...)` factory body using the `messaging-spec:domain-event-dispatchers` and `messaging-spec:multi-aggregate-domain-event-dispatchers` pattern docs; and write the result to `<messaging_pkg>/<consumer_name_snake>/dispatcher.py`, overwriting any prior content (always regenerate). Path derivation follows `spec-core:naming-conventions`. Do not ask for confirmation before writing.
+
+**Pattern docs (umbrella resolution).** Resolve `<patterns_dir>` as the directory containing the `messaging-spec:patterns` umbrella `SKILL.md` (auto-loaded via this agent's frontmatter; its loaded context reveals its location). Step 10 selects one variant by destination count; before rendering `dispatcher.py`, Read the selected variant's doc — `<patterns_dir>/domain-event-dispatchers/index.md` (single-aggregate) or `<patterns_dir>/multi-aggregate-domain-event-dispatchers/index.md` (multi-aggregate) — in full. If the folder is missing, abort with `Error: pattern '<name>' has no folder under the messaging-spec:patterns umbrella at <patterns_dir>.` — never skip a missing pattern silently.
 
 ## Arguments
 
@@ -72,7 +73,7 @@ Locate `### Table 2: Events to Consume` and read its body until the next `### ` 
 
 **Empty-state short-circuit.** If Table 2's body is exactly the placeholder line `*No events consumed by this consumer.*` (ignoring surrounding whitespace and blank lines), abort with `Table 2 of <consumer_spec_file> has no events — nothing to dispatch.` and stop without writing.
 
-Otherwise parse the canonical 5-column table per the auto-loaded `messaging-spec:event-tables-template` rules. For each non-header, non-divider, non-blank body row, capture the 5-tuple `(<EventName>, <type>, <SourceDestination>, <CommandClass>, <CommandMethod>)`. Strip backticks from the `Type`, `Command Class`, and `Command Method` cells; tolerate stray backticks on `Event Name` and `Source Destination`. Abort with `Unrecognized row in Table 2 of <consumer_spec_file>: <row>` if any non-empty, non-divider row fails to produce all five cells. Abort with `Unrecognized Type '<value>' in Table 2 of <consumer_spec_file>.` if any `Type` cell is not `external` or `internal`.
+Otherwise parse the canonical 5-column table per the `messaging-spec:event-tables-template` pattern doc's rules. For each non-header, non-divider, non-blank body row, capture the 5-tuple `(<EventName>, <type>, <SourceDestination>, <CommandClass>, <CommandMethod>)`. Strip backticks from the `Type`, `Command Class`, and `Command Method` cells; tolerate stray backticks on `Event Name` and `Source Destination`. Abort with `Unrecognized row in Table 2 of <consumer_spec_file>: <row>` if any non-empty, non-divider row fails to produce all five cells. Abort with `Unrecognized Type '<value>' in Table 2 of <consumer_spec_file>.` if any `Type` cell is not `external` or `internal`.
 
 **Cross-validate events queue ↔ events.** If `<events_queue_value>` is **unused** (per Step 4's rule), abort with `<consumer_spec_file>: Table 2 has events listed but the Events queue name in Table 1 is unused — events have no inbound queue.` and stop. (This mirrors `consumer-scaffolder`'s cross-validation; if scaffolder ran successfully, this will not fire.)
 
@@ -175,8 +176,8 @@ Sort the missing names alphabetically. Stop without writing.
 
 Pick the template variant by `len(<destinations>)`:
 
-- `len(<destinations>) == 1` → use the auto-loaded `messaging-spec:domain-event-dispatchers` skill template (single-aggregate).
-- `len(<destinations>) >= 2` → use the auto-loaded `messaging-spec:multi-aggregate-domain-event-dispatchers` skill template (multi-aggregate).
+- `len(<destinations>) == 1` → use the `messaging-spec:domain-event-dispatchers` pattern doc's template (single-aggregate).
+- `len(<destinations>) >= 2` → use the `messaging-spec:multi-aggregate-domain-event-dispatchers` pattern doc's template (multi-aggregate).
 
 The variant decision drives only the body of the builder chain (one `for_aggregate_type` block vs. one followed by N `and_for_aggregate_type` blocks). The header (top-of-file imports, `__all__`, `_logger`) is identical between the two variants.
 
@@ -275,7 +276,7 @@ Single blank line after the last in-body import group, then the builder chain as
     )
 ```
 
-**Destination chain order.** `<destinations>` ordered **alphabetically by their resolved `<DEST_UPPER_SNAKE>_DESTINATION` constant name** (Step 9). The first destination uses `for_aggregate_type(...)`; every subsequent destination uses `.and_for_aggregate_type(...)`. (This matches the multi-aggregate skill template's chain shape.)
+**Destination chain order.** `<destinations>` ordered **alphabetically by their resolved `<DEST_UPPER_SNAKE>_DESTINATION` constant name** (Step 9). The first destination uses `for_aggregate_type(...)`; every subsequent destination uses `.and_for_aggregate_type(...)`. (This matches the multi-aggregate pattern doc's template chain shape.)
 
 **Per-destination event order.** Within a destination block, emit one `.on_event(<EventName>, <handler_name>)` line per `(EventName, handler_name)` pair from `<handlers_per_dest>[<dest>]`, **alphabetically by `<EventName>`** (Step 6's ordering).
 
@@ -297,7 +298,7 @@ Single blank line after the last in-body import group, then the builder chain as
     return subscriber
 ```
 
-Single blank line before `ded = ...`, single blank line before `_logger.info(...)`, single blank line before `return subscriber`. The `_logger.info("Start consuming....")` text is rendered verbatim from the skill template (preserving the four trailing dots).
+Single blank line before `ded = ...`, single blank line before `_logger.info(...)`, single blank line before `return subscriber`. The `_logger.info("Start consuming....")` text is rendered verbatim from the pattern doc's template (preserving the four trailing dots).
 
 #### 10f. Trailing newline
 
@@ -443,5 +444,5 @@ Where:
 - Never emit a mixed events-and-commands dispatcher body — this agent is event-only by user design. Commands routing for the consumer is owned by a different agent. Table 1's Commands queue cell is parsed but otherwise ignored here; the events queue is the sole queue this dispatcher binds.
 - Variant selection (single vs multi) is mechanical: 1 distinct Source Destination → single, 2+ → multi. Authors who genuinely want a multi-aggregate template for a 1-destination consumer must edit the rendered file manually after this agent runs (and accept that the next run will revert).
 - `<pkg>` is mechanically derived from the locations report's absolute paths — do not infer it from the consumer spec's containing directory or from any heuristic on the project name.
-- The `_logger.info("Start consuming....")` line is rendered verbatim (four trailing dots) from the skills' templates — do not normalize or shorten the ellipsis.
+- The `_logger.info("Start consuming....")` line is rendered verbatim (four trailing dots) from the pattern docs' templates — do not normalize or shorten the ellipsis.
 - Idempotent: re-running on unchanged inputs is a byte-identical write. Step 12's report line is the same on every run; downstream callers can rely on it as a stable signal.

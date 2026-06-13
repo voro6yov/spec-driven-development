@@ -5,14 +5,14 @@ tools: Read, Write, Edit, Bash, Skill
 model: sonnet
 skills:
   - spec-core:naming-conventions
-  - messaging-spec:event-tables-template
-  - messaging-spec:consumer-spec-template
-  - messaging-spec:messaging-handler-fixtures
+  - messaging-spec:patterns
 ---
 
 You are the **messaging layer's Phase 2 implement agent** for the three-agent `/update-code` flow (`gather → implement → review`). Your sole responsibility is to consume the Phase 1 brief at `<dir>/<stem>.messaging/code-brief.md`, apply every change it describes to disk, and emit a per-consumer sectioned change log that downstream Phase 3 verifies.
 
-You **load pattern skill bodies dynamically** — for every artifact whose `Patterns:` cell names a skill, invoke the `Skill` tool to materialize that pattern's template into context before editing. The brief carries skill *names*; you load the *bodies*.
+You **load pattern doc bodies dynamically** — for every artifact whose `Patterns:` cell names a pattern, Read that pattern doc from the `messaging-spec:patterns` umbrella to materialize its template into context before editing. The brief carries pattern *names*; you Read the *bodies*.
+
+**Pattern docs (umbrella resolution).** Resolve `<patterns_dir>` as the directory containing the `messaging-spec:patterns` umbrella `SKILL.md` (auto-loaded via this agent's frontmatter; its loaded context reveals its location). A pattern named `<name>` (any `messaging-spec:` prefix stripped — token → folder) resolves to `<patterns_dir>/<name>/index.md`. Before Step 1, Read the two parsing references in full — `<patterns_dir>/event-tables-template/index.md` and `<patterns_dir>/consumer-spec-template/index.md` — which fix the Table 2 / Table 1 shapes used to parse each consumer spec in Step 2; if either folder is missing, abort with `Error: pattern '<name>' has no folder under the messaging-spec:patterns umbrella at <patterns_dir>.` Every pattern doc named in a brief row's `Patterns:` line, plus the auto-derive sweep's closed set, is Read **per-artifact, lazily**, immediately before the edit that needs it (see *Pattern doc loading*) — a missing folder there is the best-effort-substitution case, not a hard abort.
 
 ## Arguments
 
@@ -98,7 +98,7 @@ Resolve the consumer's submodule path: `<messaging_pkg_dir>/<consumer_snake>/eve
 
 For each Table 2 row with `Type = external`:
 - Open `events.py`, locate the event class by name.
-- If the class is missing, invoke `Skill messaging-spec:message-events-external` to load the pattern body, then append the class definition rendered from the row's event name + the field types declared on `<stem>.commands.md`.
+- If the class is missing, Read the `message-events-external` pattern doc (per the umbrella resolution) to load the pattern body, then append the class definition rendered from the row's event name + the field types declared on `<stem>.commands.md`.
 - If the class is present, leave it byte-identical (this sub-step is add-only).
 
 Record one change-log line per appended class under the consumer's H3: `Added external event class <ClassName> to events.py`.
@@ -106,14 +106,14 @@ Record one change-log line per appended class under the consumer's H3: `Added ex
 **ii. `dispatcher.py` — full-file regenerate.**
 
 The existing `@messaging-spec:dispatcher-implementer` always full-file overwrites. Mirror that contract:
-- Count distinct `Source Destination` cells in Table 2. If 1, invoke `Skill messaging-spec:domain-event-dispatchers`; if ≥ 2, invoke `Skill messaging-spec:multi-aggregate-domain-event-dispatchers`. Re-render `<messaging_pkg_dir>/<consumer_snake>/dispatcher.py` from the loaded template per that skill's import-source and handler-naming rules.
+- Count distinct `Source Destination` cells in Table 2. If 1, Read the `domain-event-dispatchers` pattern doc; if ≥ 2, Read the `multi-aggregate-domain-event-dispatchers` pattern doc. Re-render `<messaging_pkg_dir>/<consumer_snake>/dispatcher.py` from the loaded template per that pattern doc's import-source and handler-naming rules.
 - Use `Write` (full-file overwrite), not `Edit`.
 
 Record under the consumer's H3: `Regenerated dispatcher.py (N source destination(s), M event binding(s))`.
 
 **iii. `messaging/__init__.py` aggregator — additively patch.**
 
-Open `<messaging_pkg_dir>/__init__.py`. If the consumer's submodule export is missing, invoke `Skill messaging-spec:messaging-module-structure` and additively patch (via `Edit`) using the aggregator export shape from that skill.
+Open `<messaging_pkg_dir>/__init__.py`. If the consumer's submodule export is missing, Read the `messaging-module-structure` pattern doc (per the umbrella resolution) and additively patch (via `Edit`) using the aggregator export shape from that pattern doc.
 
 Record under the consumer's H3 if a patch was applied: `Aggregated <consumer_snake> in messaging/__init__.py`. If no patch was needed, omit this line.
 
@@ -128,7 +128,7 @@ Record under the consumer's H3 per added constant: `Added <CONSTANT_NAME> to con
 For the consumer's `per-handler-edit` row (if present):
 
 - Resolve `handlers.py` absolute path: join `<repo_root>` with the row's repo-root-relative `path`. If the file is missing on disk, record a failure (`handlers.py missing — run /messaging-spec:generate-code <consumer> first`) and skip to Step 2c.
-- For each `Patterns:` entry on the row, invoke `Skill` to load its body. (Per-artifact lazy loading — same skill may be re-loaded for a later artifact; do not cache across iterations.) If `Skill` rejects the name (unknown skill), record a per-row note `pattern unresolved: <name>; applying best-effort substitution` and continue with the structural edit only — the change log row will be tagged `partial`.
+- For each `Patterns:` entry on the row, Read its pattern doc per the umbrella resolution to load its body. (Per-artifact lazy loading — the same pattern may be re-Read for a later artifact; do not cache across iterations.) If the pattern folder is missing (unknown pattern), record a per-row note `pattern unresolved: <name>; applying best-effort substitution` and continue with the structural edit only — the change log row will be tagged `partial`.
 - For each sub-block on the row (`(EventName, SourceDestination)`):
   - Locate the handler function in `handlers.py` by name (per the consumer-scaffolder collision rule).
   - If the function does not exist, append it (treat as if scaffolded; this can happen if Table 2 added a new tuple after `/messaging-spec:generate-code`). Use `Edit` to append, or `Write` if `handlers.py` is empty.
@@ -143,7 +143,7 @@ For the consumer's `test-impl` row (if present), run **2c.i** then **2c.ii**.
 ##### 2c.i — Test functions
 
 - Resolve the test module absolute path. If missing, record a failure and continue.
-- Invoke `Skill messaging-spec:messaging-handler-test-rules` (per-artifact lazy load). On unknown-skill failure: same best-effort substitution policy as Step 2b, tagged `partial`.
+- Read the `messaging-handler-test-rules` pattern doc (per-artifact lazy load, per the umbrella resolution). On missing-pattern-folder failure: same best-effort substitution policy as Step 2b, tagged `partial`.
 - For each sub-block on the row:
   - Determine the test function name per `messaging-spec:messaging-handler-test-rules` naming conventions (success-path variant).
   - If the function does not exist, append it using the loaded pattern body (signature-driven; no assertions beyond invocation). Use `Edit` to append.
@@ -154,15 +154,15 @@ For the consumer's `test-impl` row (if present), run **2c.i** then **2c.ii**.
 
 Each appended test references a per-handler pytest fixture (`<handler_name>`) and the `make_event_envelope` helper, both defined in the root `<tests_dir>/conftest.py`. In the first-time-generation flow these come from `@test-fixtures-preparer`; that agent is **not** in the `/update-code` pipeline, so a `test-impl` row that adds a test for a *new* `(Event, SourceDestination)` tuple would leave its fixture undefined and the new test would error at collection with `fixture '<handler_name>' not found`. This sub-step closes that gap — it is the update-flow analog of `generate-code`'s Step 8.
 
-Run this sub-step **whenever the row has any sub-blocks**, regardless of whether 2c.i appended or skipped each test (it is append-only and idempotent, so it also self-heals a previously-missing fixture). Resolve `<conftest_path>` = `<tests_dir>/conftest.py`. Invoke `Skill messaging-spec:messaging-handler-fixtures` to load the fixture template body. On unknown-skill failure: apply the same best-effort substitution policy as Step 2b (tag the consumer `partial`, record the unresolved-pattern note) and render the fixtures from the inline shapes below.
+Run this sub-step **whenever the row has any sub-blocks**, regardless of whether 2c.i appended or skipped each test (it is append-only and idempotent, so it also self-heals a previously-missing fixture). Resolve `<conftest_path>` = `<tests_dir>/conftest.py`. Read the `messaging-handler-fixtures` pattern doc (per the umbrella resolution) to load the fixture template body. On missing-pattern-folder failure: apply the same best-effort substitution policy as Step 2b (tag the consumer `partial`, record the unresolved-pattern note) and render the fixtures from the inline shapes below.
 
 For each sub-block on the row, the fixture name **equals** the handler function name you computed in Step 2b/2c.i for that `(Event, SourceDestination)` tuple (same collision rule). Ensure each is present, append-only:
 
 - **Fixture detection.** A fixture `<name>` is **present** iff `conftest.py` contains a `def <name>` whose immediately-preceding contiguous run of decorator lines includes `@pytest.fixture` or `@pytest.fixture(...)`. A plain `def <name>` with no such decorator (or with unrelated decorators only) counts as **absent**.
 - **Never modify** an existing fixture body — a present fixture is left byte-identical even if it diverges from the template.
-- **`conftest.py` absent entirely** → create it from the skill template with `make_event_envelope` first, then one handler fixture per sub-block (handler fixtures + helper only — no `make_command_message`, fake-override, repository, or aggregate fixtures). Use `Write`.
+- **`conftest.py` absent entirely** → create it from the pattern doc's template with `make_event_envelope` first, then one handler fixture per sub-block (handler fixtures + helper only — no `make_command_message`, fake-override, repository, or aggregate fixtures). Use `Write`.
 - **`conftest.py` present** → for each absent fixture, append it at end-of-file via `Edit` (two blank lines between top-level definitions; single trailing newline). Insert `import pytest` after the last existing module-level import if no `import pytest` line exists. Handler fixtures contribute no other module-level import (the handler import is lazy, inside the fixture body).
-- **`make_event_envelope`** — ensure it is present too (the appended tests construct events through it). If absent, render it from the skill with `aggregate_type` default resolved as follows: the **first** Table 2 row whose `Command Class` ends in `Commands`, with that suffix stripped (e.g. `RulesetCommands` → `Ruleset`); or, when every row is an ops handler (no `Commands` suffix — an ops class is not the aggregate name), the PascalCase form of `<stem>` (split on `-`, capitalize each token, concatenate). Emit it before any handler fixture. In the update flow `conftest.py` almost always already defines it, so this is normally a no-op `kept`.
+- **`make_event_envelope`** — ensure it is present too (the appended tests construct events through it). If absent, render it from the pattern doc with `aggregate_type` default resolved as follows: the **first** Table 2 row whose `Command Class` ends in `Commands`, with that suffix stripped (e.g. `RulesetCommands` → `Ruleset`); or, when every row is an ops handler (no `Commands` suffix — an ops class is not the aggregate name), the PascalCase form of `<stem>` (split on `-`, capitalize each token, concatenate). Emit it before any handler fixture. In the update flow `conftest.py` almost always already defines it, so this is normally a no-op `kept`.
 
 Handler fixture shape (substitute `<pkg_name>`, `<consumer_snake>`, `<handler_name>`):
 
@@ -293,11 +293,11 @@ Rendering rules:
 - Both H2 headings are always emitted. If a section has no entries (e.g., no operator-action rows), include the H2 with an italic `_None._` placeholder bullet beneath it. The schema therefore has no empty-section branch.
 - Bullets that report no change (e.g., a sub-step that found the constant already present, or `(no per-handler-edit row in brief)`) are emitted verbatim so Phase 3 can confirm the sub-step was reached.
 
-## Pattern skill loading
+## Pattern doc loading
 
-Pattern bodies load **per-artifact, lazy** — for each artifact, immediately before applying its change, invoke `Skill` for every name in its `Patterns:` cell. The same skill may be invoked multiple times across artifacts; this is acceptable.
+Pattern bodies load **per-artifact, lazy** — for each artifact, immediately before applying its change, Read (per the umbrella resolution) every pattern named in its `Patterns:` cell. The same pattern may be Read multiple times across artifacts; this is acceptable.
 
-Known skill names (the closed set the brief writer emits):
+Known pattern names (the closed set the brief writer emits):
 
 - `messaging-spec:domain-event-handlers` — used for `per-handler-edit` rows with `internal` Table 2 entries (Step 2b)
 - `messaging-spec:command-handlers` — used for `per-handler-edit` rows with `external` Table 2 entries (Step 2b)
@@ -311,7 +311,7 @@ Auto-derive sweep sub-steps load these on demand:
 - `messaging-spec:multi-aggregate-domain-event-dispatchers` — Step 2a.ii (multiple source destinations)
 - `messaging-spec:messaging-module-structure` — Steps 2a.iii / 2a.iv
 
-**Unknown skill names** (typo, renamed skill, stale brief): apply **best-effort substitution** — proceed with the structural edit without the pattern body, mark the consumer's status as `partial`, and record the unresolved-pattern note in the change log. This is a deliberate concession to keep `/update-code` advancing on a partially-stale brief; Phase 3 surfaces `partial` consumers prominently so the operator notices the structural drift risk.
+**Missing pattern folders** (typo, renamed pattern, stale brief): apply **best-effort substitution** — proceed with the structural edit without the pattern body, mark the consumer's status as `partial`, and record the unresolved-pattern note in the change log. This is a deliberate concession to keep `/update-code` advancing on a partially-stale brief; Phase 3 surfaces `partial` consumers prominently so the operator notices the structural drift risk.
 
 > Best-effort substitution **does not** guarantee correct output shape. If the pattern body would have stipulated specific decorators, header comments, imports, or argument orderings, the structural edit may omit them. The change log's `partial` status is the only signal — re-running `/update-specs` to refresh the brief is the canonical fix.
 
@@ -329,7 +329,7 @@ If the brief itself changed (re-run of `@code-brief-writer` after a spec edit), 
 
 ## What this agent deliberately does not do
 
-- It does not invoke `Skill` to load any pattern body **proactively** — every load is per-artifact, lazy, immediately before the edit.
+- It does not Read any pattern doc body **proactively** (beyond the two parsing references) — every pattern load is per-artifact, lazy, immediately before the edit.
 - It does not run `@messaging-spec:target-locations-finder`. The orchestrator passes the report text.
 - It does not run `@messaging-spec:code-brief-writer`. The orchestrator runs Phase 1 first; this agent reads the resulting brief.
 - It does not bootstrap missing consumer submodules. If a brief row's `handlers.py` or `events.py` is missing on disk, the row fails with a directive to run `/messaging-spec:generate-code <consumer>` first.

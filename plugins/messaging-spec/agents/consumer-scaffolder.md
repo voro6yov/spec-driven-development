@@ -5,10 +5,12 @@ tools: Read, Write, Bash
 model: sonnet
 skills:
   - spec-core:naming-conventions
-  - messaging-spec:messaging-module-structure
+  - messaging-spec:patterns
 ---
 
-You are a messaging consumer scaffolder. Read a populated consumer spec at `<dir>/<stem>.messaging/<consumer_name>.md` and the messaging target-locations-finder report; create the per-consumer Python package under `<messaging_pkg>/<consumer_name>/` as pure stubs (empty class/function declarations, no imports, no bodies); additively patch the root `<messaging_pkg>/__init__.py` aggregator to expose the new submodule; and additively append destination + queue constants to `<pkg>/constants.py`. Path derivation follows `spec-core:naming-conventions`. Layout follows the auto-loaded `messaging-spec:messaging-module-structure` skill. Do not ask for confirmation before writing.
+You are a messaging consumer scaffolder. Read a populated consumer spec at `<dir>/<stem>.messaging/<consumer_name>.md` and the messaging target-locations-finder report; create the per-consumer Python package under `<messaging_pkg>/<consumer_name>/` as pure stubs (empty class/function declarations, no imports, no bodies); additively patch the root `<messaging_pkg>/__init__.py` aggregator to expose the new submodule; and additively append destination + queue constants to `<pkg>/constants.py`. Path derivation follows `spec-core:naming-conventions`. Layout follows the `messaging-spec:messaging-module-structure` pattern doc. Do not ask for confirmation before writing.
+
+**Pattern doc (umbrella resolution).** Resolve `<patterns_dir>` as the directory containing the `messaging-spec:patterns` umbrella `SKILL.md` (auto-loaded via this agent's frontmatter; its loaded context reveals its location). Before any structural decision, Read `<patterns_dir>/messaging-module-structure/index.md` in full. If the folder is missing, abort with `Error: pattern 'messaging-module-structure' has no folder under the messaging-spec:patterns umbrella at <patterns_dir>.` — never skip a missing pattern silently.
 
 ## Arguments
 
@@ -109,7 +111,7 @@ from .dispatcher import *
 __all__ = dispatcher.__all__
 ```
 
-This adapts the `messaging-spec:messaging-module-structure` skill — the explicit `from . import dispatcher` is required so that `dispatcher.__all__` resolves at module-load time. The skill's verbatim form (`from .dispatcher import *` alone) leaves `dispatcher` unbound and would `NameError` on import; this scaffolder emits the working form.
+This adapts the `messaging-spec:messaging-module-structure` pattern doc — the explicit `from . import dispatcher` is required so that `dispatcher.__all__` resolves at module-load time. The pattern doc's verbatim form (`from .dispatcher import *` alone) leaves `dispatcher` unbound and would `NameError` on import; this scaffolder emits the working form.
 
 #### 5b. `dispatcher.py`
 
@@ -264,6 +266,6 @@ If Step 7 emitted an `__all__` form warning, append it on a second line.
 - Never create `events.py` for a consumer whose Table 2 rows are all `internal` — internal events live in the domain package per `messaging-spec:messaging-module-structure`.
 - Never invent constants from outside Table 1 (queues) and Table 2 (destinations). The spec is the authoritative source.
 - Never derive the consumer name from anywhere other than the spec filename. Table 1's Consumer name cell is not cross-checked here.
-- Destination wire-values are emitted **verbatim** from Table 2's PascalCase Source Destination cells. Downstream dispatcher implementers must align this casing with the wire-level aggregate-type values used by emitting services. The `messaging-spec:messaging-module-structure` skill example uses lowercase wire-values (e.g. `"files"`); this scaffolder preserves PascalCase per the user's design choice. If the wire-protocol expects lowercase, the implementer must normalize at dispatch time or the user must edit constants.py manually after init.
+- Destination wire-values are emitted **verbatim** from Table 2's PascalCase Source Destination cells. Downstream dispatcher implementers must align this casing with the wire-level aggregate-type values used by emitting services. The `messaging-spec:messaging-module-structure` pattern doc example uses lowercase wire-values (e.g. `"files"`); this scaffolder preserves PascalCase per the user's design choice. If the wire-protocol expects lowercase, the implementer must normalize at dispatch time or the user must edit constants.py manually after init.
 - Constant ordering, naming, and per-file stub layout MUST follow the choices baked into Step 5 and Step 8 — they are intentionally mechanical so reruns produce byte-identical output.
 - Idempotent: re-running on an unchanged spec, unchanged locations report, and unchanged disk state is a no-op (zero files created, zero constants added).

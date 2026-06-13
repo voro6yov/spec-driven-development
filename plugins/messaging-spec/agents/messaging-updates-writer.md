@@ -4,9 +4,7 @@ description: "Emits the per-update messaging report by diffing working-tree cons
 tools: Read, Write, Bash, Skill
 skills:
   - spec-core:naming-conventions
-  - messaging-spec:updates-report-template
-  - messaging-spec:event-tables-template
-  - messaging-spec:event-fields-template
+  - messaging-spec:patterns
 model: sonnet
 ---
 
@@ -16,7 +14,9 @@ The ops axis exists because a consumer's `%% Messaging - <C>` handler-binding bl
 
 The report is consumed by the future `/messaging-spec:update-code` skill, which dispatches per-consumer code edits from the `## Affected Artifacts` footer. It is also the messaging-side analog of `<stem>.domain/updates.md`, `<stem>.persistence/updates.md`, and `<stem>.application/updates.md` — the layer reports chain (domain → persistence/application/messaging). This agent does not detect domain-level deltas or commands-diagram deltas; those are `domain-spec:updates-detector`'s and `application-spec:commands-updates-detector`'s jobs respectively.
 
-The `messaging-spec:updates-report-template` skill is loaded in your context and is the **single source of truth for the output schema**, the rendering rules, the axis-tagged `Source delta` grammar, the `## Operator Actions` H2 placement, the `## Affected Artifacts` footer specification, the two-line top-of-file sentinel placement, and the hash format. Apply it verbatim when rendering the report; do not restate the format rules in this body. The `messaging-spec:event-tables-template` and `messaging-spec:event-fields-template` skills define the exact shapes of Table 2 (Events to Consume) and Table 3 (Event Parameter Mapping) inside a consumer spec — use them when parsing those tables.
+**Reference docs (umbrella resolution).** Resolve `<patterns_dir>` as the directory containing the `messaging-spec:patterns` umbrella `SKILL.md` (auto-loaded via this agent's frontmatter; its loaded context reveals its location). Before rendering, Read these three reference docs in full: `<patterns_dir>/updates-report-template/index.md` (the output schema), `<patterns_dir>/event-tables-template/index.md` (Table 2 shape), and `<patterns_dir>/event-fields-template/index.md` (Table 3 shape). If any folder is missing, abort with `Error: pattern '<name>' has no folder under the messaging-spec:patterns umbrella at <patterns_dir>.` — never skip a missing pattern silently.
+
+The `messaging-spec:updates-report-template` pattern doc is the **single source of truth for the output schema**, the rendering rules, the axis-tagged `Source delta` grammar, the `## Operator Actions` H2 placement, the `## Affected Artifacts` footer specification, the two-line top-of-file sentinel placement, and the hash format. Apply it verbatim when rendering the report; do not restate the format rules in this body. The `messaging-spec:event-tables-template` and `messaging-spec:event-fields-template` pattern docs define the exact shapes of Table 2 (Events to Consume) and Table 3 (Event Parameter Mapping) inside a consumer spec — use them when parsing those tables.
 
 ## Arguments
 
@@ -278,7 +278,7 @@ Build the `Warnings:` sub-bullet list, in the report template's order. Emit a ca
 
 ### Step 7 — Render the report
 
-Render `<output_text>` using the schema and rendering rules in the `messaging-spec:updates-report-template` skill — that skill is the single source of truth for the output format. Substitute placeholders as follows:
+Render `<output_text>` using the schema and rendering rules in the `messaging-spec:updates-report-template` pattern doc — that pattern doc is the single source of truth for the output format. Substitute placeholders as follows:
 
 - `<dir>/<stem>.messaging/` → the actual `<messaging_dir>/`; `<dir>/<stem>.commands.md` → the actual `<commands_diagram>`; `<dir>/<stem>.domain/updates.md` → the actual `<domain_updates_file>` (render the entire `Domain updates source` value as `_none_` when `domain_updates_present` is false); `<dir>/<stem>.application/commands-updates.md` → the actual `<commands_updates_file>` (render `_none_` when `commands_updates_present` is false); `<dir>/<stem>.application/ops-updates.md` → the actual `<ops_updates_file>` (render `_none_` when `ops_updates_present` is false).
 - `<sha256>` placeholders → the corresponding hash from Step 5 (or the literal `(none)`).

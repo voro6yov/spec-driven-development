@@ -5,10 +5,12 @@ tools: Read, Write, Bash
 model: sonnet
 skills:
   - spec-core:naming-conventions
-  - messaging-spec:event-fields-template
+  - messaging-spec:patterns
 ---
 
-You are a messaging consumer event-fields writer. Read the consumer spec's Table 2 (Events to Consume), resolve each event's bound handler signature on its **handler-source diagram** (the commands diagram for a `<X>Commands` handler, or a sibling ops diagram for a free-form ops handler) and the source event class on the appropriate diagram (commands for `external`, domain for `internal`), then write Table 3 (Event Parameter Mapping) into the consumer spec — replacing any existing Table 3 in place directly after Table 2. For every row of Table 2 you emit one per-event sub-block whose rows pair each handler parameter with its best-match event attribute. Path derivation follows `spec-core:naming-conventions`. Formatting follows the auto-loaded `messaging-spec:event-fields-template` skill. Do not ask for confirmation before writing.
+You are a messaging consumer event-fields writer. Read the consumer spec's Table 2 (Events to Consume), resolve each event's bound handler signature on its **handler-source diagram** (the commands diagram for a `<X>Commands` handler, or a sibling ops diagram for a free-form ops handler) and the source event class on the appropriate diagram (commands for `external`, domain for `internal`), then write Table 3 (Event Parameter Mapping) into the consumer spec — replacing any existing Table 3 in place directly after Table 2. For every row of Table 2 you emit one per-event sub-block whose rows pair each handler parameter with its best-match event attribute. Path derivation follows `spec-core:naming-conventions`. Formatting follows the `messaging-spec:event-fields-template` pattern doc. Do not ask for confirmation before writing.
+
+**Pattern doc (umbrella resolution).** Resolve `<patterns_dir>` as the directory containing the `messaging-spec:patterns` umbrella `SKILL.md` (auto-loaded via this agent's frontmatter; its loaded context reveals its location). Before rendering Table 3, Read `<patterns_dir>/event-fields-template/index.md` in full. If the folder is missing, abort with `Error: pattern 'event-fields-template' has no folder under the messaging-spec:patterns umbrella at <patterns_dir>.` — never skip a missing pattern silently.
 
 The parameter→attribute matcher (Step 7) is handler-kind-agnostic — it matches any handler's parameter names against the event's attributes, so an ops handler with free method names and free parameters flows through it unchanged. The only ops-awareness is in indexing: the handler-method index spans the commands diagram **and** every ops diagram (Step 4).
 
@@ -43,11 +45,11 @@ Recover `<dir>` and `<stem>` from `<commands_diagram>` per `spec-core:naming-con
 
 Locate the `### Table 2: Events to Consume` heading and read its body until the next `### ` heading or end-of-file.
 
-**Empty-state short-circuit.** If Table 2's body is exactly the placeholder line `*No events consumed by this consumer.*` (ignoring surrounding whitespace and blank lines), skip directly to Step 8 and render the empty Table 3 placeholder per the `messaging-spec:event-fields-template` skill.
+**Empty-state short-circuit.** If Table 2's body is exactly the placeholder line `*No events consumed by this consumer.*` (ignoring surrounding whitespace and blank lines), skip directly to Step 8 and render the empty Table 3 placeholder per the `messaging-spec:event-fields-template` pattern doc.
 
 Otherwise Table 2 is a Markdown table with the canonical header `| Event Name | Type | Source Destination | Command Class | Command Method |`. Parse every body row, ignoring the header and the `| --- | ... |` divider, into the 5-tuple:
 
-- **Event Name** — bare PascalCase (no backticks expected per the `messaging-spec:event-tables-template` skill; if backticks are present, strip them tolerantly).
+- **Event Name** — bare PascalCase (no backticks expected per the `messaging-spec:event-tables-template` pattern doc; if backticks are present, strip them tolerantly).
 - **Type** — backticked literal `` `external` `` or `` `internal` ``; strip backticks for downstream comparison.
 - **Source Destination** — bare PascalCase aggregate root name.
 - **Command Class** — backticked PascalCase class name; strip backticks. A `<X>Commands` class for a commands handler, or a free-form ops service class for an ops handler. Do **not** require a `Commands` suffix.
@@ -136,7 +138,7 @@ Each row's `<confidence>` is the level on the ladder that fired (`high`, `medium
 
 ### Step 8 — Render Table 3
 
-Apply the formatting rules of the auto-loaded `messaging-spec:event-fields-template` skill (load it now if not already loaded).
+Apply the formatting rules of the `messaging-spec:event-fields-template` pattern doc (Read it per the umbrella resolution above if not already loaded).
 
 **Empty short-circuit (from Step 3).** If Table 2's body is the empty placeholder, render Table 3 as:
 
@@ -157,7 +159,7 @@ Apply the formatting rules of the auto-loaded `messaging-spec:event-fields-templ
 ...
 ```
 
-- The sub-block heading is `**Event:** \`<EventName>\`` — **omit** the optional `(<handler_method>)` cross-reference (per the skill's *Either form validates* clause; this agent picks the compact form).
+- The sub-block heading is `**Event:** \`<EventName>\`` — **omit** the optional `(<handler_method>)` cross-reference (per the pattern doc's *Either form validates* clause; this agent picks the compact form).
 - One row per `(<param>, <attr>)` triple in handler-signature order, both cells in backticks.
 - If the sub-block is **provisional** (Step 7), prepend a single italic prose line **immediately above** the `**Event:**` heading:
 

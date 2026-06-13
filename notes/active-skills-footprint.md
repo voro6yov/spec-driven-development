@@ -200,6 +200,50 @@ skill-context path resolution, 2/2 patterns):
 - Footprint: application-spec registered skills 23 → **11** (5 commands + umbrella +
   5 dual-homed); agents unchanged at 29. application-spec `plugin.json` 0.70.0 → 0.71.0.
 
+**Wave 1, messaging-spec (2026-06-13).** Same shape replicated — a **pure intra-plugin
+demotion** (the only wave so far with an empty dual-homed set):
+
+- **15 intra-plugin reference skills deleted** (deregistered): command-handlers,
+  consumer-spec-template, dispatcher-cli-command, dispatcher-container-registration,
+  dispatcher-runner-function, domain-event-dispatchers, domain-event-handlers,
+  event-fields-template, event-tables-template, message-events-external,
+  messaging-handler-fixtures, messaging-handler-test-rules, messaging-module-structure,
+  multi-aggregate-domain-event-dispatchers, updates-report-template. Each `SKILL.md` was
+  **moved** (not copied) to `skills/patterns/<name>/index.md`; the umbrella copies are now the
+  **only** copy. All 15 refs are single-file (no `template.md`/`examples.md` companions in this
+  plugin).
+- **Zero dual-homed twins.** An exact-token re-scan of every other plugin (domain-spec,
+  application-spec, persistence-spec, rest-api-spec, model-diagrams, spec-core) found **no**
+  foreign consumer of any messaging-spec reference skill — foreign plugins touch messaging-spec
+  only through the `update-specs` command skill (16 hits; stays registered regardless) and four
+  agent names (`target-locations-finder`, `code-brief-writer`, `code-change-writer`,
+  `code-review-writer` — fan-out edges, not skills). This confirms §2.3's ownership table
+  (messaging-spec owns no foreign-consumed ref); the umbrella carries **zero ✦ rows** and there
+  is no byte-identical-sync obligation. messaging-spec is a pure *consumer* of other plugins'
+  shared refs (`spec-core:naming-conventions`, `domain-spec:*`, `persistence-spec:*`,
+  `application-spec:*`), all left untouched.
+- **Bucket-E stale refs** (`messaging-spec:{command-dispatchers, command-replies,
+  container-initialization, message-commands, internal-domain-events,
+  mixed-dispatcher-events-and-commands}`) were already gone from the tree (zero hits, no skill
+  dirs) — nothing to delete.
+- **`messaging-spec:update-code` is intentional roadmap prose** (the planned
+  `/messaging-spec:update-code` skill), not an erroneous forward-reference — preserved verbatim
+  in `messaging-updates-writer`, the `updates-report-template` ref, and the `update-specs`
+  command skill. Unlike the application/rest-api waves there were no bad forward-references and
+  no wrong-infix / `notes/...` path-fragment tokens to clean.
+- **All 14 messaging-spec consumer agents rewired** uniformly: frontmatter loads
+  `messaging-spec:patterns`, bodies Read `<patterns_dir>/<name>/index.md` with a
+  hard-fail-on-missing guard. The brief-mediated dynamic loaders — `code-change-writer` (Phase 2,
+  the only agent with real `Skill messaging-spec:…` body invocations) and `code-review-writer`
+  (Phase 3) — keep their per-artifact lazy-load semantics over Reads; `code-brief-writer`'s
+  kind-derived role→patterns table still emits `messaging-spec:<name>` tokens as data.
+  `code-review-writer` had no reference skill in frontmatter, so it *gained* the
+  `messaging-spec:patterns` entry. Token vocabulary in specs/briefs/prose citations unchanged;
+  the `update-specs/SKILL.md` prose citation of `messaging-spec:event-tables-template` (a
+  non-load-bearing grammar reference) left as-is.
+- Footprint: messaging-spec registered skills 20 → **6** (5 commands + umbrella; **no
+  dual-homed**); agents unchanged at 17. messaging-spec `plugin.json` 0.42.0 → 0.43.0.
+
 ### 0.6 Residual gap demotion does not close
 
 Even after full demotion (~35 registered skills incl. umbrellas + 133 agents), the remaining
