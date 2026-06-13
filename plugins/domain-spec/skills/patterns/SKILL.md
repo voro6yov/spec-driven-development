@@ -24,37 +24,28 @@ silently.
 
 ## Catalog
 
-| Pattern | Folder | Companions | Registered twin |
-|---|---|---|---|
-| aggregate-data-fixtures | [aggregate-data-fixtures/](aggregate-data-fixtures/) | template.md | — |
-| aggregate-fixtures | [aggregate-fixtures/](aggregate-fixtures/) | template.md | ✦ |
-| aggregate-root | [aggregate-root/](aggregate-root/) | template.md | — |
-| aggregate-unit-tests | [aggregate-unit-tests/](aggregate-unit-tests/) | template.md | — |
-| class-spec-template | [class-spec-template/](class-spec-template/) | — | — |
-| collection-value-objects | [collection-value-objects/](collection-value-objects/) | template.md | ✦ |
-| commands | [commands/](commands/) | template.md | — |
-| constructor-guard-type-mapping | [constructor-guard-type-mapping/](constructor-guard-type-mapping/) | — | ✦ |
-| delegation-and-event-propagation | [delegation-and-event-propagation/](delegation-and-event-propagation/) | template.md | — |
-| domain-events | [domain-events/](domain-events/) | template.md | — |
-| domain-exceptions | [domain-exceptions/](domain-exceptions/) | template.md | ✦ |
-| domain-pattern-selection | [domain-pattern-selection/](domain-pattern-selection/) | examples.md | — |
-| domain-services | [domain-services/](domain-services/) | template.md | — |
-| domain-typed-dicts | [domain-typed-dicts/](domain-typed-dicts/) | template.md | — |
-| entity | [entity/](entity/) | template.md | — |
-| flat-constructor-arguments | [flat-constructor-arguments/](flat-constructor-arguments/) | template.md | ✦ |
-| guards-and-checks | [guards-and-checks/](guards-and-checks/) | template.md | — |
-| optional-values | [optional-values/](optional-values/) | — | ✦ |
-| package-layout | [package-layout/](package-layout/) | — | ✦ |
-| query-dtos | [query-dtos/](query-dtos/) | template.md | — |
-| repositories | [repositories/](repositories/) | template.md | — |
-| statuses | [statuses/](statuses/) | template.md | — |
-| updates-report-template | [updates-report-template/](updates-report-template/) | — | ✦ |
-| value-object | [value-object/](value-object/) | template.md | — |
-
-> **Authoritative copies & dual-homed twins.** For most patterns these folders are the **only**
-> copy — the standalone `domain-spec:<pattern>` skills were deregistered (Wave 1 of the
-> umbrella-skill demotion, `notes/active-skills-footprint.md` §0.4/§0.5). The eight rows marked
-> ✦ are **dual-homed**: a standalone skill `domain-spec:<pattern>` is still registered because
-> foreign plugins consume it; it remains the authoritative source until Wave 3 demotes it. The
-> umbrella copy must stay **byte-identical** to its registered twin — when editing a ✦ pattern,
-> edit the standalone skill first, then re-sync `<pattern>/index.md` (and companions) from it.
+| Pattern | Folder | Companions |
+|---|---|---|
+| aggregate-data-fixtures | [aggregate-data-fixtures/](aggregate-data-fixtures/) | template.md |
+| aggregate-fixtures | [aggregate-fixtures/](aggregate-fixtures/) | template.md |
+| aggregate-root | [aggregate-root/](aggregate-root/) | template.md |
+| aggregate-unit-tests | [aggregate-unit-tests/](aggregate-unit-tests/) | template.md |
+| class-spec-template | [class-spec-template/](class-spec-template/) | — |
+| collection-value-objects | [collection-value-objects/](collection-value-objects/) | template.md |
+| commands | [commands/](commands/) | template.md |
+| constructor-guard-type-mapping | [constructor-guard-type-mapping/](constructor-guard-type-mapping/) | — |
+| delegation-and-event-propagation | [delegation-and-event-propagation/](delegation-and-event-propagation/) | template.md |
+| domain-events | [domain-events/](domain-events/) | template.md |
+| domain-exceptions | [domain-exceptions/](domain-exceptions/) | template.md |
+| domain-pattern-selection | [domain-pattern-selection/](domain-pattern-selection/) | examples.md |
+| domain-services | [domain-services/](domain-services/) | template.md |
+| domain-typed-dicts | [domain-typed-dicts/](domain-typed-dicts/) | template.md |
+| entity | [entity/](entity/) | template.md |
+| flat-constructor-arguments | [flat-constructor-arguments/](flat-constructor-arguments/) | template.md |
+| guards-and-checks | [guards-and-checks/](guards-and-checks/) | template.md |
+| optional-values | [optional-values/](optional-values/) | — |
+| package-layout | [package-layout/](package-layout/) | — |
+| query-dtos | [query-dtos/](query-dtos/) | template.md |
+| repositories | [repositories/](repositories/) | template.md |
+| statuses | [statuses/](statuses/) | template.md |
+| value-object | [value-object/](value-object/) | template.md |

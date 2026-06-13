@@ -71,7 +71,7 @@ If any is missing, fail with a clear error citing the missing path and write not
 
 The temp directory `<dir>/<stem>.domain/.specs-tmp/` may not exist when the report's affected-categories list is empty (Step 2c early exit). Otherwise, every affected category must have a corresponding `<category>.md` file in the temp dir; missing temp files for affected categories are a contract violation (see Step 3).
 
-**Removal-only orchestrator contract.** Removed classes contribute their old stereotype's category to `## Affected Categories` per `updates-report-template`'s lifecycle rule, even when no surviving class in that category was touched. The orchestrator must therefore regenerate temp files for every affected category — including categories whose only contribution to the footer is a class removal — or the splicer will hard-fail at Step 3. (The splicer iterates the regen'd temp file and skips every class not in `added_set ∪ touched_set`, producing a no-op splice for that section; the file's existence is what's contractually required, not its content.)
+**Removal-only orchestrator contract.** Removed classes contribute their old stereotype's category to `## Affected Categories` per the `spec-core:update-reports` domain schema's lifecycle rule, even when no surviving class in that category was touched. The orchestrator must therefore regenerate temp files for every affected category — including categories whose only contribution to the footer is a class removal — or the splicer will hard-fail at Step 3. (The splicer iterates the regen'd temp file and skips every class not in `added_set ∪ touched_set`, producing a no-op splice for that section; the file's existence is what's contractually required, not its content.)
 
 ### Step 2 — Parse the updates report
 
@@ -130,7 +130,7 @@ The deps merge in Step 6 needs to know each class's category to decide which exi
 
 1. Locate the fenced ```` ```mermaid ```` block (line-anchored opening fence).
 2. Within the block, find each `class <Name>` declaration and capture any explicit `<<Stereotype>>` annotation.
-3. For classes without an explicit stereotype, apply the inference rules from `updates-report-template`:
+3. For classes without an explicit stereotype, apply the inference rules from the `spec-core:update-reports` domain schema:
    - `-->` with `: emits` → `<<Event>>`
    - `--()` with `: emits` → `<<Command>>`
 4. Map each stereotype → category using the canonical mapping above. Classes with no resolvable category (e.g. unstereotyped, no inference applies) are excluded from the map; their entries in `### Dependencies` will be treated as "unaffected" by default in Step 6.

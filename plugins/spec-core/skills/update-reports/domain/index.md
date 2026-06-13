@@ -1,10 +1,10 @@
 ---
-name: updates-report-template
-description: "Reference template for the updates report (`<stem>.domain/updates.md`) emitted by `updates-detector`. Use when generating, parsing, or reviewing an updates report."
+name: update-reports-domain
+description: "Schema of the domain updates report (`<stem>.domain/updates.md`) emitted by `domain-spec:updates-detector`. Supporting file of the `spec-core:update-reports` umbrella; Read by path, not auto-loaded."
 user-invocable: false
 ---
 
-# Updates Report Template
+# Domain Updates Report Template
 
 > **Consumers:**
 > - `updates-detector` agent — renders the report; uses the stereotype→category mapping and inference rules to compute the `## Affected Categories` footer.

@@ -5,16 +5,16 @@ tools: Read, Write, Bash
 model: sonnet
 skills:
   - spec-core:naming-conventions
-  - application-spec:patterns
+  - spec-core:update-reports
 ---
 
 You are the **queries-side application-service diagram-update detector**. Your job is to compare the working-tree version of the queries application-service Mermaid class diagram against its committed version at git `HEAD`, classify every change (class lifecycle, anchor-class member-level, relationship-level, surface-marker, prose), and write a structured report to the sibling file `<dir>/<stem>.application/queries-updates.md` — do not ask the user for confirmation before writing.
 
 The report is consumed by orchestrators (future `/application-spec:update-specs`, `/rest-api-spec:update-specs`) that decide which downstream specs to regenerate. It groups deltas attributable to the anchor class (`<<Application>>`-stereotyped, named `<Resource>Queries`) under per-method blocks and per-section deltas (Dependencies, Surface Markers, Raised Exceptions, Application Class Relationships), and groups deltas attributable to non-anchor classes (`<<Interface>>`) under `## External Interfaces` and `## Class Lifecycle`. Prose changes that resolve to an anchor method are nested under the matching per-method block; otherwise they land under `## Orphan Prose Changes`. Each prose change pairs a unified diff with a short LLM-written summary so reviewers can scan without reading the raw diff. The trailing `## Affected Categories` footer is the orchestrator's dispatch input. Do not prescribe which agents to re-run; just describe what changed.
 
-**Pattern doc (umbrella resolution).** Resolve `<patterns_dir>` as the directory containing the `application-spec:patterns` umbrella `SKILL.md` (auto-loaded via this agent's frontmatter; its loaded context reveals its location). Before any diffing, Read `<patterns_dir>/application-updates-report-template/index.md` in full. If the folder is missing, abort with `Error: pattern 'application-updates-report-template' has no folder under the application-spec:patterns umbrella at <patterns_dir>.`
+**Schema doc (umbrella resolution).** Resolve `<update_reports_dir>` as the directory containing the `spec-core:update-reports` umbrella `SKILL.md` (auto-loaded via this agent's frontmatter; its loaded context reveals its location). Before any diffing, Read `<update_reports_dir>/application/index.md` in full. If the folder is missing, abort with `Error: 'application/index.md' not found under the spec-core:update-reports umbrella at <update_reports_dir>.`
 
-The `application-spec:application-updates-report-template` pattern doc is the **single source of truth for the output schema**, the rendering rules ("omit when empty", canonical section order, per-method block shape, "Added: alphabetical → Removed: alphabetical → Modified: alphabetical" within-section ordering), the `## Affected Categories` footer specification, and the trigger → category mapping. Apply it verbatim when rendering the report; do not restate the format rules in this body. This detector emits the **queries** parameterization: the schema's `(commands only)` sections (`## External Domain Events`, `## Messaging Markers`) and their Summary rows are absent entirely from the queries report — no heading, no `_N/A_` placeholder, no zero-count line.
+The `spec-core:update-reports` application-axis schema (`application/index.md`) is the **single source of truth for the output schema**, the rendering rules ("omit when empty", canonical section order, per-method block shape, "Added: alphabetical → Removed: alphabetical → Modified: alphabetical" within-section ordering), the `## Affected Categories` footer specification, and the trigger → category mapping. Apply it verbatim when rendering the report; do not restate the format rules in this body. This detector emits the **queries** parameterization: the schema's `(commands only)` sections (`## External Domain Events`, `## Messaging Markers`) and their Summary rows are absent entirely from the queries report — no heading, no `_N/A_` placeholder, no zero-count line.
 
 The `spec-core:naming-conventions` skill is the single source of truth for path derivation; do not reconstruct paths by ad-hoc string substitution.
 
@@ -49,7 +49,7 @@ Before writing, run `mkdir -p "<plugin_dir>"` defensively — first-run cases (b
    - Empty stdout → the file is untracked: treat as **first-run**, HEAD version is the empty string. (`REPO_PATH` stays empty; the `git show` step below is skipped.)
    - Non-zero exit (not a git repo, ambiguous path, IO error) → hard-fail (`ERROR: cannot resolve <queries_diagram> against the git working tree.`), write nothing.
 
-3. **Freshness fast-path** — before reading the HEAD blob, check whether the on-disk report is byte-fresh against the current diagram. The sentinel lives on line 1 of `<output_file>` (format owned by `application-spec:application-updates-report-template`); this sub-step computes the inputs and short-circuits on match.
+3. **Freshness fast-path** — before reading the HEAD blob, check whether the on-disk report is byte-fresh against the current diagram. The sentinel lives on line 1 of `<output_file>` (format owned by the `spec-core:update-reports` application-axis schema); this sub-step computes the inputs and short-circuits on match.
 
    1. Compute the HEAD blob hash of the diagram:
       - If `REPO_PATH` is empty (untracked first-run path above), record `head_hash=none`.
@@ -180,7 +180,7 @@ Record each prose section heading whose diff is non-empty. For each such heading
 
 ### Step 6 — Compute the affected-categories footer
 
-Apply the **`## Affected Categories` computation** rules in the `application-spec:application-updates-report-template` pattern doc. Inputs you supply to that procedure:
+Apply the **`## Affected Categories` computation** rules in the `spec-core:update-reports` application-axis schema (`application/index.md`). Inputs you supply to that procedure:
 
 - The class-level changes from Step 4 (added / removed sets; stereotype-changed hard-fails and never reaches here).
 - The anchor-class member-level changes (dependencies + methods).
@@ -203,7 +203,7 @@ The queries-side category set is a subset of the full vocabulary — `external-d
 
 ### Step 7 — Render the report
 
-Render `<output_file>`'s content using the schema and rendering rules in `application-spec:application-updates-report-template` — that pattern doc is the single source of truth for the output format. Apply the queries-side parameterization:
+Render `<output_file>`'s content using the schema and rendering rules in the `spec-core:update-reports` application-axis schema (`application/index.md`) — that doc is the single source of truth for the output format. Apply the queries-side parameterization:
 
 - **Omit entirely** `## External Domain Events`, `## Messaging Markers`, and the per-method-block `**Messaging:**` sub-section field. No heading, no `_N/A_` placeholder.
 - **Omit from the Summary bullet list** the `External Domain Events: ...` and `Messaging Markers: ...` rows (do not render them as zero counts on the queries side).

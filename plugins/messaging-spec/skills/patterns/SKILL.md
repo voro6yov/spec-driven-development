@@ -23,29 +23,20 @@ silently.
 
 ## Catalog
 
-| Pattern | Folder | Companions | Registered twin |
-|---|---|---|---|
-| command-handlers | [command-handlers/](command-handlers/) | — | — |
-| consumer-spec-template | [consumer-spec-template/](consumer-spec-template/) | — | — |
-| dispatcher-cli-command | [dispatcher-cli-command/](dispatcher-cli-command/) | — | — |
-| dispatcher-container-registration | [dispatcher-container-registration/](dispatcher-container-registration/) | — | — |
-| dispatcher-runner-function | [dispatcher-runner-function/](dispatcher-runner-function/) | — | — |
-| domain-event-dispatchers | [domain-event-dispatchers/](domain-event-dispatchers/) | — | — |
-| domain-event-handlers | [domain-event-handlers/](domain-event-handlers/) | — | — |
-| event-fields-template | [event-fields-template/](event-fields-template/) | — | — |
-| event-tables-template | [event-tables-template/](event-tables-template/) | — | — |
-| message-events-external | [message-events-external/](message-events-external/) | — | — |
-| messaging-handler-fixtures | [messaging-handler-fixtures/](messaging-handler-fixtures/) | — | — |
-| messaging-handler-test-rules | [messaging-handler-test-rules/](messaging-handler-test-rules/) | — | — |
-| messaging-module-structure | [messaging-module-structure/](messaging-module-structure/) | — | — |
-| multi-aggregate-domain-event-dispatchers | [multi-aggregate-domain-event-dispatchers/](multi-aggregate-domain-event-dispatchers/) | — | — |
-| updates-report-template | [updates-report-template/](updates-report-template/) | — | — |
-
-> **Authoritative copies — no dual-homed twins.** These folders are the **only** copy of every
-> messaging-spec pattern reference — the standalone `messaging-spec:<pattern>` skills were
-> deregistered (Wave 1 of the umbrella-skill demotion, `notes/active-skills-footprint.md`
-> §0.4/§0.5). messaging-spec owns no reference skill that another plugin consumes (it is a pure
-> consumer of other plugins' shared refs — `spec-core:naming-conventions`,
-> `domain-spec:*`, `persistence-spec:*`, `application-spec:*`), so there are **no dual-homed
-> twins** (the "Registered twin" column is uniformly `—`) and no byte-identical-sync obligation:
-> editing a pattern means editing its `<pattern>/index.md` here, full stop.
+| Pattern | Folder | Companions |
+|---|---|---|
+| command-handlers | [command-handlers/](command-handlers/) | — |
+| consumer-spec-template | [consumer-spec-template/](consumer-spec-template/) | — |
+| dispatcher-cli-command | [dispatcher-cli-command/](dispatcher-cli-command/) | — |
+| dispatcher-container-registration | [dispatcher-container-registration/](dispatcher-container-registration/) | — |
+| dispatcher-runner-function | [dispatcher-runner-function/](dispatcher-runner-function/) | — |
+| domain-event-dispatchers | [domain-event-dispatchers/](domain-event-dispatchers/) | — |
+| domain-event-handlers | [domain-event-handlers/](domain-event-handlers/) | — |
+| event-fields-template | [event-fields-template/](event-fields-template/) | — |
+| event-tables-template | [event-tables-template/](event-tables-template/) | — |
+| message-events-external | [message-events-external/](message-events-external/) | — |
+| messaging-handler-fixtures | [messaging-handler-fixtures/](messaging-handler-fixtures/) | — |
+| messaging-handler-test-rules | [messaging-handler-test-rules/](messaging-handler-test-rules/) | — |
+| messaging-module-structure | [messaging-module-structure/](messaging-module-structure/) | — |
+| multi-aggregate-domain-event-dispatchers | [multi-aggregate-domain-event-dispatchers/](multi-aggregate-domain-event-dispatchers/) | — |
+| updates-report-template | [updates-report-template/](updates-report-template/) | — |

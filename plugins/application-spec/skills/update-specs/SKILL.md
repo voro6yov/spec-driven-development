@@ -135,7 +135,7 @@ This step runs sequentially after 0g (it shares `<plugin_dir>` and uses `mkdir -
 **Domain axis** (from `<stem>.domain/updates.md`):
 
 - **`domain.degraded_baseline`** — whether the `## Summary` block contains a line beginning `_warning: HEAD `.
-- **`domain.stereotype_changed`** — class names listed under `## Class Lifecycle → Stereotype Changed` (one bullet per class; the exact bullet format is owned by `domain-spec:updates-report-template`). Empty when the heading is absent or its body is `_None._`-style.
+- **`domain.stereotype_changed`** — class names listed under `## Class Lifecycle → Stereotype Changed` (one bullet per class; the exact bullet format is owned by `spec-core:update-reports` (domain schema)). Empty when the heading is absent or its body is `_None._`-style.
 - **`domain.removed_classes`** — bullets under `## Class Lifecycle → Removed`, each `` - `ClassName` `<<Stereotype>>` ``. Capture `(class_name, stereotype)` per bullet.
 - **`domain.added_classes`** — bullets under `## Class Lifecycle → Added`, each `` - `ClassName` `<<Stereotype>>` `` (the `— <N> attributes, <N> methods` suffix is informational; ignore for dispatch). Capture `(class_name, stereotype)` per bullet.
 - **`domain.affected_categories`** — bullets under `## Affected Categories`, in the order they appear. The literal body `_None._` means empty.
@@ -146,14 +146,14 @@ This step runs sequentially after 0g (it shares `<plugin_dir>` and uses `mkdir -
 **Commands-diagram axis** (from `<plugin_dir>/commands-updates.md`):
 
 - **`commands.degraded_baseline`** — whether the `## Summary` block contains a line beginning `_warning: HEAD `.
-- **`commands.affected_categories`** — bullets under `## Affected Categories`, in the order they appear. The vocabulary is owned by `application-spec:application-updates-report-template`. The literal body `_None._` means empty.
+- **`commands.affected_categories`** — bullets under `## Affected Categories`, in the order they appear. The vocabulary is owned by `spec-core:update-reports` (application-axis schema). The literal body `_None._` means empty.
 
 **Queries-diagram axis** (from `<plugin_dir>/queries-updates.md`):
 
 - **`queries.degraded_baseline`** — whether the `## Summary` block contains a line beginning `_warning: HEAD `.
 - **`queries.affected_categories`** — bullets under `## Affected Categories`. The literal body `_None._` means empty.
 
-**Ops-diagram axis** (from `<plugin_dir>/ops-updates.md`; schema owned by `application-spec:ops-updates-report-template`):
+**Ops-diagram axis** (from `<plugin_dir>/ops-updates.md`; schema owned by `spec-core:update-reports` (ops schema)):
 
 - **`ops.degraded_baseline`** — whether the `## Summary` block contains any line beginning `_warning: HEAD `.
 - **`ops.touched_services`** — one entry per `## Service: \`<op-name>\`` block present in the report. Capture `(<op-name>, lifecycle)` where `lifecycle` is `removed` when the heading is annotated `(service removed)`, `added` when annotated `(service added)`, else `changed`. A report whose Summary is `No changes detected.` (or which has zero service blocks) yields an empty list. This is the orchestrator's ops dispatch input — the ops report wraps per-service blocks, so (unlike the aggregate-wide commands/queries `## Affected Categories`) the dirty unit is the service, not a category.
@@ -360,7 +360,7 @@ Invoke `application-spec:application-updates-writer` with prompt `$ARGUMENTS[0]`
 
 The writer recovers everything it needs from disk + git + the three sibling delta reports; the orchestrator passes nothing else.
 
-This step runs **on every successful run**, including the Tier 4 no-op early-exit case (Step 2). The consumer's contract (`/update-code`, the cross-layer `domain-spec:update-code` orchestrator) requires the report to always exist after a successful run.
+This step runs **on every successful run**, including the Tier 4 no-op early-exit case (Step 2). The consumer's contract (the `/application-spec:update-code` flow, sequenced by the cross-layer `/spec-core:update-code`) requires the report to always exist after a successful run.
 
 If the writer reports a failure, abort and emit a single `ERROR:` line repeating its message. The application specs are already in their final post-update state by this point — re-running the orchestrator (or just the updates writer agent standalone) idempotently produces the report.
 
@@ -421,5 +421,5 @@ There are no sentinel comments in `<plugin_dir>/updates.md` beyond those the wri
 - It does not itself act on the `surface-markers` or `messaging-markers` categories that may appear on the commands-diagram updates report — those drive `/rest-api-spec:update-specs` and `/messaging-spec:update-specs` respectively. This orchestrator ignores them for its *own* dispatch (no `commands_dirty` contribution); they are picked up by the rest-api / messaging updaters from the detector reports this skill produces, when `/spec-core:update-specs` runs those leaves after this skill.
 - It does not pre-check the narrower abort conditions of the methods writers (a missing `save(...)` on the command repo, an aggregate-root method renamed under the application diagrams' canonical shape, a referenced `<<Service>>` removed, a query-repo finder rename that breaks a same-name match, an external-interface operation rename). The methods writers abort with their own one-sentence errors and the orchestrator surfaces them verbatim from Step 3.
 - It does not preserve hand-edits inside the spec — the writer/merger contract is that the spec is regenerated from the diagrams, not curated. The unaffected side's `<side>.specs.md` is preserved byte-identically (the chosen approach's main payoff); inside a regenerated side, manual edits are wholesale replaced.
-- It does not auto-update generated application code (`<aggregate>_commands.py`, `<aggregate>_queries.py`, the ops service modules `<op_snake>.py`, infrastructure stubs, test fakes, DI providers, conftest fixtures, application exception classes appended to the domain aggregate's `exceptions.py`, integration tests) — that is the cross-layer `/update-code` skill (`domain-spec:update-code`), which consumes the `<stem>.application/updates.md` **and** `<stem>.application/ops-updates.md` this skill emits.
+- It does not auto-update generated application code (`<aggregate>_commands.py`, `<aggregate>_queries.py`, the ops service modules `<op_snake>.py`, infrastructure stubs, test fakes, DI providers, conftest fixtures, application exception classes appended to the domain aggregate's `exceptions.py`, integration tests) — that is the per-layer `/…-spec:update-code` flow (sequenced cross-layer by `/spec-core:update-code`), which consumes the `<stem>.application/updates.md` **and** `<stem>.application/ops-updates.md` this skill emits.
 - It does not cascade to rest-api or messaging, and it does not consume `--detectors-fresh` (it is the producer of all three detector reports, so it always runs the detectors itself; a stray flag is ignored). Cross-layer propagation is owned by `/spec-core:update-specs`, which runs this skill (its application wave) and then the rest-api/messaging wave, passing those leaves `--detectors-fresh` because this skill's Step 0 reports are on disk. This skill is independently invocable (the entry point for an application-only change) with **identical** behaviour either way: it always produces the commands/queries reports at Step 0g and the ops report at Step 0h and regenerates every dirty ops service's spec.

@@ -5,7 +5,7 @@ tools: Read, Edit, Bash, Skill
 skills:
   - spec-core:naming-conventions
   - persistence-spec:patterns
-  - domain-spec:updates-report-template
+  - spec-core:update-reports
 model: opus
 ---
 
@@ -28,7 +28,9 @@ It is also safe to invoke standalone (outside `/persistence-spec:update-specs`):
 The autoloaded skills cover:
 
 - `spec-core:naming-conventions` — path derivation contract.
-- `domain-spec:updates-report-template` — schema of the input `updates.md` file.
+- `spec-core:update-reports` — umbrella index for the cross-layer detector report schemas (only the index auto-loads; the per-layer schema is Read below).
+
+**Domain schema (umbrella resolution).** Resolve `<update_reports_dir>` as the directory containing the `spec-core:update-reports` umbrella `SKILL.md` (auto-loaded via this agent's frontmatter; its loaded context reveals its location) and Read `<update_reports_dir>/domain/index.md` in full — the schema of the input `updates.md` file. If the folder is missing, abort with `Error: 'domain/index.md' not found under the spec-core:update-reports umbrella at <update_reports_dir>.`
 
 **Pattern docs (umbrella resolution).** Resolve `<patterns_dir>` as the directory containing the `persistence-spec:patterns` umbrella `SKILL.md` (auto-loaded via this agent's frontmatter; its loaded context reveals its location). Before Step 1, Read these three pattern docs in full:
 
@@ -89,7 +91,7 @@ Do **not** modify the spec. Do **not** emit a sentinel.
 
 ### Step 4 — Read updates.md
 
-Read `<updates_file>`. Parse per `domain-spec:updates-report-template`:
+Read `<updates_file>`. Parse per the `spec-core:update-reports` domain schema:
 
 - `## Class Lifecycle` → `### Added`, `### Removed`, `### Stereotype Changed` sub-blocks.
 - `## Per-Class Changes` → one `### \`ClassName\` \`<<Stereotype>>\`` block per touched class, with `**Members:**`, `**Relationships (outgoing):**`, and `**Prose — ...:**` sub-sections.
@@ -152,7 +154,7 @@ For every `**Members:**` bullet inside the `### \`<root_class>\` \`<<Aggregate R
 
 `<NewSqlType>` is the `persistence-spec:table-definitions` Column Type derived from the new domain type via `<column_type_for[...]>`.
 
-A single `Attribute changed:` bullet may carry **both** a `type ... → ...` clause and a trailing `visibility ... → ...` clause (per `domain-spec:updates-report-template`'s member schema). When it does, dispatch on the type clause only (one of the three type rows above) and ignore the visibility clause. A bullet with **only** a `visibility ... → ...` clause emits no row.
+A single `Attribute changed:` bullet may carry **both** a `type ... → ...` clause and a trailing `visibility ... → ...` clause (per the `spec-core:update-reports` domain schema's Members rules). When it does, dispatch on the type clause only (one of the three type rows above) and ignore the visibility clause. A bullet with **only** a `visibility ... → ...` clause emits no row.
 
 #### 6.2 Entity (child) lifecycle deltas
 
@@ -187,7 +189,7 @@ For every `<<Value Object>>` listed under `## Class Lifecycle → Removed`:
 
 VO **field-level** changes inside a `### \`<vo_class>\` \`<<Value Object>>\`` per-class block (field added / removed / type changed) are **byte-neutral** for the command-repo-spec — the field lives inside the JSONB blob, so the underlying database column is unchanged. Emit no row.
 
-**Polymorphism flips** — a VO that gains an inheritance hierarchy (one or more `<|--` edges added). Detection: walk `<per_class>` for the polymorphic VO's block (heading `### \`<vo>\` \`<<Value Object>>\``); under `**Relationships (outgoing):**` look for bullets matching `Added: \`<vo> <|-- <Sub>\``. In Mermaid syntax `Parent <|-- Child` writes the parent on the left, and `domain-spec:updates-report-template` § "Per-Class Changes" treats the left-hand class as the source — so the edge surfaces in the **parent VO's** per-class block, not in any subclass's block.
+**Polymorphism flips** — a VO that gains an inheritance hierarchy (one or more `<|--` edges added). Detection: walk `<per_class>` for the polymorphic VO's block (heading `### \`<vo>\` \`<<Value Object>>\``); under `**Relationships (outgoing):**` look for bullets matching `Added: \`<vo> <|-- <Sub>\``. In Mermaid syntax `Parent <|-- Child` writes the parent on the left, and the `spec-core:update-reports` domain schema § "Per-Class Changes" treats the left-hand class as the source — so the edge surfaces in the **parent VO's** per-class block, not in any subclass's block.
 
 For each polymorphism flip detected on `<vo>`, resolve `<vo_owners[<vo>]>` and emit, per `(<owner_class>, <field_name>)`, three rows in this exact order with sequential IDs:
 
@@ -197,7 +199,7 @@ For each polymorphism flip detected on `<vo>`, resolve `<vo_owners[<vo>]>` and e
 
 #### 6.4 Repository finder deltas
 
-For every `<<Repository>>` per-class block (heading `### \`<RepoClass>\` \`<<Repository>>\``), walk `**Members:**` for `Method added`, `Method removed`, `Method changed` bullets. Bullet content shape per `domain-spec:updates-report-template`:
+For every `<<Repository>>` per-class block (heading `### \`<RepoClass>\` \`<<Repository>>\``), walk `**Members:**` for `Method added`, `Method removed`, `Method changed` bullets. Bullet content shape per the `spec-core:update-reports` domain schema:
 
 - `Method added: \`<signature>\``
 - `Method removed: \`<signature>\``

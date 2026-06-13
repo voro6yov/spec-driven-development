@@ -23,42 +23,33 @@ silently.
 
 ## Catalog
 
-| Pattern | Folder | Companions | Registered twin |
-|---|---|---|---|
-| api-client-fixtures | [api-client-fixtures/](api-client-fixtures/) | — | — |
-| api-endpoint-test-rules | [api-endpoint-test-rules/](api-endpoint-test-rules/) | — | — |
-| auth-middleware | [auth-middleware/](auth-middleware/) | — | — |
-| command-action-endpoint | [command-action-endpoint/](command-action-endpoint/) | — | — |
-| constants | [constants/](constants/) | — | — |
-| endpoint-io-template | [endpoint-io-template/](endpoint-io-template/) | examples.md | — |
-| endpoint-tables-template | [endpoint-tables-template/](endpoint-tables-template/) | — | — |
-| endpoints | [endpoints/](endpoints/) | — | — |
-| entrypoint | [entrypoint/](entrypoint/) | — | — |
-| error-handlers | [error-handlers/](error-handlers/) | — | — |
-| file-upload-endpoint | [file-upload-endpoint/](file-upload-endpoint/) | — | — |
-| infrastructure-exception-handlers | [infrastructure-exception-handlers/](infrastructure-exception-handlers/) | — | — |
-| internal-router | [internal-router/](internal-router/) | — | — |
-| literal-type-fields | [literal-type-fields/](literal-type-fields/) | — | — |
-| nested-resource-endpoints | [nested-resource-endpoints/](nested-resource-endpoints/) | — | — |
-| nested-response-serializers | [nested-response-serializers/](nested-response-serializers/) | — | — |
-| pagination-serializers | [pagination-serializers/](pagination-serializers/) | — | — |
-| polymorphic-response-serializers | [polymorphic-response-serializers/](polymorphic-response-serializers/) | — | — |
-| query-params | [query-params/](query-params/) | — | — |
-| request-serializers | [request-serializers/](request-serializers/) | — | — |
-| resource-spec-template | [resource-spec-template/](resource-spec-template/) | — | — |
-| response-serializers | [response-serializers/](response-serializers/) | — | — |
-| result-set-serializer | [result-set-serializer/](result-set-serializer/) | — | — |
-| simple-command-response | [simple-command-response/](simple-command-response/) | — | — |
-| static-response-serializer | [static-response-serializer/](static-response-serializer/) | — | — |
-| surface-markers | [surface-markers/](surface-markers/) | — | ✦ |
-| updates-report-template | [updates-report-template/](updates-report-template/) | — | — |
-| version-router | [version-router/](version-router/) | — | — |
-
-> **Authoritative copies & dual-homed twins.** For most patterns these folders are the **only**
-> copy — the standalone `rest-api-spec:<pattern>` skills were deregistered (Wave 1 of the
-> umbrella-skill demotion, `notes/active-skills-footprint.md` §0.4/§0.5). The one row marked ✦
-> is **dual-homed**: a standalone skill `rest-api-spec:<pattern>` is still registered because a
-> foreign plugin consumes it (`surface-markers` — cited by application-spec as the single source
-> of truth for marker syntax); it remains the authoritative source until Wave 3 demotes it. The
-> umbrella copy must stay **byte-identical** to its registered twin — when editing a ✦ pattern,
-> edit the standalone skill first, then re-sync `<pattern>/index.md` from it.
+| Pattern | Folder | Companions |
+|---|---|---|
+| api-client-fixtures | [api-client-fixtures/](api-client-fixtures/) | — |
+| api-endpoint-test-rules | [api-endpoint-test-rules/](api-endpoint-test-rules/) | — |
+| auth-middleware | [auth-middleware/](auth-middleware/) | — |
+| command-action-endpoint | [command-action-endpoint/](command-action-endpoint/) | — |
+| constants | [constants/](constants/) | — |
+| endpoint-io-template | [endpoint-io-template/](endpoint-io-template/) | examples.md |
+| endpoint-tables-template | [endpoint-tables-template/](endpoint-tables-template/) | — |
+| endpoints | [endpoints/](endpoints/) | — |
+| entrypoint | [entrypoint/](entrypoint/) | — |
+| error-handlers | [error-handlers/](error-handlers/) | — |
+| file-upload-endpoint | [file-upload-endpoint/](file-upload-endpoint/) | — |
+| infrastructure-exception-handlers | [infrastructure-exception-handlers/](infrastructure-exception-handlers/) | — |
+| internal-router | [internal-router/](internal-router/) | — |
+| literal-type-fields | [literal-type-fields/](literal-type-fields/) | — |
+| nested-resource-endpoints | [nested-resource-endpoints/](nested-resource-endpoints/) | — |
+| nested-response-serializers | [nested-response-serializers/](nested-response-serializers/) | — |
+| pagination-serializers | [pagination-serializers/](pagination-serializers/) | — |
+| polymorphic-response-serializers | [polymorphic-response-serializers/](polymorphic-response-serializers/) | — |
+| query-params | [query-params/](query-params/) | — |
+| request-serializers | [request-serializers/](request-serializers/) | — |
+| resource-spec-template | [resource-spec-template/](resource-spec-template/) | — |
+| response-serializers | [response-serializers/](response-serializers/) | — |
+| result-set-serializer | [result-set-serializer/](result-set-serializer/) | — |
+| simple-command-response | [simple-command-response/](simple-command-response/) | — |
+| static-response-serializer | [static-response-serializer/](static-response-serializer/) | — |
+| surface-markers | [surface-markers/](surface-markers/) | — |
+| updates-report-template | [updates-report-template/](updates-report-template/) | — |
+| version-router | [version-router/](version-router/) | — |

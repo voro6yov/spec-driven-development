@@ -12,7 +12,7 @@ You are a messaging updates writer. Your job is to compare the working-tree vers
 
 The ops axis exists because a consumer's `%% Messaging - <C>` handler-binding block may live in an ops diagram (`<stem>.ops.<op-name>.md`) rather than the commands diagram, and an ops method may change signature — both are diagram-marker / handler-signature deltas structurally identical to the commands axis, so the ops axis is handled as a peer of the commands axis throughout.
 
-The report is consumed by the future `/messaging-spec:update-code` skill, which dispatches per-consumer code edits from the `## Affected Artifacts` footer. It is also the messaging-side analog of `<stem>.domain/updates.md`, `<stem>.persistence/updates.md`, and `<stem>.application/updates.md` — the layer reports chain (domain → persistence/application/messaging). This agent does not detect domain-level deltas or commands-diagram deltas; those are `domain-spec:updates-detector`'s and `application-spec:commands-updates-detector`'s jobs respectively.
+The report is consumed by the `/messaging-spec:update-code` skill, which dispatches per-consumer code edits from the `## Affected Artifacts` footer. It is also the messaging-side analog of `<stem>.domain/updates.md`, `<stem>.persistence/updates.md`, and `<stem>.application/updates.md` — the layer reports chain (domain → persistence/application/messaging). This agent does not detect domain-level deltas or commands-diagram deltas; those are `domain-spec:updates-detector`'s and `application-spec:commands-updates-detector`'s jobs respectively.
 
 **Reference docs (umbrella resolution).** Resolve `<patterns_dir>` as the directory containing the `messaging-spec:patterns` umbrella `SKILL.md` (auto-loaded via this agent's frontmatter; its loaded context reveals its location). Before rendering, Read these three reference docs in full: `<patterns_dir>/updates-report-template/index.md` (the output schema), `<patterns_dir>/event-tables-template/index.md` (Table 2 shape), and `<patterns_dir>/event-fields-template/index.md` (Table 3 shape). If any folder is missing, abort with `Error: pattern '<name>' has no folder under the messaging-spec:patterns umbrella at <patterns_dir>.` — never skip a missing pattern silently.
 
@@ -69,7 +69,7 @@ Only when `consumers_on_disk` is empty **and** `consumers_added_by_cmd` is empty
 `test -f "<domain_updates_file>"` (already recorded in Step 1).
 
 - **Missing** (`domain_updates_present = false`) → skip the rest of this step. (`removed_or_renamed_events`, `event_attr_deltas`, `dead_emit_edges`, `added_events` are all empty; no hard-fail gate can fire; every domain-axis `Source delta` probe will skip and fall back as defined in Step 5; a "domain updates source missing" warning is emitted at Step 6.)
-- **Present** (`domain_updates_present = true`) → `Read` it, and parse per `domain-spec:updates-report-template`'s schema:
+- **Present** (`domain_updates_present = true`) → `Read` it, and parse per `spec-core:update-reports` (domain schema)'s schema:
 
   | Variable | Source in `updates.md` |
   |---|---|
@@ -104,7 +104,7 @@ Only when `consumers_on_disk` is empty **and** `consumers_added_by_cmd` is empty
 
   Notes on parsing:
 
-  - The `## Messaging Markers` H2 is **optional** — the commands detector omits it when its content is empty (per `application-spec:application-updates-report-template`'s empty-section rule). When absent, bind `consumers_added_by_cmd = consumers_removed_by_cmd = consumers_changed_by_cmd = ∅` and `messaging_marker_rows = {}`. **Do not** warn — the absent section is a valid no-op signal (the operator made commands-diagram edits that touched no `%% Messaging` markers).
+  - The `## Messaging Markers` H2 is **optional** — the commands detector omits it when its content is empty (per `spec-core:update-reports` (application-axis schema)'s empty-section rule). When absent, bind `consumers_added_by_cmd = consumers_removed_by_cmd = consumers_changed_by_cmd = ∅` and `messaging_marker_rows = {}`. **Do not** warn — the absent section is a valid no-op signal (the operator made commands-diagram edits that touched no `%% Messaging` markers).
   - The `## External Domain Events` H2 is likewise optional; bind `external_event_attr_deltas = {}` when absent. No warning.
   - All other H2 sections of `commands-updates.md` (`## Class Lifecycle`, `## Dependencies`, `## Per-Method Changes`, `## External Interfaces`, `## Surface Markers`, `## Raised Exceptions`, `## Application Class Relationships`, `## Orphan Prose Changes`, `## Affected Categories`) are **ignored** by this writer — they drive application-spec, rest-api-spec, and other consumers; the messaging axis only consumes the two sections above.
 
@@ -115,7 +115,7 @@ Only when `consumers_on_disk` is empty **and** `consumers_added_by_cmd` is empty
 `test -f "<ops_updates_file>"` (already recorded in Step 1).
 
 - **Missing** (`ops_updates_present = false`) → skip the rest of this step. (`consumers_added_by_ops`, `consumers_removed_by_ops`, `consumers_changed_by_ops` empty; per-consumer ops-axis row deltas `ops_messaging_marker_rows[C]` empty; ops method-signature deltas `ops_changed_methods` empty; the ops-axis `Source delta` probe is skipped — every probe falls back as defined in Step 5; an "ops-diagram updates source missing" warning is emitted at Step 6.)
-- **Present** (`ops_updates_present = true`) → `Read` it, and parse per `application-spec:ops-updates-report-template`. The ops report wraps everything in one `## Service: \`<op-name>\`` block per touched ops service, with `### Messaging Markers` and `### Per-Method Changes` nested **one heading level deeper** than the commands report (`#### <consumer-name>` and `#### \`<method>\``). Extract, unioned across **all** `## Service:` blocks:
+- **Present** (`ops_updates_present = true`) → `Read` it, and parse per `spec-core:update-reports` (ops schema). The ops report wraps everything in one `## Service: \`<op-name>\`` block per touched ops service, with `### Messaging Markers` and `### Per-Method Changes` nested **one heading level deeper** than the commands report (`#### <consumer-name>` and `#### \`<method>\``). Extract, unioned across **all** `## Service:` blocks:
 
   | Variable | Source in `ops-updates.md` |
   |---|---|

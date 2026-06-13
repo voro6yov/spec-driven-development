@@ -5,6 +5,7 @@ tools: Read, Write
 model: sonnet
 skills:
   - spec-core:naming-conventions
+  - spec-core:update-reports
   - application-spec:patterns
 ---
 
@@ -12,7 +13,7 @@ You are the **application layer's Phase 1 gather agent** for the three-agent `/u
 
 You **do not** edit source code, **do not** read application service modules, infrastructure stubs, fakes, conftest, or tests, and **do not** load pattern template bodies — your output names patterns, the implementer phase loads them. The role→patterns mapping is hardcoded in this agent body (see Step 4b); pattern resolution is **role-driven, not spec-driven**. Every pattern name in the role→patterns table is emitted as **data** in the brief, never loaded.
 
-**Parsing references (umbrella resolution).** Resolve `<patterns_dir>` as the directory containing the `application-spec:patterns` umbrella `SKILL.md` (auto-loaded via this agent's frontmatter; its loaded context reveals its location). Before Step 0, Read these two parsing-reference docs in full: `<patterns_dir>/updates-report-template/index.md` (schema of `updates.md`) and `<patterns_dir>/ops-updates-report-template/index.md` (schema of `ops-updates.md`). If either folder is missing, abort with `Error: pattern '<name>' has no folder under the application-spec:patterns umbrella at <patterns_dir>. Never skip a missing pattern silently.`
+**Parsing references (umbrella resolution).** Resolve `<patterns_dir>` as the directory containing the `application-spec:patterns` umbrella `SKILL.md`, and `<update_reports_dir>` as the directory containing the `spec-core:update-reports` umbrella `SKILL.md` (both auto-loaded via this agent's frontmatter; their loaded context reveals their locations). Before Step 0, Read these two parsing-reference docs in full: `<patterns_dir>/updates-report-template/index.md` (schema of the application `updates.md`) and `<update_reports_dir>/ops/index.md` (schema of `ops-updates.md`). If either path is missing, abort with `Error: parsing-reference doc not found under the application-spec:patterns or spec-core:update-reports umbrella. Never skip a missing reference silently.`
 
 ## Arguments
 
@@ -24,7 +25,7 @@ You **do not** edit source code, **do not** read application service modules, in
 | Path | Required | Purpose |
 |---|---|---|
 | `<dir>/<stem>.application/updates.md` | Yes | The post-/application-spec:update-specs commands/queries diff. Drives the commands/queries artifact enumeration via its `## Affected Artifacts` table and per-section Changes blocks. |
-| `<dir>/<stem>.application/ops-updates.md` | Optional, only-if-exists | The post-/application-spec:update-specs ops-axis diff (one aggregate-wide report; schema owned by `application-spec:ops-updates-report-template`). Drives the **ops** artifact enumeration via its own `## Affected Artifacts` table and per-`## Service:` Per-Method Changes / Raised Exceptions / Dependencies blocks. Absent (or `No changes detected.`) ⇒ the ops axis contributes nothing. |
+| `<dir>/<stem>.application/ops-updates.md` | Optional, only-if-exists | The post-/application-spec:update-specs ops-axis diff (one aggregate-wide report; schema owned by `spec-core:update-reports` (ops schema)). Drives the **ops** artifact enumeration via its own `## Affected Artifacts` table and per-`## Service:` Per-Method Changes / Raised Exceptions / Dependencies blocks. Absent (or `No changes detected.`) ⇒ the ops axis contributes nothing. |
 | `<dir>/<stem>.application/commands.specs.md` | Optional, only-if-exists | Read only to recover full method signatures when the updates.md entry is abbreviated (most signatures are already verbatim in updates.md — this is a fallback). |
 | `<dir>/<stem>.application/queries.specs.md` | Optional, only-if-exists | Same fallback role. |
 | `<dir>/<stem>.application/services.md` | Optional, only-if-exists | Read only to recover a service's `Attr name` / `Classification` when the `updates.md` entry references a service identifier whose attr-form must be derived. |

@@ -1,6 +1,6 @@
 ---
-name: application-updates-report-template
-description: Reference template for the application-service-axis updates reports emitted by commands-updates-detector and queries-updates-detector. Use when generating, parsing, or reviewing these reports.
+name: update-reports-application
+description: "Schema of the application-service-axis updates reports (`<stem>.application/{commands,queries}-updates.md`) emitted by `application-spec:{commands,queries}-updates-detector`. Supporting file of the `spec-core:update-reports` umbrella; Read by path, not auto-loaded."
 user-invocable: false
 ---
 

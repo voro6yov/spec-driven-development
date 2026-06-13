@@ -14,7 +14,7 @@ The orchestrator consumes four update reports — one per axis — and unions th
 - **Domain axis** — `<dir>/<stem>.domain/updates.md`, produced by `domain-spec:updates-detector` (expected on disk; not invoked here).
 - **Commands-diagram axis** — `<dir>/<stem>.application/commands-updates.md`, produced by `application-spec:commands-updates-detector` (invoked at Step 0 below).
 - **Queries-diagram axis** — `<dir>/<stem>.application/queries-updates.md`, produced by `application-spec:queries-updates-detector` (invoked at Step 0 below).
-- **Ops-diagram axis** — `<dir>/<stem>.application/ops-updates.md`, produced by `application-spec:ops-updates-detector` (invoked at Step 0 below). Every public ops method is a REST action endpoint (Table 3o), so an ops method add/remove/signature change or an ops surface-marker change reaches Tables 3o + 4/5/6 exactly as a commands/queries `methods` / `surface-markers` change reaches Tables 2/3 + 4/5/6. The ops report is one aggregate-wide file; schema owned by `application-spec:ops-updates-report-template`.
+- **Ops-diagram axis** — `<dir>/<stem>.application/ops-updates.md`, produced by `application-spec:ops-updates-detector` (invoked at Step 0 below). Every public ops method is a REST action endpoint (Table 3o), so an ops method add/remove/signature change or an ops surface-marker change reaches Tables 3o + 4/5/6 exactly as a commands/queries `methods` / `surface-markers` change reaches Tables 2/3 + 4/5/6. The ops report is one aggregate-wide file; schema owned by `spec-core:update-reports` (ops schema).
 
 The orchestrator never re-diffs any diagram itself.
 
@@ -128,7 +128,7 @@ Invoke `application-spec:ops-updates-detector` with prompt `$ARGUMENTS[0]`. **Th
 **Domain axis** (from `<stem>.domain/updates.md`):
 
 - **`domain.degraded_baseline`** — whether the `## Summary` block contains a line beginning `_warning: HEAD `.
-- **`domain.stereotype_changed`** — class names listed under `## Class Lifecycle → Stereotype Changed` (one bullet per class; the exact bullet format is owned by `domain-spec:updates-report-template`). Empty when the heading is absent or its body is `_None._`-style.
+- **`domain.stereotype_changed`** — class names listed under `## Class Lifecycle → Stereotype Changed` (one bullet per class; the exact bullet format is owned by `spec-core:update-reports` (domain schema)). Empty when the heading is absent or its body is `_None._`-style.
 - **`domain.removed_classes`** — bullets under `## Class Lifecycle → Removed`, each `` - `ClassName` `<<Stereotype>>` ``. Capture `(class_name, stereotype)` per bullet.
 - **`domain.added_classes`** — bullets under `## Class Lifecycle → Added`, each `` - `ClassName` `<<Stereotype>>` `` (the `— <N> attributes, <N> methods` suffix is informational; ignore it). Capture `(class_name, stereotype)` per bullet.
 - **`domain.affected_categories`** — bullets under `## Affected Categories`, in the order they appear. The literal body `_None._` means empty.
@@ -139,14 +139,14 @@ Invoke `application-spec:ops-updates-detector` with prompt `$ARGUMENTS[0]`. **Th
 **Commands-diagram axis** (from `<dir>/<stem>.application/commands-updates.md`):
 
 - **`commands.degraded_baseline`** — whether the `## Summary` block contains a line beginning `_warning: HEAD `.
-- **`commands.affected_categories`** — bullets under `## Affected Categories`, in the order they appear. The vocabulary is owned by `application-spec:application-updates-report-template`. The literal body `_None._` means empty.
+- **`commands.affected_categories`** — bullets under `## Affected Categories`, in the order they appear. The vocabulary is owned by `spec-core:update-reports` (application-axis schema). The literal body `_None._` means empty.
 
 **Queries-diagram axis** (from `<dir>/<stem>.application/queries-updates.md`):
 
 - **`queries.degraded_baseline`** — whether the `## Summary` block contains a line beginning `_warning: HEAD `.
 - **`queries.affected_categories`** — bullets under `## Affected Categories`. The literal body `_None._` means empty.
 
-**Ops-diagram axis** (from `<dir>/<stem>.application/ops-updates.md`; schema owned by `application-spec:ops-updates-report-template`). The ops report aggregates per-service `## Service:` blocks, but for REST dispatch only the **aggregate-wide** `## Affected Categories` footer and the degraded warning matter:
+**Ops-diagram axis** (from `<dir>/<stem>.application/ops-updates.md`; schema owned by `spec-core:update-reports` (ops schema)). The ops report aggregates per-service `## Service:` blocks, but for REST dispatch only the **aggregate-wide** `## Affected Categories` footer and the degraded warning matter:
 
 - **`ops.degraded_baseline`** — whether the `## Summary` block contains a line beginning `_warning: HEAD ` (a degraded ops diagram baseline).
 - **`ops.affected_categories`** — bullets under `## Affected Categories`. The literal body `_None._` means empty (zero ops diagrams, or no ops diagram changed). The only categories that drive the REST spec are `methods` (an ops method added / removed / signature-changed → Table 3o rows + Tables 4/5/6) and `surface-markers` (ops method moved between surfaces → per-surface section set). The others (`dependencies`, `raised-exceptions`, `external-interfaces`, `messaging-markers`) are ignored.
@@ -398,5 +398,5 @@ There are no sentinel comments. Unlike persistence-spec's `<!-- appended-from up
 - It does not pre-check the *transitive* analog of gate 1.dom.d (a renamed/removed type referenced only via another referenced type's field). The Step-1 scan catches the direct case; a transitive one surfaces as a runtime writer abort in Step 3 and is routed the same way ("reconcile the commands/queries diagram, then re-run").
 - It does not track the Shared domain types registry (`Pagination`, `PaginatedResultMetadataInfo`, `ResultSetInfo`) — those are hard-coded in the table writers. Changes to them are plugin-source changes, not diagram changes; they never appear in any `updates.md` and are picked up only by re-running `@rest-api-spec:specs-generator` after a plugin upgrade.
 - It does not preserve hand-edits inside a regenerated table — the writer contract is that the spec is regenerated from the diagrams, not curated. The blast radius is bounded by which tables fire (a writer rewriting Table 4 leaves Tables 1, 2/3, 5, 6 byte-stable), but inside a regenerated table manual enrichments are wholesale replaced.
-- It does not auto-update generated REST API code (the per-surface serializer modules `api/serializers/<surface>/`, endpoint modules `api/endpoints/<surface>/`, the FastAPI app wiring `entrypoint.py` / `constants.py` / the aggregator `__init__.py` files / `api/auth.py`, the test fixtures `tests/conftest.py`, the integration tests) — that is the cross-layer `/update-code` skill (`domain-spec:update-code`), which consumes the `<stem>.rest-api/updates.md` this skill emits.
+- It does not auto-update generated REST API code (the per-surface serializer modules `api/serializers/<surface>/`, endpoint modules `api/endpoints/<surface>/`, the FastAPI app wiring `entrypoint.py` / `constants.py` / the aggregator `__init__.py` files / `api/auth.py`, the test fixtures `tests/conftest.py`, the integration tests) — that is the per-layer `/…-spec:update-code` flow (sequenced cross-layer by `/spec-core:update-code`), which consumes the `<stem>.rest-api/updates.md` this skill emits.
 - It is independently invocable, **and** is run as part of the rest-api/messaging wave by `/spec-core:update-specs` (after that orchestrator's application wave). In that cascade mode `/spec-core:update-specs` passes `--detectors-fresh` as the second positional arg (it does so only when the application wave left both app-service-axis detector reports on disk), signalling that the reports are current; Step 0g of this skill takes the cascade-mode shortcut and skips its own commands/queries detector invocation. That orchestrator runs this skill in parallel with `/messaging-spec:update-specs`; a `spec.md`-missing hard-fail (Step 0b) does not abort that sibling — each runs to completion and prints its own report. Standalone invocation (without `--detectors-fresh`) follows the default Step-0g detector-invocation path.

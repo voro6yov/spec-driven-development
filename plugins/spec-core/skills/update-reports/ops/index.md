@@ -1,8 +1,7 @@
 ---
-name: ops-updates-report-template
-description: Reference template for the ops-axis updates report (`<stem>.application/ops-updates.md`) emitted by ops-updates-detector and consumed by the application-spec code-update flow plus the messaging-spec and rest-api-spec update flows. Use when generating, parsing, or reviewing this report.
+name: update-reports-ops
+description: "Schema of the ops-axis updates report (`<stem>.application/ops-updates.md`) emitted by `application-spec:ops-updates-detector` and consumed by the application code-update flow plus the messaging and REST API update flows. Supporting file of the `spec-core:update-reports` umbrella; Read by path, not auto-loaded."
 user-invocable: false
-disable-model-invocation: false
 ---
 
 # Ops Updates Report Template
@@ -188,7 +187,7 @@ Inside each `## Service:` block, the `###` sub-sections render in this fixed ord
 7. `### Application Class Relationships`
 8. `### Orphan Prose Changes`
 
-The per-method block shape, the Added/Removed/Changed within-section ordering, the `**Signature:**`/`**Surface:**`/`**Messaging:**`/`**Prose —**` sub-field rules, the surface-set rendering (each side a canonical-ordered comma-joined surface set, with the implicit-default singleton rendered as `default` — e.g. `default → <s>`, `v1 → v1, internal`), and the prose `Summary:`/`Diff:` convention are **identical to `application-spec:application-updates-report-template`** — apply that skill's "Per-Method Changes", "Surface Markers", "Raised Exceptions", "Application Class Relationships", and "Orphan Prose Changes" rendering rules verbatim, one level deeper (its `##` → this skill's `###`, its `###` → `####`, its `####` method blocks → `#####`). The only ops parameterization: **Messaging Markers use the relaxed binding form** — the source class is the free-form `<OpsClass>` (no `Commands` suffix) and the bound method is a **free name** (not `on_<event>`); rows render verbatim from the diagram's `<OpsClass> --() <Event> : handles (<SourceDest>, <method>)` form.
+The per-method block shape, the Added/Removed/Changed within-section ordering, the `**Signature:**`/`**Surface:**`/`**Messaging:**`/`**Prose —**` sub-field rules, the surface-set rendering (each side a canonical-ordered comma-joined surface set, with the implicit-default singleton rendered as `default` — e.g. `default → <s>`, `v1 → v1, internal`), and the prose `Summary:`/`Diff:` convention are **identical to `spec-core:update-reports`'s application-axis schema (`application/index.md`)** — apply that skill's "Per-Method Changes", "Surface Markers", "Raised Exceptions", "Application Class Relationships", and "Orphan Prose Changes" rendering rules verbatim, one level deeper (its `##` → this skill's `###`, its `###` → `####`, its `####` method blocks → `#####`). The only ops parameterization: **Messaging Markers use the relaxed binding form** — the source class is the free-form `<OpsClass>` (no `Commands` suffix) and the bound method is a **free name** (not `on_<event>`); rows render verbatim from the diagram's `<OpsClass> --() <Event> : handles (<SourceDest>, <method>)` form.
 
 ### `## Summary`
 
@@ -233,7 +232,7 @@ If the set is empty, render the single line `_None._`.
 
 ## `## Affected Artifacts` computation
 
-This table is the **application code-update** consumer's enumeration of the on-disk files Phase 2 must touch for the ops axis — the ops counterpart of the `## Affected Artifacts` table `application-spec:application-updates-report-template` derives for the commands/queries axis. It is **mechanically derived** from the per-service structural deltas (Step 4 of `ops-updates-detector`); orphan prose never contributes a row.
+This table is the **application code-update** consumer's enumeration of the on-disk files Phase 2 must touch for the ops axis — the ops counterpart of the `## Affected Artifacts` table `spec-core:update-reports`'s application-axis schema (`application/index.md`) derives for the commands/queries axis. It is **mechanically derived** from the per-service structural deltas (Step 4 of `ops-updates-detector`); orphan prose never contributes a row.
 
 ### Path placeholders
 
@@ -266,7 +265,7 @@ Render rows grouped by service in `<op-name>` lexicographic order, and within a 
 
 ## Not in scope
 
-Same exclusions as `application-spec:application-updates-report-template` (renames surface as remove+add; no code-level diffs; no cross-diagram reconciliation hints; no hand-edit reconciliation; reordering is a no-op), plus:
+Same exclusions as `spec-core:update-reports`'s application-axis schema (`application/index.md`) (renames surface as remove+add; no code-level diffs; no cross-diagram reconciliation hints; no hand-edit reconciliation; reordering is a no-op), plus:
 
 - **No `<<Domain Event>>` lifecycle.** External events consumed by an ops handler are declared on the commands diagram and tracked by `commands-updates-detector`; the ops detector never reports event member changes.
 - **No per-service report files.** A single aggregate-wide `ops-updates.md` covers every `<op-name>` — there is no `ops.<op-name>-updates.md`.
