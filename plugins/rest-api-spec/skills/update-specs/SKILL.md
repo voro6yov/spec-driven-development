@@ -87,7 +87,7 @@ Do not synthesize any of these files.
 
 #### 0g. Invoke the two app-service-axis detectors in parallel (skipped when `--detectors-fresh` is set)
 
-**Cascade-mode shortcut.** If `$ARGUMENTS` contains the literal token `--detectors-fresh` (the `/application-spec:update-specs` orchestrator passes it as the second positional arg when it re-cascades from its own tail, after producing both reports at its Step 0g — this happens whether application was invoked standalone or fanned out by domain `/update-specs`'s Step 10), the application-spec detector reports are already on disk and byte-stable. In that case:
+**Cascade-mode shortcut.** If `$ARGUMENTS` contains the literal token `--detectors-fresh` (the `/spec-core:update-specs` orchestrator passes it as the second positional arg when it runs the rest-api/messaging wave after the application wave, whose Step 0g already produced both commands/queries reports), the application-spec detector reports are already on disk and byte-stable. In that case:
 
 1. Verify presence with `Bash`:
    ```
@@ -99,8 +99,8 @@ Do not synthesize any of these files.
    contractually required to produce both <stem>.application/commands-updates.md and
    <stem>.application/queries-updates.md before invoking /rest-api-spec:update-specs in cascade
    mode. Drop the --detectors-fresh flag to let this skill produce the reports itself, or run
-   `/application-spec:update-specs <domain_diagram>` (which produces them at its Step 0g and
-   re-cascades here).
+   `/spec-core:update-specs <domain_diagram>` (which runs the application wave first, then this
+   skill with the flag) — or `/application-spec:update-specs <domain_diagram>` to produce them.
    ```
 2. Skip the detector invocation below and proceed directly to Step 1.
 
@@ -399,4 +399,4 @@ There are no sentinel comments. Unlike persistence-spec's `<!-- appended-from up
 - It does not track the Shared domain types registry (`Pagination`, `PaginatedResultMetadataInfo`, `ResultSetInfo`) — those are hard-coded in the table writers. Changes to them are plugin-source changes, not diagram changes; they never appear in any `updates.md` and are picked up only by re-running `@rest-api-spec:specs-generator` after a plugin upgrade.
 - It does not preserve hand-edits inside a regenerated table — the writer contract is that the spec is regenerated from the diagrams, not curated. The blast radius is bounded by which tables fire (a writer rewriting Table 4 leaves Tables 1, 2/3, 5, 6 byte-stable), but inside a regenerated table manual enrichments are wholesale replaced.
 - It does not auto-update generated REST API code (the per-surface serializer modules `api/serializers/<surface>/`, endpoint modules `api/endpoints/<surface>/`, the FastAPI app wiring `entrypoint.py` / `constants.py` / the aggregator `__init__.py` files / `api/auth.py`, the test fixtures `tests/conftest.py`, the integration tests) — that is the cross-layer `/update-code` skill (`domain-spec:update-code`), which consumes the `<stem>.rest-api/updates.md` this skill emits.
-- It is independently invocable, **and** is re-cascaded by `/application-spec:update-specs` (which is itself either standalone or fanned out by domain `/update-specs`'s Step 10). In that cascade mode the application orchestrator passes `--detectors-fresh` as the second positional arg, signalling that it already produced the two app-service-axis detector reports at its Step 0g; Step 0g of this skill takes the cascade-mode shortcut and skips its own detector invocation. The application orchestrator fans this skill out in parallel with `/messaging-spec:update-specs`; a `spec.md`-missing hard-fail (Step 0b) does not abort that sibling — each runs to completion and prints its own report. Standalone invocation (without `--detectors-fresh`) follows the default Step-0g detector-invocation path.
+- It is independently invocable, **and** is run as part of the rest-api/messaging wave by `/spec-core:update-specs` (after that orchestrator's application wave). In that cascade mode `/spec-core:update-specs` passes `--detectors-fresh` as the second positional arg (it does so only when the application wave left both app-service-axis detector reports on disk), signalling that the reports are current; Step 0g of this skill takes the cascade-mode shortcut and skips its own commands/queries detector invocation. That orchestrator runs this skill in parallel with `/messaging-spec:update-specs`; a `spec.md`-missing hard-fail (Step 0b) does not abort that sibling — each runs to completion and prints its own report. Standalone invocation (without `--detectors-fresh`) follows the default Step-0g detector-invocation path.
