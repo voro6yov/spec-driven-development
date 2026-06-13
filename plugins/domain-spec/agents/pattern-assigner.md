@@ -26,7 +26,7 @@ Derive `<stem>` by stripping the `.md` suffix from the basename of `<domain_diag
 1. Determine the temp directory: `<source_dir>/<stem>.domain/.specs-tmp/`
 2. Read `<source_dir>/<stem>.domain/.specs-tmp/<category>.md`
 
-If the file is absent or empty, stop — nothing to do. The orchestrator (`generate-specs` or `update-specs`) ensures `class-specifier` has run for this category before invoking `pattern-assigner`.
+If the file is absent or empty, stop — nothing to do. The orchestrator (`specs-generator` or `update-specs`) ensures `class-specifier` has run for this category before invoking `pattern-assigner`.
 
 ### Step 2 — Gather relationship context
 

@@ -5,7 +5,7 @@ argument-hint: <domain_diagram>
 allowed-tools: Read, Bash, Agent
 ---
 
-You are a messaging consumer-spec **update** orchestrator. Given a domain diagram and its sibling commands application-service diagram, refresh the existing per-consumer specs under `<dir>/<stem>.messaging/` in place — for every consumer whose `internal` Table 2 subscriptions intersect a changed domain event, or whose `%% Messaging - <consumer>` block rows / bound handler signatures / referenced external event classes changed in the commands diagram, re-run `event-tables-writer` then `event-fields-writer` to regenerate Tables 2–3 from the current diagrams; for every consumer that subscribes (as `internal`) to a domain event that was removed or renamed *and* the corresponding `%% Messaging` row was not also dropped from the commands diagram, abort that consumer with reconcile instructions and skip it; then emit `<dir>/<stem>.messaging/updates.md`. Do not rerun the full `/messaging-spec:generate-code` pipeline, do not touch the diagram files, and do not ask for confirmation before writing.
+You are a messaging consumer-spec **update** orchestrator. Given a domain diagram and its sibling commands application-service diagram, refresh the existing per-consumer specs under `<dir>/<stem>.messaging/` in place — for every consumer whose `internal` Table 2 subscriptions intersect a changed domain event, or whose `%% Messaging - <consumer>` block rows / bound handler signatures / referenced external event classes changed in the commands diagram, re-run `event-tables-writer` then `event-fields-writer` to regenerate Tables 2–3 from the current diagrams; for every consumer that subscribes (as `internal`) to a domain event that was removed or renamed *and* the corresponding `%% Messaging` row was not also dropped from the commands diagram, abort that consumer with reconcile instructions and skip it; then emit `<dir>/<stem>.messaging/updates.md`. Do not rerun the full `@messaging-spec:code-generator` pipeline, do not touch the diagram files, and do not ask for confirmation before writing.
 
 This skill is the messaging-side counterpart to `/update-specs` (domain), `/persistence-spec:update-specs`, `/application-spec:update-specs`, and `/rest-api-spec:update-specs`. Design rationale lives in `notes/spec-updater-approach.md`, `notes/update-types.md`, `notes/updates-report.md`, and `notes/commands-queries-integration-approach.md`; the load-bearing idea is **a thin multi-axis dispatcher, not a surgical splicer** — every consumer-spec table is a pure snapshot, fully regeneratable from the diagrams, so "update Table 3 for consumer C" *is* "re-run `event-fields-writer <commands_diagram> C`". There are **no new agents** — this skill orchestrates the two existing writers (`event-tables-writer`, `event-fields-writer`) plus the existing `messaging-updates-writer`, and consumes the cross-plugin `application-spec:commands-updates-detector` and `application-spec:ops-updates-detector` reports.
 
@@ -52,7 +52,7 @@ Derive `<dir>` and `<stem>` from `$ARGUMENTS[0]` per `spec-core:naming-conventio
   ```
   ERROR: <dir>/<stem>.domain/updates.md not found. The messaging updater consumes the domain
   updates report; it is not the first-run pipeline. Run `/update-specs <domain_diagram>` (or
-  `@updates-detector <domain_diagram>`) first, or run `/messaging-spec:generate-code <domain_diagram> <consumer_name>`
+  `@updates-detector <domain_diagram>`) first, or run `@messaging-spec:code-generator <domain_diagram> <consumer_name>`
   per consumer to regenerate the consumer specs and code from scratch.
   ```
 
@@ -61,7 +61,7 @@ Derive `<dir>` and `<stem>` from `$ARGUMENTS[0]` per `spec-core:naming-conventio
   ```
   ERROR: <dir>/<stem>.commands.md not found. The commands application-service diagram is a required
   hand-authored input — `event-tables-writer`, `event-fields-writer`, and `application-spec:commands-updates-detector`
-  all read it. Restore the file, or run `/messaging-spec:generate-code <domain_diagram> <consumer_name>` per consumer
+  all read it. Restore the file, or run `@messaging-spec:code-generator <domain_diagram> <consumer_name>` per consumer
   after authoring it.
   ```
 
@@ -71,7 +71,7 @@ Derive `<dir>` and `<stem>` from `$ARGUMENTS[0]` per `spec-core:naming-conventio
   No messaging consumer specs under <stem>.messaging/ — nothing to update.
   ```
 
-  and exit (success). Do not create the folder, do not invoke any agent, do not write `updates.md` — there is no consumer spec to update and no report to refresh. (This is the file-presence gate that makes the skill safe to wire unconditionally into the tail of domain `/update-specs`.) X1 (consumer added — `%% Messaging - <C>` block declared on the commands diagram but no consumer spec on disk) is handled later, in Step 7, as a `WARNING:` routing the operator to `/messaging-spec:generate-code`; this skill never invokes `consumer-spec-initializer` or `consumer-scaffolder` for an X1 consumer. The Step 0c exit therefore fires only when the per-aggregate `<stem>.messaging/` folder is entirely empty (or absent).
+  and exit (success). Do not create the folder, do not invoke any agent, do not write `updates.md` — there is no consumer spec to update and no report to refresh. (This is the file-presence gate that makes the skill safe to wire unconditionally into the tail of domain `/update-specs`.) X1 (consumer added — `%% Messaging - <C>` block declared on the commands diagram but no consumer spec on disk) is handled later, in Step 7, as a `WARNING:` routing the operator to `@messaging-spec:code-generator`; this skill never invokes `consumer-spec-initializer` or `consumer-scaffolder` for an X1 consumer. The Step 0c exit therefore fires only when the per-aggregate `<stem>.messaging/` folder is entirely empty (or absent).
 
 Do not synthesize any input file.
 
@@ -99,7 +99,7 @@ Standalone invocations (without `--detectors-fresh`) take the default path below
 
 **Default path.** After 0a–0c pass, invoke `application-spec:commands-updates-detector` with prompt `$ARGUMENTS[0]` (the domain diagram path — the detector derives the sibling commands diagram via `spec-core:naming-conventions`).
 
-The detector writes `<dir>/<stem>.application/commands-updates.md` or hard-fails with an `ERROR:` line. If it hard-fails, abort the orchestrator with that detector's `ERROR:` line repeated verbatim; the operator's recovery path (the message itself directs to `/application-spec:generate-specs <domain_diagram>`) applies here.
+The detector writes `<dir>/<stem>.application/commands-updates.md` or hard-fails with an `ERROR:` line. If it hard-fails, abort the orchestrator with that detector's `ERROR:` line repeated verbatim; the operator's recovery path (the message itself directs to `@application-spec:specs-generator <domain_diagram>`) applies here.
 
 Wait for the detector to return successfully before proceeding to the ops detector below.
 
@@ -155,10 +155,10 @@ Each gate **disables only the domain axis** and emits a `WARNING:` (not `ERROR:`
 
 | Gate | Trigger | Action |
 |---|---|---|
-| 1.dom.a | `domain.degraded_baseline` true | Set `domain_axis_disabled = true`; emit `WARNING: domain axis disabled — HEAD baseline is degraded (multiple or missing Mermaid blocks at HEAD per <stem>.domain/updates.md). Domain-driven dispatch is skipped for this run; run /messaging-spec:generate-code <domain_diagram> <consumer_name> per consumer to regenerate against a clean baseline.` |
-| 1.dom.b | `domain.aggregate_root_touched` and the aggregate root appears in `domain.removed_classes` **without** a same-name entry in `domain.added_classes`, **or** the aggregate root appears in `domain.stereotype_changed` | Set `domain_axis_disabled = true`; emit `WARNING: domain axis disabled — the aggregate root was removed or re-stereotyped in <stem>.domain/updates.md; the whole diagram set (and every consumer under <stem>.messaging/) is invalid. Reconcile the diagrams, then re-run /messaging-spec:generate-code <domain_diagram> <consumer_name> per consumer.` |
-| 1.dom.c | `domain.aggregate_root_touched` via a rename (the aggregate root appears in both `domain.removed_classes` and `domain.added_classes`) | Set `domain_axis_disabled = true`; emit `WARNING: domain axis disabled — the aggregate root was renamed in <stem>.domain/updates.md; this cascades to <stem>.commands.md's class names + filename, the <stem>.messaging/ folder, the %% Messaging markers' <Source> cells, and the <pkg>.domain.<root_snake> import root in generated code. Rename the diagrams + folder, reconcile the markers, then re-run /messaging-spec:generate-code <domain_diagram> <consumer_name> per consumer.` |
-| 1.dom.d | `domain.stereotype_changed` non-empty (the aggregate-root case is already handled by 1.dom.b; this covers `<<Domain Event>>` ⇄ other re-classifications that invalidate `internal` subscriptions) | Set `domain_axis_disabled = true`; emit `WARNING: domain axis disabled — class(es) <names> have stereotype changes in <stem>.domain/updates.md. A stereotype change moves a class to a different pattern catalog. Reconcile the diagrams, then re-run /messaging-spec:generate-code <domain_diagram> <consumer_name> per affected consumer.` (Surface every offending name, not just the first.) |
+| 1.dom.a | `domain.degraded_baseline` true | Set `domain_axis_disabled = true`; emit `WARNING: domain axis disabled — HEAD baseline is degraded (multiple or missing Mermaid blocks at HEAD per <stem>.domain/updates.md). Domain-driven dispatch is skipped for this run; run @messaging-spec:code-generator <domain_diagram> <consumer_name> per consumer to regenerate against a clean baseline.` |
+| 1.dom.b | `domain.aggregate_root_touched` and the aggregate root appears in `domain.removed_classes` **without** a same-name entry in `domain.added_classes`, **or** the aggregate root appears in `domain.stereotype_changed` | Set `domain_axis_disabled = true`; emit `WARNING: domain axis disabled — the aggregate root was removed or re-stereotyped in <stem>.domain/updates.md; the whole diagram set (and every consumer under <stem>.messaging/) is invalid. Reconcile the diagrams, then re-run @messaging-spec:code-generator <domain_diagram> <consumer_name> per consumer.` |
+| 1.dom.c | `domain.aggregate_root_touched` via a rename (the aggregate root appears in both `domain.removed_classes` and `domain.added_classes`) | Set `domain_axis_disabled = true`; emit `WARNING: domain axis disabled — the aggregate root was renamed in <stem>.domain/updates.md; this cascades to <stem>.commands.md's class names + filename, the <stem>.messaging/ folder, the %% Messaging markers' <Source> cells, and the <pkg>.domain.<root_snake> import root in generated code. Rename the diagrams + folder, reconcile the markers, then re-run @messaging-spec:code-generator <domain_diagram> <consumer_name> per consumer.` |
+| 1.dom.d | `domain.stereotype_changed` non-empty (the aggregate-root case is already handled by 1.dom.b; this covers `<<Domain Event>>` ⇄ other re-classifications that invalidate `internal` subscriptions) | Set `domain_axis_disabled = true`; emit `WARNING: domain axis disabled — class(es) <names> have stereotype changes in <stem>.domain/updates.md. A stereotype change moves a class to a different pattern catalog. Reconcile the diagrams, then re-run @messaging-spec:code-generator <domain_diagram> <consumer_name> per affected consumer.` (Surface every offending name, not just the first.) |
 
 Domain-axis hard-fails are severe enough for messaging that the WARNING text directs the operator to the per-consumer init pipeline — an aggregate-root rename cascades into the `<stem>.messaging/` folder name, the import root, and the `%% Messaging` markers' `<Source>` cells, none of which this skill rewrites.
 
@@ -190,7 +190,7 @@ If `domain_axis_disabled` AND `commands_axis_disabled` AND `ops_axis_disabled` a
 
 ```
 ERROR: both input axes are disabled by preflight gates (see WARNING lines above). The orchestrator
-cannot regenerate any consumer. Resolve the underlying conditions or run /messaging-spec:generate-code
+cannot regenerate any consumer. Resolve the underlying conditions or run @messaging-spec:code-generator
 <domain_diagram> <consumer_name> per consumer to rebuild the consumer specs and code from scratch.
 ```
 
@@ -204,9 +204,9 @@ For each consumer spec `<dir>/<stem>.messaging/<C>.md` (the `<C>` enumerated in 
 - `internal_subs[C]` = the set of `event_name` for rows whose `type` is `internal`, each paired with its full row (so `command_class` / `source_destination` / `command_method` are available for the abort instructions). The on-disk Table 2 faithfully mirrors the commands diagram's `%% Messaging - <C>` markers — this orchestrator does **not** parse the commands diagram's Mermaid; the commands detector already did that, and Step 1 reads its report.
 - `external_subs[C]` = the set of `event_name` for rows whose `type` is `external`. Used in Step 4 to fan out M7 (external event attribute changes) to consumers that subscribe to the affected event.
 
-If a working-tree consumer spec is so malformed that its `### Table 2:` heading cannot be located, hard-fail with: `ERROR: <stem>.messaging/<C>.md is malformed; cannot locate the Table 2 heading. Re-generate it via /messaging-spec:generate-code <domain_diagram> <C>.`
+If a working-tree consumer spec is so malformed that its `### Table 2:` heading cannot be located, hard-fail with: `ERROR: <stem>.messaging/<C>.md is malformed; cannot locate the Table 2 heading. Re-generate it via @messaging-spec:code-generator <domain_diagram> <C>.`
 
-Note: a `%% Messaging - <C>` block that the commands diagram declares but no `<stem>.messaging/<C>.md` exists for is **not** added to the consumer set here. That is X1 (consumer added), surfaced as a Step 7 WARNING directing the operator to `/messaging-spec:generate-code`. The orchestrator never invokes `consumer-spec-initializer` or `consumer-scaffolder`; those belong to the init pipeline. Conversely, an existing consumer spec whose `%% Messaging - <C>` block has been removed from the commands diagram is X2 (consumer orphaned), surfaced as a Step 7 WARNING recommending the operator delete the now-orphaned file.
+Note: a `%% Messaging - <C>` block that the commands diagram declares but no `<stem>.messaging/<C>.md` exists for is **not** added to the consumer set here. That is X1 (consumer added), surfaced as a Step 7 WARNING directing the operator to `@messaging-spec:code-generator`. The orchestrator never invokes `consumer-spec-initializer` or `consumer-scaffolder`; those belong to the init pipeline. Conversely, an existing consumer spec whose `%% Messaging - <C>` block has been removed from the commands diagram is X2 (consumer orphaned), surfaced as a Step 7 WARNING recommending the operator delete the now-orphaned file.
 
 ### Step 3 — Abort-and-reconcile gate (per consumer, with reconcile-deduction)
 
@@ -234,7 +234,7 @@ Reconcile the `%% Messaging - <C>` block in the diagram that declares it — <st
 `<CommandClass> --() <E> : handles (<Source>, <on_method>)` line (and the on_<E> handler on <AggregateRoot>Commands),
 or the relevant <stem>.ops.<op-name>.md for a `<OpsClass> --() <E> : handles (<Source>, <method>)` line (and that
 ops method) — then re-run `@event-tables-writer <commands_diagram> <C>` and `@event-fields-writer <commands_diagram> <C>`
-(or `/messaging-spec:generate-code <domain_diagram> <C>`).
+(or `@messaging-spec:code-generator <domain_diagram> <C>`).
 ```
 
 ### Step 4 — Compute affected consumers (three-way union)
@@ -299,7 +299,7 @@ affected = domain_affected ∪ commands_affected ∪ ops_affected
 
 Notes on the per-category mapping (`## Affected Categories` → consumer impact):
 
-- **`messaging-markers` X1 (consumer added)** — never enters `affected`; surfaced as a Step 7 WARNING (the consumer-spec init route is `/messaging-spec:generate-code`).
+- **`messaging-markers` X1 (consumer added)** — never enters `affected`; surfaced as a Step 7 WARNING (the consumer-spec init route is `@messaging-spec:code-generator`).
 - **`messaging-markers` X2 (consumer removed)** — never enters `affected`; surfaced as a Step 7 WARNING (the operator deletes the orphaned consumer-spec file).
 - **`messaging-markers` X3 / X4 / X5 (row changes within an existing consumer)** — enters `commands_affected` via the first set in the union.
 - **`external-domain-events` (external event attribute change)** — enters `commands_affected` via the M7 set in the union.
@@ -368,16 +368,16 @@ Drop any clause whose count is zero. Then append the per-consumer WARNING lines:
 - For each consumer a Step 5 writer failed on, append one line:
   `WARNING: <agent> failed on consumer <C>: <message> — reconcile the indicated diagram and re-run /messaging-spec:update-specs.`
 - For each X1 consumer `<C>` (consumer added — a new `%% Messaging - <C>` block declared in the commands diagram or an ops diagram, no consumer spec on disk), append:
-  `WARNING: a diagram declares new %% Messaging - <C> block with no consumer spec on disk — run /messaging-spec:generate-code <domain_diagram> <C> to initialize the consumer spec and scaffold its code-side artifacts.`
+  `WARNING: a diagram declares new %% Messaging - <C> block with no consumer spec on disk — run @messaging-spec:code-generator <domain_diagram> <C> to initialize the consumer spec and scaffold its code-side artifacts.`
 - For each X2 consumer `<C>` (consumer orphaned — every `%% Messaging - <C>` block removed from the commands diagram and all ops diagrams, consumer spec still on disk), append:
-  `WARNING: consumer spec <stem>.messaging/<C>.md exists but no %% Messaging - <C> block remains in <stem>.commands.md or any <stem>.ops.<op-name>.md. Delete <stem>.messaging/<C>.md (and the matching messaging/<C>/ subpackage via /messaging-spec:generate-code follow-up) once the operator is sure the consumer should be retired.`
+  `WARNING: consumer spec <stem>.messaging/<C>.md exists but no %% Messaging - <C> block remains in <stem>.commands.md or any <stem>.ops.<op-name>.md. Delete <stem>.messaging/<C>.md (and the matching messaging/<C>/ subpackage via @messaging-spec:code-generator follow-up) once the operator is sure the consumer should be retired.`
 
 If any preflight axis was disabled (Step 1.dom / 1.cmd fired), the `WARNING:` line(s) for those gates are emitted before the summary so the operator sees what got skipped. The summary itself still runs.
 
 ## Failure semantics
 
 - **Step 0 detector hard-fail** (0d): orchestrator aborts with the detector's `ERROR:` line repeated verbatim. No rollback — re-running after fixing the trigger re-invokes the detector.
-- **Total preflight abort (1.all)**: no writes (no `messaging-updates-writer` either — there is no transition to describe). The WARNING lines for each disabled axis are emitted before the aggregated ERROR. Operator runs `/messaging-spec:generate-code <domain_diagram> <consumer_name>` per consumer.
+- **Total preflight abort (1.all)**: no writes (no `messaging-updates-writer` either — there is no transition to describe). The WARNING lines for each disabled axis are emitted before the aggregated ERROR. Operator runs `@messaging-spec:code-generator <domain_diagram> <consumer_name>` per consumer.
 - **Partial preflight disable (1.dom xor 1.cmd)**: the enabled axis regenerates as normal; the disabled axis's WARNING is surfaced before the Step 7 summary.
 - **X1 / X2 advisory**: never a failure; surfaced as `WARNING:` in Step 7 and (in a future writer extension) recorded in `updates.md`. Operator-action items, not blockers — the run continues for every existing consumer.
 - **Step 3 per-consumer abort** or **Step 5 per-consumer writer failure**: **not** a whole-skill failure — the run continues for the clean consumers, the report records the outcome, and Step 7 surfaces a `WARNING:` line per affected consumer.
@@ -385,7 +385,7 @@ If any preflight axis was disabled (Step 1.dom / 1.cmd fired), the `WARNING:` li
   - **Step 0 detector** regenerates its report wholesale on every call (output stable modulo LLM nondeterminism in prose-summary blocks).
   - **Step 5** (`event-tables-writer`, `event-fields-writer`) regenerates Tables 2–3 wholesale from the current diagrams on every call (output stable modulo LLM nondeterminism in `event-fields-writer`'s best-match prose).
   - **Step 6** (`messaging-updates-writer`) is a pure HEAD-vs-working-tree diff and overwrites `updates.md` from scratch.
-- The only failures `/messaging-spec:update-specs` cannot retry through are the Step 0 missing-input cases (0a, 0b) and the Step 1.all total-abort gate. Each error message directs the operator to the correct fix — `/update-specs` / `@updates-detector` for the missing domain report, diagram-restore for the missing commands diagram, `/messaging-spec:generate-code <domain_diagram> <consumer_name>` per consumer for everything else.
+- The only failures `/messaging-spec:update-specs` cannot retry through are the Step 0 missing-input cases (0a, 0b) and the Step 1.all total-abort gate. Each error message directs the operator to the correct fix — `/update-specs` / `@updates-detector` for the missing domain report, diagram-restore for the missing commands diagram, `@messaging-spec:code-generator <domain_diagram> <consumer_name>` per consumer for everything else.
 
 ## Idempotency
 
@@ -399,14 +399,14 @@ There are no sentinel comments — every consumer-spec table is a snapshot; re-r
 
 ## What this skill deliberately does not do
 
-- It does not regenerate a consumer spec end-to-end (Tables 1–3) — that is `/messaging-spec:generate-code`. In particular it never re-runs `consumer-spec-initializer`; Table 1 is hand/prefix-derived and a domain or commands-diagram change never touches it.
+- It does not regenerate a consumer spec end-to-end (Tables 1–3) — that is `@messaging-spec:code-generator`. In particular it never re-runs `consumer-spec-initializer`; Table 1 is hand/prefix-derived and a domain or commands-diagram change never touches it.
 - It does not re-diff `<domain_diagram>` and does not invoke `domain-spec:updates-detector` — the domain `updates.md` is expected on disk before this skill runs.
 - It does not invoke `application-spec:queries-updates-detector` — messaging is command-side only and queries-axis deltas have no consumer-spec ripple.
 - It does not touch the diagram files (`<stem>.md`, `<stem>.commands.md`, `<stem>.queries.md`) or any `## Artifacts` index — those siblings are linked from the original pipeline runs.
-- It does not initialize a new consumer spec when the commands diagram declares a brand-new `%% Messaging - <C>` block (X1). The orchestrator surfaces X1 as a Step 7 `WARNING:` directing the operator to `/messaging-spec:generate-code <domain_diagram> <C>`, which already owns the end-to-end init pipeline (`consumer-spec-initializer` → `consumer-scaffolder` → implementers → tests).
+- It does not initialize a new consumer spec when the commands diagram declares a brand-new `%% Messaging - <C>` block (X1). The orchestrator surfaces X1 as a Step 7 `WARNING:` directing the operator to `@messaging-spec:code-generator <domain_diagram> <C>`, which already owns the end-to-end init pipeline (`consumer-spec-initializer` → `consumer-scaffolder` → implementers → tests).
 - It does not delete an orphaned consumer spec when the commands diagram drops the corresponding `%% Messaging - <C>` block (X2). The orchestrator's contract is "the skill writes inside specs, not deletes spec files" — an orphaned spec may carry hand-authored notes worth preserving before deletion. X2 is surfaced as a Step 7 `WARNING:` recommending the operator delete the file.
-- It does not model the command-handler side of a consumer — Table 1's *Commands queue name* is the only consumer-spec trace of the command side, and it derives from the consumer name, not from any domain `<<Command>>` class. Domain `<<Command>>` changes ripple into *generated* `command-handlers` / `command-replies` / `command-dispatchers` code only, reconciled by `/messaging-spec:generate-code`, not by this updater. (A known modeling gap, not a bug.)
-- It does not handle aggregate-root removal/rename, stereotype changes, or a degraded baseline as a whole-skill hard-fail — those route to `/messaging-spec:generate-code` (per consumer) via the Step 1.dom WARNINGs. Domain-axis dispatch is disabled, not aborted, so a clean commands-axis edit still proceeds.
+- It does not model the command-handler side of a consumer — Table 1's *Commands queue name* is the only consumer-spec trace of the command side, and it derives from the consumer name, not from any domain `<<Command>>` class. Domain `<<Command>>` changes ripple into *generated* `command-handlers` / `command-replies` / `command-dispatchers` code only, reconciled by `@messaging-spec:code-generator`, not by this updater. (A known modeling gap, not a bug.)
+- It does not handle aggregate-root removal/rename, stereotype changes, or a degraded baseline as a whole-skill hard-fail — those route to `@messaging-spec:code-generator` (per consumer) via the Step 1.dom WARNINGs. Domain-axis dispatch is disabled, not aborted, so a clean commands-axis edit still proceeds.
 - It does not act on the `surface-markers` category that may appear on the commands-updates report — that drives `/rest-api-spec:update-specs`. This orchestrator silently ignores it.
 - It does not act on the `dependencies` / `raised-exceptions` / `external-interfaces` categories on the commands report — those drive `/application-spec:update-specs`. Silently ignored here.
 - It does not silently prune a dangling internal subscription — a subscribed internal `<<Domain Event>>` removed/renamed leaves the commands-diagram `%% Messaging` marker (and the `on_<event>` handler) dangling, which only the operator can reconcile; the skill surfaces an abort-and-reconcile instruction (Step 3) and skips that consumer for this run. Exception: if the operator already removed the corresponding `%% Messaging` row from the commands diagram in the same edit, Step 3's deduction rule recognizes the reconciliation and the consumer regenerates cleanly.

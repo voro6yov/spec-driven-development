@@ -48,7 +48,7 @@ The brief uses **flat per-artifact sections** (one `### \`<path>\`` block per ro
    ```
 4. Read `<dir>/<stem>.persistence/command-repo-spec.md`. If missing, hard-fail:
    ```
-   ERROR: <stem>.persistence/command-repo-spec.md not found. Run /persistence-spec:generate-specs <domain_diagram> before /update-code.
+   ERROR: <stem>.persistence/command-repo-spec.md not found. Run @persistence-spec:specs-generator <domain_diagram> before /update-code.
    ```
 5. Parse `## Summary → Warnings` in `updates.md`. If a `<count> destructive migration(s) appended (...)` bullet is present, capture the count and changeset list for use in Step 7's confirm payload (surfaced as part of `risky_count` justification). Do **not** treat the warning as fatal — the migrations-appender has already accepted them.
 6. Parse `<locations_report_text>` to extract:

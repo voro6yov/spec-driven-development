@@ -5,9 +5,9 @@ argument-hint: <domain_diagram>
 allowed-tools: Read, Bash, Agent
 ---
 
-You are a persistence spec **update** orchestrator. Given a domain diagram whose `<dir>/<stem>.domain/updates.md` report describes a change, refresh the existing `<dir>/<stem>.persistence/command-repo-spec.md` in place — regenerate its snapshot sections from the current diagram, append the delta-driven rows to its append-only migrations log, and emit `<dir>/<stem>.persistence/updates.md`. Do not rerun the full `/persistence-spec:generate-specs` pipeline, do not touch the diagram file, and do not ask for confirmation before writing.
+You are a persistence spec **update** orchestrator. Given a domain diagram whose `<dir>/<stem>.domain/updates.md` report describes a change, refresh the existing `<dir>/<stem>.persistence/command-repo-spec.md` in place — regenerate its snapshot sections from the current diagram, append the delta-driven rows to its append-only migrations log, and emit `<dir>/<stem>.persistence/updates.md`. Do not rerun the full `@persistence-spec:specs-generator` pipeline, do not touch the diagram file, and do not ask for confirmation before writing.
 
-This skill is the persistence-side counterpart to `/update-specs` (domain). It is the surgical analog of `/persistence-spec:generate-specs`. Design rationale lives in `notes/spec-updater-approaches.md`, `notes/update-types.md`, and `notes/updates-report.md`; the load-bearing idea is the **snapshot / append-only-log split** — §1, §2.{Tables, Mappers, Repository, Context Integration}, and §3 are *snapshot* sections (regenerated wholesale from the current diagram), while §2.Migrations is an *append-only log* (existing rows immutable; new rows derived from the domain delta and stacked on top).
+This skill is the persistence-side counterpart to `/update-specs` (domain). It is the surgical analog of `@persistence-spec:specs-generator`. Design rationale lives in `notes/spec-updater-approaches.md`, `notes/update-types.md`, and `notes/updates-report.md`; the load-bearing idea is the **snapshot / append-only-log split** — §1, §2.{Tables, Mappers, Repository, Context Integration}, and §3 are *snapshot* sections (regenerated wholesale from the current diagram), while §2.Migrations is an *append-only log* (existing rows immutable; new rows derived from the domain delta and stacked on top).
 
 This skill **does not** detect domain-level deltas — it consumes the `<dir>/<stem>.domain/updates.md` report that `domain-spec:updates-detector` (Step 0 of domain `/update-specs`, or an explicit prior invocation) already wrote. It never re-diffs the diagram and never invokes `domain-spec:updates-detector`.
 
@@ -36,7 +36,7 @@ Derive `<dir>` and `<stem>` from `$ARGUMENTS` per `spec-core:naming-conventions`
   ```
   ERROR: <dir>/<stem>.domain/updates.md not found. The persistence updater consumes the domain
   updates report; it is not the first-run pipeline. Run `/update-specs <domain_diagram>` (or
-  `@updates-detector <domain_diagram>`) first, or run `/persistence-spec:generate-specs <domain_diagram>`
+  `@updates-detector <domain_diagram>`) first, or run `@persistence-spec:specs-generator <domain_diagram>`
   to regenerate the persistence spec from scratch.
   ```
 
@@ -44,7 +44,7 @@ Derive `<dir>` and `<stem>` from `$ARGUMENTS` per `spec-core:naming-conventions`
 
   ```
   ERROR: <dir>/<stem>.persistence/command-repo-spec.md not found. The persistence updater is not the
-  first-run pipeline. Run `/persistence-spec:generate-specs <domain_diagram>` to create the spec.
+  first-run pipeline. Run `@persistence-spec:specs-generator <domain_diagram>` to create the spec.
   ```
 
 Do not synthesize either file. Do not invoke any agent.
@@ -69,7 +69,7 @@ If `degraded_baseline` is true:
 ```
 ERROR: HEAD baseline is degraded (multiple or missing Mermaid blocks at HEAD per <stem>.domain/updates.md).
 The surgical persistence updater cannot operate against a degraded baseline. Run
-`/persistence-spec:generate-specs <domain_diagram>` to regenerate the spec from scratch.
+`@persistence-spec:specs-generator <domain_diagram>` to regenerate the spec from scratch.
 ```
 
 #### 1b. Hard-fail: stereotype change
@@ -80,7 +80,7 @@ If `stereotype_changed` is non-empty:
 ERROR: Class(es) <names> have stereotype changes in <stem>.domain/updates.md. A stereotype change moves a
 class to a different pattern catalog (e.g. a value object becoming a child entity), which requires the
 persistence spec — including its migration baseline — to be re-rendered. Run
-`/persistence-spec:generate-specs <domain_diagram>` to regenerate from scratch.
+`@persistence-spec:specs-generator <domain_diagram>` to regenerate from scratch.
 ```
 
 Surface every offending name, not just the first.
@@ -92,7 +92,7 @@ If any bullet in `removed_classes` has stereotype `<<Aggregate Root>>`:
 ```
 ERROR: Aggregate root `<ClassName>` is listed under `## Class Lifecycle → Removed` in
 <stem>.domain/updates.md. The spec's anchor class is gone; the persistence spec is no longer valid. Run
-`/persistence-spec:generate-specs <domain_diagram>`.
+`@persistence-spec:specs-generator <domain_diagram>`.
 ```
 
 #### 1d. Hard-fail: `<<Repository>>` interface lifecycle change
@@ -102,7 +102,7 @@ If `repo_class_lifecycle` is true (a `<<Repository>>`-stereotyped class added or
 ```
 ERROR: A `<<Repository>>` interface was added or removed per <stem>.domain/updates.md. A domain aggregate
 without its repository is not persistable, and a new repository requires a fresh pattern selection. Run
-`/persistence-spec:generate-specs <domain_diagram>`.
+`@persistence-spec:specs-generator <domain_diagram>`.
 ```
 
 #### 1e. No-op exit: nothing persistence-relevant
@@ -115,12 +115,12 @@ Early-exit (with success) when **any** of the following holds:
 
 On a no-op exit, still invoke `command-repo-spec-updates-writer` (Step 4) so a `<stem>.persistence/updates.md` exists after every successful run (the consumer's contract is "a report always exists") — it sees the working-tree spec unchanged versus HEAD and emits an all-`_no changes_` report. Then print:
 
-- If `orphan_prose` is true: `No persistence spec updates required. Orphan prose changes detected — review <stem>.domain/updates.md (a bounded-context title rename, if any, is folded in the next time a structural change triggers the snapshot regen; run /persistence-spec:generate-specs to apply it now).`
+- If `orphan_prose` is true: `No persistence spec updates required. Orphan prose changes detected — review <stem>.domain/updates.md (a bounded-context title rename, if any, is folded in the next time a structural change triggers the snapshot regen; run @persistence-spec:specs-generator to apply it now).`
 - Otherwise: `No persistence spec updates required (no persistence-relevant domain changes).`
 
 Then exit.
 
-> Note: gates 1a–1d are the only failures `/persistence-spec:update-specs` cannot retry through — re-running hits the same gate. Each error directs the operator to `/persistence-spec:generate-specs`, which rebuilds the spec and re-establishes the migrations baseline; the next update then resumes from the new max migration ID.
+> Note: gates 1a–1d are the only failures `/persistence-spec:update-specs` cannot retry through — re-running hits the same gate. Each error directs the operator to `@persistence-spec:specs-generator`, which rebuilds the spec and re-establishes the migrations baseline; the next update then resumes from the new max migration ID.
 
 ### Step 2 — Regenerate the snapshot sections
 
@@ -160,16 +160,16 @@ Where `<migrations_clause>` is `appended N migration row(s): <id1>, <id2>, …` 
   - **Step 2** (`command-repo-spec-pattern-selector`, `command-repo-spec-schema-writer`) regenerates its sections wholesale from the current diagram on every call.
   - **Step 3** (`command-repo-spec-migrations-appender`) short-circuits on the updates-hash sentinel and de-duplicates by Changeset text — re-runs append nothing.
   - **Step 4** (`command-repo-spec-updates-writer`) is a pure HEAD-vs-working-tree diff and overwrites `updates.md` from scratch.
-- The only failures `/persistence-spec:update-specs` cannot retry through are the Step 0 missing-input cases (0a, 0b) and the Step 1 preflight hard-fails (1a–1d). Each error message directs the operator to the correct fix — `/update-specs` / `@updates-detector` for the missing report, `/persistence-spec:generate-specs` for everything else.
+- The only failures `/persistence-spec:update-specs` cannot retry through are the Step 0 missing-input cases (0a, 0b) and the Step 1 preflight hard-fails (1a–1d). Each error message directs the operator to the correct fix — `/update-specs` / `@updates-detector` for the missing report, `@persistence-spec:specs-generator` for everything else.
 
 ## What this skill deliberately does not do
 
-- It does not regenerate `<stem>.persistence/command-repo-spec.md` end-to-end — that is `/persistence-spec:generate-specs`. In particular it never re-invokes `command-repo-spec-scaffolder` (the file already exists) or `command-repo-spec-migrations-writer` (the first-run baseline writer; updates go through the appender).
+- It does not regenerate `<stem>.persistence/command-repo-spec.md` end-to-end — that is `@persistence-spec:specs-generator`. In particular it never re-invokes `command-repo-spec-scaffolder` (the file already exists) or `command-repo-spec-migrations-writer` (the first-run baseline writer; updates go through the appender).
 - It does not re-diff `<domain_diagram>` and does not invoke `domain-spec:updates-detector` — the domain `updates.md` is expected on disk before this skill runs.
-- It does not touch the diagram file or its `## Artifacts` index — those were linked by the original `/persistence-spec:generate-specs` run.
+- It does not touch the diagram file or its `## Artifacts` index — those were linked by the original `@persistence-spec:specs-generator` run.
 - It does not modify pre-existing §2.Migrations rows — the immutability contract is load-bearing (each row maps to a deployed-or-pending `db/migrations/<id>_<slug>.yaml`).
-- It does not write or modify any YAML under `db/migrations/` — those are owned by `/persistence-spec:generate-code` (`migrations-implementer`).
-- It does not handle aggregate-root removal, stereotype changes, `<<Repository>>` interface lifecycle changes, or a degraded baseline — those route to `/persistence-spec:generate-specs` via the Step 1 hard-fails.
+- It does not write or modify any YAML under `db/migrations/` — those are owned by `@persistence-spec:code-generator` (`migrations-implementer`).
+- It does not handle aggregate-root removal, stereotype changes, `<<Repository>>` interface lifecycle changes, or a degraded baseline — those route to `@persistence-spec:specs-generator` via the Step 1 hard-fails.
 - It does not auto-update generated persistence code (`tables/`, `mappers/`, `migrations/`, repositories, repo tests) — that is the future `/persistence-spec:update-code` skill, which consumes the `<stem>.persistence/updates.md` this skill emits.
 - It does not preserve hand-edits inside the spec — the operator's contract is that the spec is regenerated from the diagram, not curated.
-- It is independently invocable, **and** is one of the two downstream skills fanned out in parallel at **Step 10** of domain `/update-specs` (alongside `/application-spec:update-specs`, which owns the rest-api / messaging sub-cascade). It is domain-driven and invokes no app-service detector, so it receives no `--detectors-fresh` flag. A `command-repo-spec.md`-missing hard-fail (Step 0b) when invoked from that fan-out does **not** abort its sibling — each runs to completion and prints its own report; run `/persistence-spec:generate-specs` (and `/persistence-spec:generate-code`) before relying on the domain-level cascade.
+- It is independently invocable, **and** is one of the two downstream skills fanned out in parallel at **Step 10** of domain `/update-specs` (alongside `/application-spec:update-specs`, which owns the rest-api / messaging sub-cascade). It is domain-driven and invokes no app-service detector, so it receives no `--detectors-fresh` flag. A `command-repo-spec.md`-missing hard-fail (Step 0b) when invoked from that fan-out does **not** abort its sibling — each runs to completion and prints its own report; run `@persistence-spec:specs-generator` (and `@persistence-spec:code-generator`) before relying on the domain-level cascade.

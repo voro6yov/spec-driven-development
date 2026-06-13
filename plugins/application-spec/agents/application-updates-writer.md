@@ -45,9 +45,9 @@ Recover `<dir>` and `<stem>` from `<domain_diagram>` per `spec-core:naming-conve
 
 Verify each of the three working-tree specs with `test -f`:
 
-- `<commands_spec>` missing → fail with: `ERROR: <commands_spec> not found. The updates writer is not the first-run pipeline; run /application-spec:generate-specs <domain_diagram> first.`
-- `<queries_spec>` missing → fail with: `ERROR: <queries_spec> not found. The updates writer is not the first-run pipeline; run /application-spec:generate-specs <domain_diagram> first.`
-- `<services_report>` missing → fail with: `ERROR: <services_report> not found. The updates writer is not the first-run pipeline; run /application-spec:generate-specs <domain_diagram> first.`
+- `<commands_spec>` missing → fail with: `ERROR: <commands_spec> not found. The updates writer is not the first-run pipeline; run @application-spec:specs-generator <domain_diagram> first.`
+- `<queries_spec>` missing → fail with: `ERROR: <queries_spec> not found. The updates writer is not the first-run pipeline; run @application-spec:specs-generator <domain_diagram> first.`
+- `<services_report>` missing → fail with: `ERROR: <services_report> not found. The updates writer is not the first-run pipeline; run @application-spec:specs-generator <domain_diagram> first.`
 
 `<domain_updates_file>` may be missing — that is the standalone-invocation case (the writer is being run without an upstream domain `update-specs` run, e.g. for testing or operator-driven recovery). Record its absence; downstream `Source delta` lookups will skip the domain-axis probe and the Summary's `Domain updates source` line renders `_none_`.
 
@@ -133,7 +133,7 @@ For `<services_report>`, locate the `# Services` H1. Walk as a sequence of `## <
 - When the document body is the literal `_None_`, the services list is empty.
 - Bind a dict keyed by identifier: `{<Identifier>: {attr_name, classification, interfaces: set, consumers: set}}`.
 
-If a working-tree spec is so malformed that the parser cannot identify the relevant H2 anchors (`## Method Specifications`, `## Application Exceptions`, `# Services`), hard-fail with: `ERROR: <spec_file> is malformed; cannot locate expected headings. Run /application-spec:generate-specs <domain_diagram> to rebuild.`
+If a working-tree spec is so malformed that the parser cannot identify the relevant H2 anchors (`## Method Specifications`, `## Application Exceptions`, `# Services`), hard-fail with: `ERROR: <spec_file> is malformed; cannot locate expected headings. Run @application-spec:specs-generator <domain_diagram> to rebuild.`
 
 The HEAD-side specs are parsed with the same parser. Tolerate missing sub-sections in HEAD silently — the version may have been produced by a prior agent revision with a different layout; treat what's missing as "absent" rather than as a parse error.
 
@@ -336,10 +336,10 @@ Each prints exactly one `ERROR: ...` line and exits non-zero. The agent does **n
 | Condition | Error template | Recovery |
 |---|---|---|
 | `<domain_diagram>` path produces an invalid `<stem>` | `ERROR: <domain_diagram> path does not yield a valid aggregate stem (must match ^[a-z][a-z0-9-]*$).` | Pass a path that follows `spec-core:naming-conventions`. |
-| `<commands_spec>` missing on disk | `ERROR: <commands_spec> not found. The updates writer is not the first-run pipeline; run /application-spec:generate-specs <domain_diagram> first.` | Run `/application-spec:generate-specs`. |
-| `<queries_spec>` missing on disk | `ERROR: <queries_spec> not found. The updates writer is not the first-run pipeline; run /application-spec:generate-specs <domain_diagram> first.` | Run `/application-spec:generate-specs`. |
-| `<services_report>` missing on disk | `ERROR: <services_report> not found. The updates writer is not the first-run pipeline; run /application-spec:generate-specs <domain_diagram> first.` | Run `/application-spec:generate-specs`. |
-| Any working-tree spec missing the relevant H2 anchors (`## Method Specifications`, `## Application Exceptions`, `# Services`) | `ERROR: <spec_file> is malformed; cannot locate expected headings. Run /application-spec:generate-specs <domain_diagram> to rebuild.` | Run `/application-spec:generate-specs`. |
+| `<commands_spec>` missing on disk | `ERROR: <commands_spec> not found. The updates writer is not the first-run pipeline; run @application-spec:specs-generator <domain_diagram> first.` | Run `@application-spec:specs-generator`. |
+| `<queries_spec>` missing on disk | `ERROR: <queries_spec> not found. The updates writer is not the first-run pipeline; run @application-spec:specs-generator <domain_diagram> first.` | Run `@application-spec:specs-generator`. |
+| `<services_report>` missing on disk | `ERROR: <services_report> not found. The updates writer is not the first-run pipeline; run @application-spec:specs-generator <domain_diagram> first.` | Run `@application-spec:specs-generator`. |
+| Any working-tree spec missing the relevant H2 anchors (`## Method Specifications`, `## Application Exceptions`, `# Services`) | `ERROR: <spec_file> is malformed; cannot locate expected headings. Run @application-spec:specs-generator <domain_diagram> to rebuild.` | Run `@application-spec:specs-generator`. |
 | `git ls-files --full-name` non-zero exit on any of the three specs | `ERROR: cannot resolve <spec_file> against the git working tree.` | Verify the working directory is a git repo and the spec path is unambiguous. |
 | `git show HEAD:<repo_path>` non-zero exit other than the standard "does not exist in 'HEAD'" first-run signal | `ERROR: failed to read HEAD blob of <spec_file>: <stderr>.` | Inspect the repo state; the failure is not a routine first-run condition. |
 
@@ -364,4 +364,4 @@ Note: the agent does **not** hard-fail when:
 - It does not re-diff `<domain_diagram>`, `<dir>/<stem>.commands.md`, or `<dir>/<stem>.queries.md` against HEAD — those are `domain-spec:updates-detector`, `application-spec:commands-updates-detector`, and `application-spec:queries-updates-detector`'s jobs respectively. This agent reads the three delta reports only as enrichment sources for axis-tagged `Source delta` lookups.
 - It does not preserve the prior `<output_file>` content — the report is regenerated from scratch on every run. There is no "previous report" lineage tracked.
 - It does not detect orphan tests when a method is removed — the existing `commands-tests-implementer` / `queries-tests-implementer` agents are append-only and do not prune; orphan-test cleanup is deferred to a future test-pruner agent.
-- It does not detect changes to the standalone `commands.exceptions.md` / `queries.exceptions.md` fragments. Those are deleted by `specs-merger` after a successful generate-specs run; the durable exception spec lives inside the inlined `## Application Exceptions` section of each side's `.specs.md`. (See `notes/update-types.md` § "Out-of-scope but worth flagging" for the documentation inconsistency note.)
+- It does not detect changes to the standalone `commands.exceptions.md` / `queries.exceptions.md` fragments. Those are deleted by `specs-merger` after a successful specs-generator run; the durable exception spec lives inside the inlined `## Application Exceptions` section of each side's `.specs.md`. (See `notes/update-types.md` § "Out-of-scope but worth flagging" for the documentation inconsistency note.)

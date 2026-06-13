@@ -46,7 +46,7 @@ The brief uses **surface-grouped sections** (one `## Surface: <name>` H2 per sur
    ```
 4. Read `<dir>/<stem>.rest-api/spec.md`. If missing, hard-fail:
    ```
-   ERROR: <stem>.rest-api/spec.md not found. Run /rest-api-spec:generate-specs <domain_diagram> before /update-code.
+   ERROR: <stem>.rest-api/spec.md not found. Run @rest-api-spec:specs-generator <domain_diagram> before /update-code.
    ```
 5. Parse `<locations_report_text>` to extract:
    - `<api_pkg>` — from the `API Package` row.

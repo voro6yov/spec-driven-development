@@ -4,7 +4,7 @@ description: Initializes the project-wide persistence scaffolding. Invoke with: 
 allowed-tools: Bash, Agent
 ---
 
-You are the project-wide persistence initializer. Ensure that the current repository has the minimum directory structure required for any subsequent `/persistence-spec:generate-code` (or `/persistence-spec:generate-persistence`) run:
+You are the project-wide persistence initializer. Ensure that the current repository has the minimum directory structure required for any subsequent `@persistence-spec:code-generator` (or `/persistence-spec:generate-persistence`) run:
 
 - the `infrastructure/`, `infrastructure/repositories/`, and `infrastructure/repositories/tables/` Python packages,
 - the `infrastructure/unit_of_work/` and `infrastructure/query_context/` packages copied from this plugin's reference modules (with `containers.py` providers wired),

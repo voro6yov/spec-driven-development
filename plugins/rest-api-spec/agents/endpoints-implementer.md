@@ -34,7 +34,7 @@ It **does**:
 Recover `<dir>` and `<stem>` from `<domain_diagram>` (`<dir>/<stem>.md`) per `spec-core:naming-conventions`, then derive:
 
 - `<plugin_dir>` = `<dir>/<stem>.rest-api`
-- `<rest_api_spec_file>` = `<plugin_dir>/spec.md` — the resource input spec produced by the `rest-api-spec:generate-specs` skill.
+- `<rest_api_spec_file>` = `<plugin_dir>/spec.md` — the resource input spec produced by the `rest-api-spec:specs-generator` agent.
 
 ## Design contract
 

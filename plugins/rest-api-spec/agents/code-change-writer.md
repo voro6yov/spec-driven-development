@@ -316,7 +316,7 @@ This open-set design means the agent automatically tracks bullet-vocabulary addi
 
 ## Reference (for orientation, not for delegation)
 
-The dispatch logic mirrors what the existing generate-code implementers do, but driven off the brief rather than spec.md alone:
+The dispatch logic mirrors what the existing code-generator implementers do, but driven off the brief rather than spec.md alone:
 
 - `query-serializer` / `command-serializer` → mirrors `@query-serializers-implementer` and `@command-serializers-implementer`.
 - `endpoint-module` → mirrors `@endpoints-implementer` (including the kind-dispatch by path shape and Table 5 `bytes` signal).

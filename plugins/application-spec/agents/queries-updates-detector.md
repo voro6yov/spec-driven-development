@@ -27,14 +27,14 @@ The `spec-core:naming-conventions` skill is the single source of truth for path 
 Per `spec-core:naming-conventions`:
 
 - `<queries_diagram>` has the form `<dir>/<stem>.queries.md`. Recover `<dir>` and `<stem>` per the skill's "Recovering `<dir>` and `<stem>`" table. `<stem>` must satisfy the aggregate-stem regex (per `spec-core:naming-conventions`); abort if it does not.
-- `<plugin_dir>` = `<dir>/<stem>.application` — the application package folder, normally already owned by the application-spec generate-specs pipeline.
+- `<plugin_dir>` = `<dir>/<stem>.application` — the application package folder, normally already owned by the application-spec specs-generator pipeline.
 - `<output_file>` = `<plugin_dir>/queries-updates.md` — the report this agent owns.
 
 ## Output path convention
 
 Given `<queries_diagram>` at `<dir>/<stem>.queries.md`, the report is written to `<dir>/<stem>.application/queries-updates.md`. The file is **always written**, even when no changes are detected (downstream consumers expect a report to exist when they're chained from a detector run).
 
-Before writing, run `mkdir -p "<plugin_dir>"` defensively — first-run cases (before `/application-spec:generate-specs` ever ran) still produce a usable report. Subsequent agents that share the folder are not assumed to have run.
+Before writing, run `mkdir -p "<plugin_dir>"` defensively — first-run cases (before `@application-spec:specs-generator` ever ran) still produce a usable report. Subsequent agents that share the folder are not assumed to have run.
 
 ## Workflow
 
@@ -108,7 +108,7 @@ For each version, extract:
 2. **Anchor class** — the single class whose stereotype is exactly `<<Application>>`. Validate:
    - **Working tree:** exactly one `<<Application>>` class. Zero → hard-fail (`ERROR: <queries_diagram> declares no <<Application>> class; cannot identify the application-service anchor.`); more than one → hard-fail (`ERROR: <queries_diagram> declares <N> <<Application>> classes; expected exactly one.`).
    - **HEAD:** zero `<<Application>>` classes → degraded baseline (already handled in Step 2) or first-run; more than one → also treat as degraded baseline (every working-tree member reads as added; emit the Summary warning). The anchor must be present and unique in the **working tree** only.
-   - **Anchor rename** — when HEAD has exactly one `<<Application>>` class and the working tree has exactly one but with a **different name**, hard-fail (`ERROR: <queries_diagram> anchor class renamed from <old> to <new>; route to /application-spec:generate-specs.`), write nothing. An anchor rename implies an aggregate-root rename — coordinated multi-file rename territory the detector cannot describe.
+   - **Anchor rename** — when HEAD has exactly one `<<Application>>` class and the working tree has exactly one but with a **different name**, hard-fail (`ERROR: <queries_diagram> anchor class renamed from <old> to <new>; route to @application-spec:specs-generator.`), write nothing. An anchor rename implies an aggregate-root rename — coordinated multi-file rename territory the detector cannot describe.
 
 3. **Relationship list** — list of tuples `(source, kind, target, label)` for every `class A <arrow> B : label` line in the Mermaid block. Recognize these arrows:
    - `kind = dependency (-->)` — plain directed arrow.
@@ -135,7 +135,7 @@ Pure set-difference logic, no LLM reasoning. Renames are **not** detected at any
 - **Class-level** (Class Lifecycle):
   - `added` = class names in the working-tree class map but not in HEAD.
   - `removed` = class names in HEAD's class map but not in the working tree.
-  - `stereotype_changed` = class names present in both versions whose stereotype differs → **hard-fail** (`ERROR: <queries_diagram> class <Name> stereotype changed from <<Old>> to <<New>>; route to /application-spec:generate-specs.`), write nothing.
+  - `stereotype_changed` = class names present in both versions whose stereotype differs → **hard-fail** (`ERROR: <queries_diagram> class <Name> stereotype changed from <<Old>> to <<New>>; route to @application-spec:specs-generator.`), write nothing.
   - The anchor class itself can never appear under `added` or `removed` (Step 3 hard-fails first).
 
 - **Anchor-class member-level** (Dependencies + Per-Method Changes):
@@ -232,14 +232,14 @@ Each prints exactly one `ERROR: ...` line and writes **nothing** (no partial `<o
 
 | Gate | Condition | Recovery |
 |---|---|---|
-| 1 | `<queries_diagram>` missing / unreadable | Run `/application-spec:generate-specs` first, or correct the path. |
+| 1 | `<queries_diagram>` missing / unreadable | Run `@application-spec:specs-generator` first, or correct the path. |
 | 2 | `git ls-files --full-name` non-zero exit on the queries diagram | Verify the working directory is a git repo and the path is unambiguous. |
 | 3 | `git show HEAD:<repo_path>` non-zero exit other than the standard "does not exist in 'HEAD'" first-run signal | Inspect the repo state. |
 | 4 | Working-tree diagram has 0 or >1 Mermaid blocks | Fix the diagram to contain exactly one Mermaid block. |
 | 5 | Working-tree diagram has 0 `<<Application>>` classes | Fix the diagram to declare exactly one anchor class. |
 | 6 | Working-tree diagram has >1 `<<Application>>` classes | Fix the diagram to declare exactly one anchor class. |
-| 7 | Anchor-class rename (HEAD anchor name ≠ working-tree anchor name, both single) | Route to `/application-spec:generate-specs` — an anchor rename is multi-file coordinated rename territory. |
-| 8 | Any class's stereotype changed between HEAD and working tree | Route to `/application-spec:generate-specs` — cross-category moves are not describable here. |
+| 7 | Anchor-class rename (HEAD anchor name ≠ working-tree anchor name, both single) | Route to `@application-spec:specs-generator` — an anchor rename is multi-file coordinated rename territory. |
+| 8 | Any class's stereotype changed between HEAD and working tree | Route to `@application-spec:specs-generator` — cross-category moves are not describable here. |
 
 **Degraded baseline** (HEAD has 0 or >1 Mermaid blocks, or HEAD has 0 / >1 `<<Application>>` classes while the working tree is well-formed) is **not** a hard-fail — emitted as a Summary `_warning: HEAD version had <count> Mermaid blocks; structural baseline treated as empty._` line. Downstream orchestrators decide whether to abort on the warning.
 

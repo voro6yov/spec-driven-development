@@ -4,7 +4,7 @@ description: "Initializes the project-wide application-layer scaffolding (projec
 allowed-tools: Bash, Agent
 ---
 
-You are the project-wide application-layer initializer. Ensure that the current repository has the minimum directory structure required for any subsequent `/application-spec:generate-code` (or `/application-spec:generate-application`) run:
+You are the project-wide application-layer initializer. Ensure that the current repository has the minimum directory structure required for any subsequent `@application-spec:code-generator` (or `/application-spec:generate-application`) run:
 
 - the `application/` Python package (empty aggregator; populated per-aggregate by `@application-files-scaffolder`),
 - the `infrastructure/` and `infrastructure/services/` Python packages (empty aggregators; populated per-aggregate),

@@ -5,7 +5,7 @@ argument-hint: <domain_diagram>
 allowed-tools: Read, Bash, Agent, Skill
 ---
 
-You are an application spec **update** orchestrator. Given a domain diagram and its sibling commands/queries application-service diagrams (plus any `<dir>/<stem>.ops.<op-name>.md` ops orchestration diagrams), refresh the existing `<dir>/<stem>.application/commands.specs.md`, `<dir>/<stem>.application/queries.specs.md`, every dirty `<dir>/<stem>.application/ops.<op-name>.specs.md`, and `<dir>/<stem>.application/services.md` in place — invoke the three app-service-axis update detectors (commands, queries, ops), re-run only the dirty side's / dirty ops service's writers, re-enrich application exceptions, re-run `services-finder`, and emit `<dir>/<stem>.application/updates.md` (plus the ops detector's `<dir>/<stem>.application/ops-updates.md`). Then **re-cascade the app-service-axis change** to `/rest-api-spec:update-specs` and `/messaging-spec:update-specs` in parallel (Step 9). Do not rerun the full `/application-spec:generate-specs` pipeline, do not touch the diagram files, and do not ask for confirmation before writing.
+You are an application spec **update** orchestrator. Given a domain diagram and its sibling commands/queries application-service diagrams (plus any `<dir>/<stem>.ops.<op-name>.md` ops orchestration diagrams), refresh the existing `<dir>/<stem>.application/commands.specs.md`, `<dir>/<stem>.application/queries.specs.md`, every dirty `<dir>/<stem>.application/ops.<op-name>.specs.md`, and `<dir>/<stem>.application/services.md` in place — invoke the three app-service-axis update detectors (commands, queries, ops), re-run only the dirty side's / dirty ops service's writers, re-enrich application exceptions, re-run `services-finder`, and emit `<dir>/<stem>.application/updates.md` (plus the ops detector's `<dir>/<stem>.application/ops-updates.md`). Then **re-cascade the app-service-axis change** to `/rest-api-spec:update-specs` and `/messaging-spec:update-specs` in parallel (Step 9). Do not rerun the full `@application-spec:specs-generator` pipeline, do not touch the diagram files, and do not ask for confirmation before writing.
 
 This skill is the application-side counterpart to `/update-specs` (domain) and `/persistence-spec:update-specs`. Design rationale lives in `notes/spec-updater-approach.md`, `notes/update-types.md`, `notes/updates-report.md`, `notes/commands-queries-detectors-approach.md`, `notes/commands-queries-update-types.md`, `notes/commands-queries-updates-report.md`, and `notes/commands-queries-integration-approach.md`; the load-bearing idea is **per-side snapshot regen** — every section of `<side>.specs.md` is a pure snapshot, so the surgical unit of work is one full side, not one method block. Commands and queries are independent; a delta on any of the three input axes touches at most one or both.
 
@@ -70,28 +70,28 @@ Derive `<dir>` and `<stem>` from `$ARGUMENTS[0]` per `spec-core:naming-conventio
 
   ```
   ERROR: <dir>/<stem>.application/commands.specs.md not found. The application updater is not the
-  first-run pipeline. Run `/application-spec:generate-specs <domain_diagram>` to create the spec.
+  first-run pipeline. Run `@application-spec:specs-generator <domain_diagram>` to create the spec.
   ```
 
 - **0c.** If `<dir>/<stem>.application/queries.specs.md` is missing → hard-fail:
 
   ```
   ERROR: <dir>/<stem>.application/queries.specs.md not found. The application updater is not the
-  first-run pipeline. Run `/application-spec:generate-specs <domain_diagram>` to create the spec.
+  first-run pipeline. Run `@application-spec:specs-generator <domain_diagram>` to create the spec.
   ```
 
 - **0d.** If `<dir>/<stem>.application/services.md` is missing → hard-fail:
 
   ```
   ERROR: <dir>/<stem>.application/services.md not found. The application updater is not the
-  first-run pipeline. Run `/application-spec:generate-specs <domain_diagram>` to create the spec.
+  first-run pipeline. Run `@application-spec:specs-generator <domain_diagram>` to create the spec.
   ```
 
 - **0e.** If `<dir>/<stem>.commands.md` is missing → hard-fail:
 
   ```
   ERROR: <dir>/<stem>.commands.md not found. The commands application-service diagram is a required
-  hand-authored input. Restore the file or run `/application-spec:generate-specs <domain_diagram>`
+  hand-authored input. Restore the file or run `@application-spec:specs-generator <domain_diagram>`
   after authoring it.
   ```
 
@@ -99,7 +99,7 @@ Derive `<dir>` and `<stem>` from `$ARGUMENTS[0]` per `spec-core:naming-conventio
 
   ```
   ERROR: <dir>/<stem>.queries.md not found. The queries application-service diagram is a required
-  hand-authored input. Restore the file or run `/application-spec:generate-specs <domain_diagram>`
+  hand-authored input. Restore the file or run `@application-spec:specs-generator <domain_diagram>`
   after authoring it.
   ```
 
@@ -116,7 +116,7 @@ Each detector writes its own report (`<plugin_dir>/commands-updates.md`, `<plugi
 
 This skill is the **single producer** of these two reports: whether invoked standalone or fanned out by domain `/update-specs`'s Step 10, it always produces them here, then hands them down to the Step-9 re-cascade via `--detectors-fresh`. There is no concurrent producer to race with — domain no longer pre-produces them, and rest-api / messaging only read them — so there is **no cascade-mode shortcut**; the detectors run on every invocation. (A stray `--detectors-fresh` token in `$ARGUMENTS` is harmless: this orchestrator only ever reads `$ARGUMENTS[0]`, so the flag is simply ignored and the detectors run anyway.)
 
-If either detector hard-fails, abort the orchestrator with that detector's `ERROR:` line repeated verbatim. The other detector's output (if it completed) is left on disk for the next run; no rollback is performed. The same `/application-spec:generate-specs <domain_diagram>` recovery path the detectors themselves direct to applies here.
+If either detector hard-fails, abort the orchestrator with that detector's `ERROR:` line repeated verbatim. The other detector's output (if it completed) is left on disk for the next run; no rollback is performed. The same `@application-spec:specs-generator <domain_diagram>` recovery path the detectors themselves direct to applies here.
 
 Wait for both detectors to return successfully before proceeding to Step 0h.
 
@@ -166,10 +166,10 @@ Each gate **disables only the domain axis** and emits a `WARNING:` (not `ERROR:`
 
 | Gate | Trigger | Action |
 |---|---|---|
-| 1.dom.a | `domain.degraded_baseline` true | Set `domain_axis_disabled = true`; emit `WARNING: domain axis disabled — HEAD baseline is degraded (multiple or missing Mermaid blocks at HEAD per <stem>.domain/updates.md). Run /application-spec:generate-specs <domain_diagram> to regenerate the domain-driven half from scratch.` |
-| 1.dom.b | `domain.stereotype_changed` non-empty | Set `domain_axis_disabled = true`; emit `WARNING: domain axis disabled — class(es) <names> have stereotype changes in <stem>.domain/updates.md. A stereotype change moves a class to a different pattern catalog. Run /application-spec:generate-specs <domain_diagram> to regenerate from scratch.` (surface every offending name) |
-| 1.dom.c | Any bullet in `domain.removed_classes` has stereotype `<<Aggregate Root>>` | Set `domain_axis_disabled = true`; emit `WARNING: domain axis disabled — aggregate root <ClassName> is listed under Class Lifecycle → Removed in <stem>.domain/updates.md. The <AggregateRoot>Commands / <AggregateRoot>Queries services lose their anchor; an aggregate-root rename also moves the diagram filenames. Rename the diagrams (<stem>.md, <stem>.commands.md, <stem>.queries.md) and the <stem>.application/ folder, then run /application-spec:generate-specs <domain_diagram>.` |
-| 1.dom.d | `domain.repo_class_lifecycle` true | Set `domain_axis_disabled = true`; emit `WARNING: domain axis disabled — a <<Repository>> interface was added or removed per <stem>.domain/updates.md. A new repository requires a fresh dependency selection. Run /application-spec:generate-specs <domain_diagram>.` |
+| 1.dom.a | `domain.degraded_baseline` true | Set `domain_axis_disabled = true`; emit `WARNING: domain axis disabled — HEAD baseline is degraded (multiple or missing Mermaid blocks at HEAD per <stem>.domain/updates.md). Run @application-spec:specs-generator <domain_diagram> to regenerate the domain-driven half from scratch.` |
+| 1.dom.b | `domain.stereotype_changed` non-empty | Set `domain_axis_disabled = true`; emit `WARNING: domain axis disabled — class(es) <names> have stereotype changes in <stem>.domain/updates.md. A stereotype change moves a class to a different pattern catalog. Run @application-spec:specs-generator <domain_diagram> to regenerate from scratch.` (surface every offending name) |
+| 1.dom.c | Any bullet in `domain.removed_classes` has stereotype `<<Aggregate Root>>` | Set `domain_axis_disabled = true`; emit `WARNING: domain axis disabled — aggregate root <ClassName> is listed under Class Lifecycle → Removed in <stem>.domain/updates.md. The <AggregateRoot>Commands / <AggregateRoot>Queries services lose their anchor; an aggregate-root rename also moves the diagram filenames. Rename the diagrams (<stem>.md, <stem>.commands.md, <stem>.queries.md) and the <stem>.application/ folder, then run @application-spec:specs-generator <domain_diagram>.` |
+| 1.dom.d | `domain.repo_class_lifecycle` true | Set `domain_axis_disabled = true`; emit `WARNING: domain axis disabled — a <<Repository>> interface was added or removed per <stem>.domain/updates.md. A new repository requires a fresh dependency selection. Run @application-spec:specs-generator <domain_diagram>.` |
 
 Only one of 1.dom.a–1.dom.d fires per run (whichever is first); evaluate in order and stop at the first match.
 
@@ -207,7 +207,7 @@ If `domain_axis_disabled` AND `commands_axis_disabled` AND `queries_axis_disable
 
 ```
 ERROR: all input axes are disabled by preflight gates (see WARNING lines above). The orchestrator
-cannot regenerate any side. Resolve the underlying conditions or run /application-spec:generate-specs
+cannot regenerate any side. Resolve the underlying conditions or run @application-spec:specs-generator
 <domain_diagram> to rebuild the application specs from scratch.
 ```
 
@@ -282,12 +282,12 @@ If `queries_dirty`:
 - `application-spec:queries-deps-writer` with prompt `$ARGUMENTS[0]`.
 - `application-spec:queries-methods-writer` with prompt `$ARGUMENTS[0]`.
 
-For **each** `<op-name>` in `dirty_ops` (one writer pair per dirty ops service — same fan-out the ops half of `/application-spec:generate-specs` uses):
+For **each** `<op-name>` in `dirty_ops` (one writer pair per dirty ops service — same fan-out the ops half of `@application-spec:specs-generator` uses):
 
 - `application-spec:ops-deps-writer` with prompt `$ARGUMENTS[0] <op-name>`.
 - `application-spec:ops-methods-writer` with prompt `$ARGUMENTS[0] <op-name>`.
 
-Fan out **all** selected writers — the commands pair, the queries pair, and the 2×N ops writers — together in a single message (the same parallel pattern `/application-spec:generate-specs` uses today). Wait for every selected writer to complete before proceeding.
+Fan out **all** selected writers — the commands pair, the queries pair, and the 2×N ops writers — together in a single message (the same parallel pattern `@application-spec:specs-generator` uses today). Wait for every selected writer to complete before proceeding.
 
 **Removed ops services.** For each `<op-name>` in `removed_ops` (its diagram was deleted at HEAD→working-tree), no writer runs — instead delete the stale merged spec and any leftover fragments via Bash so Step 6's `services-finder` glob and the downstream `/update-code` brief no longer see it:
 
@@ -316,7 +316,7 @@ If any writer reports a failure, abort the workflow and emit a single `ERROR:` l
 
 After all Step 3 writers return successfully, invoke `application-spec:application-exceptions-specifier` with prompt `$ARGUMENTS[0] <op-name-1> <op-name-2> …` — the domain diagram followed by every `<op-name>` in `dirty_ops`, space-separated (when `dirty_ops` is empty, just `$ARGUMENTS[0]`). The agent processes both fixed commands/queries sides in one call and additionally enriches each passed `ops.<op-name>.exceptions.md` stub; it auto-skips any side or ops service whose `<side>.exceptions.md` / `ops.<op-name>.exceptions.md` is absent (its existing disk-presence contract). Pass **only** the `dirty_ops` op-names (not every ops service on disk) so the enricher rewrites exactly the ops services Step 3 just regenerated — a clean ops service has no fragment on disk and is correctly skipped.
 
-Because Step 3 only writes fragments for the dirty side and the dirty ops services, an unaffected side's / clean ops service's `<side>.exceptions.md` / `ops.<op-name>.exceptions.md` is not on disk (deleted by the prior `generate-specs` / merger run), and the enricher leaves that side's `<side>.specs.md` / `ops.<op-name>.specs.md` untouched. This is the load-bearing reason per-side / per-service regen requires no contract change to existing agents — the disk-presence check the enricher already performs is exactly the per-side scoping the updater needs.
+Because Step 3 only writes fragments for the dirty side and the dirty ops services, an unaffected side's / clean ops service's `<side>.exceptions.md` / `ops.<op-name>.exceptions.md` is not on disk (deleted by the prior `specs-generator` / merger run), and the enricher leaves that side's `<side>.specs.md` / `ops.<op-name>.specs.md` untouched. This is the load-bearing reason per-side / per-service regen requires no contract change to existing agents — the disk-presence check the enricher already performs is exactly the per-side scoping the updater needs.
 
 If the enricher reports a failure, abort and emit a single `ERROR:` line repeating its message.
 
@@ -407,7 +407,7 @@ This orchestrator does not print a consolidated cascade summary — each chained
 ## Failure semantics
 
 - **Step 0 detector hard-fail** (0g / 0h): orchestrator aborts with the detector's `ERROR:` line repeated verbatim. Any detector report that completed (including the ops report from 0h, or the commands/queries reports from 0g) is left on disk. Re-running after fixing the trigger re-runs all three detectors. No rollback.
-- **Total preflight abort (1.all)**: no writes; the WARNING lines for each disabled axis are emitted before the aggregated ERROR. Operator runs `/application-spec:generate-specs`.
+- **Total preflight abort (1.all)**: no writes; the WARNING lines for each disabled axis are emitted before the aggregated ERROR. Operator runs `@application-spec:specs-generator`.
 - **Partial preflight disable (1.dom xor 1.cmd xor 1.qry)**: the enabled axis (or axes) regenerate as normal; the disabled axis's WARNING is surfaced before the Step 8 summary. This is a success path, so the Step 9 re-cascade still runs.
 - **Step 3+ agent failure**: every step that aborts emits exactly one `ERROR:` line and exits the workflow. Do not chain further agents on top of a failed step. The orchestrator does not roll back partial writes.
 - **Step 9 cascade**: reached only on the application-side success path. An application-side hard-fail (the Step 0 missing-input cases, the 1.all total-abort, or any Step 3–7 agent abort) `return`s before Step 9, so **rest-api and messaging are not run** on that invocation — the accepted coupling of rooting the app-service-axis subtree here. Within Step 9 the two downstream skills are independent: one's `ERROR:` neither aborts the other nor fails the already-completed application-side update. Re-run `/application-spec:update-specs` after reconciling the application-side trigger to propagate to rest-api / messaging.
@@ -419,7 +419,7 @@ This orchestrator does not print a consolidated cascade summary — each chained
   - **Step 6** (`services-finder`) regenerates `services.md` from current inputs; byte-stable on stable inputs modulo LLM prose drift.
   - **Step 7** (`application-updates-writer`) is a pure HEAD-vs-working-tree diff and overwrites `updates.md` from scratch; reads the three delta reports for source attribution.
   - **Step 9** (the rest-api / messaging re-cascade) fans out two independently idempotent skills; re-running re-derives their reports from disk + git. A downstream `ERROR:` does not abort the sibling or fail the application-side update.
-- The only failures `/application-spec:update-specs` cannot retry through are the Step 0 missing-input cases (**0b–0f**; 0a is no longer a failure — an absent domain report degrades the domain axis to no-change with a `WARNING`) and the total-abort gate (1.all). Each error message directs the operator to the correct fix — diagram-restore-or-rename for the missing input diagrams, `/application-spec:generate-specs` for everything else.
+- The only failures `/application-spec:update-specs` cannot retry through are the Step 0 missing-input cases (**0b–0f**; 0a is no longer a failure — an absent domain report degrades the domain axis to no-change with a `WARNING`) and the total-abort gate (1.all). Each error message directs the operator to the correct fix — diagram-restore-or-rename for the missing input diagrams, `@application-spec:specs-generator` for everything else.
 
 ## Idempotency
 
@@ -433,9 +433,9 @@ There are no sentinel comments in `<plugin_dir>/updates.md` beyond those the wri
 
 ## What this skill deliberately does not do
 
-- It does not regenerate `<stem>.application/{commands,queries}.specs.md` or `services.md` end-to-end — that is `/application-spec:generate-specs`. In particular it does not invoke a scaffolder (the files already exist).
+- It does not regenerate `<stem>.application/{commands,queries}.specs.md` or `services.md` end-to-end — that is `@application-spec:specs-generator`. In particular it does not invoke a scaffolder (the files already exist).
 - It does not re-diff `<domain_diagram>` and does not invoke (or produce) `domain-spec:updates-detector`'s report — the domain `updates.md` is consumed **if present**, and an absent report degrades the domain axis to no-change (Step 0a, with a `WARNING`) rather than hard-failing.
-- It does not touch the diagram files (`<stem>.md`, `<stem>.commands.md`, `<stem>.queries.md`) or any Artifacts index — those siblings are linked from the original `/application-spec:generate-specs` run.
+- It does not touch the diagram files (`<stem>.md`, `<stem>.commands.md`, `<stem>.queries.md`) or any Artifacts index — those siblings are linked from the original `@application-spec:specs-generator` run.
 - It does not itself act on the `surface-markers` or `messaging-markers` categories that may appear on the commands-diagram updates report — those drive `/rest-api-spec:update-specs` and `/messaging-spec:update-specs` respectively. This orchestrator ignores them for its *own* dispatch (no `commands_dirty` contribution) but **delegates** them by re-cascading to both skills at Step 9.
 - It does not pre-check the narrower abort conditions of the methods writers (a missing `save(...)` on the command repo, an aggregate-root method renamed under the application diagrams' canonical shape, a referenced `<<Service>>` removed, a query-repo finder rename that breaks a same-name match, an external-interface operation rename). The methods writers abort with their own one-sentence errors and the orchestrator surfaces them verbatim from Step 3.
 - It does not preserve hand-edits inside the spec — the writer/merger contract is that the spec is regenerated from the diagrams, not curated. The unaffected side's `<side>.specs.md` is preserved byte-identically (the chosen approach's main payoff); inside a regenerated side, manual edits are wholesale replaced.

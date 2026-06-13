@@ -54,7 +54,7 @@ No source files are ever created, modified, or deleted by this agent.
    ```
    ERROR: <stem>.persistence/code-changes.md not found. Run @code-change-writer <domain_diagram> <locations_report_text> before @code-review-writer.
    ```
-5. Read `<dir>/<stem>.persistence/command-repo-spec.md`. If missing, hard-fail with an analogous message naming `/persistence-spec:generate-specs`.
+5. Read `<dir>/<stem>.persistence/command-repo-spec.md`. If missing, hard-fail with an analogous message naming `@persistence-spec:specs-generator`.
 6. Read `<dir>/<stem>.persistence/updates.md`. If missing, hard-fail with an analogous message naming `/persistence-spec:update-specs`.
 7. Parse `<locations_report_text>` to extract `tables_dir`, `repo_dir`, `migrations_dir`, `ctx_dir`, `containers_path`, and `tests_dir`. If any required location is unresolvable, hard-fail naming the missing row.
 8. Resolve `<repo_path>` via `pwd` once; use it to map every brief / change-log heading's repo-root-relative path back to an absolute path for Read / Bash.

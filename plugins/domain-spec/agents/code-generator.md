@@ -17,7 +17,7 @@ Do **not** ask the user for confirmation at any step — run the pipeline to com
 
 ## Spec-input layout
 
-This orchestrator chains subagents (`scaffold-builder`, `aggregate-fixtures-writer`, `aggregate-tests-implementator`) that consume spec sibling artifacts produced by `/generate-specs`. Those artifacts live at `<dir>/<stem>.domain/specs.md`, `<dir>/<stem>.domain/exceptions.md`, and `<dir>/<stem>.domain/test-plan.md`. See `spec-core:naming-conventions` for the canonical layout. This orchestrator does not read those paths directly — every chained subagent derives them from `<domain_diagram>`.
+This orchestrator chains subagents (`scaffold-builder`, `aggregate-fixtures-writer`, `aggregate-tests-implementator`) that consume spec sibling artifacts produced by `@domain-spec:specs-generator`. Those artifacts live at `<dir>/<stem>.domain/specs.md`, `<dir>/<stem>.domain/exceptions.md`, and `<dir>/<stem>.domain/test-plan.md`. See `spec-core:naming-conventions` for the canonical layout. This orchestrator does not read those paths directly — every chained subagent derives them from `<domain_diagram>`.
 
 ## Workflow
 

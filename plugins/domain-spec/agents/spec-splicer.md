@@ -22,7 +22,7 @@ The splicer is deliberately narrow:
 - It does **not** invoke `class-specifier`, `pattern-assigner`, `exceptions-specifier`, or any other agent. Temp files must already exist under `<dir>/<stem>.domain/.specs-tmp/` for every affected category before this agent is invoked. The orchestrator owns that contract.
 - It does **not** clean up the temp directory. The orchestrator (or a downstream `specs-merger`-style step) decides when to remove it.
 
-The splicer does not handle `### Stereotype Changed` — that case routes to a full `generate-specs` fallback at the orchestrator level. The splicer hard-fails if it ever sees a non-empty `### Stereotype Changed` (defense in depth, mirroring `spec-pruner`'s aggregate-root-removal guard).
+The splicer does not handle `### Stereotype Changed` — that case routes to a full `specs-generator` fallback at the orchestrator level. The splicer hard-fails if it ever sees a non-empty `### Stereotype Changed` (defense in depth, mirroring `spec-pruner`'s aggregate-root-removal guard).
 
 ## Arguments
 
@@ -47,7 +47,7 @@ The `<stem>.domain/` folder is created by `updates-detector` (in `update-specs` 
 
 ## Canonical category order
 
-Used for `#### <Category>` section ordering when the splicer must create a missing section header. Matches `class-spec-template`'s Package-Level Structure and `generate-specs`'s fan-out order:
+Used for `#### <Category>` section ordering when the splicer must create a missing section header. Matches `class-spec-template`'s Package-Level Structure and `specs-generator`'s fan-out order:
 
 1. `data-structures` → `#### Data Structures`
 2. `value-objects` → `#### Value Objects`
@@ -65,7 +65,7 @@ Derive `<stem>` from `<domain_diagram>`. The following must exist:
 - `<domain_diagram>` — for class → category mapping
 - `<dir>/<stem>.domain/updates.md` — structured report
 - `<dir>/<stem>.domain/specs.md` — the (post-prune) authoritative spec
-- `<dir>/<stem>.domain/exceptions.md` — must contain a `## Domain Exceptions` heading whose body the splicer will replace with a fresh stub. Created in the original `/generate-specs` run by `specs-merger`; absence here is a contract violation.
+- `<dir>/<stem>.domain/exceptions.md` — must contain a `## Domain Exceptions` heading whose body the splicer will replace with a fresh stub. Created in the original `@domain-spec:specs-generator` run by `specs-merger`; absence here is a contract violation.
 
 If any is missing, fail with a clear error citing the missing path and write nothing. The orchestrator must produce all four before invoking the splicer; absence is a contract violation, not a silent no-op.
 
@@ -96,7 +96,7 @@ The `## Per-Class Changes` blocks are the splicer's single source of truth for w
 If any class appears under `## Class Lifecycle → Stereotype Changed`, **hard-fail** with:
 
 ```
-Class `<ClassName>` has a stereotype change in <stem>.domain/updates.md. Stereotype changes route to the `generate-specs` fallback at the orchestrator level; the splicer cannot perform a surgical cross-category move and refuses to operate on this report.
+Class `<ClassName>` has a stereotype change in <stem>.domain/updates.md. Stereotype changes route to the `specs-generator` fallback at the orchestrator level; the splicer cannot perform a surgical cross-category move and refuses to operate on this report.
 ```
 
 Surface every offending class name (not just the first) so the operator can correct the orchestrator dispatch in one pass. Write nothing to `<stem>.domain/specs.md` and exit non-zero.
@@ -388,7 +388,7 @@ if stereotype_changed:
     names = ", ".join(f"`{n}`" for n, *_ in stereotype_changed)
     print(
         f"Class(es) {names} have stereotype changes in {updates_path.parent.name}/{updates_path.name}. "
-        "Stereotype changes route to the `generate-specs` fallback at the orchestrator level; "
+        "Stereotype changes route to the `specs-generator` fallback at the orchestrator level; "
         "the splicer cannot perform a surgical cross-category move and refuses to operate on this report.",
         file=sys.stderr,
     )

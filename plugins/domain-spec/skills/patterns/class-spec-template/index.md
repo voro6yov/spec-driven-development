@@ -6,7 +6,7 @@ user-invocable: false
 
 # Class Spec Template
 
-> **Category-scoped generation** (when invoked by `generate-specs` via a `class-specifier` agent):
+> **Category-scoped generation** (when invoked by `specs-generator` via a `class-specifier` agent):
 > - Generate specs only for classes matching the assigned category
 > - Do **not** generate `### Dependencies` — the final section is assembled by `specs-merger` from per-category `### Partial Dependencies` blocks
 > - Do **not** generate `#### Domain Exceptions` — owned by the `specs-merger` agent

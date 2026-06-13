@@ -25,7 +25,7 @@ Per `spec-core:naming-conventions`, given `<domain_diagram>` at `<dir>/<stem>.md
 - Specs file: `<dir>/<stem>.domain/specs.md`
 - Exceptions file: `<dir>/<stem>.domain/exceptions.md`
 
-The `<stem>.domain/` folder is created upstream by `specs-merger` (`/generate-specs`) or by `updates-detector` (`/update-specs`). This agent assumes it exists.
+The `<stem>.domain/` folder is created upstream by `specs-merger` (`@domain-spec:specs-generator`) or by `updates-detector` (`/update-specs`). This agent assumes it exists.
 
 ## Workflow
 

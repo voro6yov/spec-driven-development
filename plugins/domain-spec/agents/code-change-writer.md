@@ -105,7 +105,7 @@ When synthesizing a class's docstring during `class-impl` (3c) or `whole-module-
 
 Do **not** mirror spec sections into the docstring — no `Invariants / Constraints`, no `Flow`, no `Postconditions`, no `Responsibilities`, no `Raises`. The spec at `<dir>/<stem>.domain/specs.md` is the source of truth for those; duplicating them into the docstring causes drift on every regen. Method-level docstrings follow the same rule: one-line summary only.
 
-This is the docstring shape that `@code-implementer` emits during `/generate-code` (Step 5 there); `whole-module-impl` rewrites must produce the same shape so the on-disk module is byte-stable across the two entry points.
+This is the docstring shape that `@code-implementer` emits during `@domain-spec:code-generator` (Step 5 there); `whole-module-impl` rewrites must produce the same shape so the on-disk module is byte-stable across the two entry points.
 
 #### 3b. `kind = remove` (action = remove)
 
@@ -283,7 +283,7 @@ Rendering rules:
 - It does not retry Edit collisions. One Edit attempt per `Members` bullet; if `old_string` is non-unique or missing, the whole row fails and Phase 3 surfaces it.
 - It does not modify or remove existing tests or fixtures. Append-only by design — it only adds tests/fixtures from the test plan whose target name is not yet present on disk; signature drift in already-present tests is surfaced by Phase 3 review.
 - It does not auto-fix residual references after a `remove`. References are reported in the change-log note; the operator (or Phase 3) decides what to do.
-- It does not regenerate the domain-root `__init__.py` at `<src>/<pkg>/domain/__init__.py` — that file is owned by `/init-domain` and `/generate-code`, not per-aggregate `/update-code`.
+- It does not regenerate the domain-root `__init__.py` at `<src>/<pkg>/domain/__init__.py` — that file is owned by `/init-domain` and `@domain-spec:code-generator`, not per-aggregate `/update-code`.
 - It does not run any tests, type-checks, or linters. Phase 3 review is the verification step.
 - It does not chain to Phase 3. The orchestrator skill aggregates per-layer change logs and spawns the review phase.
 - It does not handle the persistence, application, REST API, or messaging layers. Each has its own Phase 2 agent.

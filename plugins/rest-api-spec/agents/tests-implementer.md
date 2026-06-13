@@ -24,7 +24,7 @@ The agent is **append-only and idempotent**: existing test functions are preserv
 Recover `<dir>` and `<stem>` from `<domain_diagram>` (`<dir>/<stem>.md`) per `spec-core:naming-conventions`, then derive:
 
 - `<plugin_dir>` = `<dir>/<stem>.rest-api`
-- `<rest_api_spec_file>` = `<plugin_dir>/spec.md` — the resource input spec produced by the `rest-api-spec:generate-specs` skill.
+- `<rest_api_spec_file>` = `<plugin_dir>/spec.md` — the resource input spec produced by the `rest-api-spec:specs-generator` agent.
 
 ## Output path
 
@@ -69,7 +69,7 @@ Compute `<rest_api_spec_file>` from `<domain_diagram>` per the [Path resolution]
 test -f <rest_api_spec_file>
 ```
 
-If missing, abort with: `ERROR: rest-api spec not found at <rest_api_spec_file> — run /rest-api-spec:generate-specs first.`
+If missing, abort with: `ERROR: rest-api spec not found at <rest_api_spec_file> — run @rest-api-spec:specs-generator first.`
 
 ### Step 3 — Parse Table 1 and resolve the aggregate root
 
@@ -1043,7 +1043,7 @@ What the agent did:
 | Locations report missing required row | `ERROR: locations report missing API Package, Containers, or Tests row.` |
 | `<tests_dir>` not on disk | `ERROR: <tests_dir> does not exist — run @test-fixtures-preparer first.` |
 | `<tests_dir>/integration` not on disk | `ERROR: <tests_dir>/integration does not exist — run @integration-test-package-preparer first.` |
-| Rest-api spec not found | `ERROR: rest-api spec not found at <rest_api_spec_file> — run /rest-api-spec:generate-specs first.` |
+| Rest-api spec not found | `ERROR: rest-api spec not found at <rest_api_spec_file> — run @rest-api-spec:specs-generator first.` |
 | Table 1 incomplete | `ERROR: Table 1 missing one of Resource name / Plural / Router prefix / Surfaces in <rest_api_spec_file>.` |
 | Aggregate root not uniquely resolvable | `ERROR: cannot uniquely identify <<Aggregate Root>> in <domain_diagram> (matches: <count>).` |
 | Surface listed in Table 1 has no `## Surface:` section | `ERROR: surface "<surface>" listed in Table 1 has no '## Surface:' section.` |

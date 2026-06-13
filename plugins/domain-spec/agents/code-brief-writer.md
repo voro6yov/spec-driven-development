@@ -48,11 +48,11 @@ The brief uses **flat per-artifact sections** (one `### \`<path>\`` block per ro
    ```
 4. Read `<dir>/<stem>.domain/specs.md`. If missing, hard-fail:
    ```
-   ERROR: <stem>.domain/specs.md not found. Run /generate-specs <domain_diagram> before /update-code.
+   ERROR: <stem>.domain/specs.md not found. Run @domain-spec:specs-generator <domain_diagram> before /update-code.
    ```
 5. If `updates.md` Summary contains a `_warning: HEAD ...` line (degraded baseline), hard-fail:
    ```
-   ERROR: Degraded baseline in <stem>.domain/updates.md. Fix HEAD or regenerate via /generate-code, then retry.
+   ERROR: Degraded baseline in <stem>.domain/updates.md. Fix HEAD or regenerate via @domain-spec:code-generator, then retry.
    ```
 6. Parse `<locations_report_text>` to extract:
    - `aggregate_pkg_dir` — absolute path to `<src>/<pkg>/domain/<aggregate>/`
@@ -212,7 +212,7 @@ brief_path: null
 - Aggregate package directory `<aggregate_pkg_dir>`, shared package directory `<shared_pkg_dir>`, and tests directory `<tests_dir>` all come from `<locations_report_text>`. Unit tests sit at `<tests_dir>/unit/`; conftest at `<tests_dir>/conftest.py`.
 - Class-file path is resolved by candidate-probe; see Step 4.1 for the probe order.
 - Whether a VO is shared or aggregate-local is decided **purely from on-disk file presence** — the candidate-probe in Step 4.1 settles this. There is no `specs.md`-level discriminator.
-- The domain-root `__init__.py` at `<src>/<pkg>/domain/__init__.py` is **out of scope** for this agent — its refresh is handled by `/init-domain` and `/generate-code`, not per-aggregate `/update-code`.
+- The domain-root `__init__.py` at `<src>/<pkg>/domain/__init__.py` is **out of scope** for this agent — its refresh is handled by `/init-domain` and `@domain-spec:code-generator`, not per-aggregate `/update-code`.
 
 ## Brief schema
 

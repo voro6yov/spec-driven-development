@@ -110,7 +110,7 @@ Parse inline (no shared parser; mirror `commands-updates-detector` Step 3 semant
 2. **The anchor class** — the **unique brace-body class** in the concatenated diagram (structural identification; there is no `<<Application>>` stereotype and no suffix). Record its name `<X>`, dependencies (private attributes), and public methods (lines starting `+` or with no visibility prefix; skip `-`/`#`).
    - **Working tree** must have **exactly one** brace-body class. Zero or >1 → hard-fail (`ERROR: <ops_diagram> declares <N> brace-body classes; expected exactly one ops service class.`), write nothing.
    - **HEAD** with the diagram present should also have exactly one. Zero on HEAD folds into the degraded/empty-baseline path (whole service added — no separate fail). More than one on HEAD → hard-fail (`ERROR: <ops_diagram> at HEAD declares <N> brace-body classes; expected exactly one.`), write nothing.
-   - **Anchor name comparison** — when both versions have exactly one anchor and the names differ → hard-fail (`ERROR: ops service class renamed in <ops_diagram> (<HEAD_name> → <WT_name>); a class rename also changes the kebab↔filename contract. Route to /application-spec:generate-specs.`), write nothing. (Renaming `<X>` requires renaming the `<op-name>` file too — out of this detector's scope.)
+   - **Anchor name comparison** — when both versions have exactly one anchor and the names differ → hard-fail (`ERROR: ops service class renamed in <ops_diagram> (<HEAD_name> → <WT_name>); a class rename also changes the kebab↔filename contract. Route to @application-spec:specs-generator.`), write nothing. (Renaming `<X>` requires renaming the `<op-name>` file too — out of this detector's scope.)
 
 3. **Outgoing edges from the anchor** — for every top-level relationship line whose source is `<X>`, classify by arrow + label, identical to the commands detector:
    - `--() <Target> : raises` → **raised-exceptions edge** (target is an exception class).
@@ -194,7 +194,7 @@ Each prints exactly one `ERROR: ...` line to stdout, exits non-zero, and writes 
 | 5 | A working-tree ops diagram has zero Mermaid `classDiagram` blocks | `ERROR: <ops_diagram> contains no Mermaid `classDiagram` block.` |
 | 6 | A working-tree ops diagram has 0 or >1 brace-body classes | `ERROR: <ops_diagram> declares <N> brace-body classes; expected exactly one ops service class.` |
 | 7 | HEAD ops diagram has >1 brace-body classes (corrupt baseline; zero folds into degraded) | `ERROR: <ops_diagram> at HEAD declares <N> brace-body classes; expected exactly one.` |
-| 8 | Ops service class renamed (different anchor name in HEAD vs working tree, both having exactly one) | `ERROR: ops service class renamed in <ops_diagram> (<HEAD_name> → <WT_name>); a class rename also changes the kebab↔filename contract. Route to /application-spec:generate-specs.` |
+| 8 | Ops service class renamed (different anchor name in HEAD vs working tree, both having exactly one) | `ERROR: ops service class renamed in <ops_diagram> (<HEAD_name> → <WT_name>); a class rename also changes the kebab↔filename contract. Route to @application-spec:specs-generator.` |
 
 An **untracked** ops diagram is **not** a hard-fail (it is a newly authored service → reads as added). An **empty glob** is **not** a hard-fail (no-op report). A **degraded HEAD baseline** is **not** a hard-fail (per-service `_warning:_`).
 

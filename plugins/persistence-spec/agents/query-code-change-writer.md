@@ -55,10 +55,10 @@ You **never** read other layers' briefs, updates files, or sibling diagrams. The
    ```
 4. Read `<dir>/<stem>.persistence/command-repo-spec.md`. If missing, hard-fail:
    ```
-   ERROR: <stem>.persistence/command-repo-spec.md not found. Run /persistence-spec:generate-specs <domain_diagram> before @query-code-change-writer.
+   ERROR: <stem>.persistence/command-repo-spec.md not found. Run @persistence-spec:specs-generator <domain_diagram> before @query-code-change-writer.
    ```
 5. Parse `<locations_report_text>` to extract `repo_dir` — the absolute path from the **Repository** row. If unresolvable, hard-fail with: `ERROR: Repository row missing from locations report; cannot locate query repository module.`
-6. Resolve `<Aggregate>` (PascalCase) from §1 Aggregate Summary's `Aggregate Root` cell of the command-repo spec. Derive `<aggregate>` (snake_case) per `spec-core:naming-conventions`. Bind `<repo_file>` = `<repo_dir>/<aggregate>/sql_alchemy_query_<aggregate>_repository.py`. Verify with `test -f`; if missing, hard-fail with: `ERROR: query repository module '<repo_file>' is missing; run /persistence-spec:generate-code or @query-repository-implementer first.`
+6. Resolve `<Aggregate>` (PascalCase) from §1 Aggregate Summary's `Aggregate Root` cell of the command-repo spec. Derive `<aggregate>` (snake_case) per `spec-core:naming-conventions`. Bind `<repo_file>` = `<repo_dir>/<aggregate>/sql_alchemy_query_<aggregate>_repository.py`. Verify with `test -f`; if missing, hard-fail with: `ERROR: query repository module '<repo_file>' is missing; run @persistence-spec:code-generator or @query-repository-implementer first.`
 7. Resolve `<multi_tenant>` (boolean) from §1 Aggregate Summary's `Multi-tenant?` cell of the command-repo spec. Used by the patch translator below.
 8. Discover the `<table_var>` identifier by reading the query repo file's existing imports — find the `from ..tables import <name>` line and capture `<name>` verbatim. Used as the SQL expression prefix (`<table_var>.c.<col>`).
 

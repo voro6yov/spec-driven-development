@@ -88,13 +88,13 @@ Iterate consumers in brief order. For each actioned consumer (i.e., one with at 
 
 #### 2a. Auto-derive sweep (full sibling sweep)
 
-The sweep is **add-only** — it never removes orphan external event classes, dispatcher bindings, aggregator exports, or constants. Removal is out of scope; operators reconcile orphans manually or via `/messaging-spec:generate-code`.
+The sweep is **add-only** — it never removes orphan external event classes, dispatcher bindings, aggregator exports, or constants. Removal is out of scope; operators reconcile orphans manually or via `@messaging-spec:code-generator`.
 
 Run these sub-steps in order; if any sub-step fails, the whole sweep fails for this consumer:
 
 **i. `events.py` — external event classes.**
 
-Resolve the consumer's submodule path: `<messaging_pkg_dir>/<consumer_snake>/events.py`. If the file is missing, record a failure (`events.py missing — run /messaging-spec:generate-code <consumer> first`) and abort the sweep.
+Resolve the consumer's submodule path: `<messaging_pkg_dir>/<consumer_snake>/events.py`. If the file is missing, record a failure (`events.py missing — run @messaging-spec:code-generator <consumer> first`) and abort the sweep.
 
 For each Table 2 row with `Type = external`:
 - Open `events.py`, locate the event class by name.
@@ -127,11 +127,11 @@ Record under the consumer's H3 per added constant: `Added <CONSTANT_NAME> to con
 
 For the consumer's `per-handler-edit` row (if present):
 
-- Resolve `handlers.py` absolute path: join `<repo_root>` with the row's repo-root-relative `path`. If the file is missing on disk, record a failure (`handlers.py missing — run /messaging-spec:generate-code <consumer> first`) and skip to Step 2c.
+- Resolve `handlers.py` absolute path: join `<repo_root>` with the row's repo-root-relative `path`. If the file is missing on disk, record a failure (`handlers.py missing — run @messaging-spec:code-generator <consumer> first`) and skip to Step 2c.
 - For each `Patterns:` entry on the row, Read its pattern doc per the umbrella resolution to load its body. (Per-artifact lazy loading — the same pattern may be re-Read for a later artifact; do not cache across iterations.) If the pattern folder is missing (unknown pattern), record a per-row note `pattern unresolved: <name>; applying best-effort substitution` and continue with the structural edit only — the change log row will be tagged `partial`.
 - For each sub-block on the row (`(EventName, SourceDestination)`):
   - Locate the handler function in `handlers.py` by name (per the consumer-scaffolder collision rule).
-  - If the function does not exist, append it (treat as if scaffolded; this can happen if Table 2 added a new tuple after `/messaging-spec:generate-code`). Use `Edit` to append, or `Write` if `handlers.py` is empty.
+  - If the function does not exist, append it (treat as if scaffolded; this can happen if Table 2 added a new tuple after `@messaging-spec:code-generator`). Use `Edit` to append, or `Write` if `handlers.py` is empty.
   - If the function exists, **overwrite its body** by `Edit`-replacing the existing function block with the freshly rendered body from the loaded pattern template, populated from Table 3 sub-block fields for that `(Event, Source)` tuple.
   - Preserve `@inject` decoration and the function signature shape.
 - Record under the consumer's H3, one bullet per overwritten function: `Overwrote <handler_name> in handlers.py (<sub-block summary>)`.
@@ -152,7 +152,7 @@ For the consumer's `test-impl` row (if present), run **2c.i** then **2c.ii**.
 
 ##### 2c.ii — Handler fixtures in `conftest.py` (append-only)
 
-Each appended test references a per-handler pytest fixture (`<handler_name>`) and the `make_event_envelope` helper, both defined in the root `<tests_dir>/conftest.py`. In the first-time-generation flow these come from `@test-fixtures-preparer`; that agent is **not** in the `/update-code` pipeline, so a `test-impl` row that adds a test for a *new* `(Event, SourceDestination)` tuple would leave its fixture undefined and the new test would error at collection with `fixture '<handler_name>' not found`. This sub-step closes that gap — it is the update-flow analog of `generate-code`'s Step 8.
+Each appended test references a per-handler pytest fixture (`<handler_name>`) and the `make_event_envelope` helper, both defined in the root `<tests_dir>/conftest.py`. In the first-time-generation flow these come from `@test-fixtures-preparer`; that agent is **not** in the `/update-code` pipeline, so a `test-impl` row that adds a test for a *new* `(Event, SourceDestination)` tuple would leave its fixture undefined and the new test would error at collection with `fixture '<handler_name>' not found`. This sub-step closes that gap — it is the update-flow analog of `code-generator`'s Step 8.
 
 Run this sub-step **whenever the row has any sub-blocks**, regardless of whether 2c.i appended or skipped each test (it is append-only and idempotent, so it also self-heals a previously-missing fixture). Resolve `<conftest_path>` = `<tests_dir>/conftest.py`. Read the `messaging-handler-fixtures` pattern doc (per the umbrella resolution) to load the fixture template body. On missing-pattern-folder failure: apply the same best-effort substitution policy as Step 2b (tag the consumer `partial`, record the unresolved-pattern note) and render the fixtures from the inline shapes below.
 
@@ -332,7 +332,7 @@ If the brief itself changed (re-run of `@code-brief-writer` after a spec edit), 
 - It does not Read any pattern doc body **proactively** (beyond the two parsing references) — every pattern load is per-artifact, lazy, immediately before the edit.
 - It does not run `@spec-core:target-locations-finder`. The orchestrator passes the report text.
 - It does not run `@messaging-spec:code-brief-writer`. The orchestrator runs Phase 1 first; this agent reads the resulting brief.
-- It does not bootstrap missing consumer submodules. If a brief row's `handlers.py` or `events.py` is missing on disk, the row fails with a directive to run `/messaging-spec:generate-code <consumer>` first.
+- It does not bootstrap missing consumer submodules. If a brief row's `handlers.py` or `events.py` is missing on disk, the row fails with a directive to run `@messaging-spec:code-generator <consumer>` first.
 - It does not remove orphan event classes, dispatcher bindings, aggregator exports, or constants. The sweep is add-only.
 - It does not touch `containers.py`, `entrypoint.py`, or `__main__.py`. Dispatcher wiring, runner functions, and CLI commands are outside the spec-update flow — `/update-specs` does not regenerate them. Operators wire new dispatchers via `@dispatch-integrator` separately.
 - It **does** append missing per-handler fixtures (and the `make_event_envelope` helper) to the root `<tests_dir>/conftest.py` when it appends a handler test (Step 2c.ii) — strictly append-only, never modifying an existing fixture body. This is the only test-fixture write in the update flow; it exists so appended tests resolve their `<handler_name>` fixture instead of erroring at collection. It does not emit fake-override, repository, aggregate, or `make_command_message` fixtures — those belong to other agents.

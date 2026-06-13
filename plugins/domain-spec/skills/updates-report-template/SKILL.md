@@ -160,7 +160,7 @@ Compute as follows:
 
 ### Canonical category order
 
-When listing categories anywhere in the report, use this sequence — it matches the order `generate-specs` fans out specifiers in:
+When listing categories anywhere in the report, use this sequence — it matches the order `specs-generator` fans out specifiers in:
 
 1. `data-structures`
 2. `value-objects`

@@ -20,7 +20,7 @@ The pruner is deliberately narrow:
 - It does **not** touch `<stem>.domain/test-plan.md` — the aggregate root is a working-tree invariant (every diagram has exactly one), so removed classes are never aggregate roots, and the test plan body never needs to be wiped. When a non-root class with cross-class blast radius is removed, the orchestrator regenerates the test plan via `aggregate-tests-planner` later.
 - It does **not** touch the diagram file or its Artifacts index.
 
-The pruner does not handle `### Stereotype Changed` — that case routes to a full `generate-specs` fallback at the orchestrator level, so the pruner only ever sees the `### Removed` sub-section.
+The pruner does not handle `### Stereotype Changed` — that case routes to a full `specs-generator` fallback at the orchestrator level, so the pruner only ever sees the `### Removed` sub-section.
 
 ## Arguments
 
@@ -71,7 +71,7 @@ Aggregate root `<ClassName>` listed under `## Class Lifecycle → Removed` in <s
 
 Write nothing to `<stem>.domain/specs.md` and exit non-zero. Surface every offending class name (not just the first) so the operator can correct the diagram or the report in one pass.
 
-This guard is intentionally placed between Step 2 (parse) and Step 3 (write) so a malformed report never causes a partial prune. The orchestrator's `update-specs` skill is expected to either route around this case (e.g. via the L3 `generate-specs` fallback) or reject it before invoking the pruner — but the pruner enforces the contract regardless of caller behavior.
+This guard is intentionally placed between Step 2 (parse) and Step 3 (write) so a malformed report never causes a partial prune. The orchestrator's `update-specs` skill is expected to either route around this case (e.g. via the L3 `specs-generator` fallback) or reject it before invoking the pruner — but the pruner enforces the contract regardless of caller behavior.
 
 ### Step 3 — Apply the prune
 

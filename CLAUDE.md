@@ -17,7 +17,7 @@ Each plugin under `plugins/<name>/` has:
 
 - `.claude-plugin/plugin.json` — plugin manifest with `version` (bump on user-visible changes)
 - `agents/*.md` — single-purpose subagents with frontmatter (`name`, `description`, `tools`, optional `model`)
-- `skills/<skill>/SKILL.md` — reusable skills; orchestrator skills (e.g. `generate-specs`, `generate-code`) coordinate multiple agents
+- `skills/<skill>/SKILL.md` — reusable skills; umbrella orchestrator skills (e.g. `generate-domain`) chain **agent** orchestrators (`specs-generator`, `code-generator`), which in turn coordinate the worker agents
 
 `plugins/domain-spec/modules/shared/` contains Python reference modules (Entity, ValueObject, guards, etc.) that the generated domain code imports — not source for this repo to test, but the runtime contract that `code-implementer` targets.
 
@@ -26,21 +26,21 @@ Each plugin under `plugins/<name>/` has:
 `plugins/spec-core` is a base plugin that owns conventions and agents shared across every spec plugin. It ships:
 
 - **One skill, `spec-core:naming-conventions`** — the single source of truth for the aggregate stem, diagram filenames, per-plugin sibling-folder layout, path-resolution tables, and the numbered Path-hygiene rules. The five spec plugins (`domain-spec`, `application-spec`, `persistence-spec`, `rest-api-spec`, `messaging-spec`) and `model-diagrams` all reference it as `spec-core:naming-conventions` — in agent frontmatter `skills:` lists and in prose — rather than each carrying their own copy.
-- **One agent, `spec-core:target-locations-finder`** — the single shared resolver of where each layer's code lives in the target repo. It takes `<layer> [<domain_diagram>]` (`layer` ∈ `domain`/`application`/`persistence`/`rest-api`/`messaging`; the `domain` layer also takes the diagram, to derive the aggregate sub-package) and emits the layer's category→path→status table. It replaced five near-identical per-plugin `target-locations-finder` agents (the skeleton — repo/package resolution, existence check, report shape — was byte-identical; only the per-layer path set and the domain diagram-derivation branch differed). Every orchestrator (each plugin's `code-generator`, the `init-*`/`generate-*` skills, and `domain-spec:update-code`'s five-way parallel fan-out) invokes it with the layer token; downstream worker agents still receive the report verbatim as `<locations_report_text>` and must not re-run it. When consolidating another per-plugin agent clone, home it here the same way.
+- **One agent, `spec-core:target-locations-finder`** — the single shared resolver of where each layer's code lives in the target repo. It takes `<layer> [<domain_diagram>]` (`layer` ∈ `domain`/`application`/`persistence`/`rest-api`/`messaging`; the `domain` layer also takes the diagram, to derive the aggregate sub-package) and emits the layer's category→path→status table. It replaced five near-identical per-plugin `target-locations-finder` agents (the skeleton — repo/package resolution, existence check, report shape — was byte-identical; only the per-layer path set and the domain diagram-derivation branch differed). Every orchestrator (each plugin's `code-generator` agent, the `init-*` skills, and `domain-spec:update-code`'s five-way parallel fan-out) invokes it with the layer token; downstream worker agents still receive the report verbatim as `<locations_report_text>` and must not re-run it. When consolidating another per-plugin agent clone, home it here the same way.
 
 **Dependency caveat:** there is no manifest-level dependency mechanism in `plugin.json`/`marketplace.json`, so this is an unenforced runtime assumption — every spec plugin requires `spec-core` to be enabled. The marketplace ships them together, but a subset install that omits `spec-core` will leave `spec-core:naming-conventions` unresolved: frontmatter auto-load fails silently, and an explicit Skill/agent invocation fails hard. When adding a new shared, cross-plugin convention, home its skill in `spec-core` and reference it by that namespace; do not re-duplicate it per plugin.
 
 ## How the domain-spec pipeline works
 
-The pipeline runs in two user-facing slash commands. Both fan out work to subagents in parallel where possible.
+The pipeline runs as **two agent orchestrators** — `domain-spec:specs-generator` and `domain-spec:code-generator`, each invoked with the diagram path. Both fan out work to worker subagents in parallel where possible. The user-facing entry point is the `/domain-spec:generate-domain <diagram_file>` umbrella skill, which chains the two agents in sequence; either agent can also be run on its own (`@domain-spec:specs-generator <diagram_file>` for spec-only, `@domain-spec:code-generator <diagram_file>` for code-only). Every spec plugin follows this same `generate-<layer>` umbrella → `specs-generator` + `code-generator` agents shape.
 
-**`/generate-specs <diagram_file>`** (`skills/generate-specs/SKILL.md`):
+**`@domain-spec:specs-generator <diagram_file>`** (`agents/specs-generator.md`):
 1. Parse the Mermaid `classDiagram` to detect non-empty categories (data-structures, value-objects, domain-events, commands, aggregates, repositories-services).
 2. Spawn `class-specifier` agents per category in parallel → spawn `pattern-assigner` agents per category in parallel → run `specs-merger` → `exceptions-specifier` → `aggregate-tests-planner`.
-3. Outputs are written to **sibling files** of `<diagram_file>`: `<stem>.specs.md`, `<stem>.exceptions.md`, `<stem>.test-plan.md`. The diagram itself gets an Artifacts index appended.
+3. Outputs are written into the per-plugin folder `<dir>/<stem>.domain/`: `specs.md`, `exceptions.md`, `test-plan.md`. The diagram itself gets an Artifacts index appended.
 
-**`/generate-code <domain_dir> <package_path> <diagram_file>`** (`skills/generate-code/SKILL.md`):
-1. `package-preparer` → `test-package-preparer` → `scaffold-builder` → `exceptions-implementer` → parallel `code-implementer` per module → `aggregate-fixtures-writer` → `aggregate-tests-implementator`.
+**`@domain-spec:code-generator <diagram_file>`** (`agents/code-generator.md`):
+1. Resolve target locations via `spec-core:target-locations-finder` → `package-preparer` → `scaffold-builder` → `exceptions-implementer` → parallel `code-implementer` per module → `aggregate-fixtures-writer` → `aggregate-tests-implementator`, then write the package's `## Implementation` paths back into the diagram.
 2. The aggregate package is created at `<domain_dir>/<package_path>`. Tests live at `<source_root>/tests`, where `<source_root>` is computed by walking upward from the aggregate package while each parent has an `__init__.py`; the parent of the topmost `__init__.py`-bearing directory is the source root.
 
 ## Conventions when editing skills/agents

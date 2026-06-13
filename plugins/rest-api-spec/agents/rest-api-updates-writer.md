@@ -48,7 +48,7 @@ Recover `<dir>` and `<stem>` from `<domain_diagram>` per `spec-core:naming-conve
 
 Verify with `test -f`:
 
-- `<spec_file>` missing → fail with: `ERROR: <spec_file> not found. The updates writer is not the first-run pipeline; run /rest-api-spec:generate-specs <domain_diagram> first.`
+- `<spec_file>` missing → fail with: `ERROR: <spec_file> not found. The updates writer is not the first-run pipeline; run @rest-api-spec:specs-generator <domain_diagram> first.`
 
 `<domain_updates_file>` may be missing — that is the standalone-invocation case (the writer is being run without an upstream domain `update-specs` run, e.g. for testing or operator-driven recovery). Record its absence; downstream `Source delta` lookups will skip the domain-axis probe and the Summary's `Domain updates source` line renders `_none_`.
 
@@ -116,7 +116,7 @@ For each spec version, extract:
      - `left_column` — `"Command Parameter"` or `"Query Parameter"` (the header of the left column).
      - `rows` — ordered dict keyed by parameter name: `{ <param>: <Source cell verbatim, backticks preserved> }`.
 
-If the working-tree spec is so malformed that the parser cannot identify `### Table 1: Resource Basics`, hard-fail with: `ERROR: <spec_file> is malformed; cannot locate "### Table 1: Resource Basics". Run /rest-api-spec:generate-specs <domain_diagram> to rebuild.`
+If the working-tree spec is so malformed that the parser cannot identify `### Table 1: Resource Basics`, hard-fail with: `ERROR: <spec_file> is malformed; cannot locate "### Table 1: Resource Basics". Run @rest-api-spec:specs-generator <domain_diagram> to rebuild.`
 
 The HEAD-side spec is parsed with the same parser. Tolerate missing sub-sections / surfaces in HEAD silently — the version may have been produced by a prior agent revision with a different layout; treat what's missing as "absent" rather than as a parse error.
 
@@ -373,8 +373,8 @@ Each prints exactly one `ERROR: ...` line and exits non-zero. The agent does **n
 | Condition | Error template | Recovery |
 |---|---|---|
 | `<domain_diagram>` path produces an invalid `<stem>` | `ERROR: <domain_diagram> path does not yield a valid aggregate stem (must match ^[a-z][a-z0-9-]*$).` | Pass a path that follows `spec-core:naming-conventions`. |
-| `<spec_file>` missing on disk | `ERROR: <spec_file> not found. The updates writer is not the first-run pipeline; run /rest-api-spec:generate-specs <domain_diagram> first.` | Run `/rest-api-spec:generate-specs`. |
-| Working-tree spec missing `### Table 1: Resource Basics` | `ERROR: <spec_file> is malformed; cannot locate "### Table 1: Resource Basics". Run /rest-api-spec:generate-specs <domain_diagram> to rebuild.` | Run `/rest-api-spec:generate-specs`. |
+| `<spec_file>` missing on disk | `ERROR: <spec_file> not found. The updates writer is not the first-run pipeline; run @rest-api-spec:specs-generator <domain_diagram> first.` | Run `@rest-api-spec:specs-generator`. |
+| Working-tree spec missing `### Table 1: Resource Basics` | `ERROR: <spec_file> is malformed; cannot locate "### Table 1: Resource Basics". Run @rest-api-spec:specs-generator <domain_diagram> to rebuild.` | Run `@rest-api-spec:specs-generator`. |
 | `git ls-files --full-name` non-zero exit (not first-run; e.g. not a repo, ambiguous path) | `ERROR: cannot resolve <spec_file> against the git working tree.` | Verify the working directory is a git repo and the spec path is unambiguous. |
 | `git show HEAD:<repo_path>` non-zero exit other than the standard "does not exist in 'HEAD'" first-run signal | `ERROR: failed to read HEAD blob of <spec_file>: <stderr>.` | Inspect the repo state; the failure is not a routine first-run condition. |
 
@@ -409,5 +409,5 @@ Note: the agent does **not** hard-fail when:
 - It does not parse the domain, commands, or queries Mermaid diagrams. Query-vs-command endpoint classification is read off `spec.md`'s Tables 2/3; nested-type and composite-query-param resolution is `response-fields-writer` / `request-fields-writer` / `parameter-mapping-writer`'s job, already reflected in `spec.md`.
 - It does not propagate hard-fails from the upstream pipeline (orchestrator preflight — degraded baseline, stereotype change, aggregate-root removal/rename, abort-and-reconcile on a renamed referenced type). By the time this agent runs, those have already been handled (or the run never reached this step).
 - It does not re-diff `<domain_diagram>`, `<dir>/<stem>.commands.md`, or `<dir>/<stem>.queries.md` against HEAD — those are `domain-spec:updates-detector`, `application-spec:commands-updates-detector`, and `application-spec:queries-updates-detector`'s jobs respectively. This agent reads the three delta reports only as enrichment sources for axis-tagged `Source delta` lookups.
-- It does not write or modify any code artifact under `api/serializers/`, `api/endpoints/`, `<pkg>/`, or `tests/` — those are owned by the `rest-api-spec:generate-code` pipeline (and the cross-layer `/update-code` orchestrator). This agent only lists them in the `## Affected Artifacts` footer.
+- It does not write or modify any code artifact under `api/serializers/`, `api/endpoints/`, `<pkg>/`, or `tests/` — those are owned by the `rest-api-spec:code-generator` pipeline (and the cross-layer `/update-code` orchestrator). This agent only lists them in the `## Affected Artifacts` footer.
 - It does not preserve the prior `<output_file>` content — the report is regenerated from scratch on every run. There is no "previous report" lineage tracked, and (per `notes/updates-report.md` Open Question #2) multi-update folding is not implemented.

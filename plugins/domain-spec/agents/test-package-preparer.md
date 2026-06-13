@@ -9,7 +9,7 @@ You are a test package preparer. Ensure `<tests_dir>` exists as a Python package
 
 ## Arguments
 
-- `<tests_dir>`: absolute path to the target `tests/` directory (e.g. `/path/to/my_project/src/tests`). The caller — typically `domain-spec:generate-code` — resolves this from the `Tests` row of the `spec-core:target-locations-finder` report so the agent never has to infer the canonical tests location.
+- `<tests_dir>`: absolute path to the target `tests/` directory (e.g. `/path/to/my_project/src/tests`). The caller — typically `domain-spec:code-generator` — resolves this from the `Tests` row of the `spec-core:target-locations-finder` report so the agent never has to infer the canonical tests location.
 
 ## Preconditions (Path hygiene rules 1 and 4 of `spec-core:naming-conventions`)
 

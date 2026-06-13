@@ -53,7 +53,7 @@ ERROR: <stem>.domain/updates.md not found. Run `/update-specs <domain_diagram>` 
 If the report's Summary contains a `_warning: HEAD ...` line (degraded baseline), hard-fail:
 
 ```
-ERROR: Degraded baseline in <stem>.domain/updates.md. Re-run `/update-specs` after fixing HEAD, or regenerate via `/generate-code <domain_diagram>`.
+ERROR: Degraded baseline in <stem>.domain/updates.md. Re-run `/update-specs` after fixing HEAD, or regenerate via `@domain-spec:code-generator <domain_diagram>`.
 ```
 
 ### Step 2 — Probe per-layer activeness
@@ -186,7 +186,7 @@ $DIAGRAM
 <locations_report_persistence>
 ```
 
-(The agent needs the persistence layer's locations report — it resolves the query repository directory from the `Repository` row. If `persistence` is **not** in `<active_layers>`, hard-fail with: `ERROR: query-side invariant changes detected in <stem>.domain/updates.md, but persistence layer is not active. Run /persistence-spec:generate-specs <domain_diagram> first so the persistence locations are resolvable.`)
+(The agent needs the persistence layer's locations report — it resolves the query repository directory from the `Repository` row. If `persistence` is **not** in `<active_layers>`, hard-fail with: `ERROR: query-side invariant changes detected in <stem>.domain/updates.md, but persistence layer is not active. Run @persistence-spec:specs-generator <domain_diagram> first so the persistence locations are resolvable.`)
 
 Phase 2.5 runs strictly after Wave C — when persistence is active, Wave B's `@persistence-spec:code-change-writer` may have touched the same `SqlAlchemyQuery<X>Repository` file (alt-lookup adds/removes, signature changes), and the query-code-change-writer must see that settled state before layering its own surgical patches.
 

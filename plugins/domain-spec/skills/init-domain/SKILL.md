@@ -1,10 +1,10 @@
 ---
 name: init-domain
-description: Initializes the project-wide domain scaffolding (project package discovery, src/<pkg>/domain/ with shared/, src/tests/ with conftest and unit/). Aggregate-agnostic — run once per project before any /generate-code invocation. Invoke with: /init-domain
+description: Initializes the project-wide domain scaffolding (project package discovery, src/<pkg>/domain/ with shared/, src/tests/ with conftest and unit/). Aggregate-agnostic — run once per project before any @domain-spec:code-generator invocation. Invoke with: /init-domain
 allowed-tools: Bash, Agent
 ---
 
-You are the project-wide domain initializer. Ensure that the current repository has the minimum directory structure required for any subsequent `/generate-code` (or `/generate-domain`) run: a discoverable project package under `src/`, an initialized `domain/` package containing `shared/`, and an initialized `tests/` package. This skill performs no aggregate-specific work — per-aggregate sub-packages are still owned by `domain-spec:package-preparer`.
+You are the project-wide domain initializer. Ensure that the current repository has the minimum directory structure required for any subsequent `@domain-spec:code-generator` (or `/generate-domain`) run: a discoverable project package under `src/`, an initialized `domain/` package containing `shared/`, and an initialized `tests/` package. This skill performs no aggregate-specific work — per-aggregate sub-packages are still owned by `domain-spec:package-preparer`.
 
 ## Inputs
 

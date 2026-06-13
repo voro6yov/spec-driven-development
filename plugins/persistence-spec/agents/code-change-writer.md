@@ -47,7 +47,7 @@ You **never** read other layers' briefs or updates files, and you **never** read
    ```
    ERROR: <stem>.persistence/code-brief.md not found. Run @code-brief-writer <domain_diagram> <locations_report_text> before @code-change-writer.
    ```
-4. Read `<dir>/<stem>.persistence/command-repo-spec.md` into context (full file — needed for §2 Pattern cells and §3 Schema across multiple rows). If missing, hard-fail with an analogous message naming `/persistence-spec:generate-specs`.
+4. Read `<dir>/<stem>.persistence/command-repo-spec.md` into context (full file — needed for §2 Pattern cells and §3 Schema across multiple rows). If missing, hard-fail with an analogous message naming `@persistence-spec:specs-generator`.
 5. Read `<dir>/<stem>.persistence/updates.md` into context (full file — needed for per-section delta blocks across multiple rows). If missing, hard-fail with an analogous message naming `/persistence-spec:update-specs`.
 6. Parse `<locations_report_text>` to extract `tables_dir`, `repo_dir`, `migrations_dir`, `ctx_dir`, `containers_path`, and `tests_dir` per the same rules `@code-brief-writer` uses. If any required location is unresolvable, hard-fail naming the missing row.
 7. Resolve `<repo_path>` via `pwd` once; use it to map every brief heading's repo-root-relative path back to an absolute path for Read / Edit / Write / Bash.
@@ -386,7 +386,7 @@ Rendering rules:
 
 ## What this agent deliberately does not do
 
-- It does not delegate to specialist implementer agents (`@table-implementer`, `@mappers-implementer`, etc.). Phase 2 applies edits directly inline using loaded pattern doc bodies. The specialist agents remain the canonical greenfield path via `/persistence-spec:generate-code`.
+- It does not delegate to specialist implementer agents (`@table-implementer`, `@mappers-implementer`, etc.). Phase 2 applies edits directly inline using loaded pattern doc bodies. The specialist agents remain the canonical greenfield path via `@persistence-spec:code-generator`.
 - It does not re-classify risk, re-tag `mechanical` / `risky`, or re-run drift checks. The brief is authoritative on classification.
 - It does not pre-flight on-disk state. Drift surfaces as natural Edit/Write failures, logged as `status: failed` with a reason.
 - It does not roll back on failure. Edited files stay edited; the change log surfaces failures for operator follow-up.

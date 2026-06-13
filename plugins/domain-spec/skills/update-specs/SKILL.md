@@ -5,15 +5,15 @@ argument-hint: <domain_diagram>
 allowed-tools: Read, Bash, Agent, Skill
 ---
 
-You are a DDD spec **update** orchestrator. Given a diagram whose working-tree differs from `git HEAD`, regenerate only the affected slices of the existing sibling spec artifacts in-place — do not rerun the full `/generate-specs` pipeline, do not touch class blocks unrelated to the change, and do not ask for confirmation before writing.
+You are a DDD spec **update** orchestrator. Given a diagram whose working-tree differs from `git HEAD`, regenerate only the affected slices of the existing sibling spec artifacts in-place — do not rerun the full `@domain-spec:specs-generator` pipeline, do not touch class blocks unrelated to the change, and do not ask for confirmation before writing.
 
-This skill is the surgical analog of `/generate-specs`. It implements **Approach B** from `notes/spec-updater-approach-b.md`: pre-prune what was removed, fan out per-category regen, splice into the live spec, then refresh exceptions and conditionally replan tests.
+This skill is the surgical analog of `@domain-spec:specs-generator`. It implements **Approach B** from `notes/spec-updater-approach-b.md`: pre-prune what was removed, fan out per-category regen, splice into the live spec, then refresh exceptions and conditionally replan tests.
 
 After the domain-side update completes successfully — and **only** then; a no-op early-exit (Step 1d) or any hard-fail/abort `return`s before the cascade — this skill **fans out two downstream spec updaters in parallel** (Step 10): `/persistence-spec:update-specs` and `/application-spec:update-specs`. Persistence is domain-driven. The application updater additionally **owns the app-service-axis subtree**: it produces the shared `<stem>.application/commands-updates.md` / `queries-updates.md` detector reports itself (at its own Step 0) and, after refreshing its own specs, re-cascades to `/rest-api-spec:update-specs` and `/messaging-spec:update-specs`. A single `/update-specs` thereby propagates one domain diagram change through every spec layer — domain → {persistence, application → {rest-api, messaging}}. Each downstream updater consumes the `<stem>.domain/updates.md` this skill just wrote in Step 0. The cascade **assumes those layers have already been generated**: a downstream updater whose spec artifact is missing hard-fails (`ERROR:`), but that ERROR does not abort its sibling — persistence and application run to completion independently and each prints its own report. There is no opt-out flag — the cascade is always attempted on the success path. This orchestrator emits no consolidated cascade summary.
 
 ## Output path convention
 
-Given `<domain_diagram>` at `<dir>/<stem>.md`, the orchestrator reads and writes the same per-plugin folder used by `/generate-specs`:
+Given `<domain_diagram>` at `<dir>/<stem>.md`, the orchestrator reads and writes the same per-plugin folder used by `@domain-spec:specs-generator`:
 
 | File | Touched by | Operation |
 |---|---|---|
@@ -28,7 +28,7 @@ Step 10 writes the downstream per-plugin folders — `<dir>/<stem>.persistence/`
 
 ## Category → Stereotype mapping
 
-Same as `/generate-specs`. Used when iterating affected categories in canonical order:
+Same as `@domain-spec:specs-generator`. Used when iterating affected categories in canonical order:
 
 | Category | Stereotypes |
 |---|---|
@@ -78,7 +78,7 @@ If the Summary contains a `_warning: HEAD ...` line, hard-fail:
 
 ```
 ERROR: HEAD baseline is degraded (multiple or missing Mermaid blocks at HEAD). The surgical updater
-cannot operate against a degraded baseline. Run `/generate-specs <domain_diagram>` to regenerate the
+cannot operate against a degraded baseline. Run `@domain-spec:specs-generator <domain_diagram>` to regenerate the
 specs from scratch, or fix the HEAD revision before retrying `/update-specs`.
 ```
 
@@ -91,7 +91,7 @@ If `## Class Lifecycle → Stereotype Changed` has at least one bullet, hard-fai
 ```
 ERROR: Class(es) <names> have stereotype changes in <stem>.domain/updates.md. Stereotype changes require
 the spec body to be re-rendered under the new category's template; the surgical updater cannot
-perform the cross-category move. Run `/generate-specs <domain_diagram>` to regenerate the specs
+perform the cross-category move. Run `@domain-spec:specs-generator <domain_diagram>` to regenerate the specs
 from scratch.
 ```
 
@@ -223,7 +223,7 @@ Remove the per-category scratch directory:
 rm -rf <dir>/<stem>.domain/.specs-tmp
 ```
 
-This mirrors what `specs-merger` does at the end of `/generate-specs`. The cleanup removes only the transient `.specs-tmp/` subdirectory; the rest of `<stem>.domain/` (the spliced spec, exceptions stub, and test plan) is preserved. Removal happens only on the success path (i.e. after Step 7 either ran successfully or was skipped) — when an earlier step aborted, leave the temp directory in place so the operator can inspect it.
+This mirrors what `specs-merger` does at the end of `@domain-spec:specs-generator`. The cleanup removes only the transient `.specs-tmp/` subdirectory; the rest of `<stem>.domain/` (the spliced spec, exceptions stub, and test plan) is preserved. Removal happens only on the success path (i.e. after Step 7 either ran successfully or was skipped) — when an earlier step aborted, leave the temp directory in place so the operator can inspect it.
 
 ### Step 9 — Report
 
@@ -274,15 +274,15 @@ After both return, the workflow is done. Do not print a consolidated cascade sum
   - **Step 7** (`aggregate-tests-planner`) overwrites `<stem>.domain/test-plan.md` from scratch.
   - **Step 8** (cleanup) is destructive but only runs after a clean Step 7 / skipped-Step-7 success path.
   - **Step 10** (the parallel downstream `/…-spec:update-specs` cascade) fans out two independently idempotent skills — `persistence-spec:update-specs` and `application-spec:update-specs` (the latter produces the app-service detector reports at its own Step 0 and re-cascades to rest-api / messaging from its own tail). Re-running re-derives every downstream report from disk + git. A downstream `ERROR:` does **not** abort the sibling (persistence and application run to completion) and does not retroactively fail the domain-side update (Steps 0–9 already completed and were reported by Step 9). Re-running `/update-specs` after fixing the downstream trigger re-runs Steps 0–9 (byte-stable modulo LLM drift) and then re-fans-out Step 10 from scratch.
-- The only failures `/update-specs` cannot retry through are degraded-baseline (1a) and stereotype-change (1b) conditions — both gates will fire again on re-run. The error messages explicitly direct the operator to `/generate-specs <domain_diagram>` for those cases. (Note: a degraded baseline or stereotype change hard-fails *before* Step 10, so the downstream updaters — which would each independently hard-fail on the same condition — are never reached.)
-- A downstream Step-10 skill that hard-fails because its spec layer was never generated (e.g. `<stem>.persistence/command-repo-spec.md` missing) is the operator's signal to run that layer's `/…-spec:generate-specs` first. The cascade assumes the downstream layers exist; run `/update-specs` only once the full spec set (and code) has been generated for the aggregate. (rest-api / messaging are reached transitively through the application updater's re-cascade — a missing `<stem>.rest-api/spec.md` surfaces there, not here.)
+- The only failures `/update-specs` cannot retry through are degraded-baseline (1a) and stereotype-change (1b) conditions — both gates will fire again on re-run. The error messages explicitly direct the operator to `@domain-spec:specs-generator <domain_diagram>` for those cases. (Note: a degraded baseline or stereotype change hard-fails *before* Step 10, so the downstream updaters — which would each independently hard-fail on the same condition — are never reached.)
+- A downstream Step-10 skill that hard-fails because its spec layer was never generated (e.g. `<stem>.persistence/command-repo-spec.md` missing) is the operator's signal to run that layer's `/…-spec:specs-generator` first. The cascade assumes the downstream layers exist; run `/update-specs` only once the full spec set (and code) has been generated for the aggregate. (rest-api / messaging are reached transitively through the application updater's re-cascade — a missing `<stem>.rest-api/spec.md` surfaces there, not here.)
 
 ## What this skill deliberately does not do
 
-- It does not regenerate `<stem>.domain/specs.md` end-to-end — that is `/generate-specs`.
-- It does not touch the diagram file itself or its Artifacts index — those siblings are already linked from the original `/generate-specs` run.
+- It does not regenerate `<stem>.domain/specs.md` end-to-end — that is `@domain-spec:specs-generator`.
+- It does not touch the diagram file itself or its Artifacts index — those siblings are already linked from the original `@domain-spec:specs-generator` run.
 - It does not preserve manual edits inside a touched class block in `<stem>.domain/specs.md`. Untouched class blocks survive byte-identical (the splicer's load-bearing invariant); touched blocks are wholesale-replaced.
-- It does not handle stereotype changes or degraded baselines — those route to a `/generate-specs` re-run via the operator-instruction failures in Steps 1a / 1b.
+- It does not handle stereotype changes or degraded baselines — those route to a `@domain-spec:specs-generator` re-run via the operator-instruction failures in Steps 1a / 1b.
 - It does not handle aggregate-root removals — those are a malformed-report condition (1c).
 - It does not auto-update generated code or test bodies in any layer — the domain code-side updater (Approach C, see `notes/code-updater-approach-c.md`) and the per-plugin `…-spec:update-code` skills are separate concerns. Step 10 cascades only the downstream **spec** updates, never their code.
 - It does not run the cascade (Step 10) on a no-op early-exit (Step 1d) or after any hard-fail/abort — only a successful domain-side regen, reaching the end of Step 9, triggers the Step-10 fan-out.

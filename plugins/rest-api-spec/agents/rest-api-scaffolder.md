@@ -21,7 +21,7 @@ This agent does **not** touch `api/__init__.py`, `containers.py`, `entrypoint.py
 Recover `<dir>` and `<stem>` from `<domain_diagram>` at `<dir>/<stem>.md` per `spec-core:naming-conventions`. Then:
 
 - `<plugin_dir>` = `<dir>/<stem>.rest-api`
-- `<rest_api_spec_file>` = `<plugin_dir>/spec.md` — the resource input spec produced by the `rest-api-spec:generate-specs` skill, whose Table 1 (Resource Basics) supplies the surface set.
+- `<rest_api_spec_file>` = `<plugin_dir>/spec.md` — the resource input spec produced by the `rest-api-spec:specs-generator` agent, whose Table 1 (Resource Basics) supplies the surface set.
 
 ## Workflow
 
@@ -35,18 +35,18 @@ If the row is missing or its path is empty, fail with: `Error: API Package row m
 
 Read `<rest_api_spec_file>`.
 
-- If the file does not exist, fail with: `Error: rest-api spec file not found at <rest_api_spec_file>. Run /generate-specs first.`
+- If the file does not exist, fail with: `Error: rest-api spec file not found at <rest_api_spec_file>. Run @rest-api-spec:specs-generator first.`
 - If the file does not contain a `### Table 1: Resource Basics` heading, fail with: `Error: <rest_api_spec_file> is malformed — missing 'Table 1: Resource Basics'.`
 
 Inside Table 1, locate the `**Surfaces**` row. Its value column contains a comma-separated list (e.g. `v1`, `v1, v2`, `v1, internal`).
 
-- If the row is absent or its value column is empty / whitespace-only, fail with: `Error: <rest_api_spec_file> Table 1 has no Surfaces row — re-run /generate-specs.`
+- If the row is absent or its value column is empty / whitespace-only, fail with: `Error: <rest_api_spec_file> Table 1 has no Surfaces row — re-run @rest-api-spec:specs-generator.`
 
 Parse the value into `<surfaces>` by splitting on `,`, trimming whitespace from each token, and dropping empty tokens. The resulting order is the canonical order — preserve it; do not re-sort.
 
 Also extract the `**Resource name**` row's value — this is the PascalCase Resource (e.g. `CacheType`, `Load`). Compute `<aggregate>` = snake-case singular of the Resource name (insert `_` before each `[A-Z][a-z]` boundary and each `[a-z0-9][A-Z]` boundary, then lowercase): `CacheType` → `cache_type`, `Load` → `load`, `LineItem` → `line_item`.
 
-- If the `**Resource name**` row is absent or empty, fail with: `Error: <rest_api_spec_file> Table 1 has no Resource name row — re-run /generate-specs.`
+- If the `**Resource name**` row is absent or empty, fail with: `Error: <rest_api_spec_file> Table 1 has no Resource name row — re-run @rest-api-spec:specs-generator.`
 
 ### Step 3 — Ensure the api package directory exists
 

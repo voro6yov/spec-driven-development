@@ -4,7 +4,7 @@ description: "Initializes the project-wide REST API scaffolding. Invoke with: /r
 allowed-tools: Bash, Write, Agent
 ---
 
-You are the project-wide REST API initializer. Ensure that the current repository has the minimum directory structure and module set required for any subsequent `/rest-api-spec:generate-code` (or `/rest-api-spec:generate-rest-api`) run:
+You are the project-wide REST API initializer. Ensure that the current repository has the minimum directory structure and module set required for any subsequent `@rest-api-spec:code-generator` (or `/rest-api-spec:generate-rest-api`) run:
 
 - the `api/` Python package (with a minimal `__init__.py` that satisfies the `from .X import *` + `__all__ = X.__all__ + ...` aggregation convention required by `@auth-integrator`),
 - the shared serializer modules under `api/serializers/` (`error.py`, `configured_base_serializer.py`, `json_utils.py`) and their star-aggregator `serializers/__init__.py`, copied from this plugin's reference modules,
@@ -12,7 +12,7 @@ You are the project-wide REST API initializer. Ensure that the current repositor
 - the `application/auth/` subpackage (`AuthCommands` + `UserData`), `api/auth.py` rendered from the auth-middleware skill template with `PUBLIC_ENDPOINTS` / `INTERNAL_ENDPOINTS_PREFIX` derived from `<pkg>/constants.py`, the `Singleton(AuthCommands)` provider in `containers.py`, and `register_auth(fastapi_app)` wired into `create_fastapi`,
 - the standard API client + authentication fixtures (`app`, `client`, `containers`, `token_payload`, `request_headers`) added to `src/tests/conftest.py`.
 
-This skill performs no per-resource work — per-surface package layout, endpoint modules, per-aggregate serializers, integration tests, top-level `endpoints/__init__.py`, and API-routing constants are still owned by the per-resource scaffolders and implementers run via `/rest-api-spec:generate-code`.
+This skill performs no per-resource work — per-surface package layout, endpoint modules, per-aggregate serializers, integration tests, top-level `endpoints/__init__.py`, and API-routing constants are still owned by the per-resource scaffolders and implementers run via `@rest-api-spec:code-generator`.
 
 ## Inputs
 
@@ -92,7 +92,7 @@ Check whether `<constants_file>` exists:
 If it does not exist, emit:
 
 ```
-ERROR: constants.py not found at <constants_file>. /rest-api-spec:init-rest-api requires the project's constants.py to be in place — @auth-integrator reads BASE_API_PREFIX (and any V<N>_API_PREFIX / INTERNAL_API_PREFIX) from it to render PUBLIC_ENDPOINTS. constants.py is created and patch-merged by `@app-integrator` during /rest-api-spec:generate-code; run that for your first resource before /rest-api-spec:init-rest-api, or hand-author constants.py with at least BASE_API_PREFIX defined.
+ERROR: constants.py not found at <constants_file>. /rest-api-spec:init-rest-api requires the project's constants.py to be in place — @auth-integrator reads BASE_API_PREFIX (and any V<N>_API_PREFIX / INTERNAL_API_PREFIX) from it to render PUBLIC_ENDPOINTS. constants.py is created and patch-merged by `@app-integrator` during @rest-api-spec:code-generator; run that for your first resource before /rest-api-spec:init-rest-api, or hand-author constants.py with at least BASE_API_PREFIX defined.
 ```
 
 and stop. Do not create the file. Do not proceed to any further step.
@@ -108,7 +108,7 @@ Check whether `<entrypoint_file>` exists:
 If it does not exist, emit:
 
 ```
-ERROR: entrypoint.py not found at <entrypoint_file>. /rest-api-spec:init-rest-api requires the project's entrypoint.py to be in place — @error-handlers-integrator and @auth-integrator patch register_error_handler(fastapi_app) and register_auth(fastapi_app) calls into create_fastapi. entrypoint.py is created by @app-integrator during /rest-api-spec:generate-code; run that for your first resource before /rest-api-spec:init-rest-api.
+ERROR: entrypoint.py not found at <entrypoint_file>. /rest-api-spec:init-rest-api requires the project's entrypoint.py to be in place — @error-handlers-integrator and @auth-integrator patch register_error_handler(fastapi_app) and register_auth(fastapi_app) calls into create_fastapi. entrypoint.py is created by @app-integrator during @rest-api-spec:code-generator; run that for your first resource before /rest-api-spec:init-rest-api.
 ```
 
 and stop. Do not create the file. Do not proceed to any further step.

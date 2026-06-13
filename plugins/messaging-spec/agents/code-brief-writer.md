@@ -112,7 +112,7 @@ For each consumer whose H3 heading status is `needs-init`, `orphaned`, or `abort
 - `sub_blocks` ← `[]`.
 - `driving` ← `(needs-init)` / `(orphaned)` / `(aborted)`.
 - `summary` ← a one-line compression of the upstream advisory bullets defined in `messaging-spec:updates-report-template` for this status:
-  - `needs-init`: compress the single `Operator action:` bullet (e.g. `Initialize consumer spec; run /messaging-spec:generate-code <domain_diagram> <consumer>`).
+  - `needs-init`: compress the single `Operator action:` bullet (e.g. `Initialize consumer spec; run @messaging-spec:code-generator <domain_diagram> <consumer>`).
   - `orphaned`: compress the two `Operator action:` sub-bullets into one line (e.g. `Preserve-or-delete <consumer>.md; commands diagram no longer declares this consumer`).
   - `aborted`: compress the `Required reconcile:` lead into one line (e.g. `Reconcile commands diagram; dangling internal event(s): <EventName>(s)`).
 - `notes` ←

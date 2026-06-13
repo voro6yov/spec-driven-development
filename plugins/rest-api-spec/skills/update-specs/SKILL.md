@@ -5,7 +5,7 @@ argument-hint: <domain_diagram>
 allowed-tools: Read, Bash, Agent
 ---
 
-You are a REST API spec **update** orchestrator. Given a domain diagram and its sibling commands/queries application-service diagrams, refresh the existing `<dir>/<stem>.rest-api/spec.md` in place — invoke the two app-service-axis update detectors, dispatch on the union of the three delta reports, re-run only the table writer(s) whose owned table is dirty (`resource-spec-initializer` → Table 1, `endpoint-tables-writer` → Tables 2/3, `response-fields-writer` → Table 4, `request-fields-writer` → Table 5, `parameter-mapping-writer` → Table 6), leave every other table byte-stable, and emit `<dir>/<stem>.rest-api/updates.md`. Do not rerun the full `/rest-api-spec:generate-specs` pipeline, do not touch the diagram files, and do not ask for confirmation before writing.
+You are a REST API spec **update** orchestrator. Given a domain diagram and its sibling commands/queries application-service diagrams, refresh the existing `<dir>/<stem>.rest-api/spec.md` in place — invoke the two app-service-axis update detectors, dispatch on the union of the three delta reports, re-run only the table writer(s) whose owned table is dirty (`resource-spec-initializer` → Table 1, `endpoint-tables-writer` → Tables 2/3, `response-fields-writer` → Table 4, `request-fields-writer` → Table 5, `parameter-mapping-writer` → Table 6), leave every other table byte-stable, and emit `<dir>/<stem>.rest-api/updates.md`. Do not rerun the full `@rest-api-spec:specs-generator` pipeline, do not touch the diagram files, and do not ask for confirmation before writing.
 
 This skill is the REST-API-side counterpart to `/update-specs` (domain), `/persistence-spec:update-specs`, and `/application-spec:update-specs`. Design rationale lives in `notes/spec-updater-approach.md`, `notes/update-types.md`, `notes/updates-report.md`, and `notes/commands-queries-integration-approach.md`; the load-bearing ideas are **(a)** every section of `spec.md` is a pure snapshot (no append-only-log analog), **(b)** `spec.md` is one file owned table-by-table by five writers, and **(c)** the four trigger axes (domain, commands-diagram, queries-diagram, ops-diagram) reach different tables — domain reaches only Tables 4/5/6, while the app-service axes (commands/queries/ops) can reach Tables 1, 2/3/3o, 4, 5, 6 — so the surgical unit is "the dirty table writer(s)" of the unioned axis triggers.
 
@@ -54,7 +54,7 @@ Derive `<dir>` and `<stem>` from `$ARGUMENTS[0]` per `spec-core:naming-conventio
   ```
   ERROR: <dir>/<stem>.domain/updates.md not found. The REST API updater consumes the domain
   updates report; it is not the first-run pipeline. Run `/update-specs <domain_diagram>` (or
-  `@updates-detector <domain_diagram>`) first, or run `/rest-api-spec:generate-specs <domain_diagram>`
+  `@updates-detector <domain_diagram>`) first, or run `@rest-api-spec:specs-generator <domain_diagram>`
   to regenerate the REST API spec from scratch.
   ```
 
@@ -62,16 +62,16 @@ Derive `<dir>` and `<stem>` from `$ARGUMENTS[0]` per `spec-core:naming-conventio
 
   ```
   ERROR: <dir>/<stem>.rest-api/spec.md not found. The REST API updater is not the first-run pipeline.
-  Run `/rest-api-spec:generate-specs <domain_diagram>` to create the spec. (If the aggregate root was
+  Run `@rest-api-spec:specs-generator <domain_diagram>` to create the spec. (If the aggregate root was
   renamed, the spec now lives under a different stem — rename the diagrams and the `<stem>.rest-api/`
-  folder, then run `/rest-api-spec:generate-specs`.)
+  folder, then run `@rest-api-spec:specs-generator`.)
   ```
 
 - **0c.** If `<dir>/<stem>.commands.md` is missing → hard-fail:
 
   ```
   ERROR: <dir>/<stem>.commands.md not found. The commands application-service diagram is a required
-  hand-authored input. Restore the file or run `/rest-api-spec:generate-specs <domain_diagram>`
+  hand-authored input. Restore the file or run `@rest-api-spec:specs-generator <domain_diagram>`
   after authoring it.
   ```
 
@@ -79,7 +79,7 @@ Derive `<dir>` and `<stem>` from `$ARGUMENTS[0]` per `spec-core:naming-conventio
 
   ```
   ERROR: <dir>/<stem>.queries.md not found. The queries application-service diagram is a required
-  hand-authored input. Restore the file or run `/rest-api-spec:generate-specs <domain_diagram>`
+  hand-authored input. Restore the file or run `@rest-api-spec:specs-generator <domain_diagram>`
   after authoring it.
   ```
 
@@ -113,7 +113,7 @@ Standalone invocations (without `--detectors-fresh`) take the default path below
 
 Each detector writes its own report (`<dir>/<stem>.application/commands-updates.md`, `<dir>/<stem>.application/queries-updates.md`) or hard-fails with an `ERROR:` line. The detectors share `<dir>/<stem>.application/` only — both use `mkdir -p` idempotently, so the parallel pattern is safe.
 
-If either detector hard-fails, abort the orchestrator with that detector's `ERROR:` line repeated verbatim. The other detector's output (if it completed) is left on disk for the next run; no rollback is performed. The same `/rest-api-spec:generate-specs <domain_diagram>` recovery path the detectors themselves direct to applies here.
+If either detector hard-fails, abort the orchestrator with that detector's `ERROR:` line repeated verbatim. The other detector's output (if it completed) is left on disk for the next run; no rollback is performed. The same `@rest-api-spec:specs-generator <domain_diagram>` recovery path the detectors themselves direct to applies here.
 
 Wait for both detectors to return successfully before proceeding to the ops detector below.
 
@@ -169,9 +169,9 @@ Each gate **disables only the domain axis** and emits a `WARNING:` (not `ERROR:`
 
 | Gate | Trigger | Action |
 |---|---|---|
-| 1.dom.a | `domain.degraded_baseline` true | Set `domain_axis_disabled = true`; emit `WARNING: domain axis disabled — HEAD baseline is degraded (multiple or missing Mermaid blocks at HEAD per <stem>.domain/updates.md). The surgical REST API updater cannot operate against a degraded baseline. Run /rest-api-spec:generate-specs <domain_diagram> to regenerate the domain-driven half from scratch.` |
-| 1.dom.b | `domain.stereotype_changed` non-empty | Set `domain_axis_disabled = true`; emit `WARNING: domain axis disabled — class(es) <names> have stereotype changes in <stem>.domain/updates.md. A stereotype change moves a class to a different pattern catalog (e.g. a value object becoming a child entity), so a referenced type is no longer the kind of thing the REST spec assumed; this subsumes the aggregate-root case. Run /rest-api-spec:generate-specs <domain_diagram> to regenerate from scratch.` (surface every offending name) |
-| 1.dom.c | Any bullet in `domain.removed_classes` has stereotype `<<Aggregate Root>>` | Set `domain_axis_disabled = true`; emit `WARNING: domain axis disabled — aggregate root <ClassName> is listed under Class Lifecycle → Removed in <stem>.domain/updates.md. The resource loses its anchor (Table 1's Resource name / Plural / Router prefix and every Domain Ref in Tables 2/3). An aggregate-root rename — reported as removed (old) + added (new) — also moves all three diagram filenames (<stem>.md, <stem>.commands.md, <stem>.queries.md) and the <stem>.rest-api/ folder: a coordinated multi-file rename the updater cannot perform. Rename the diagrams and the <stem>.rest-api/ folder, then run /rest-api-spec:generate-specs <domain_diagram>.` |
+| 1.dom.a | `domain.degraded_baseline` true | Set `domain_axis_disabled = true`; emit `WARNING: domain axis disabled — HEAD baseline is degraded (multiple or missing Mermaid blocks at HEAD per <stem>.domain/updates.md). The surgical REST API updater cannot operate against a degraded baseline. Run @rest-api-spec:specs-generator <domain_diagram> to regenerate the domain-driven half from scratch.` |
+| 1.dom.b | `domain.stereotype_changed` non-empty | Set `domain_axis_disabled = true`; emit `WARNING: domain axis disabled — class(es) <names> have stereotype changes in <stem>.domain/updates.md. A stereotype change moves a class to a different pattern catalog (e.g. a value object becoming a child entity), so a referenced type is no longer the kind of thing the REST spec assumed; this subsumes the aggregate-root case. Run @rest-api-spec:specs-generator <domain_diagram> to regenerate from scratch.` (surface every offending name) |
+| 1.dom.c | Any bullet in `domain.removed_classes` has stereotype `<<Aggregate Root>>` | Set `domain_axis_disabled = true`; emit `WARNING: domain axis disabled — aggregate root <ClassName> is listed under Class Lifecycle → Removed in <stem>.domain/updates.md. The resource loses its anchor (Table 1's Resource name / Plural / Router prefix and every Domain Ref in Tables 2/3). An aggregate-root rename — reported as removed (old) + added (new) — also moves all three diagram filenames (<stem>.md, <stem>.commands.md, <stem>.queries.md) and the <stem>.rest-api/ folder: a coordinated multi-file rename the updater cannot perform. Rename the diagrams and the <stem>.rest-api/ folder, then run @rest-api-spec:specs-generator <domain_diagram>.` |
 | 1.dom.d | `domain.removed_or_renamed_data_types ∩ (commands_referenced_types ∪ queries_referenced_types ∪ ops_referenced_types)` non-empty | Set `domain_axis_disabled = true`; emit `WARNING: domain axis disabled — data type(s) <names> were removed or renamed in <stem>.domain/updates.md but are still referenced by a method return/parameter type in <stem>.commands.md / <stem>.queries.md / a <stem>.ops.*.md. response-fields-writer / request-fields-writer / parameter-mapping-writer would abort (a query DTO) or degrade to a TODO (an ops return). Reconcile the offending diagram — point the method's type token at the new name, or drop the reference — then re-run /rest-api-spec:update-specs <domain_diagram>. (The rest of the spec is fine; this is not a from-scratch rebuild.)` (surface every offending name) |
 
 Only one of 1.dom.a–1.dom.d fires per run (whichever is first); evaluate in order and stop at the first match. Unlike the previous design where 1.dom.d aborted the orchestrator wholesale, it now only disables the domain axis — the commands/queries-axis dispatch can still proceed if those axes have triggers.
@@ -210,7 +210,7 @@ If `domain_axis_disabled` AND `commands_axis_disabled` AND `queries_axis_disable
 
 ```
 ERROR: all four input axes are disabled by preflight gates (see WARNING lines above). The orchestrator
-cannot regenerate any table. Resolve the underlying conditions or run /rest-api-spec:generate-specs
+cannot regenerate any table. Resolve the underlying conditions or run @rest-api-spec:specs-generator
 <domain_diagram> to rebuild the REST API spec from scratch.
 ```
 
@@ -320,7 +320,7 @@ For each dirty writer, **in this order**, invoke it via the `Agent` tool with pr
 
 Each writer parses `<stem>.commands.md` / `<stem>.queries.md` / `<stem>.md` fresh, locates its owned table inside `spec.md`, and rewrites it in place (`Edit`, anchored on the table's heading + body, per-Surface section). The writers do not read any `updates.md`; they have no per-axis dispatch — re-running on identical diagrams produces byte-identical output modulo LLM nondeterminism. `resource-spec-initializer` and `endpoint-tables-writer` are explicitly idempotent on stable inputs (existing Table 1 is preserved; existing per-surface Tables 2/3 are replaced in place).
 
-**Why sequential, not parallel.** All five writers edit the single `spec.md` in place — running them concurrently risks one writer's `Edit` landing on a stale view of the file. (`/application-spec:update-specs` can fan its two sides out in parallel because `commands.specs.md` and `queries.specs.md` are separate files; here they aren't.) Additionally, `endpoint-tables-writer` must run before the Tables 4/5/6 writers because the latter scope per-endpoint and need the freshly written Tables 2/3 to know which endpoints exist; `resource-spec-initializer` must run before `endpoint-tables-writer` because the per-surface `## Surface:` sections it materializes are where `endpoint-tables-writer` writes Tables 2/3. Sequence them initializer → endpoint-tables → response → request → parameter-mapping, the same order `/rest-api-spec:generate-specs` uses.
+**Why sequential, not parallel.** All five writers edit the single `spec.md` in place — running them concurrently risks one writer's `Edit` landing on a stale view of the file. (`/application-spec:update-specs` can fan its two sides out in parallel because `commands.specs.md` and `queries.specs.md` are separate files; here they aren't.) Additionally, `endpoint-tables-writer` must run before the Tables 4/5/6 writers because the latter scope per-endpoint and need the freshly written Tables 2/3 to know which endpoints exist; `resource-spec-initializer` must run before `endpoint-tables-writer` because the per-surface `## Surface:` sections it materializes are where `endpoint-tables-writer` writes Tables 2/3. Sequence them initializer → endpoint-tables → response → request → parameter-mapping, the same order `@rest-api-spec:specs-generator` uses.
 
 The cost accepted: when a dirty writer runs, it rewrites its *whole* table — every endpoint's sub-block in Table 4, not just the one whose nested type changed — so endpoints whose referenced types are unchanged get re-emitted (byte-stable modulo LLM drift). This is the same "LLM drift is `git diff` noise, not a correctness failure" contract the persistence-spec and application-spec writers already operate under. The tables the dirty writers *don't* own are not touched at all.
 
@@ -367,14 +367,14 @@ Do not emit additional commentary — each invoked agent already printed its own
 ## Failure semantics
 
 - **Step 0 detector hard-fail** (0g): orchestrator aborts with the detector's `ERROR:` line repeated verbatim. The other detector's report (if it completed) is left on disk. Re-running after fixing the trigger re-runs both detectors. No rollback.
-- **Total preflight abort (1.all)**: no writes; the WARNING lines for each disabled axis are emitted before the aggregated ERROR. Operator runs `/rest-api-spec:generate-specs`.
-- **Partial preflight disable (1.dom xor 1.cmd xor 1.qry)**: the enabled axis (or axes) regenerate as normal; the disabled axis's WARNING is surfaced before the Step 5 summary. (Gate 1.dom.d directs the operator to reconcile the commands/queries diagram and re-run *this* skill — not `generate-specs` — since only a subset of types are unreferenced.)
+- **Total preflight abort (1.all)**: no writes; the WARNING lines for each disabled axis are emitted before the aggregated ERROR. Operator runs `@rest-api-spec:specs-generator`.
+- **Partial preflight disable (1.dom xor 1.cmd xor 1.qry)**: the enabled axis (or axes) regenerate as normal; the disabled axis's WARNING is surfaced before the Step 5 summary. (Gate 1.dom.d directs the operator to reconcile the commands/queries diagram and re-run *this* skill — not `specs-generator` — since only a subset of types are unreferenced.)
 - **Step 3+ agent failure**: every step that aborts emits exactly one `ERROR:` line and exits the workflow. Do not chain further agents on top of a failed step. The orchestrator does not roll back partial writes.
 - **Re-running `/rest-api-spec:update-specs` after fixing the trigger is the supported recovery path** — every step is idempotent on stable inputs:
   - **Step 0 detectors** regenerate their reports wholesale on every call (output stable modulo LLM nondeterminism in prose-summary blocks).
   - **Step 3** writers regenerate their owned table wholesale from current diagrams on every call (output stable modulo LLM nondeterminism). `resource-spec-initializer` and `endpoint-tables-writer` are explicitly idempotent on stable inputs.
   - **Step 4** (`rest-api-updates-writer`) is a pure HEAD-vs-working-tree diff and overwrites `updates.md` from scratch.
-- The only failures `/rest-api-spec:update-specs` cannot retry through are the Step 0 missing-input cases (0a–0d) and the total-abort gate (1.all). Each error message directs the operator to the correct fix — `/update-specs` / `@updates-detector` for the missing domain report, diagram-restore-or-rename for the missing input diagrams, `/rest-api-spec:generate-specs` for everything else.
+- The only failures `/rest-api-spec:update-specs` cannot retry through are the Step 0 missing-input cases (0a–0d) and the total-abort gate (1.all). Each error message directs the operator to the correct fix — `/update-specs` / `@updates-detector` for the missing domain report, diagram-restore-or-rename for the missing input diagrams, `@rest-api-spec:specs-generator` for everything else.
 
 ## Idempotency
 
@@ -388,15 +388,15 @@ There are no sentinel comments. Unlike persistence-spec's `<!-- appended-from up
 
 ## What this skill deliberately does not do
 
-- It does not regenerate `<stem>.rest-api/spec.md` end-to-end — that is `/rest-api-spec:generate-specs`. It runs only the table writer(s) whose dirty flag fired; the tables those writers don't own are not touched.
+- It does not regenerate `<stem>.rest-api/spec.md` end-to-end — that is `@rest-api-spec:specs-generator`. It runs only the table writer(s) whose dirty flag fired; the tables those writers don't own are not touched.
 - It does not re-diff `<domain_diagram>` and does not invoke `domain-spec:updates-detector` — the domain `updates.md` is expected on disk before this skill runs. (It *does* invoke the two app-service-axis detectors at Step 0g.)
-- It does not touch the diagram files (`<stem>.md`, `<stem>.commands.md`, `<stem>.queries.md`) or any Artifacts index — those siblings are linked from the original `/rest-api-spec:generate-specs` run.
+- It does not touch the diagram files (`<stem>.md`, `<stem>.commands.md`, `<stem>.queries.md`) or any Artifacts index — those siblings are linked from the original `@rest-api-spec:specs-generator` run.
 - It does not act on the `dependencies` / `raised-exceptions` / `external-interfaces` / `external-domain-events` / `messaging-markers` categories that may appear on the app-service-axis updates reports — those drive `/application-spec:update-specs` and `/messaging-spec:update-specs`. This orchestrator silently ignores them.
-- It does not handle aggregate-root removal/rename (which also cascades to the diagram filenames and the `<stem>.rest-api/` folder), domain stereotype changes, or a degraded domain baseline as a wholesale fatal — those disable only the domain axis via 1.dom.a–1.dom.c; the app-service axes may still proceed. A total-abort (1.all) routes to `/rest-api-spec:generate-specs`.
+- It does not handle aggregate-root removal/rename (which also cascades to the diagram filenames and the `<stem>.rest-api/` folder), domain stereotype changes, or a degraded domain baseline as a wholesale fatal — those disable only the domain axis via 1.dom.a–1.dom.c; the app-service axes may still proceed. A total-abort (1.all) routes to `@rest-api-spec:specs-generator`.
 - It does not act on a domain-only multi-tenancy flip — REST-spec `tenant_id` handling (dropped from the body in Table 5, excluded from the query-parameter list in Table 4, sourced as `Auth context` in Table 6) is keyed off the *app-service method signatures* (`tenant_id: str` parameters), not the domain root. A domain-only `tenant_id` flip is byte-neutral here; it takes effect only once the commands/queries diagrams' method signatures are updated (a commands/queries-diagram-axis change). Deliberate divergence from persistence-spec; matches application-spec.
 - It does not act on a bounded-context `title:` rename — the `<Resource>Commands` / `<Resource>Queries` class names come from the application-service diagrams' class nodes, and Table 1's Resource name comes from the `<<Aggregate Root>>` *class name*. A domain-`title:` change is byte-neutral. Tier 3 no-op.
 - It does not pre-check the *transitive* analog of gate 1.dom.d (a renamed/removed type referenced only via another referenced type's field). The Step-1 scan catches the direct case; a transitive one surfaces as a runtime writer abort in Step 3 and is routed the same way ("reconcile the commands/queries diagram, then re-run").
-- It does not track the Shared domain types registry (`Pagination`, `PaginatedResultMetadataInfo`, `ResultSetInfo`) — those are hard-coded in the table writers. Changes to them are plugin-source changes, not diagram changes; they never appear in any `updates.md` and are picked up only by re-running `/rest-api-spec:generate-specs` after a plugin upgrade.
+- It does not track the Shared domain types registry (`Pagination`, `PaginatedResultMetadataInfo`, `ResultSetInfo`) — those are hard-coded in the table writers. Changes to them are plugin-source changes, not diagram changes; they never appear in any `updates.md` and are picked up only by re-running `@rest-api-spec:specs-generator` after a plugin upgrade.
 - It does not preserve hand-edits inside a regenerated table — the writer contract is that the spec is regenerated from the diagrams, not curated. The blast radius is bounded by which tables fire (a writer rewriting Table 4 leaves Tables 1, 2/3, 5, 6 byte-stable), but inside a regenerated table manual enrichments are wholesale replaced.
 - It does not auto-update generated REST API code (the per-surface serializer modules `api/serializers/<surface>/`, endpoint modules `api/endpoints/<surface>/`, the FastAPI app wiring `entrypoint.py` / `constants.py` / the aggregator `__init__.py` files / `api/auth.py`, the test fixtures `tests/conftest.py`, the integration tests) — that is the cross-layer `/update-code` skill (`domain-spec:update-code`), which consumes the `<stem>.rest-api/updates.md` this skill emits.
 - It is independently invocable, **and** is re-cascaded by `/application-spec:update-specs` (which is itself either standalone or fanned out by domain `/update-specs`'s Step 10). In that cascade mode the application orchestrator passes `--detectors-fresh` as the second positional arg, signalling that it already produced the two app-service-axis detector reports at its Step 0g; Step 0g of this skill takes the cascade-mode shortcut and skips its own detector invocation. The application orchestrator fans this skill out in parallel with `/messaging-spec:update-specs`; a `spec.md`-missing hard-fail (Step 0b) does not abort that sibling — each runs to completion and prints its own report. Standalone invocation (without `--detectors-fresh`) follows the default Step-0g detector-invocation path.

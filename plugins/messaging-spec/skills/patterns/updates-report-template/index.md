@@ -76,7 +76,7 @@ Substitute every `<placeholder>` with the actual value when rendering. The `### 
 - Dangling internal event(s): `<EventName>` (removed or renamed in `<dir>/<stem>.domain/updates.md`)
 - Required reconcile:
   - Edit the `%% Messaging - <consumer_name>` block in `<dir>/<stem>.commands.md`: drop or rename the `<CommandClass> --() <EventName> : handles (<SourceDestination>, <on_method>)` line, and the `<on_method>` handler on `<CommandClass>`.
-  - Then re-run `event-tables-writer <dir>/<stem>.commands.md <consumer_name>` and `event-fields-writer <dir>/<stem>.commands.md <consumer_name>` (or `/messaging-spec:generate-code <dir>/<stem>.md <consumer_name>`).
+  - Then re-run `event-tables-writer <dir>/<stem>.commands.md <consumer_name>` and `event-fields-writer <dir>/<stem>.commands.md <consumer_name>` (or `@messaging-spec:code-generator <dir>/<stem>.md <consumer_name>`).
 
 ### `<consumer_name>` — unaffected
 
@@ -89,7 +89,7 @@ _No internal subscription intersects the changed-domain-event set._
 - Subscriptions declared in commands diagram:
   - `<CommandClass> --() <EventName> : handles (<SourceDestination>, <on_method>)`
 - Operator action:
-  - Run `/messaging-spec:generate-code <domain_diagram> <consumer_name>` to initialize the consumer spec and scaffold its submodule.
+  - Run `@messaging-spec:code-generator <domain_diagram> <consumer_name>` to initialize the consumer spec and scaffold its submodule.
 
 ### `<consumer_name>` — orphaned
 
@@ -99,12 +99,12 @@ _No internal subscription intersects the changed-domain-event set._
   - `<EventName>` (internal · source `<SourceDestination>`) — bound to `<CommandClass>.<command_method>`
 - Operator action:
   - Decide whether to preserve the spec file (e.g. hand-authored notes) or delete it; the commands diagram no longer declares this consumer.
-  - After deciding, run `/messaging-spec:generate-code <domain_diagram>` (without a consumer arg) to reconcile the messaging submodule's code side; the orphaned consumer's submodule will be flagged for removal.
+  - After deciding, run `@messaging-spec:code-generator <domain_diagram>` (without a consumer arg) to reconcile the messaging submodule's code side; the orphaned consumer's submodule will be flagged for removal.
 
 ## Operator Actions
 
-- `<consumer_name>` — run `/messaging-spec:generate-code <domain_diagram> <consumer_name>` to initialize the consumer.
-- `<consumer_name>` — preserve or delete `<dir>/<stem>.messaging/<consumer_name>.md`, then run `/messaging-spec:generate-code <domain_diagram>` to reconcile the submodule.
+- `<consumer_name>` — run `@messaging-spec:code-generator <domain_diagram> <consumer_name>` to initialize the consumer.
+- `<consumer_name>` — preserve or delete `<dir>/<stem>.messaging/<consumer_name>.md`, then run `@messaging-spec:code-generator <domain_diagram>` to reconcile the submodule.
 
 ## Affected Artifacts
 
@@ -156,8 +156,8 @@ Each consumer's block is headed `### \`<consumer_name>\` — <status>` where `<s
 | `updated` | The consumer's Table 3 has at least one `internal`-event sub-block whose row set or low-confidence italic-flag text differs between the HEAD and working-tree versions of the consumer spec **and** at least one probe (domain attr delta, commands marker change, external-event attr delta) explains the change, **and** the consumer is not `aborted` / `orphaned` / `needs-init` and not newly-tracked-this-run. |
 | `aborted (reconcile commands diagram)` | The consumer subscribes (as `internal`, per its Table 2) to a domain event that the domain `updates.md` reports as removed or renamed, **and** the commands diagram still declares the subscription. The spec file is unchanged this run. (When the commands diagram already reconciled the dangling row, the consumer drops out of `aborted` and may surface as `orphaned` or `updated` instead.) |
 | `unaffected` | None of the above. Includes: (a) the consumer subscribes to no domain event that changed this run; (b) it *does* subscribe (as `internal`) to a changed-attribute domain event but the bound handler does not consume the changed attribute, so Table 3 came out byte-stable (→ use the precise body form below); (c) the consumer spec is newly tracked this run, with no HEAD blob (→ a "first-run consumer" warning is emitted; its Table 3 was just *generated*, not *updated*). |
-| `needs-init` | The commands diagram declares a `%% Messaging - <C>` block for which no consumer spec exists on disk. The commands-updates report lists `<C>` as `(consumer added)` under `## Messaging Markers`. The spec must be initialized via `/messaging-spec:generate-code <domain_diagram> <C>` before this consumer can participate in updates. |
-| `orphaned` | A consumer spec exists on disk but the commands diagram no longer declares its `%% Messaging - <C>` block. The commands-updates report lists `<C>` as `(consumer removed)` under `## Messaging Markers`. The spec is unchanged this run. Operator action: preserve or delete the spec file, then re-run `/messaging-spec:generate-code <domain_diagram>` to reconcile the code side. |
+| `needs-init` | The commands diagram declares a `%% Messaging - <C>` block for which no consumer spec exists on disk. The commands-updates report lists `<C>` as `(consumer added)` under `## Messaging Markers`. The spec must be initialized via `@messaging-spec:code-generator <domain_diagram> <C>` before this consumer can participate in updates. |
+| `orphaned` | A consumer spec exists on disk but the commands diagram no longer declares its `%% Messaging - <C>` block. The commands-updates report lists `<C>` as `(consumer removed)` under `## Messaging Markers`. The spec is unchanged this run. Operator action: preserve or delete the spec file, then re-run `@messaging-spec:code-generator <domain_diagram>` to reconcile the code side. |
 
 Status precedence is `orphaned → aborted → needs-init → updated → unaffected` (first match wins). `orphaned` and `needs-init` are **advisory** — they describe a state mismatch between the commands diagram and the on-disk spec set, not a transition of a single file; they contribute zero rows to `## Affected Artifacts` and surface in `## Operator Actions` instead. A consumer is never simultaneously `updated` and `aborted` — if any of its `internal` subscriptions is dangling and the commands diagram still declares it, the whole consumer is `aborted` for this run; its other subscriptions wait for the next run after the operator reconciles. A newly-tracked consumer never reports as `updated` — a fresh Table 3 is a generation, not an update.
 
@@ -186,7 +186,7 @@ Bullets, in this fixed order:
 - **`Dangling internal event(s):`** — comma-separated backticked event names (each ∈ the domain report's removed-or-renamed-event set ∩ this consumer's `internal` Table 2 rows), followed by ` (removed or renamed in \`<dir>/<stem>.domain/updates.md\`)`.
 - **`Required reconcile:`** — a two-sub-bullet instruction:
   - `Edit the \`%% Messaging - <consumer_name>\` block in \`<dir>/<stem>.commands.md\`: drop or rename the \`<CommandClass> --() <EventName> : handles (<SourceDestination>, <on_method>)\` line, and the \`<on_method>\` handler on \`<CommandClass>\`.` — the `<CommandClass>` / `<SourceDestination>` / `<on_method>` tokens come from the consumer spec's stale Table 2 row for the dangling event. When more than one event is dangling, repeat the `<CommandClass> --() <EventName> : handles (...)` clause for each, separated by `; `.
-  - `Then re-run \`event-tables-writer <dir>/<stem>.commands.md <consumer_name>\` and \`event-fields-writer <dir>/<stem>.commands.md <consumer_name>\` (or \`/messaging-spec:generate-code <dir>/<stem>.md <consumer_name>\`).`
+  - `Then re-run \`event-tables-writer <dir>/<stem>.commands.md <consumer_name>\` and \`event-fields-writer <dir>/<stem>.commands.md <consumer_name>\` (or \`@messaging-spec:code-generator <dir>/<stem>.md <consumer_name>\`).`
 
 ### `unaffected` block body
 
@@ -215,7 +215,7 @@ The consumer has no on-disk spec; the writer renders the *advisory* shape that c
 - **`Spec:`** — the literal italic line `_not yet created_` (no path to render — the spec does not exist).
 - **`Commands diagram declaration:`** — `` `%% Messaging - <consumer_name>` in `<dir>/<stem>.commands.md` `` — locates the operator's commands-diagram edit.
 - **`Subscriptions declared in commands diagram:`** — a sub-bullet list, one per `Row added` line in the commands-updates report's `### \`<consumer_name>\` (consumer added)` block, copied verbatim (e.g. `` `OrderCommands --() ItemReserved : handles (Inventory, on_item_reserved)` ``). These are *what will be subscribed* once the spec is initialized — not *what is subscribed* (no Table 3 exists yet).
-- **`Operator action:`** — exactly one sub-bullet: `Run \`/messaging-spec:generate-code <domain_diagram> <consumer_name>\` to initialize the consumer spec and scaffold its submodule.`
+- **`Operator action:`** — exactly one sub-bullet: `Run \`@messaging-spec:code-generator <domain_diagram> <consumer_name>\` to initialize the consumer spec and scaffold its submodule.`
 
 A `needs-init` block carries no pre/post hashes — there is no file to hash.
 
@@ -228,7 +228,7 @@ The consumer has an on-disk spec but the commands diagram no longer declares it;
 - **`Stale subscriptions on the spec:`** — a sub-bullet list, one per Table 2 row currently on the spec, rendered as `` `<EventName>` (<type> · source `<SourceDestination>`) — bound to `<CommandClass>.<command_method>` `` where `<type>` is `internal` or `external` (external rows are listed analogously; the source destination on an external row points to the external publisher). When the spec's Table 2 is empty, render the single sub-bullet `_no subscriptions on the spec_`.
 - **`Operator action:`** — exactly two sub-bullets:
   - `Decide whether to preserve the spec file (e.g. hand-authored notes) or delete it; the commands diagram no longer declares this consumer.`
-  - `After deciding, run \`/messaging-spec:generate-code <domain_diagram>\` (without a consumer arg) to reconcile the messaging submodule's code side; the orphaned consumer's submodule will be flagged for removal.`
+  - `After deciding, run \`@messaging-spec:code-generator <domain_diagram>\` (without a consumer arg) to reconcile the messaging submodule's code side; the orphaned consumer's submodule will be flagged for removal.`
 
 An `orphaned` block carries no pre/post hashes — the spec is unchanged this run; the existing hashes are not delta-relevant.
 
@@ -261,7 +261,7 @@ One bullet per advisory consumer (no status grouping — `needs-init` and `orpha
 - `needs-init` consumer `<C>`:
 
   ```
-  - `<C>` — run `/messaging-spec:generate-code <domain_diagram> <C>` to initialize the consumer.
+  - `<C>` — run `@messaging-spec:code-generator <domain_diagram> <C>` to initialize the consumer.
   ```
 
   Substitute `<domain_diagram>` with the actual diagram path passed to the writer (e.g. `dir/order.md`).
@@ -269,7 +269,7 @@ One bullet per advisory consumer (no status grouping — `needs-init` and `orpha
 - `orphaned` consumer `<C>`:
 
   ```
-  - `<C>` — preserve or delete `<dir>/<stem>.messaging/<C>.md`, then run `/messaging-spec:generate-code <domain_diagram>` to reconcile the submodule.
+  - `<C>` — preserve or delete `<dir>/<stem>.messaging/<C>.md`, then run `@messaging-spec:code-generator <domain_diagram>` to reconcile the submodule.
   ```
 
   Substitute `<dir>/<stem>.messaging/<C>.md` with the actual on-disk spec path.

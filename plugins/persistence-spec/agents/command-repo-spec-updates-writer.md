@@ -38,7 +38,7 @@ Recover `<dir>` and `<stem>` from `<domain_diagram>` per `spec-core:naming-conve
 
 Verify with `test -f`:
 
-- `<spec_file>` missing → fail with: `ERROR: <spec_file> not found. The updates writer is not the first-run pipeline; run /persistence-spec:generate-specs <domain_diagram> first.`
+- `<spec_file>` missing → fail with: `ERROR: <spec_file> not found. The updates writer is not the first-run pipeline; run @persistence-spec:specs-generator <domain_diagram> first.`
 
 `<domain_updates_file>` may be missing — that is the standalone-invocation case (the writer is being run without an upstream domain `update-specs` run, e.g. for testing or operator-driven recovery). Record its absence; downstream `Source delta` lookups will fall back to `(unknown source)` and the Summary's `Domain updates source` line renders `_none_`.
 
@@ -130,7 +130,7 @@ For each spec version, extract:
 
 8. **§3 Schema Specification** — already cross-referenced into the §2 Tables structure (column lists, indexes, FKs). No standalone parse output.
 
-If the working-tree spec is so malformed that the parser cannot identify the H2 anchors `## 1. Aggregate Analysis` and `## 2. Pattern Selection`, hard-fail with: `ERROR: <spec_file> is malformed; cannot locate Section 1 or Section 2 headings. Run /persistence-spec:generate-specs <domain_diagram> to rebuild.`
+If the working-tree spec is so malformed that the parser cannot identify the H2 anchors `## 1. Aggregate Analysis` and `## 2. Pattern Selection`, hard-fail with: `ERROR: <spec_file> is malformed; cannot locate Section 1 or Section 2 headings. Run @persistence-spec:specs-generator <domain_diagram> to rebuild.`
 
 The HEAD-side spec is parsed with the same parser. Tolerate missing sub-sections in HEAD silently — the version may have been produced by a prior agent revision with a different layout.
 
@@ -305,8 +305,8 @@ Each prints exactly one `ERROR: ...` line and exits non-zero. The agent does **n
 | Condition | Error template | Recovery |
 |---|---|---|
 | `<domain_diagram>` path produces an invalid `<stem>` | `ERROR: <domain_diagram> path does not yield a valid aggregate stem (must match ^[a-z][a-z0-9-]*$).` | Pass a path that follows `spec-core:naming-conventions`. |
-| `<spec_file>` missing on disk | `ERROR: <spec_file> not found. The updates writer is not the first-run pipeline; run /persistence-spec:generate-specs <domain_diagram> first.` | Run `/persistence-spec:generate-specs`. |
-| Working tree spec missing both `## 1. Aggregate Analysis` and `## 2. Pattern Selection` H2 anchors | `ERROR: <spec_file> is malformed; cannot locate Section 1 or Section 2 headings. Run /persistence-spec:generate-specs <domain_diagram> to rebuild.` | Run `/persistence-spec:generate-specs`. |
+| `<spec_file>` missing on disk | `ERROR: <spec_file> not found. The updates writer is not the first-run pipeline; run @persistence-spec:specs-generator <domain_diagram> first.` | Run `@persistence-spec:specs-generator`. |
+| Working tree spec missing both `## 1. Aggregate Analysis` and `## 2. Pattern Selection` H2 anchors | `ERROR: <spec_file> is malformed; cannot locate Section 1 or Section 2 headings. Run @persistence-spec:specs-generator <domain_diagram> to rebuild.` | Run `@persistence-spec:specs-generator`. |
 | `git ls-files --full-name` non-zero exit (not first-run; e.g. not a repo, ambiguous path) | `ERROR: cannot resolve <spec_file> against the git working tree.` | Verify the working directory is a git repo and the spec path is unambiguous. |
 | `git show HEAD:<repo_path>` non-zero exit other than the standard "does not exist in 'HEAD'" first-run signal | `ERROR: failed to read HEAD blob of <spec_file>: <stderr>.` | Inspect the repo state; the failure is not a routine first-run condition. |
 

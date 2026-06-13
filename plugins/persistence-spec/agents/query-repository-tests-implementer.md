@@ -27,7 +27,7 @@ The agent is **append-only and idempotent**: existing test functions are preserv
 
 The directory is created if missing, with an empty `__init__.py`. The command-side `test_<aggregate>_repository.py` (owned by `@command-repository-tests-implementer`) lives next to it; the two files are independent.
 
-**Path invariant.** The parent directory is *exactly* `<tests_dir>/integration/<aggregate>/` — one `<aggregate>` segment directly under `integration/`. Do **not** insert any intermediate segment (e.g. `repositories/`, `query/`, or a mirror of the `infrastructure/repositories/<aggregate>/` code layout). The command-side and query-side test files **must** be siblings in this same directory; if they land in different parents the generate-code run has diverged.
+**Path invariant.** The parent directory is *exactly* `<tests_dir>/integration/<aggregate>/` — one `<aggregate>` segment directly under `integration/`. Do **not** insert any intermediate segment (e.g. `repositories/`, `query/`, or a mirror of the `infrastructure/repositories/<aggregate>/` code layout). The command-side and query-side test files **must** be siblings in this same directory; if they land in different parents the code-generator run has diverged.
 
 ## Workflow
 

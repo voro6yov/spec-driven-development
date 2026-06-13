@@ -4,12 +4,12 @@ description: "Initializes the project-wide messaging scaffolding (project packag
 allowed-tools: Bash, Write, Agent
 ---
 
-You are the project-wide messaging initializer. Ensure that the current repository has the minimum directory structure and module set required for any subsequent `/messaging-spec:generate-code` run:
+You are the project-wide messaging initializer. Ensure that the current repository has the minimum directory structure and module set required for any subsequent `@messaging-spec:code-generator` run:
 
 - the `messaging/` Python package (empty zero-byte `__init__.py`; populated per-consumer by `@consumer-scaffolder`),
 - a canonical Click `__main__.py` skeleton (with `@click.group() def cli()` and the `if __name__ == "__main__": cli()` main guard) so `@dispatch-integrator`'s Step 6a precondition check passes on the first consumer run.
 
-This skill performs no per-consumer work — the `<consumer_name>/` submodule, dispatcher Singleton in `containers.py`, runner in `entrypoint.py`, Click command in `__main__.py`, destination/queue constants in `constants.py`, handler fixtures in `tests/conftest.py`, and the `messaging/__init__.py` aggregator entries are all owned by the per-consumer scaffolders and implementers run via `/messaging-spec:generate-code`.
+This skill performs no per-consumer work — the `<consumer_name>/` submodule, dispatcher Singleton in `containers.py`, runner in `entrypoint.py`, Click command in `__main__.py`, destination/queue constants in `constants.py`, handler fixtures in `tests/conftest.py`, and the `messaging/__init__.py` aggregator entries are all owned by the per-consumer scaffolders and implementers run via `@messaging-spec:code-generator`.
 
 This skill performs no `containers.py`, `entrypoint.py`, or `constants.py` bootstrapping — those files are preconditions for `@dispatch-integrator` and `@consumer-scaffolder` but are owned by the persistence-spec and rest-api-spec init pipelines (or hand-authored). The only work here on those files is the existence pre-checks in Steps 2-4.
 
@@ -91,7 +91,7 @@ Check whether `<entrypoint_file>` exists:
 If it does not exist, emit:
 
 ```
-ERROR: entrypoint.py not found at <entrypoint_file>. /messaging-spec:init-messaging requires the project's entrypoint.py to be in place — @dispatch-integrator inserts a run_<consumer>_dispatcher() runner into it. entrypoint.py is created by `@app-integrator` during /rest-api-spec:generate-code; run /rest-api-spec:init-rest-api before this skill, or hand-author entrypoint.py with at least the Settings / Containers / init_containers / _base_service_init helpers defined.
+ERROR: entrypoint.py not found at <entrypoint_file>. /messaging-spec:init-messaging requires the project's entrypoint.py to be in place — @dispatch-integrator inserts a run_<consumer>_dispatcher() runner into it. entrypoint.py is created by `@app-integrator` during @rest-api-spec:code-generator; run /rest-api-spec:init-rest-api before this skill, or hand-author entrypoint.py with at least the Settings / Containers / init_containers / _base_service_init helpers defined.
 ```
 
 and stop. Do not create the file. Do not proceed to any further step.
@@ -107,7 +107,7 @@ Check whether `<constants_file>` exists:
 If it does not exist, emit:
 
 ```
-ERROR: constants.py not found at <constants_file>. /messaging-spec:init-messaging requires the project's constants.py to be in place — @consumer-scaffolder appends per-consumer destination and queue constants (<UPPER_AGGREGATE>_DESTINATION, <CONSUMER>_EVENTS_QUEUE, <CONSUMER>_COMMANDS_QUEUE) into it. constants.py is hand-authored or patch-merged by `@app-integrator` during /rest-api-spec:generate-code; create it before this skill.
+ERROR: constants.py not found at <constants_file>. /messaging-spec:init-messaging requires the project's constants.py to be in place — @consumer-scaffolder appends per-consumer destination and queue constants (<UPPER_AGGREGATE>_DESTINATION, <CONSUMER>_EVENTS_QUEUE, <CONSUMER>_COMMANDS_QUEUE) into it. constants.py is hand-authored or patch-merged by `@app-integrator` during @rest-api-spec:code-generator; create it before this skill.
 ```
 
 and stop. Do not create the file. Do not proceed to any further step.
