@@ -9,7 +9,7 @@ disable-model-invocation: false
 
 > **Consumers:**
 > - `command-repo-spec-updates-writer` agent — renders the report; uses these rules to compute the per-section delta blocks and the `## Affected Artifacts` footer.
-> - `/persistence-spec:update-code` skill (future) — parses the report to dispatch per-artifact code edits.
+> - `/persistence-spec:update-code` skill — parses the report to dispatch per-artifact code edits.
 
 > **Scope of this skill:** output format only. Workflow (loading the spec from working tree + git HEAD, parsing each version, computing deltas, rendering) lives in the `command-repo-spec-updates-writer` agent body.
 

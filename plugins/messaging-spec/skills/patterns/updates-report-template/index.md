@@ -10,7 +10,7 @@ disable-model-invocation: false
 
 > **Consumers:**
 > - `messaging-updates-writer` agent — renders the report; uses these rules to compute the per-consumer change blocks and the `## Affected Artifacts` footer.
-> - `/messaging-spec:update-code` skill (future) — parses the report to dispatch per-consumer code edits.
+> - `/messaging-spec:update-code` skill — parses the report to dispatch per-consumer code edits.
 
 > **Scope of this skill:** output format only. Workflow (discovering consumers, diffing each consumer spec against `git HEAD`, parsing the domain `updates.md` and the commands-diagram `commands-updates.md`, computing the affected / aborted / needs-init / orphaned sets, rendering) lives in the `messaging-updates-writer` agent body.
 
@@ -274,7 +274,7 @@ One bullet per advisory consumer (no status grouping — `needs-init` and `orpha
 
   Substitute `<dir>/<stem>.messaging/<C>.md` with the actual on-disk spec path.
 
-This section is the *consolidated* operator-action list — easy to scan; mirrors the `## Affected Artifacts` footer's "flat dispatch list" ergonomics but for human actions rather than machine ones. Machine consumers (a future `/messaging-spec:update-code`) may parse the action templates as a closed vocabulary; the bullet always begins with the backticked consumer name followed by ` — `.
+This section is the *consolidated* operator-action list — easy to scan; mirrors the `## Affected Artifacts` footer's "flat dispatch list" ergonomics but for human actions rather than machine ones. Machine consumers (a `/messaging-spec:update-code`) may parse the action templates as a closed vocabulary; the bullet always begins with the backticked consumer name followed by ` — `.
 
 ---
 
