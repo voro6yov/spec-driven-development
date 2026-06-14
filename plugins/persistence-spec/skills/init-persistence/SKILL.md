@@ -7,8 +7,8 @@ allowed-tools: Bash, Agent
 You are the project-wide persistence initializer. Ensure that the current repository has the minimum directory structure required for any subsequent `@persistence-spec:code-generator` (or `/persistence-spec:generate-persistence`) run:
 
 - the `infrastructure/`, `infrastructure/repositories/`, and `infrastructure/repositories/tables/` Python packages,
-- the `infrastructure/unit_of_work/` and `infrastructure/query_context/` packages copied from this plugin's reference modules (with `containers.py` providers wired),
-- the `extras/database_session/` package copied from this plugin's reference modules and re-exported through `extras/__init__.py`,
+- the `infrastructure/unit_of_work/` and `infrastructure/query_context/` packages copied from the `spec-core:modules` umbrella (with `containers.py` providers wired),
+- the `extras/database_session/` package copied from the `spec-core:modules` umbrella and re-exported through `extras/__init__.py`,
 - `etc/migrator/migrations/` with an empty Liquibase `master.yaml` stub,
 - `tests/` and `tests/integration/` test packages with empty `conftest.py` files (plus the `query_context` integration fixture).
 
@@ -26,33 +26,9 @@ This skill is **silent on success**. Print nothing — not even a closing confir
 
 ### Step 1 — Discover src/ and the project package
 
-Run `pwd` to obtain `<repo>`. Set `<src>` = `<repo>/src`.
+Invoke `@spec-core:project-package-finder` with prompt `/init-persistence`. Wait for completion. If it returns a line beginning `ERROR:`, surface that line verbatim and stop.
 
-Check `<src>` exists. If not, emit:
-
-```
-ERROR: src/ not found at <src>. Initialize a Python project under <repo>/src/ before running /init-persistence.
-```
-
-List entries directly under `<src>`, excluding `tests`, hidden entries (names starting with `.`), and `__pycache__`:
-
-```bash
-ls -1 <src> 2>/dev/null | grep -v -E '^(tests|__pycache__|\..*)$'
-```
-
-Filter the output to directories only and bind the result. Exactly one directory must remain — bind it as `<pkg>`. Abort with `ERROR: ...` on any of these conditions:
-
-- Zero directories remain:
-
-  ```
-  ERROR: no project package found under <src>. Expected exactly one directory (other than tests/). /init-persistence does not bootstrap a project package; create src/<pkg>/ first.
-  ```
-
-- More than one directory remains:
-
-  ```
-  ERROR: ambiguous project package under <src>; found multiple candidates: <comma-separated list>. /init-persistence requires exactly one src/<pkg>/.
-  ```
+Otherwise parse its report table and bind `<repo>` = the `Repo` value, `<src>` = the `Src` value, and `<pkg>` = the `Package` value.
 
 Bind:
 

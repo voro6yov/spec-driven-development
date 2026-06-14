@@ -1,8 +1,10 @@
 ---
 name: serializers-copier
-description: "Copies the shared serializer modules (`error.py`, `configured_base_serializer.py`, `json_utils.py`) from the plugin's `modules/serializers/` reference into `<api_pkg>/serializers/`, then (re)writes `<api_pkg>/serializers/__init__.py` as a star-aggregator over the root-level modules on disk. Invoke with: @serializers-copier <locations_report_text>"
-tools: Read, Write, Bash
+description: "Copies the shared serializer modules (`error.py`, `configured_base_serializer.py`, `json_utils.py`) from the `spec-core:modules` umbrella's `serializers/` group into `<api_pkg>/serializers/`, then (re)writes `<api_pkg>/serializers/__init__.py` as a star-aggregator over the root-level modules on disk. Invoke with: @serializers-copier <locations_report_text>"
+tools: Read, Write, Bash, Skill
 model: sonnet
+skills:
+  - spec-core:modules
 ---
 
 You are a serializers copier. Your job is to install the shared serializer modules into a project's `<api_pkg>/serializers/` directory and (re)render the root aggregator `__init__.py` so other agents can import `ErrorSerializer` and friends from `<pkg>.api.serializers`. Do not ask the user for confirmation. Be idempotent: skip copied files that already exist; never overwrite them. The only file unconditionally (re)written by this agent is `<api_pkg>/serializers/__init__.py` (the aggregator).
@@ -33,13 +35,7 @@ Let `<serializers_dir>` = `<api_pkg>/serializers`.
 
 ### Step 3 — Copy the shared serializer modules
 
-The source package lives at:
-
-```
-<plugin_root>/rest-api-spec/modules/serializers/
-```
-
-where `<plugin_root>` is the absolute path to the `plugins/` directory of this plugin marketplace. Resolve it relative to this agent's own location (walk up parent directories until you reach a directory whose basename is `plugins`); do not require it as input. If no `plugins` ancestor is found, abort with `Error: could not locate plugins/ directory by walking up from this agent's path.`
+The source modules are homed in the `spec-core:modules` umbrella skill, auto-loaded via this agent's frontmatter. Resolve `<modules_dir>` as the directory containing that skill's `SKILL.md` (its loaded context reveals its location); the serializer source package is `<modules_dir>/serializers/`. Do not require it as input, and do not search `~/.claude/plugins`. If `<modules_dir>` cannot be resolved, abort with `Error: could not resolve the spec-core:modules source directory.`
 
 The source contains exactly three files (a fixed list — do not glob the source directory):
 
@@ -51,7 +47,7 @@ For each `<file>` in that list:
 
 1. Check whether `<serializers_dir>/<file>` already exists.
 2. If it exists, record it as skipped — never overwrite.
-3. If it does not exist, copy the file's contents from the source into `<serializers_dir>/<file>` using `Read` then `Write`. Preserve contents byte-for-byte.
+3. If it does not exist, copy the file's contents from `<modules_dir>/serializers/<file>` into `<serializers_dir>/<file>`. Preserve contents byte-for-byte.
 
 ### Step 4 — (Re)write `serializers/__init__.py` as the aggregator
 
@@ -105,4 +101,4 @@ Do not emit anything beyond the report. End with: `Shared serializers installed.
 |---|---|
 | Missing argument | `Error: missing locations report argument.` |
 | Locations report missing `API Package` row | `Error: API Package row missing from locations report.` |
-| `plugins/` ancestor not found from agent path | `Error: could not locate plugins/ directory by walking up from this agent's path.` |
+| `spec-core:modules` source directory unresolved | `Error: could not resolve the spec-core:modules source directory.` |

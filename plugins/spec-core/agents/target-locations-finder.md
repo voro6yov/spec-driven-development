@@ -22,6 +22,8 @@ The prompt is `<layer> [<domain_diagram>]`. Split it on whitespace:
 
 ### Step 1 — Resolve repo path and project package name (all layers)
 
+This is the same repo/package resolution that `@spec-core:project-package-finder` performs and reports — the canonical home of that logic. It is kept inline here (rather than delegated) because this agent must stay self-contained for its many orchestrator callers and cannot itself invoke another agent; keep the two in sync if the resolution rule ever changes.
+
 Run `pwd` to obtain `<repo_path>`.
 
 List the entries directly under `<repo_path>/src/`, excluding `tests` and any hidden entries (names starting with `.`) and `__pycache__`. Exactly one directory must remain — that is `<pkg>`.

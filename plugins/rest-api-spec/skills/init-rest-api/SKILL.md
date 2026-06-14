@@ -7,7 +7,7 @@ allowed-tools: Bash, Write, Agent
 You are the project-wide REST API initializer. Ensure that the current repository has the minimum directory structure and module set required for any subsequent `@rest-api-spec:code-generator` (or `/rest-api-spec:generate-rest-api`) run:
 
 - the `api/` Python package (with a minimal `__init__.py` that satisfies the `from .X import *` + `__all__ = X.__all__ + ...` aggregation convention required by `@auth-integrator`),
-- the shared serializer modules under `api/serializers/` (`error.py`, `configured_base_serializer.py`, `json_utils.py`) and their star-aggregator `serializers/__init__.py`, copied from this plugin's reference modules,
+- the shared serializer modules under `api/serializers/` (`error.py`, `configured_base_serializer.py`, `json_utils.py`) and their star-aggregator `serializers/__init__.py`, copied from the `spec-core:modules` umbrella,
 - `api/error_handlers.py` rendered from the domain exceptions defined under `<pkg>/domain/shared/exceptions.py`, with `register_error_handler(fastapi_app)` wired into `create_fastapi`,
 - the `application/auth/` subpackage (`AuthCommands` + `UserData`), `api/auth.py` rendered from the auth-middleware skill template with `PUBLIC_ENDPOINTS` / `INTERNAL_ENDPOINTS_PREFIX` derived from `<pkg>/constants.py`, the `Singleton(AuthCommands)` provider in `containers.py`, and `register_auth(fastapi_app)` wired into `create_fastapi`,
 - the standard API client + authentication fixtures (`app`, `client`, `containers`, `token_payload`, `request_headers`) added to `src/tests/conftest.py`.
@@ -26,33 +26,9 @@ This skill is **silent on success**. Print nothing — not even a closing confir
 
 ### Step 1 — Discover src/ and the project package
 
-Run `pwd` to obtain `<repo>`. Set `<src>` = `<repo>/src`.
+Invoke `@spec-core:project-package-finder` with prompt `/rest-api-spec:init-rest-api`. Wait for completion. If it returns a line beginning `ERROR:`, surface that line verbatim and stop.
 
-Check `<src>` exists. If not, emit:
-
-```
-ERROR: src/ not found at <src>. Initialize a Python project under <repo>/src/ before running /rest-api-spec:init-rest-api.
-```
-
-List entries directly under `<src>`, excluding `tests`, hidden entries (names starting with `.`), and `__pycache__`:
-
-```bash
-ls -1 <src> 2>/dev/null | grep -v -E '^(tests|__pycache__|\..*)$'
-```
-
-Filter the output to directories only and bind the result. Exactly one directory must remain — bind it as `<pkg>`. Abort with `ERROR: ...` on any of these conditions:
-
-- Zero directories remain:
-
-  ```
-  ERROR: no project package found under <src>. Expected exactly one directory (other than tests/). /rest-api-spec:init-rest-api does not bootstrap a project package; create src/<pkg>/ first.
-  ```
-
-- More than one directory remains:
-
-  ```
-  ERROR: ambiguous project package under <src>; found multiple candidates: <comma-separated list>. /rest-api-spec:init-rest-api requires exactly one src/<pkg>/.
-  ```
+Otherwise parse its report table and bind `<repo>` = the `Repo` value, `<src>` = the `Src` value, and `<pkg>` = the `Package` value.
 
 Bind:
 
@@ -149,7 +125,7 @@ Do **not** create `<api_init_file>` here — its content (a minimal aggregator t
 
 Invoke `rest-api-spec:serializers-copier` with prompt `<locations_report>`. Wait for completion.
 
-This copies `error.py`, `configured_base_serializer.py`, and `json_utils.py` from the plugin's `modules/serializers/` reference into `<serializers_dir>/`, then (re)writes `<serializers_dir>/__init__.py` as a star-aggregator over the root-level modules on disk. After this step `ErrorSerializer` is importable from `<pkg>.api.serializers`, which is a prerequisite for both `@error-handlers-integrator` (Step 10) and `@auth-integrator` (Step 11).
+This copies `error.py`, `configured_base_serializer.py`, and `json_utils.py` from the `spec-core:modules` umbrella's `serializers/` group into `<serializers_dir>/`, then (re)writes `<serializers_dir>/__init__.py` as a star-aggregator over the root-level modules on disk. After this step `ErrorSerializer` is importable from `<pkg>.api.serializers`, which is a prerequisite for both `@error-handlers-integrator` (Step 10) and `@auth-integrator` (Step 11).
 
 If the agent reports any error, surface it as a single `ERROR: ...` line and stop.
 

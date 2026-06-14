@@ -27,33 +27,9 @@ This skill is **silent on success**. Print nothing — not even a closing confir
 
 ### Step 1 — Discover src/ and the project package
 
-Run `pwd` to obtain `<repo>`. Set `<src>` = `<repo>/src`.
+Invoke `@spec-core:project-package-finder` with prompt `/application-spec:init-application`. Wait for completion. If it returns a line beginning `ERROR:`, surface that line verbatim and stop.
 
-Check `<src>` exists. If not, emit:
-
-```
-ERROR: src/ not found at <src>. Initialize a Python project under <repo>/src/ before running /application-spec:init-application.
-```
-
-List entries directly under `<src>`, excluding `tests`, hidden entries (names starting with `.`), and `__pycache__`:
-
-```bash
-ls -1 <src> 2>/dev/null | grep -v -E '^(tests|__pycache__|\..*)$'
-```
-
-Filter the output to directories only and bind the result. Exactly one directory must remain — bind it as `<pkg>`. Abort with `ERROR: ...` on any of these conditions:
-
-- Zero directories remain:
-
-  ```
-  ERROR: no project package found under <src>. Expected exactly one directory (other than tests/). /application-spec:init-application does not bootstrap a project package; create src/<pkg>/ first.
-  ```
-
-- More than one directory remains:
-
-  ```
-  ERROR: ambiguous project package under <src>; found multiple candidates: <comma-separated list>. /application-spec:init-application requires exactly one src/<pkg>/.
-  ```
+Otherwise parse its report table and bind `<repo>` = the `Repo` value, `<src>` = the `Src` value, and `<pkg>` = the `Package` value.
 
 Bind:
 

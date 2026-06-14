@@ -1,7 +1,7 @@
 ---
 name: init-domain
 description: Initializes the project-wide domain scaffolding (project package discovery, src/<pkg>/domain/ with shared/, src/tests/ with conftest and unit/). Aggregate-agnostic — run once per project before any @domain-spec:code-generator invocation. Invoke with: /init-domain
-allowed-tools: Bash, Agent
+allowed-tools: Bash, Agent, Skill
 ---
 
 You are the project-wide domain initializer. Ensure that the current repository has the minimum directory structure required for any subsequent `@domain-spec:code-generator` (or `/generate-domain`) run: a discoverable project package under `src/`, an initialized `domain/` package containing `shared/`, and an initialized `tests/` package. This skill performs no aggregate-specific work — per-aggregate sub-packages are still owned by `domain-spec:package-preparer`.
@@ -18,33 +18,9 @@ This skill is **silent on success**. Print nothing — not even a closing confir
 
 ### Step 1 — Discover src/ and the project package
 
-Run `pwd` to obtain `<repo>`. Set `<src>` = `<repo>/src`.
+Invoke `@spec-core:project-package-finder` with prompt `/init-domain`. Wait for completion. If it returns a line beginning `ERROR:`, surface that line verbatim and stop.
 
-Check `<src>` exists. If not, emit:
-
-```
-ERROR: src/ not found at <src>. Initialize a Python project under <repo>/src/ before running /init-domain.
-```
-
-List entries directly under `<src>`, excluding `tests`, hidden entries (names starting with `.`), and `__pycache__`:
-
-```bash
-ls -1 <src> 2>/dev/null | grep -v -E '^(tests|__pycache__|\..*)$'
-```
-
-Filter the output to directories only and bind the result. Exactly one directory must remain — bind it as `<pkg>`. Abort with `ERROR: ...` on any of these conditions:
-
-- Zero directories remain:
-
-  ```
-  ERROR: no project package found under <src>. Expected exactly one directory (other than tests/). /init-domain does not bootstrap a project package; create src/<pkg>/ first.
-  ```
-
-- More than one directory remains:
-
-  ```
-  ERROR: ambiguous project package under <src>; found multiple candidates: <comma-separated list>. /init-domain requires exactly one src/<pkg>/.
-  ```
+Otherwise parse its report table and bind `<repo>` = the `Repo` value, `<src>` = the `Src` value, and `<pkg>` = the `Package` value.
 
 Bind:
 
@@ -53,7 +29,7 @@ Bind:
 
 ### Step 2 — Bootstrap the domain package
 
-Ensure the domain package directory exists with an `__init__.py` and contains the canonical `shared` sub-package copied from this plugin's reference modules. This step never creates per-aggregate sub-packages — that responsibility belongs to `domain-spec:package-preparer`.
+Ensure the domain package directory exists with an `__init__.py` and contains the canonical `shared` sub-package copied from the `spec-core:modules` umbrella. This step never creates per-aggregate sub-packages — that responsibility belongs to `domain-spec:package-preparer`.
 
 `<domain_dir>` is always bound from Step 1 (it is `<src>/<pkg>/domain`), so it is absolute and its parent (`<src>/<pkg>`) is the discovered project package. No re-derivation is needed.
 
@@ -76,22 +52,18 @@ touch <domain_dir>/__init__.py
 [ -d "<domain_dir>/shared" ]
 ```
 
-If it already exists, this step is done. Otherwise, locate this plugin's `shared` source directory:
+If it already exists, this step is done. Otherwise, locate the canonical `shared` source: it is the `shared` group of the `spec-core:modules` umbrella skill. Invoke that skill (via the `Skill` tool) and resolve `<modules_dir>` as the directory containing its `SKILL.md` (its loaded context reveals its location). The source directory is `<modules_dir>/shared`. Do not search `~/.claude/plugins`.
+
+If `<modules_dir>` cannot be resolved, emit:
+
+```
+ERROR: could not resolve the spec-core:modules source directory.
+```
+
+Otherwise copy the source tree into the domain directory (this also installs the nested `guards/` sub-package):
 
 ```bash
-find "$HOME/.claude/plugins" -type d -name "shared" -path "*/domain-spec/modules/shared" | head -1
-```
-
-If nothing is found, emit:
-
-```
-ERROR: domain-spec plugin shared module not found under ~/.claude/plugins.
-```
-
-Otherwise use the returned path as `<shared_source_dir>` and copy it into the domain directory:
-
-```bash
-cp -r <shared_source_dir> <domain_dir>/shared
+cp -r <modules_dir>/shared <domain_dir>/shared
 ```
 
 If any command in this step fails, surface it as a single `ERROR: ...` line and stop.

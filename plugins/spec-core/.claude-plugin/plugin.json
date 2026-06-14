@@ -1,7 +1,7 @@
 {
   "name": "spec-core",
-  "description": "Shared base conventions and agents for the spec-driven-development plugins (cross-plugin naming, layout, and target-location resolution)",
-  "version": "0.6.0",
+  "description": "Shared base conventions, agents, and reference modules for the spec-driven-development plugins (cross-plugin naming, layout, target-location resolution, and the copied runtime-contract modules)",
+  "version": "0.8.0",
   "author": {
     "name": "Valentin Vorobyov",
     "email": "voro6yov.valentin@gmail.com",
