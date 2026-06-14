@@ -59,7 +59,7 @@ test -d <tests_dir> && test -d <tests_dir>/integration
 ```
 
 If `<tests_dir>` is missing, abort with: `ERROR: <tests_dir> does not exist — run @test-fixtures-preparer first.`
-If `<tests_dir>/integration` is missing, abort with: `ERROR: <tests_dir>/integration does not exist — run @integration-test-package-preparer first.`
+If `<tests_dir>/integration` is missing, abort with: `ERROR: <tests_dir>/integration does not exist — run /persistence-spec:init-persistence first.`
 
 ### Step 2 — Resolve the rest-api spec
 
@@ -1042,7 +1042,7 @@ What the agent did:
 |---|---|
 | Locations report missing required row | `ERROR: locations report missing API Package, Containers, or Tests row.` |
 | `<tests_dir>` not on disk | `ERROR: <tests_dir> does not exist — run @test-fixtures-preparer first.` |
-| `<tests_dir>/integration` not on disk | `ERROR: <tests_dir>/integration does not exist — run @integration-test-package-preparer first.` |
+| `<tests_dir>/integration` not on disk | `ERROR: <tests_dir>/integration does not exist — run /persistence-spec:init-persistence first.` |
 | Rest-api spec not found | `ERROR: rest-api spec not found at <rest_api_spec_file> — run @rest-api-spec:specs-generator first.` |
 | Table 1 incomplete | `ERROR: Table 1 missing one of Resource name / Plural / Router prefix / Surfaces in <rest_api_spec_file>.` |
 | Aggregate root not uniquely resolvable | `ERROR: cannot uniquely identify <<Aggregate Root>> in <domain_diagram> (matches: <count>).` |

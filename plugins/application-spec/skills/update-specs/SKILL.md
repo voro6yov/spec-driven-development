@@ -39,9 +39,9 @@ Per `spec-core:naming-conventions`, given `<domain_diagram>` at `<dir>/<stem>.md
 | `<plugin_dir>/commands-updates.md` | input — commands-diagram delta report | produced by `commands-updates-detector` at Step 0 |
 | `<plugin_dir>/queries-updates.md` | input — queries-diagram delta report | produced by `queries-updates-detector` at Step 0 |
 | `<plugin_dir>/ops-updates.md` | input+output — ops-diagram delta report (one aggregate-wide file) | produced by `ops-updates-detector` at Step 0h |
-| `<plugin_dir>/commands.specs.md` | spec being updated (must already exist) | `commands-deps-writer` + `commands-methods-writer` (per-side fragments) → `application-exceptions-specifier` → `specs-merger commands` (when commands dirty) |
-| `<plugin_dir>/queries.specs.md` | spec being updated (must already exist) | `queries-deps-writer` + `queries-methods-writer` (per-side fragments) → `application-exceptions-specifier` → `specs-merger queries` (when queries dirty) |
-| `<plugin_dir>/ops.<op-name>.specs.md` | spec being updated, one per dirty ops service | `ops-deps-writer` + `ops-methods-writer` (per-service fragments) → `application-exceptions-specifier` → `specs-merger ops <op-name>` (when that ops service is dirty); deleted when its diagram was removed |
+| `<plugin_dir>/commands.specs.md` | spec being updated (must already exist) | `deps-writer commands` + `commands-methods-writer` (per-side fragments) → `application-exceptions-specifier` → `specs-merger commands` (when commands dirty) |
+| `<plugin_dir>/queries.specs.md` | spec being updated (must already exist) | `deps-writer queries` + `queries-methods-writer` (per-side fragments) → `application-exceptions-specifier` → `specs-merger queries` (when queries dirty) |
+| `<plugin_dir>/ops.<op-name>.specs.md` | spec being updated, one per dirty ops service | `deps-writer ops <op-name>` + `ops-methods-writer` (per-service fragments) → `application-exceptions-specifier` → `specs-merger ops <op-name>` (when that ops service is dirty); deleted when its diagram was removed |
 | `<plugin_dir>/services.md` | spec being updated (must already exist) | `services-finder` (always — Step 6) |
 | `<plugin_dir>/updates.md` | output — application delta report (commands/queries axis) | `application-updates-writer` |
 
@@ -276,17 +276,17 @@ For each dirty side, fan out the writer agents in parallel. **Emit all selected 
 
 If `commands_dirty`:
 
-- `application-spec:commands-deps-writer` with prompt `$ARGUMENTS[0]`.
+- `application-spec:deps-writer` with prompt `$ARGUMENTS[0] commands`.
 - `application-spec:commands-methods-writer` with prompt `$ARGUMENTS[0]`.
 
 If `queries_dirty`:
 
-- `application-spec:queries-deps-writer` with prompt `$ARGUMENTS[0]`.
+- `application-spec:deps-writer` with prompt `$ARGUMENTS[0] queries`.
 - `application-spec:queries-methods-writer` with prompt `$ARGUMENTS[0]`.
 
 For **each** `<op-name>` in `dirty_ops` (one writer pair per dirty ops service — same fan-out the ops half of `@application-spec:specs-generator` uses):
 
-- `application-spec:ops-deps-writer` with prompt `$ARGUMENTS[0] <op-name>`.
+- `application-spec:deps-writer` with prompt `$ARGUMENTS[0] ops <op-name>`.
 - `application-spec:ops-methods-writer` with prompt `$ARGUMENTS[0] <op-name>`.
 
 Fan out **all** selected writers — the commands pair, the queries pair, and the 2×N ops writers — together in a single message (the same parallel pattern `@application-spec:specs-generator` uses today). Wait for every selected writer to complete before proceeding.
@@ -310,7 +310,7 @@ The methods writers may abort with a one-sentence error rather than producing a 
 
 - `commands-methods-writer` aborts when an aggregate-root method that a command method resolves to has been renamed/removed (Step 5c match fails), when the chosen load-step finder has no remaining subset (Step 5d), or when a domain `<<Service>>` referenced by the commands diagram is missing/stereotype-changed (Step 4).
 - `queries-methods-writer` aborts when a `Query<AggregateRoot>Repository` finder a query method needs has been renamed/removed (Step 5e same-name match fails), or when an external-interface operation a hint references no longer resolves (Step 5a).
-- `ops-deps-writer` / `ops-methods-writer` abort with their own one-sentence error when the named `<op-name>`'s ops diagram is malformed (missing/duplicate brace-body anchor, an unresolvable collaborator/`<<Service>>` reference, or a method-flow that cannot be parsed). The orchestrator surfaces that error verbatim — the operator reconciles the indicated `<stem>.ops.<op-name>.md` and re-runs.
+- `deps-writer ops <op-name>` / `ops-methods-writer` abort with their own one-sentence error when the named `<op-name>`'s ops diagram is malformed (missing/duplicate brace-body anchor, an unresolvable collaborator/`<<Service>>` reference, or a method-flow that cannot be parsed). The orchestrator surfaces that error verbatim — the operator reconciles the indicated `<stem>.ops.<op-name>.md` and re-runs.
 
 If any writer reports a failure, abort the workflow and emit a single `ERROR:` line repeating its message verbatim. Do not run downstream agents — the spec is left partially regenerated and re-running `/application-spec:update-specs` after the operator reconciles the indicated application-service diagram (or ops diagram) idempotently completes the update. The other writers (if launched in parallel) may have completed; their fragments are left on disk to be re-consumed (or replaced) on a subsequent successful run.
 
@@ -396,7 +396,7 @@ Do not emit additional commentary — each invoked agent already printed its own
 - **Cross-layer propagation** is owned by `/spec-core:update-specs`, not this skill. When this skill hard-fails, that orchestrator still runs the rest-api/messaging wave (their detector flag is decided by disk state — see `/spec-core:update-specs`), and those leaves handle a missing/partial detector report themselves. Re-run `/application-spec:update-specs` (or `/spec-core:update-specs`) after reconciling the trigger.
 - **Re-running `/application-spec:update-specs` after fixing the trigger is the supported recovery path** — every step is idempotent on stable inputs:
   - **Step 0 detectors** (0g commands/queries + 0h ops) regenerate their reports wholesale on every call (the ops detector fast-paths on its digest sentinel when no ops diagram changed; output otherwise stable modulo LLM nondeterminism in prose-summary blocks).
-  - **Step 3** writers regenerate their fragments wholesale from current diagrams on every call — the commands/queries pair plus one `ops-deps-writer`/`ops-methods-writer` pair per dirty ops service, and a Bash deletion of each removed ops service's spec siblings (output stable modulo LLM nondeterminism).
+  - **Step 3** writers regenerate their fragments wholesale from current diagrams on every call — the commands/queries pair plus one `deps-writer ops <op-name>`/`ops-methods-writer` pair per dirty ops service, and a Bash deletion of each removed ops service's spec siblings (output stable modulo LLM nondeterminism).
   - **Step 4** (`application-exceptions-specifier`) is deterministic from method flows + raising-method identity params; idempotent on stable input.
   - **Step 5** (`specs-merger`) is mechanical — concatenates fragments in a fixed order, deletes consumed fragments. Re-running on identical fragments yields identical output.
   - **Step 6** (`services-finder`) regenerates `services.md` from current inputs; byte-stable on stable inputs modulo LLM prose drift.

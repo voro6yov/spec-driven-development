@@ -153,7 +153,7 @@ import pytest
 
 If it already exists, do not modify it — its content is owned downstream and per-aggregate agents only append (never replace) imports and fixtures.
 
-Note: the `tests/__init__.py` created above is intentionally zero-byte. The persistence-spec pipeline's `@integration-test-package-preparer` (run by `/persistence-spec:init-persistence`) creates `<tests_dir>/integration/__init__.py` and `<tests_dir>/integration/conftest.py` separately; this skill does not touch the integration subpackage.
+Note: the `tests/__init__.py` created above is intentionally zero-byte. `/persistence-spec:init-persistence` creates `<tests_dir>/integration/__init__.py` and `<tests_dir>/integration/conftest.py` separately; this skill does not touch the integration subpackage.
 
 ### Step 8 — Report
 

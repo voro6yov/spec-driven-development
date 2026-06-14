@@ -108,7 +108,7 @@ Bind `<publishers>` to the ordered list of `(attr, ClassName)`. Bind two boolean
 
 #### 3e. Implicit Unit of Work
 
-The Unit of Work dependency is present **iff at least one method is mutating** (see Step 8). When present it is **always** typed `AbstractUnitOfWork`, with the constructor param literally named `unit_of_work`. There is no spec section for it; its type and attr are fixed by convention (matched by `@unit-of-work-scaffolder` from `persistence-spec`). Defer the mutating-method scan to Step 8, then bind `<uses_uow>` = `True` iff any method is mutating; only when `<uses_uow>` is `True` does `unit_of_work` enter `<ctor_params>` and is the `AbstractUnitOfWork` import resolved (Step 4a).
+The Unit of Work dependency is present **iff at least one method is mutating** (see Step 8). When present it is **always** typed `AbstractUnitOfWork`, with the constructor param literally named `unit_of_work`. There is no spec section for it; its type and attr are fixed by convention (matched by `@context-package-scaffolder` (unit_of_work) from `persistence-spec`). Defer the mutating-method scan to Step 8, then bind `<uses_uow>` = `True` iff any method is mutating; only when `<uses_uow>` is `True` does `unit_of_work` enter `<ctor_params>` and is the `AbstractUnitOfWork` import resolved (Step 4a).
 
 #### 3f. Assemble `<ctor_params>`
 

@@ -87,7 +87,7 @@ Each bullet: `- <attr>: <IInterfaceClass>`. Strip backticks. Skip rows whose bod
 
 #### 3c. Implicit Query Context
 
-The Query Context dependency is **always** present and **always** typed `AbstractQueryContext`, with the constructor param literally named `query_context`. There is no spec section for it; its type and attr are fixed by convention (matched by `@query-context-scaffolder` from `persistence-spec`).
+The Query Context dependency is **always** present and **always** typed `AbstractQueryContext`, with the constructor param literally named `query_context`. There is no spec section for it; its type and attr are fixed by convention (matched by `@context-package-scaffolder` (query_context) from `persistence-spec`).
 
 #### 3d. Implicit Settings
 

@@ -33,21 +33,21 @@ Every spec artifact lives inside `<plugin_dir>`:
 
 | File | Written by | Content |
 |---|---|---|
-| `<plugin_dir>/commands.deps.md` | `commands-deps-writer` | Commands service Dependencies fragment (consumed by merger) |
+| `<plugin_dir>/commands.deps.md` | `deps-writer commands` | Commands service Dependencies fragment (consumed by merger) |
 | `<plugin_dir>/commands.methods.md` | `commands-methods-writer` | Commands service Method Specifications fragment (consumed by merger) |
 | `<plugin_dir>/commands.exceptions.md` | `commands-methods-writer` (stub) → `application-exceptions-specifier` (enriched) | Application exceptions raised by commands methods (consumed by merger) |
 | `<plugin_dir>/commands.specs.md` | `specs-merger` | Final commands spec (deps + methods + exceptions merged) |
-| `<plugin_dir>/queries.deps.md` | `queries-deps-writer` | Queries service Dependencies fragment (consumed by merger) |
+| `<plugin_dir>/queries.deps.md` | `deps-writer queries` | Queries service Dependencies fragment (consumed by merger) |
 | `<plugin_dir>/queries.methods.md` | `queries-methods-writer` | Queries service Method Specifications fragment (consumed by merger) |
 | `<plugin_dir>/queries.exceptions.md` | `queries-methods-writer` (stub) → `application-exceptions-specifier` (enriched) | Application exceptions raised by queries methods (consumed by merger) |
 | `<plugin_dir>/queries.specs.md` | `specs-merger` | Final queries spec (deps + methods + exceptions merged) |
-| `<plugin_dir>/ops.<op-name>.deps.md` | `ops-deps-writer` | Ops service Dependencies fragment (consumed by merger) — one per `<op-name>` |
+| `<plugin_dir>/ops.<op-name>.deps.md` | `deps-writer ops <op-name>` | Ops service Dependencies fragment (consumed by merger) — one per `<op-name>` |
 | `<plugin_dir>/ops.<op-name>.methods.md` | `ops-methods-writer` | Ops service Method Specifications fragment (consumed by merger) — one per `<op-name>` |
 | `<plugin_dir>/ops.<op-name>.exceptions.md` | `ops-methods-writer` (stub) → `application-exceptions-specifier` (enriched) | Application exceptions raised by this ops service's methods (consumed by merger) — one per `<op-name>` |
 | `<plugin_dir>/ops.<op-name>.specs.md` | `specs-merger` | Final ops spec (deps + methods + exceptions merged), top heading `# <X>` — one per `<op-name>` |
 | `<plugin_dir>/services.md` | `services-finder` | Reconciled list of services the application layer must implement |
 
-Every writer agent (the four fixed ones plus each `ops-deps-writer` / `ops-methods-writer` pair) `mkdir -p`s the per-plugin folder on first use, so no separate scaffolder step is required. The merger deletes the three fragment files (`.deps.md`, `.methods.md`, `.exceptions.md`) on each side after writing the consolidated `<side>.specs.md` — for the ops track the side is keyed by `<op-name>`, so each merger run cleans up only its own `ops.<op-name>.*` fragments. This orchestrator does not modify any diagram file and does not update any Artifacts index — agents own their own outputs.
+Every writer agent (the four fixed ones plus each `deps-writer ops <op-name>` / `ops-methods-writer` pair) `mkdir -p`s the per-plugin folder on first use, so no separate scaffolder step is required. The merger deletes the three fragment files (`.deps.md`, `.methods.md`, `.exceptions.md`) on each side after writing the consolidated `<side>.specs.md` — for the ops track the side is keyed by `<op-name>`, so each merger run cleans up only its own `ops.<op-name>.*` fragments. This orchestrator does not modify any diagram file and does not update any Artifacts index — agents own their own outputs.
 
 ## Workflow
 
@@ -57,11 +57,11 @@ First, glob `<dir>/<stem>.ops.*.md` to enumerate the aggregate's ops services. F
 
 Then emit **all** `Agent` calls in a single message — the four fixed writers plus 2×N ops writers (so the fan-out grows by 2×N). Pass only `<domain_diagram>` (the domain diagram) to the four fixed writers and `<domain_diagram> <op-name>` to each ops writer — the agents derive their own sibling diagrams via `spec-core:naming-conventions`:
 
-- Spawn `application-spec:commands-deps-writer` (via the `Agent` tool) with prompt `<domain_diagram>`.
+- Spawn `application-spec:deps-writer` (via the `Agent` tool) with prompt `<domain_diagram> commands`.
 - Spawn `application-spec:commands-methods-writer` (via the `Agent` tool) with prompt `<domain_diagram>`.
-- Spawn `application-spec:queries-deps-writer` (via the `Agent` tool) with prompt `<domain_diagram>`.
+- Spawn `application-spec:deps-writer` (via the `Agent` tool) with prompt `<domain_diagram> queries`.
 - Spawn `application-spec:queries-methods-writer` (via the `Agent` tool) with prompt `<domain_diagram>`.
-- For each `<op-name>`: spawn `application-spec:ops-deps-writer` (via the `Agent` tool) with prompt `<domain_diagram> <op-name>`.
+- For each `<op-name>`: spawn `application-spec:deps-writer` (via the `Agent` tool) with prompt `<domain_diagram> ops <op-name>`.
 - For each `<op-name>`: spawn `application-spec:ops-methods-writer` (via the `Agent` tool) with prompt `<domain_diagram> <op-name>`.
 
 When N is zero, this is exactly the four fixed writers — identical to the pre-ops behavior. Do not pre-validate input files — each agent aborts with its own one-sentence error if its inputs are malformed or missing.

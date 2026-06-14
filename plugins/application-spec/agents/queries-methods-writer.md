@@ -69,7 +69,7 @@ If the queries class block declares no public methods, abort with a one-sentence
 
 ### Step 3 — Classify the application service's collaborators (from queries diagram)
 
-For each link whose **source** (after normalisation) is the `<AggregateRoot>Queries` node and whose label is exactly `uses`, classify by syntax — same rules as `queries-deps-writer`:
+For each link whose **source** (after normalisation) is the `<AggregateRoot>Queries` node and whose label is exactly `uses`, classify by syntax — same rules as `deps-writer` (queries surface):
 
 | Mermaid link syntax | Category |
 | --- | --- |

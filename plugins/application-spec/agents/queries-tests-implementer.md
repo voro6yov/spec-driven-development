@@ -43,7 +43,7 @@ The directory is created if missing, with an empty `__init__.py`. The file lives
 ```
 
 - If `<tests_dir>/conftest.py` is missing, output `ERROR: <tests_dir>/conftest.py not found. Run @queries-implementer first.` and stop.
-- If `<tests_dir>/integration/conftest.py` is missing, output `ERROR: <tests_dir>/integration/conftest.py not found. Run @integration-test-package-preparer first.` and stop.
+- If `<tests_dir>/integration/conftest.py` is missing, output `ERROR: <tests_dir>/integration/conftest.py not found. Run /persistence-spec:init-persistence first.` and stop.
 
 The fixture-presence checks (`<aggregate>_queries`, `<aggregate>_1`, `add_<plural>`) happen in Step 8 once `<aggregate>` and `<plural>` are resolved.
 
@@ -488,7 +488,7 @@ These warnings are non-fatal — the agent still writes the file.
 | Condition | Message |
 |---|---|
 | `<tests_dir>/conftest.py` missing | `ERROR: <tests_dir>/conftest.py not found. Run @queries-implementer first.` |
-| `<tests_dir>/integration/conftest.py` missing | `ERROR: <tests_dir>/integration/conftest.py not found. Run @integration-test-package-preparer first.` |
+| `<tests_dir>/integration/conftest.py` missing | `ERROR: <tests_dir>/integration/conftest.py not found. Run /persistence-spec:init-persistence first.` |
 | Spec heading malformed | `ERROR: queries spec heading malformed.` |
 | Primary repository row missing | `ERROR: queries spec missing primary repository Query<Aggregate>Repository.` |
 | Cannot resolve repo root | `ERROR: cannot resolve repo root from <tests_dir>; not a git repository.` |

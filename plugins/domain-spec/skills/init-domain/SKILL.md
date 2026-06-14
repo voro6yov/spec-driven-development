@@ -53,15 +53,92 @@ Bind:
 
 ### Step 2 — Bootstrap the domain package
 
-Invoke `domain-spec:domain-bootstrapper` with prompt `<domain_dir>`. Wait for completion.
+Ensure the domain package directory exists with an `__init__.py` and contains the canonical `shared` sub-package copied from this plugin's reference modules. This step never creates per-aggregate sub-packages — that responsibility belongs to `domain-spec:package-preparer`.
 
-If the agent reports any error, surface it as a single `ERROR: ...` line and stop. Do not print the agent's success confirmation lines.
+`<domain_dir>` is always bound from Step 1 (it is `<src>/<pkg>/domain`), so it is absolute and its parent (`<src>/<pkg>`) is the discovered project package. No re-derivation is needed.
+
+**2a. Ensure the domain directory exists.** Check whether `<domain_dir>` already exists:
+
+```bash
+[ -d "<domain_dir>" ]
+```
+
+If it does not exist, create it as a Python package:
+
+```bash
+mkdir -p <domain_dir>
+touch <domain_dir>/__init__.py
+```
+
+**2b. Ensure the shared package exists.** Check whether `<domain_dir>/shared` already exists:
+
+```bash
+[ -d "<domain_dir>/shared" ]
+```
+
+If it already exists, this step is done. Otherwise, locate this plugin's `shared` source directory:
+
+```bash
+find "$HOME/.claude/plugins" -type d -name "shared" -path "*/domain-spec/modules/shared" | head -1
+```
+
+If nothing is found, emit:
+
+```
+ERROR: domain-spec plugin shared module not found under ~/.claude/plugins.
+```
+
+Otherwise use the returned path as `<shared_source_dir>` and copy it into the domain directory:
+
+```bash
+cp -r <shared_source_dir> <domain_dir>/shared
+```
+
+If any command in this step fails, surface it as a single `ERROR: ...` line and stop.
 
 ### Step 3 — Prepare the tests package
 
-Invoke `domain-spec:test-package-preparer` with prompt `<tests_dir>`. Wait for completion.
+Ensure `<tests_dir>` exists as a Python package, contains a root `conftest.py`, and a `unit/` sub-package. `<tests_dir>` is always bound from Step 1 (it is `<src>/tests`), so it is absolute and its parent (`<src>`) is known to exist — no extra path-hygiene guards are needed here.
 
-If the agent reports any error, surface it as a single `ERROR: ...` line and stop. Do not print the agent's success confirmation lines.
+**3a. Ensure the tests package exists.** Check whether `<tests_dir>` already exists:
+
+```bash
+[ -d "<tests_dir>" ]
+```
+
+If it does not exist, create it as a Python package:
+
+```bash
+mkdir -p <tests_dir>
+touch <tests_dir>/__init__.py
+```
+
+**3b. Ensure `tests/conftest.py` exists.** Check whether `<tests_dir>/conftest.py` already exists:
+
+```bash
+[ -f "<tests_dir>/conftest.py" ]
+```
+
+If it does not exist, create it:
+
+```bash
+touch <tests_dir>/conftest.py
+```
+
+**3c. Ensure the `tests/unit` package exists.** Check whether `<tests_dir>/unit` already exists:
+
+```bash
+[ -d "<tests_dir>/unit" ]
+```
+
+If it does not exist, create it as a Python package:
+
+```bash
+mkdir -p <tests_dir>/unit
+touch <tests_dir>/unit/__init__.py
+```
+
+If any command in this step fails, surface it as a single `ERROR: ...` line and stop.
 
 ### Step 4 — Report
 

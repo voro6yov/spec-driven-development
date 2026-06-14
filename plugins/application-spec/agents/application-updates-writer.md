@@ -359,7 +359,7 @@ Note: the agent does **not** hard-fail when:
 
 - It does not modify `<commands_spec>`, `<queries_spec>`, `<services_report>`, `<domain_diagram>`, or any sibling artifact other than `<output_file>`.
 - It does not run `/application-spec:update-specs` — it is the closing step of that orchestrator (when one exists) and is also standalone-invocable.
-- It does not regenerate any spec section — those are owned by `commands-deps-writer`, `commands-methods-writer`, `queries-deps-writer`, `queries-methods-writer`, `application-exceptions-specifier`, `specs-merger`, and `services-finder`.
+- It does not regenerate any spec section — those are owned by `deps-writer` (commands/queries/ops surfaces), `commands-methods-writer`, `queries-methods-writer`, `application-exceptions-specifier`, `specs-merger`, and `services-finder`.
 - It does not propagate hard-fails from the upstream pipeline (orchestrator preflight) — by the time this agent runs, the specs are already in their final post-update state.
 - It does not re-diff `<domain_diagram>`, `<dir>/<stem>.commands.md`, or `<dir>/<stem>.queries.md` against HEAD — those are `domain-spec:updates-detector`, `application-spec:commands-updates-detector`, and `application-spec:queries-updates-detector`'s jobs respectively. This agent reads the three delta reports only as enrichment sources for axis-tagged `Source delta` lookups.
 - It does not preserve the prior `<output_file>` content — the report is regenerated from scratch on every run. There is no "previous report" lineage tracked.

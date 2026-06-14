@@ -34,7 +34,7 @@ The agent is **idempotent**: re-running it for the same aggregate is a no-op; it
 ```
 
 - If `<tests_dir>/conftest.py` is missing, output: `ERROR: <tests_dir>/conftest.py not found. Run @aggregate-fixtures-writer first.` and stop.
-- If `<tests_dir>/integration/conftest.py` is missing, output: `ERROR: <tests_dir>/integration/conftest.py not found. Run @integration-test-package-preparer first.` and stop.
+- If `<tests_dir>/integration/conftest.py` is missing, output: `ERROR: <tests_dir>/integration/conftest.py not found. Run /persistence-spec:init-persistence first.` and stop.
 
 ### Step 2 — Resolve aggregate name and repository attribute from the spec
 

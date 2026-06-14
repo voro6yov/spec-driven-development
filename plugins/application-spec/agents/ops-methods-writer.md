@@ -72,7 +72,7 @@ If the ops class block declares no public methods, abort with a one-sentence err
 
 ### Step 3 — Classify the orchestration service's collaborators (from ops diagram)
 
-For each link whose **source** (after normalisation) is the `<X>` node, classify by syntax — same rules as `commands-deps-writer`:
+For each link whose **source** (after normalisation) is the `<X>` node, classify by syntax — same rules as `deps-writer` (commands/ops surface):
 
 | Mermaid link syntax | Category |
 | --- | --- |

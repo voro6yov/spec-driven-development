@@ -51,7 +51,7 @@ In a single message, spawn the following agents (via the `Agent` tool) in parall
 - `persistence-spec:migrations-scaffolder` with prompt `<domain_diagram> <locations_report_text>`
 - `persistence-spec:table-scaffolder` with prompt `<domain_diagram> <locations_report_text>`
 
-Each agent parses `<locations_report_text>` for the rows it needs and ignores the others. The aggregate-agnostic `unit-of-work-scaffolder`, `query-context-scaffolder`, and `database-session-scaffolder` are not invoked here — `/persistence-spec:init-persistence` owns them.
+Each agent parses `<locations_report_text>` for the rows it needs and ignores the others. The aggregate-agnostic `context-package-scaffolder` (both `unit_of_work` and `query_context` axes) and `database-session-scaffolder` are not invoked here — `/persistence-spec:init-persistence` owns them.
 
 Wait for all invocations to complete before proceeding.
 
@@ -80,8 +80,8 @@ Wait for both to complete. The command repository depends on mappers being imple
 
 In a single message, spawn the following agents (via the `Agent` tool) in parallel:
 
-- `persistence-spec:unit-of-work-integrator` with prompt `<domain_diagram> <locations_report_text>`
-- `persistence-spec:query-context-integrator` with prompt `<domain_diagram> <locations_report_text>`
+- `persistence-spec:context-integrator` with prompt `<domain_diagram> unit_of_work <locations_report_text>`
+- `persistence-spec:context-integrator` with prompt `<domain_diagram> query_context <locations_report_text>`
 
 Both steps always run — they are per-aggregate wiring and idempotent.
 

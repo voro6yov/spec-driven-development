@@ -81,8 +81,8 @@ For each footer row, classify by path shape using this dispatch table verbatim:
 | `query_<aggregate>_repository.py` | `repository-impl` | `@query-repository-implementer` | `persistence-spec:query-repository` |
 | `db/migrations/<id>_<slug>.yaml` | `migration-yaml` | `@migrations-implementer` | `persistence-spec:migration` |
 | `db/migrations/master.yaml` | `master-yaml` | `@migrations-scaffolder` | `persistence-spec:migration` |
-| `<context>/unit_of_work/{abstract,sqlalchemy}.py` (or bare `unit_of_work/...`) | `uow-integrate` | `@unit-of-work-integrator` | `persistence-spec:unit-of-work` |
-| `<context>/query_context/{abstract,sqlalchemy}.py` | `query-context-integrate` | `@query-context-integrator` | `persistence-spec:query-context` |
+| `<context>/unit_of_work/{abstract,sqlalchemy}.py` (or bare `unit_of_work/...`) | `uow-integrate` | `@context-integrator` (`unit_of_work`) | `persistence-spec:unit-of-work` |
+| `<context>/query_context/{abstract,sqlalchemy}.py` | `query-context-integrate` | `@context-integrator` (`query_context`) | `persistence-spec:query-context` |
 | `tests/integration/conftest.py` | `test-impl` | `@unit-of-work-fixtures-preparer`, `@integration-fixtures-writer` | `persistence-spec:cleanup-fixtures`, `persistence-spec:persistence-fixtures`, `persistence-spec:collection-fixtures` |
 | `tests/integration/<aggregate>/test_<aggregate>_repository.py` | `test-impl` | `@command-repository-tests-implementer`, `@query-repository-tests-implementer` | `persistence-spec:repository-test-rules` |
 

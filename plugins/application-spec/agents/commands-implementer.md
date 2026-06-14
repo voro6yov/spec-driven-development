@@ -103,7 +103,7 @@ Bind `<publishers>` to the ordered list of `(attr, ClassName)`. Bind two boolean
 
 #### 3e. Implicit Unit of Work
 
-The Unit of Work dependency is **always** present and **always** typed `AbstractUnitOfWork`, with the constructor param literally named `unit_of_work`. There is no spec section for it; its type and attr are fixed by convention (matched by `@unit-of-work-scaffolder` from `persistence-spec`).
+The Unit of Work dependency is **always** present and **always** typed `AbstractUnitOfWork`, with the constructor param literally named `unit_of_work`. There is no spec section for it; its type and attr are fixed by convention (matched by `@context-package-scaffolder` (unit_of_work) from `persistence-spec`).
 
 #### 3f. Assemble `<ctor_params>`
 

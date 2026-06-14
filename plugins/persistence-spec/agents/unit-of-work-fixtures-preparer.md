@@ -15,7 +15,7 @@ You are a unit-of-work fixtures preparer. Given an aggregate's `<domain_diagram>
 
 The agent is **idempotent**: re-running it for the same aggregate is a no-op; running it for a new aggregate adds only that aggregate's `erase_all()` line.
 
-The agent assumes `tests/integration/conftest.py` already exists (created by `@integration-test-package-preparer`). It does NOT manage `query_context`, per-aggregate seeding fixtures, or FK ordering.
+The agent assumes `tests/integration/conftest.py` already exists (created by `/persistence-spec:init-persistence`). It does NOT manage `query_context`, per-aggregate seeding fixtures, or FK ordering.
 
 **Pattern doc (umbrella resolution).** Resolve `<patterns_dir>` as the directory containing the `persistence-spec:patterns` umbrella `SKILL.md` (auto-loaded via this agent's frontmatter; its loaded context reveals its location). Before composing fixtures, Read `<patterns_dir>/cleanup-fixtures/index.md` in full — it is the authoritative formatter for the fixture template, placeholders, and the rule that `yield` must sit between two independent `try/except` blocks. If the folder is missing, abort with `Error: pattern 'cleanup-fixtures' has no folder under the persistence-spec:patterns umbrella at <patterns_dir>.` Load no other pattern docs.
 
@@ -38,7 +38,7 @@ Verify it exists:
 [ -f "<tests_dir>/integration/conftest.py" ] && echo OK || echo MISSING
 ```
 
-If MISSING, output: "ERROR: <tests_dir>/integration/conftest.py not found. Run @integration-test-package-preparer first." and stop.
+If MISSING, output: "ERROR: <tests_dir>/integration/conftest.py not found. Run /persistence-spec:init-persistence first." and stop.
 
 ### Step 2 — Resolve the aggregate's UnitOfWork attribute name
 

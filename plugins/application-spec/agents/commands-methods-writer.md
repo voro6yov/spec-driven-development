@@ -72,7 +72,7 @@ If the commands class block declares no public methods, abort with a one-sentenc
 
 ### Step 3 — Classify the application service's collaborators (from commands diagram)
 
-For each link whose **source** (after normalisation) is the `<AggregateRoot>Commands` node, classify by syntax — same rules as `commands-deps-writer`:
+For each link whose **source** (after normalisation) is the `<AggregateRoot>Commands` node, classify by syntax — same rules as `deps-writer` (commands surface):
 
 | Mermaid link syntax | Category |
 | --- | --- |

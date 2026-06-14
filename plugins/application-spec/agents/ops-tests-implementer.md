@@ -58,7 +58,7 @@ The directory is created if missing, with an empty `__init__.py`. The file lives
 ```
 
 - If `<tests_dir>/conftest.py` is missing, output `ERROR: <tests_dir>/conftest.py not found. Run @ops-implementer first.` and stop.
-- If `<tests_dir>/integration/conftest.py` is missing, output `ERROR: <tests_dir>/integration/conftest.py not found. Run @integration-test-package-preparer first.` and stop.
+- If `<tests_dir>/integration/conftest.py` is missing, output `ERROR: <tests_dir>/integration/conftest.py not found. Run /persistence-spec:init-persistence first.` and stop.
 
 The fixture-presence checks (`<op_snake>`, `<aggregate>_1`, `add_<plural>`, `unit_of_work`) happen in Step 8 once `<service_class>`, `<aggregate>`, and `<plural>` are resolved. `add_<plural>` and `unit_of_work` are only required when at least one method loads/persists an aggregate (see Step 8).
 
@@ -543,7 +543,7 @@ Ops tests ready at <tests_dir>/integration/<aggregate>/test_<op_snake>.py.
 | Condition | Message |
 |---|---|
 | `<tests_dir>/conftest.py` missing | `ERROR: <tests_dir>/conftest.py not found. Run @ops-implementer first.` |
-| `<tests_dir>/integration/conftest.py` missing | `ERROR: <tests_dir>/integration/conftest.py not found. Run @integration-test-package-preparer first.` |
+| `<tests_dir>/integration/conftest.py` missing | `ERROR: <tests_dir>/integration/conftest.py not found. Run /persistence-spec:init-persistence first.` |
 | Spec heading missing / malformed / kebab mismatch | `ERROR: ops spec heading '<X>' does not match <op-name> '<op-name>'.` |
 | Cannot resolve repo root | `ERROR: cannot resolve repo root from <tests_dir>; not a git repository.` |
 | Cannot uniquely locate `<Aggregate>` | `ERROR: cannot uniquely locate '<Aggregate>' under <repo_root>/src/*/domain.` |

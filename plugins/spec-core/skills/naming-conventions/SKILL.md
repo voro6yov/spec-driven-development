@@ -125,13 +125,13 @@ The detectors are write-once-read-many producers; each consumer orchestrator re-
 | `commands-updates.md` | `application-spec:commands-updates-detector` | Structured diff report of `<stem>.commands.md` — input to `application-spec:update-specs`, `messaging-spec:update-specs`, and `rest-api-spec:update-specs` (read cross-plugin; see *Cross-plugin reads* above) |
 | `queries-updates.md` | `application-spec:queries-updates-detector` | Structured diff report of `<stem>.queries.md` — input to `application-spec:update-specs` and `rest-api-spec:update-specs` (read cross-plugin; see *Cross-plugin reads* above) |
 | `ops-updates.md` | `application-spec:ops-updates-detector` | Structured diff report of every `<stem>.ops.<op-name>.md` (one aggregate-wide report) — input to `messaging-spec:update-specs` and `rest-api-spec:update-specs` (read cross-plugin; see *Cross-plugin reads* above) |
-| `commands.deps.md` | `commands-deps-writer` | Transient — deleted by `specs-merger` |
+| `commands.deps.md` | `deps-writer commands` | Transient — deleted by `specs-merger` |
 | `commands.methods.md` | `commands-methods-writer` | Transient — deleted by `specs-merger` |
-| `queries.deps.md` | `queries-deps-writer` | Transient — deleted by `specs-merger` |
+| `queries.deps.md` | `deps-writer queries` | Transient — deleted by `specs-merger` |
 | `queries.methods.md` | `queries-methods-writer` | Transient — deleted by `specs-merger` |
 | `ops.<op-name>.specs.md` | `specs-merger` (ops side) | Merged ops spec (final) — one per ops diagram |
 | `ops.<op-name>.exceptions.md` | `ops-methods-writer` (stub) → `application-exceptions-specifier` | Application exceptions raised by this ops service's methods |
-| `ops.<op-name>.deps.md` | `ops-deps-writer` | Transient — deleted by `specs-merger` |
+| `ops.<op-name>.deps.md` | `deps-writer ops <op-name>` | Transient — deleted by `specs-merger` |
 | `ops.<op-name>.methods.md` | `ops-methods-writer` | Transient — deleted by `specs-merger` |
 
 The per-side fragments (`commands.deps.md`, `commands.methods.md`, `queries.deps.md`, `queries.methods.md`, and each `ops.<op-name>.{deps,methods}.md`) exist only between writer and merger. After a successful pipeline run, only `commands.specs.md`, `commands.exceptions.md`, `queries.specs.md`, `queries.exceptions.md`, `services.md`, and each ops service's `ops.<op-name>.specs.md` / `ops.<op-name>.exceptions.md` remain. The `updates.md`, `commands-updates.md`, and `queries-updates.md` reports are transient producer outputs (of `application-updates-writer` and the two `application-spec` detectors respectively); each is regenerated wholesale on its producer's run and overwrites the prior report.

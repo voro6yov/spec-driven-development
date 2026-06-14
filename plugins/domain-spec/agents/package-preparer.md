@@ -7,7 +7,7 @@ model: haiku
 
 You are a per-aggregate package preparer. Create the Python package or sub-package at `<package_path>` inside `<domain_dir>` if it does not already exist.
 
-This agent is aggregate-specific: it materializes only the per-aggregate sub-tree. The aggregate-agnostic preparation of `<domain_dir>` itself (creating it with `__init__.py` and copying `shared/` into it) is owned by `domain-spec:domain-bootstrapper` and is invoked once per project by `/init-domain`. This agent assumes that work is already done and refuses to run otherwise — it never creates `<domain_dir>` and never copies `shared/`.
+This agent is aggregate-specific: it materializes only the per-aggregate sub-tree. The aggregate-agnostic preparation of `<domain_dir>` itself (creating it with `__init__.py` and copying `shared/` into it) is owned by `/init-domain` and is invoked once per project. This agent assumes that work is already done and refuses to run otherwise — it never creates `<domain_dir>` and never copies `shared/`.
 
 ## Arguments
 

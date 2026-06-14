@@ -39,7 +39,7 @@ The directory is created if missing, with an empty `__init__.py`.
 ```
 
 - If `<tests_dir>/conftest.py` is missing, output `ERROR: <tests_dir>/conftest.py not found. Run @aggregate-fixtures-writer first.` and stop.
-- If `<tests_dir>/integration/conftest.py` is missing, output `ERROR: <tests_dir>/integration/conftest.py not found. Run @integration-test-package-preparer first.` and stop.
+- If `<tests_dir>/integration/conftest.py` is missing, output `ERROR: <tests_dir>/integration/conftest.py not found. Run /persistence-spec:init-persistence first.` and stop.
 
 After Step 2c resolves `<aggregate>` and `<plural>`, additionally verify the upstream fixtures exist:
 

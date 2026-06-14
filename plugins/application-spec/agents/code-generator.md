@@ -146,7 +146,7 @@ This step must run after Step 6: the ops implementers reuse the application exce
 
 ### Step 7 — Implement integration tests in parallel
 
-Skip this step entirely if `<tests_dir>` was not bound in Step 2 (the `Tests` row was missing). The two test implementers require `<tests_dir>/conftest.py` and `<tests_dir>/integration/conftest.py` to exist (produced by the persistence-spec pipeline's `@integration-test-package-preparer` and the unit-of-work / integration fixtures preparers); they each abort with a one-sentence error if a prerequisite is missing — this orchestrator does not pre-validate.
+Skip this step entirely if `<tests_dir>` was not bound in Step 2 (the `Tests` row was missing). The two test implementers require `<tests_dir>/conftest.py` and `<tests_dir>/integration/conftest.py` to exist (produced by `/persistence-spec:init-persistence` and the unit-of-work / integration fixtures preparers); they each abort with a one-sentence error if a prerequisite is missing — this orchestrator does not pre-validate.
 
 Emit all test-implementer `Agent` calls in a single message — do not sequence them:
 

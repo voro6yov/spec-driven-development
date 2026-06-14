@@ -129,19 +129,30 @@ If the agent reports any error, surface it as a single `ERROR: ...` line and sto
 
 ### Step 7 — Prepare the integration test package
 
-Invoke `persistence-spec:integration-test-package-preparer` with prompt `<tests_dir>`. Wait for completion.
+Ensure `<tests_dir>` exists as a Python package containing a `conftest.py`, an `integration` sub-package, and an `integration/conftest.py`. Each created file is empty — fixture content is added by downstream agents. This is idempotent: create every missing level, never overwrite an existing file.
 
-If the agent reports any error, surface it as a single `ERROR: ...` line and stop.
+Run sequentially via `Bash`:
+
+```bash
+mkdir -p <tests_dir>             && [ -f <tests_dir>/__init__.py ]                  || touch <tests_dir>/__init__.py
+[ -f <tests_dir>/conftest.py ]                                                      || touch <tests_dir>/conftest.py
+mkdir -p <tests_dir>/integration && [ -f <tests_dir>/integration/__init__.py ]      || touch <tests_dir>/integration/__init__.py
+[ -f <tests_dir>/integration/conftest.py ]                                          || touch <tests_dir>/integration/conftest.py
+```
+
+Never overwrite an existing file. If any command fails, surface it as a single `ERROR: ...` line and stop.
 
 ### Step 8 — Scaffold the unit_of_work package and wire containers.py
 
-Invoke `persistence-spec:unit-of-work-scaffolder` with prompt `<locations_report>`. Wait for completion.
+Invoke `persistence-spec:context-package-scaffolder` with prompt `unit_of_work <locations_report>`. Wait for completion.
 
 If the agent reports any error, surface it as a single `ERROR: ...` line and stop.
 
 ### Step 9 — Scaffold the query_context package, wire containers.py, and add the integration fixture
 
-Invoke `persistence-spec:query-context-scaffolder` with prompt `<locations_report>`. Wait for completion.
+Invoke `persistence-spec:context-package-scaffolder` with prompt `query_context <locations_report>`. Wait for completion.
+
+This MUST run **after** Step 8 and **after** Step 7: the `query_context` axis derives its install directory as the sibling of the `unit_of_work/` package, asserts that leaf is exactly `unit_of_work`, and anchors its `query_context` conftest fixture immediately after the `def unit_of_work(` fixture in `<tests_dir>/integration/conftest.py`. Never invoke this before Step 8, and never combine the two invocations into one call.
 
 If the agent reports any error, surface it as a single `ERROR: ...` line and stop.
 
