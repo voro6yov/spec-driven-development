@@ -30,7 +30,7 @@ Detect the kind from the filename:
 
 ### Step 1 — Load conventions
 
-Invoke the `model-diagrams:diagram-conventions` skill via the `Skill` tool. Read the section that applies to the detected kind. The conventions are binding: any change you make must conform (pass-through arrow vocabulary, direct-raises-only exceptions, aggregate-level cross-cutting invariants, etc.).
+Invoke the `model-diagrams:conventions` umbrella skill via the `Skill` tool. From its `SKILL.md` catalog, Read the `<theme>/index.md` docs relevant to the detected kind. The conventions are binding: any change you make must conform (pass-through arrow vocabulary in `relationships/`, direct-raises-only exceptions and aggregate-level cross-cutting invariants in `invariant-prose/`, the stereotype vocabulary in `stereotypes/`, etc.).
 
 ### Step 2 — Read the diagram
 
@@ -85,9 +85,9 @@ The gap dimensions per change kind:
 
 #### `add-class`
 
-- **Stereotype** — required. Choose from the canonical set per kind:
-  - Domain: `<<Aggregate Root>>`, `<<Entity>>`, `<<Value Object>>`, `<<TypedDict>>`, `<<Query DTO>>`, `<<Domain Event>>`, `<<Command>>`, `<<Service>>`, `<<Repository>>`.
-  - Commands / queries: `<<Command>>`, `<<Query>>` (or whatever the file already uses).
+- **Stereotype** — required. Choose from the canonical set in `model-diagrams:conventions` → `stereotypes/`:
+  - Domain: `<<Aggregate Root>>`, `<<Entity>>`, `<<Value Object>>`, `<<TypedDict>>`, `<<Domain Event>>`, `<<Service>>`, `<<Interface>>`, `<<Repository>>`.
+  - Commands / queries / ops: `<<Application>>` (or whatever the file already uses).
 - **Initial attributes / methods** — ask the user to enumerate them. Empty is allowed.
 - **Relationship to existing classes** — ask whether the new class is referenced by, or references, any existing class, and via which arrow + label.
 
@@ -95,7 +95,7 @@ The gap dimensions per change kind:
 
 - **Source and target classes** — must both exist in the diagram (if not, that is `add-class` first).
 - **Arrow kind** — `*--` composition, `o--` aggregation, `-->` association/return, `--()` lollipop (event emission or pass-through argument), `--*` inheritance. Ask if not in task.
-- **Label** — e.g. `returns`, `takes`, `takes as argument`, `<event name>`. Ask if not in task. Honor the diagram-conventions rules (pass-through arrow vs consumer arrow).
+- **Label** — e.g. `returns`, `takes`, `takes as argument`, `<event name>`. Ask if not in task. Honor the `relationships/` rules (pass-through `--()` forwarder vs consumer `-->`).
 - **Multiplicity** — e.g. `"1"`, `"0..n"`. Ask only when ambiguous from context.
 
 #### `modify-*`
@@ -189,6 +189,6 @@ Emit a short summary in this shape (no extra prose around it):
 
 - **Write immediately after interview.** Do not show a preview-and-confirm step. The user has chosen this trade-off.
 - **One slash-command invocation = one logical change set.** If the task is too broad to handle in one pass, ask the user to split it before doing anything destructive.
-- **Honor the conventions skill at all times.** If a proposed edit would violate a documented convention (e.g., adding a `May propagate` exceptions bullet, or a per-method `updated_at` step under an aggregate-level rule), reshape the edit to conform — do not write a violating form and rely on the reviewer to flag it.
+- **Honor the `model-diagrams:conventions` umbrella at all times.** If a proposed edit would violate a documented convention (e.g., adding a `May propagate` exceptions bullet, or a per-method `updated_at` step under an aggregate-level rule), reshape the edit to conform — do not write a violating form and rely on the reviewer to flag it.
 - **Never re-read the file after `Edit`** to verify — the Edit tool errors on failure; the harness tracks file state.
 - **Removals cascade.** Removing a class removes its arrows; removing a method removes its prose subsection; removing an attribute leaves siblings intact.
