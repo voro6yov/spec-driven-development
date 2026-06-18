@@ -142,7 +142,7 @@ Paths are relative to the resource's Router prefix (Table 1). A leading `/` is r
 | `/` | Collection root (paginated list, create, bulk action) | `GET /`, `POST /`, `POST /bulk-retry` |
 | `/{id}` | Single instance by id (read, replace, patch, delete) | `GET /{id}`, `PUT /{id}`, `DELETE /{id}` |
 | `/{id}/<segment>` | Sub-resource or projection of a single instance | `GET /{id}/content`, `GET /{id}/redacted-content` |
-| `/{id}/<verb>` | Named action on a single instance | `POST /{id}/retry`, `POST /{id}/skip` |
+| `/{id}/<action>` | Named action on a single instance (`<action>` = full method name, kebab-cased) | `POST /{id}/retry`, `POST /{id}/skip`, `POST /{id}/retry-processing` |
 | `/bulk-<verb>` | Collection-level action that batches per-item | `POST /bulk-retry`, `POST /bulk-skip` |
 
 ### Rules
@@ -157,7 +157,7 @@ Paths are relative to the resource's Router prefix (Table 1). A leading `/` is r
 
 - **Binary content endpoints.** `GET /{id}/<segment>` returning raw bytes. The Description column should call out the streaming response shape, e.g., "returns raw bytes for streaming response". Operation is `find_<resource>_<segment>`.
 - **Sub-resource projections.** `GET /{id}/<segment>` returning a serialized projection of related data. Treat the segment as a noun (`/{id}/content`, `/{id}/permissions`).
-- **Action endpoints.** `POST /{id}/<verb>`. The verb is the domain command method name; Domain Ref points to the same name on `<Resource>Commands`.
+- **Action endpoints.** `POST /{id}/<action>`. The `<action>` is the **full domain command method name** (kebab-cased in the Path, snake_case verbatim as the Operation — e.g. `retry_processing` → path `/{id}/retry-processing`, op `retry_processing`); Domain Ref points to the same name on `<Resource>Commands`. The verb is never stripped to a bare segment, so verb-sharing actions stay distinct.
 - **Bulk endpoints.** `POST /bulk-<verb>`. The action applies to a list of ids (or a filter) supplied in the request body. Operation is `bulk_<verb>`; Domain Ref is `<Resource>Commands.bulk_<verb>`.
 
 ---
@@ -179,7 +179,7 @@ Paths are relative to the resource's Router prefix (Table 1). A leading `/` is r
 
 | HTTP | Path | Operation | Description | Domain Ref |
 | --- | --- | --- | --- | --- |
-| POST | `/{id}/retry` | retry | Retry processing of a failed file from the failed stage | `FileCommands.retry_processing` |
+| POST | `/{id}/retry-processing` | retry_processing | Retry processing of a failed file from the failed stage | `FileCommands.retry_processing` |
 | POST | `/{id}/skip` | skip | Mark a file as skipped, excluding it from profile completion | `FileCommands.skip` |
 | POST | `/{id}/document-types` | assign_document_types | Manually assign or correct document types for a file | `FileCommands.assign_document_types` |
 

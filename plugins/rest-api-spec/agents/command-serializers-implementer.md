@@ -65,7 +65,7 @@ These rules are non-negotiable. Every artifact emitted by this agent must satisf
 | `add_corrections` | `AddCorrectionsRequest` | `AddCorrectionsResponse` |
 | `bulk_close_loads` | `BulkCloseLoadsRequest` | `BulkCloseLoadsResponse` |
 
-The class name is `<PascalCase(operation)><suffix>`, where `PascalCase(operation)` is the snake-cased operation re-cased word-by-word (every `_`-delimited token is TitleCased and joined with no separator) and `<suffix>` is `Request` or `Response`. No abbreviations. Do not invent verb prefixes (the operation comes verbatim from Table 3 — if the endpoint-tables-writer stripped a singular noun tail, the operation is verb-only and so is the class name).
+The class name is `<PascalCase(operation)><suffix>`, where `PascalCase(operation)` is the snake-cased operation re-cased word-by-word (every `_`-delimited token is TitleCased and joined with no separator) and `<suffix>` is `Request` or `Response`. No abbreviations. Do not invent or strip tokens (the operation comes verbatim from Table 3 — it is always the full `<method_name>`, so the class name carries the full method name too).
 
 Inline nested request sub-serializer class names are derived from the corresponding `**Nested:** <Type>` header by appending `Serializer` to the bare type name: `LineItemSpec` → `LineItemSpecSerializer`.
 

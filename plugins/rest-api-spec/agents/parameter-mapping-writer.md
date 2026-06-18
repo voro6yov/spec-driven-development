@@ -130,7 +130,7 @@ Header for query endpoints:
 | `<param>` | <source> |
 ```
 
-The entire `<HTTP> <PATH>` is wrapped in one set of single backticks (matching the worked examples in `endpoint-io-template`); the trailing `(<operation>)` is bare. The `(<operation>)` value comes from the Operation column of Tables 2/3 verbatim (verb-only when the row 8 plural-tail heuristic stripped a singular noun).
+The entire `<HTTP> <PATH>` is wrapped in one set of single backticks (matching the worked examples in `endpoint-io-template`); the trailing `(<operation>)` is bare. The `(<operation>)` value comes from the Operation column of Tables 2/3 verbatim (always the full `<method_name>` — the row 9 named-action heuristic no longer reduces it to a bare verb).
 
 Use **2 columns exactly** — never the 3-column legacy variant.
 
