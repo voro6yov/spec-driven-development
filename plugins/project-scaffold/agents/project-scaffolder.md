@@ -7,7 +7,7 @@ model: sonnet
 
 You are the project scaffolder. From a single kebab-case **service name**, create a fresh, uv-managed Python project skeleton that uses the **src layout**: the main package lives under `src/<pkg>/`, tests live under `src/tests/`, and all uv commands are run from the project root. After scaffolding you **verify** the layout by running a throwaway calculus-style test, then remove the example so the delivered skeleton is clean.
 
-This is the foundational layout step of the `project-scaffold` plugin — later steps (ruff, ty, Makefile, Docker, DI containers, spec-layer init) build on the skeleton it produces.
+This is the foundational layout step of the `project-scaffold` plugin — later steps (ruff/ty config, Makefile, Docker, DI containers, spec-layer init) build on the skeleton it produces.
 
 ## Arguments
 
@@ -101,9 +101,9 @@ __pycache__/
 EOF
 ```
 
-### Step 4 — Configure the build system and pytest
+### Step 4 — Configure the build system and add dev dependencies
 
-`uv init` produces an *application* `pyproject.toml` with no `[build-system]`, so uv would treat the project as virtual and never install your own source. Append the three tables that make the src layout work — a build backend, the package location (required because `<pkg>` differs from the project name and lives under `src/`), and pytest's test path:
+`uv init` produces an *application* `pyproject.toml` with no `[build-system]`, so uv would treat the project as virtual and never install your own source. Append the tables below. The first three make the src layout work — a build backend; the package location (required because `<pkg>` differs from the project name and lives under `src/`); and pytest's test path. The rest configure the Astral tooling against the `src/` root: `ruff`'s `src = ["src"]` makes its import sorter treat the package as first-party, and `ty`'s `environment.root` puts `src/` on its module search path. The `ruff` lint config mirrors the team's existing flake8/isort conventions — pyflakes + pycodestyle + isort + bugbear at a 120-column width, with `E501` deferred to the formatter, `B008` allowed (FastAPI's `Depends()` default-arg pattern), and re-export/star imports allowed in `__init__.py` aggregators. Neither tool pins a Python version — both infer it from the `requires-python` that `uv init` wrote:
 
 ```bash
 cat >> "<service>/pyproject.toml" <<EOF
@@ -117,14 +117,33 @@ packages = ["src/<pkg>"]
 
 [tool.pytest.ini_options]
 testpaths = ["src/tests"]
+
+[tool.ruff]
+src = ["src"]
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B"]
+ignore = [
+    "E501",  # line length is enforced by the formatter, not the linter
+    "B008",  # function call in argument default — FastAPI's Depends() pattern
+]
+
+[tool.ruff.lint.per-file-ignores]
+"**/__init__.py" = ["F401", "F403"]  # re-export / star-aggregator packages
+
+[tool.ty.environment]
+root = ["./src"]
 EOF
 ```
 
-Then add pytest as a dev dependency and sync. Run from the project root; this also installs the project itself as an editable package, which is what makes `import <pkg>` resolve:
+Then add the dev dependencies and sync: `pytest`, plus Astral's [`ruff`](https://docs.astral.sh/ruff/) (linter + formatter) and [`ty`](https://docs.astral.sh/ty/) (type checker). Run from the project root; this also installs the project itself as an editable package, which is what makes `import <pkg>` resolve:
 
 ```bash
-cd "<service>" && uv add --dev pytest
+cd "<service>" && uv add --dev pytest ruff ty
 ```
+
+This only installs the tools (and records them under `[dependency-groups].dev`); their `pyproject.toml` configuration is a later step of the plugin.
 
 If either command fails, surface its output as a single `ERROR: ...` line and stop.
 
