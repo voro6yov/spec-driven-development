@@ -1,7 +1,7 @@
 {
   "name": "project-scaffold",
   "description": "Scaffold a microservice repo from scratch (directory layout, uv dependency management, ruff + ty, Makefile, Docker/Postgres/Liquibase test env, and the keystone DI/entrypoint shells), then initialize all spec layers",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "author": {
     "name": "Valentin Vorobyov",
     "email": "voro6yov.valentin@gmail.com",
