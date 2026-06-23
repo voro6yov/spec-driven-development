@@ -100,6 +100,9 @@ From `updates.md`:
     - Empty stereotype on the per-class block (rare; happens for inferred classes) → fall through to `whole-module-impl` and append note `"inferred stereotype"`
   - `action = modify`.
   - `members` = verbatim list of bullets from the **`**Members:**`** sub-section of the per-class block (e.g. `Attribute added: ...`, `Method changed: ...`). Empty when the class block has no Members sub-section. Phase 2 uses this to drive surgical method-level edits; Phase 3 verifies row-by-row against it.
+  - **Behavioral-signal capture** (feeds the Step 5 risk rules; the structural pipeline is otherwise blind to behavior expressed only as prose):
+    - `stereotype` — the verbatim `<<…>>` token from the per-class heading (already parsed for kind dispatch above). Step 5 uses it to recognise **field-only payload types** (`<<Event>>`, `<<Domain Event>>`, `<<Value Object>>`, `<<TypedDict>>`, `<<Command>>`) — types that are *constructed* elsewhere in the aggregate, so a member delta on them implies edits at every construction site.
+    - `has_prose` — true when the per-class block has at least one `**Prose — <heading>:**` sub-section. When true, append each prose heading to `notes` (e.g. `prose change present: Project.register_file`) so downstream phases see that the change is prose-driven and may imply a body edit the structural delta does not capture.
   - `summary` summarises the Members + Relationships + Prose sub-sections succinctly — e.g. "Method `add_line` signature changed; one new event relationship".
 
 `## Class Lifecycle → Stereotype Changed` should already be filtered out by `/update-specs`. If you encounter a non-empty `Stereotype Changed` sub-section, hard-fail:
@@ -164,7 +167,9 @@ Apply the following rules in order. The first matching rule sets `risk = risky`;
 2. Row was tagged `risky` in Step 3 (missing spec block or missing Pattern line) → keep `risky`. *Reason note already attached.*
 3. Row was tagged `risky` in Step 4 (spec/docstring mismatch or target missing on disk) → keep `risky`. *Reason note already attached.*
 4. Row has `len(patterns) >= 3` **and** the source `## Per-Class Changes` block has a non-empty **Members** sub-section → `risky`. *Reason note:* `"multi-pattern class with member-level changes"`.
-5. Otherwise → `mechanical`.
+5. Row's `stereotype` is a **field-only payload type** (`<<Event>>`, `<<Domain Event>>`, `<<Value Object>>`, `<<TypedDict>>`, `<<Command>>`) **and** its `members` list contains at least one `Attribute added:` / `Attribute changed:` / `Attribute removed:` bullet → `risky`. *Reason note:* `"payload-field change — every construction site of <Class> must be reconciled. A defaulted/optional field added to an emitted event stays inert (permanently at its default, no error, no failed test) if the emitter that constructs it is not also updated — the event-carried-state shape. Phase 3 Step 3.4 greps the construction sites and gates on any that omit the field."`
+6. Row has `has_prose = true` **and** an **empty** `members` list (a prose-only per-class change — e.g. a new Invariants / Constraints bullet on an aggregate-root method that changed no signature) → `risky`. *Reason note:* `"prose-only behavioral change — no structural delta drives surgery. The implied body edit may live in a different method or class (e.g. a sibling emitter constructing an event whose payload changed) and must be applied by the operator. Phase 2 performs no member surgery on this row."`
+7. Otherwise → `mechanical`.
 
 Risk is never downgraded — if multiple rules fire, append every reason to `notes`.
 

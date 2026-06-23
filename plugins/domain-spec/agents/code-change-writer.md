@@ -146,6 +146,8 @@ Status = `applied`, note = `rewrote <path>; patterns: <comma-joined names>`.
 
 #### 3e. `kind = per-member-edit` (action = modify, class non-empty — aggregate root only)
 
+**Empty-members guard.** If the row carries **no** `Members` bullets — a prose-only per-class change with no structural delta (e.g. a new Invariants / Constraints bullet that changed no signature) — perform no surgery and skip the steps below: set status = `applied`, note = `prose-only change — no structural member delta; no per-member surgery performed. The implied behavioral edit (if any) often lives in a different method or class — e.g. a sibling emitter constructing an event whose payload changed — and is surfaced by Phase 3's payload construction-site check (Step 3.4).`, and continue to the next row without reading any pattern docs. Do **not** report this as `surgically edited 0 members` — that wording reads as work performed.
+
 1. Resolve the on-disk path per Step 3a.
 2. Read the class block from `specs.md` per Step 3c.2.
 3. **Load named pattern docs** per Step 3c.3.
