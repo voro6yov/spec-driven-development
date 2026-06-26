@@ -1,0 +1,10 @@
+{
+  "name": "wiki-scaffold",
+  "description": "Bootstrap an LLM-maintained knowledge base via a prism-driven interview: start from sample raw inputs (facts), derive the right page types, kinds, and relationships (concepts & categories) with the ontology-prism / KEOPS method, then scaffold the schema, conventions, and operating skills for the new wiki — and dogfood it on the samples",
+  "version": "0.2.0",
+  "author": {
+    "name": "Valentin Vorobyov",
+    "email": "voro6yov.valentin@gmail.com",
+    "url": "https://github.com/voro6yov"
+  }
+}
