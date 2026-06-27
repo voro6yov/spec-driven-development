@@ -127,7 +127,7 @@ The output is a ready-to-run wiki directory (its own git repo or a subdir):
     │   │                   vocabulary INJECTED from the interview
     │   └── conventions/ ← per-type page specs — COPIED, examples drawn from the
     │                       user's own sampled facts (not software-architecture)
-    └── agents/          ← books-ingester / concept-unifier (verbatim)
+    └── agents/          ← concept-unifier (verbatim) — only if unify selected
 ```
 
 **Provenance of the templates:** the generic operating skills + the two
@@ -149,9 +149,10 @@ the slots.
 - **Operating-skill scaffolding → medium.** ingest/query/lint are ~95% generic in the
   reference KB — *stamp the generic ones and inject the derived vocabulary*, don't
   synthesize.
-- **Agent scaffolding → verbatim only.** `books-ingester` / `concept-unifier` ship
-  unchanged; no agents are synthesized. Source acquisition is **manual drop into `raw/`**
-  (fetchers were dropped — see §10).
+- **Agent scaffolding → verbatim only.** `concept-unifier` ships unchanged (and only when
+  `unify` is selected); no agents are synthesized. The old `books-ingester` driver was
+  dropped — whole-book ingestion is just `/ingest` run per chapter. Source acquisition is
+  **manual drop into `raw/`** (fetchers were dropped — see §10).
 
 The whole thing is plain markdown + git — **zero infrastructure**. The risk profile
 is *refactor + packaging of a working reference implementation*, not greenfield.
@@ -231,7 +232,7 @@ No dependency between them; they share only a design philosophy
   minimal + architect-project examples). It is the single source of truth `new-wiki`
   emits and `wiki-scaffolder` consumes. De-risks everything downstream.
 - **Phase 2 (done)** — **template extraction**: `ingest`/`query`/`lint`/`unify` +
-  the `conventions` umbrella (8 themes) + `books-ingester`/`concept-unifier` lifted out
+  the `conventions` umbrella (8 themes) + the `concept-unifier` agent lifted out
   of the reference KB into the `templates` reference skill, neutralized of
   software-architecture specifics (kinds defer to the generated `CLAUDE.md`; example
   page/book/author names genericized) and reduced to four substitution slots. The

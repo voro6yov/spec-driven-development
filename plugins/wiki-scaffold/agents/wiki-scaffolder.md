@@ -126,7 +126,7 @@ Scaffolded ./<wiki_name> (<n> page types, <k> kinds, <r> relationships, <s> seed
 ├── raw/<medium>/
 ├── concepts/   (<s> seed pages)
 ├── sources/
-└── .claude/    (skills: conventions + ingest/query[/lint/unify] · agents: books-ingester[, concept-unifier])
+└── .claude/    (skills: conventions + ingest/query[/lint/unify][ · agents: concept-unifier — iff unify])
 
 Next: cd <wiki_name> && /ingest <your first source>
 ```

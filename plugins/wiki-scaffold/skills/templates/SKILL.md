@@ -1,6 +1,6 @@
 ---
 name: templates
-description: The portable operating skills and agents that wiki-scaffold copies into a freshly scaffolded wiki's .claude/ — the domain-agnostic core (ingest, query, lint, unify, the conventions umbrella, and the books-ingester/concept-unifier agents) lifted from the reference KB and parameterized with slots the scaffolder fills. Reference/resource group: the scaffolder resolves this skill's directory, copies the payload, renames, and substitutes. Not a user command.
+description: The portable operating skills and agents that wiki-scaffold copies into a freshly scaffolded wiki's .claude/ — the domain-agnostic core (ingest, query, lint, unify, the conventions umbrella, and the concept-unifier agent) lifted from the reference KB and parameterized with slots the scaffolder fills. Reference/resource group: the scaffolder resolves this skill's directory, copies the payload, renames, and substitutes. Not a user command.
 user-invocable: false
 disable-model-invocation: true
 ---
@@ -45,7 +45,6 @@ its own path), then copies from `<templates_dir>/skills` and `<templates_dir>/ag
 │       ├── relationships/index.md
 │       └── raw-books/index.md
 └── agents/
-    ├── books-ingester.md
     └── concept-unifier.md
 ```
 
@@ -60,9 +59,9 @@ registers them. They become `SKILL.md` on copy (see rename rule).
    - `unify` — iff `unify ∈ operations` (and copy the `concept-unifier` agent with it).
    - `conventions/` (umbrella + all themes) — always, **in full** (the umbrella's catalog
      requires every theme folder to resolve; `raw-books/` is harmless if the wiki has no books).
-   - `books-ingester` agent — always (it just drives `/ingest`).
 2. **Copy** the selected `skills/<name>/` dirs → `<wiki>/.claude/skills/<name>/`, and the
-   selected `agents/*.md` → `<wiki>/.claude/agents/`.
+   selected `agents/*.md` → `<wiki>/.claude/agents/`. The only agent is `concept-unifier`,
+   copied iff `unify ∈ operations` (see above); a wiki with no `unify` gets no `agents/`.
 3. **Rename entry files** `index.md → SKILL.md` for exactly these top-level skill dirs:
    `ingest/`, `query/`, `lint/`, `unify/`, `conventions/`. Theme files
    (`conventions/<theme>/index.md`) **stay `index.md`** — that is already their target name.
