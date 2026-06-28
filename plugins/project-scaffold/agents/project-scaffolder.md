@@ -103,7 +103,7 @@ EOF
 
 ### Step 4 — Configure the build system and add dev dependencies
 
-`uv init` produces an *application* `pyproject.toml` with no `[build-system]`, so uv would treat the project as virtual and never install your own source. Append the tables below. The first three make the src layout work — a build backend; the package location (required because `<pkg>` differs from the project name and lives under `src/`); and pytest's test path. The rest configure the Astral tooling against the `src/` root: `ruff`'s `src = ["src"]` plus isort's `known-first-party = ["<pkg>"]` make its import sorter treat the package as first-party, and `ty`'s `environment.root` puts `src/` on its module search path. The `ruff` lint/format config mirrors the team's existing conventions — pyflakes + pycodestyle + isort + bugbear, plus comprehensions, pyupgrade, simplify, pathlib, type-checking, pylint, tryceratops, security (bandit) and ruff-specific rules, at a 120-column width — with the team's standard ignore list (`E501` deferred to the formatter, `B008` for FastAPI's `Depends()` default-arg pattern, star/re-export imports in aggregator packages, `assert` allowed in tests, and the complexity/exception-message rules the team waives) and a double-quote formatter. Neither tool pins a Python version — both infer it from the `requires-python` that `uv init` wrote:
+`uv init` produces an *application* `pyproject.toml` with no `[build-system]`, so uv would treat the project as virtual and never install your own source. Append the tables below. The first three make the src layout work — a build backend; the package location (required because `<pkg>` differs from the project name and lives under `src/`); and pytest's test path. The rest configure the Astral tooling against the `src/` root: `ruff`'s `src = ["src"]` plus isort's `known-first-party = ["<pkg>"]` make its import sorter treat the package as first-party, and `ty`'s `environment.root` puts `src/` on its module search path. The `ruff` lint/format config mirrors the team's existing conventions — pyflakes + pycodestyle + isort + bugbear, plus comprehensions, pyupgrade, simplify, pathlib, type-checking, pylint, tryceratops, security (bandit) and ruff-specific rules, at a 120-column width — with the team's standard ignore list (`E501` deferred to the formatter, `B008` for FastAPI's `Depends()` default-arg pattern, star/re-export imports in aggregator packages, `assert` allowed in tests, and the complexity/exception-message rules the team waives) and a double-quote formatter. Both tools also exempt the vendored `spec-core` primitives that `/init-domain` later copies verbatim into `<pkg>/domain/shared/` — `ruff` skips `UP`/`PL` there (the modules are copied as-is, not modernized), and `ty` excludes them from type checking entirely (they use runtime metaclass magic the checker can't follow). Neither tool pins a Python version — both infer it from the `requires-python` that `uv init` wrote:
 
 ```bash
 cat >> "<service>/pyproject.toml" <<EOF
@@ -165,6 +165,7 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "**/__init__.py" = ["F401", "F403"]  # re-export / star-aggregator packages
 "src/tests/**/*.py" = ["S101"]       # assert is the pytest idiom
+"**/domain/shared/**" = ["UP", "PL"] # vendored spec-core primitives, copied verbatim
 
 [tool.ruff.lint.isort]
 known-first-party = ["<pkg>"]
@@ -177,6 +178,10 @@ line-ending = "auto"
 
 [tool.ty.environment]
 root = ["./src"]
+
+[tool.ty.src]
+# vendored spec-core primitives use runtime metaclass magic the checker can't follow
+exclude = ["src/*/domain/shared/**"]
 EOF
 ```
 
