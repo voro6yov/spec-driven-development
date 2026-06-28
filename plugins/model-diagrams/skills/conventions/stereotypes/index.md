@@ -10,6 +10,16 @@ user-invocable: false
 
 This theme governs the **role tag** that opens every class body: which of the fixed stereotype tokens to write, how to name the classes each tag implies (capability ports, collection Value Objects, ops services), and how to disable a subgraph with `%%` without confusing it for a `%% internal` / `%% Messaging` surface marker.
 
+## Ground knowledge
+
+*Why these conventions are what they are — the canonical building blocks each tag commits to, and where the project's tagging is finer than canon. Names and sources let a reviewer cite the principle behind a suppression rather than assert it.*
+
+- **The closed tag set = the DDD tactical building blocks** (Evans; Vernon; Khononov): `<<Aggregate Root>>`/`<<Entity>>`/`<<Value Object>>`/`<<Repository>>`/`<<Domain Event>>`/`<<Service>>` are the Aggregate / Entity / Value-Object / Repository / Domain-Event / Domain-Service patterns; `<<Application>>` is the application service; `<<Interface>>` is a hexagonal port. Pick the tag by what the class *is* in DDD terms — which backs the "this vocabulary is canonical, not non-standard UML" review lens.
+- **`ICan*` `<<Interface>>` = a hexagonal port** (Cockburn via Vernon; Khononov): an interface the inner layer defines, with an infrastructure adapter wired by DI — `ICanRetrieve*` is a driven/secondary port, `ICanManage*` the write-back port the layer calls out through. This is *why* it is an interface, not a service.
+- **`<<Service>>` = a domain service** (Evans/Vernon): a stateless, activity-named operation (the `…Inferrer` shape) capturing a calculation/analysis that fits no single aggregate.
+- **The mutable Collection VO** rests on Evans's explicit "mutable value object, never shared" carve-out (aggregate-internal, single-owner) — that is the textbook rebuttal to "but a VO must be immutable / holds mutable entities."
+- **Deliberate divergence — the `<<Service>>` vs `<<Interface>>` split is finer than canon.** In DDD/hexagonal a domain service is routinely *itself* a port, so canon has one notion (a port the layer depends on) where the project tags two: `<<Service>>` for the domain-service/inferrer port and `<<Interface>>` for the thin `ICan*` capability/retrieval ports. A project taxonomy refinement, not a canonical line — so authors shouldn't read it as a DDD distinction. (`<<TypedDict>>` likewise has no canonical building-block name — it encodes use-case-shaped read/flat DTOs.)
+
 ## Conventions
 
 ### Exactly one stereotype, on the first body line

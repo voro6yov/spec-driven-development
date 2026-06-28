@@ -10,6 +10,16 @@ user-invocable: false
 
 > This theme governs how to model value semantics on a domain class diagram: grouping cohesive scalars into Details VOs, lifecycle as a Status VO, service outcomes as Either VOs, aggregate-owned collections as Collection VOs, and the Entity-vs-VO decision for id-bearing children. Value Objects are immutable: state changes are modeled as factory replacement, never in-place mutation.
 
+## Ground knowledge
+
+*Why these conventions are what they are — the canonical patterns they instantiate, and where the project deliberately bends them. Names and sources let a reviewer cite the principle behind a suppression rather than assert it.*
+
+- **Value Object = Whole Value, immutable, replace-don't-mutate** (Evans, *DDD* ch.5; Vernon, *IDDD* ch.6; Cunningham's *Whole Value*). A Details VO exists because related attributes form one integral unit constructed atomically — the cure for primitive obsession; never scatter the cluster flat, never accept a pre-built Details.
+- **Either / result-or-error VO = functional error handling** (Meyer's Command-Query Separation; Vernon ch.6). Modeling a fallible outcome as a *returned immutable value* rather than a thrown exception is canonical side-effect-free discipline — which is why exception-using peers don't adopt it and a reviewer must not demand they do.
+- **Externally-supplied-id reference VO = the Standard Types pattern** (Vernon, *IDDD* ch.6). A type-code that is an Entity in its home context is consumed downstream as an immutable Value (hold only the reference). The test under "identity provenance" is Evans/Khononov's "do you care it's the *same one*?" — value-equality → VO even when an id is present (Khononov: "a `Color` needs no `ColorId`").
+- **Wholesale replacement / `with_*` builders = closure of operations** (Evans ch.10): self-returning factories that chain are canonical VO behavior; each builder is whole-value replacement ("replacing 3 with 4 writ large"), never in-place mutation.
+- **Deliberate divergence — the mutable Collection VO.** Canon says VOs are immutable; Evans explicitly carves out **mutable value objects "only when the value is *not* shared."** The Collection VO satisfies exactly that precondition — aggregate-internal, single-owner, never shared and never used as a dict key — which is precisely why the equality/hashing objection does not bite; that is the boundary under which the recursive suppression below is legitimate. (Enums: canon endorses an enum for a *simple* finite state set, but the project's multi-axis `Status` carries orthogonal progress flags + an `errors` list an enum can't hold, so it stays an immutable VO advanced by builders.)
+
 ## Conventions
 
 ### Details Value Object (descriptive, identity-context, or multi-Details)

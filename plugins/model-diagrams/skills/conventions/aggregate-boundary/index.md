@@ -10,6 +10,16 @@ user-invocable: false
 
 > This theme governs how a domain diagram encodes the aggregate boundary: the root is the only object callers mutate through and the only place domain events accumulate, interior children are reached only by id through forwarding methods, and a small set of non-`None` collection-mutator return types is sanctioned. Use it when drawing the root's method surface, its `emits` edges, and the composition chain down to grandchildren.
 
+## Ground knowledge
+
+*Why these conventions are what they are — the canonical patterns they instantiate, and where the project deliberately bends them. Names and sources let a reviewer cite the principle behind a suppression rather than assert it.*
+
+- **Aggregate = consistency boundary** (Evans, *DDD*; Vernon, *IDDD*; Richardson, *Microservices Patterns*). The root is the only object outside callers may reference, all invariants hold on every commit, and you modify **one aggregate per transaction** — the four conventions below are this discipline made concrete, not project idiosyncrasy.
+- **Root-only forwarding CRUD = Law of Demeter + Tell-Don't-Ask** (Vernon, *IDDD* ch.10). Forwarding a `*_id` down the ownership chain while keeping every mutator behind the root *is* Vernon's two named aggregate-implementation techniques — the forwarding is the boundary, not boilerplate. Reaching an interior child by a domain `code` is fine because interior entities have only *local identity* (distinct from cross-aggregate reference-by-*global*-id).
+- **Root is the single event source** (Evans/Vernon; Richardson). An aggregate must not call the messaging API itself; events accumulate on the root and the application service drains them — which is *why* children get no `DomainEventPublisher` and no back-reference.
+- **Silent-create asymmetry** (Evans/Vernon): an event is modeled only for "an occurrence domain experts care about" — not every command yields one, so a purely structural on-demand container legitimately emits nothing on create.
+- **Deliberate divergence — thread-the-aggregate emission.** Canon has a child *return* events upward or accumulate them on an `AbstractAggregateRoot` the service drains (Richardson prefers the return form, calling the superclass route "awkward for non-root members"). The project instead threads the root object *into* the child's mutator signature so the child appends to the root's list — a transient inward reference that preserves the canonical invariant (root stays the sole accumulation point) while avoiding per-child event lists. The non-`None` collection-mutator returns likewise bend Command-Query Separation (Meyer) deliberately: the value is load-bearing for the root's boundary bookkeeping.
+
 ## Conventions
 
 ### Root is the sole mutation entry point; CRUD forwards down the ownership chain

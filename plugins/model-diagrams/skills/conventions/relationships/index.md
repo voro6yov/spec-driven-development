@@ -10,6 +10,16 @@ user-invocable: false
 
 > This theme governs every edge you draw between classes: composition (`*--`), association (`-->`), and lollipop (`--()`), the controlled label vocabulary each carries, the inbound messaging `handles` edge, and the `%%` markers that partition a diagram. Pick the arrow by what the edge *means*, and label it from the closed vocabulary below.
 
+## Ground knowledge
+
+*Why these conventions are what they are — the canonical patterns they instantiate, and where the project's choices are notation-only. Names and sources let a reviewer cite the principle behind a suppression rather than assert it.*
+
+- **Composition `*--` = transactional coupling inside the boundary** (Khononov, *Balancing Coupling*; Evans/Vernon). Quoted-cardinality composition says "these parts change together in one transaction and live inside the aggregate," not mere UML containment — which is why the cardinality is load-bearing, not decorative.
+- **There is no inter-aggregate object-reference edge — by design** (Richardson/Vernon; Khononov). Other aggregates are referenced **by id (a field), not an edge**; the closed `-->` vocabulary deliberately omits an aggregate↔aggregate link. Do not draw one, and do not suggest "these two aggregates should be connected."
+- **The `handles` edge is the consumer side of eventual consistency** (Vernon; Lawrence). One aggregate publishes, another reacts in its own transaction. The emit-and-handle self-loop is safe **only because the handler is asynchronous** (separate transaction); a *synchronous* subscriber may never modify a second aggregate.
+- **Repo edges target aggregate roots only** (Evans, *DDD* — Repository) — supporting the `retrieves/stores` / `returns` edge semantics.
+- **Notation-only divergence — the lollipop `--()` overloading and the commands-vs-ops `handles` arrow split** are Mermaid/UML notation choices with no DDD canon to cite for or against; the project's mitigation (disambiguate by label; arrow style follows the diagram family) is purely a local convention.
+
 ## Conventions
 
 ### Ownership uses composition `*--` with quoted cardinality

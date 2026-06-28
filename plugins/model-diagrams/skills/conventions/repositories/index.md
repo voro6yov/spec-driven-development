@@ -10,6 +10,17 @@ user-invocable: false
 
 This theme governs how an aggregate's persistence boundary is drawn: the CQRS split into a command repository and a query repository, the method vocabulary on each side, the keyed and bulk finder variants, and the ops-layer write-port that replaces the repository in event-driven orchestration. Repository classes are declared **in the domain diagram** (`<stem>.md`), not in the `.commands.md` / `.queries.md` siblings.
 
+## Ground knowledge
+
+*Why these conventions are what they are — the canonical patterns behind the CQRS split and the finder vocabulary, and one naming divergence. Names and sources let a reviewer cite the principle behind a suppression rather than assert it.*
+
+- **The two-class split materializes CQRS** (Vernon; Khononov, *LDDD* ch.8; Lawrence, *MEDS* ch.5; DDIA). The command repo is the write model / system of record where invariants and concurrency live; the query repo serves *derived* read models (a materialized view kept in sync). Vernon's command repo "shrinks to add()/save() + a single fromId() finder" — exactly this doc's `*_of_id` + `save` core.
+- **Repositories exist only for aggregate roots** (Evans, *DDD* — the narrowing rule): everything aggregate-internal is reached by traversal from the root, not by query — which grounds "omit both repos for a flat aggregate."
+- **A command repo may return data** (Khononov): returning `<Aggregate> | None` plus `Data` shapes from the strongly-consistent command model is not a CQS violation, so the command-optional / service-raises asymmetry is sound.
+- **`_by_codes` / `ICanRetrieve*` bare-list finders = use-case-optimal queries** (Vernon, *IDDD* ch.12): reads shaped to one use case, projected into a purpose-built DTO. The threshold to remember: *one is fine; a drawerful is the "Repository masks Aggregate mis-design" smell* (mis-drawn boundaries or the CQRS trigger) — which the `%% internal` marker quarantines.
+- **Uniqueness can't be a one-aggregate invariant** (Aggregate boundary limit; Lawrence's invariant-vs-validation): set-wide uniqueness is structurally outside any single aggregate (one aggregate per transaction, others by id), so the `has_*` pre-flight is *necessarily* non-race-safe and the real guard is a DB unique/functional index — cross-links to `invariant-prose/`.
+- **Deliberate divergence — "Repository" for the query side.** Canon (Lawrence) reserves *Repository* for the write side and calls query-side persistence **stores** / read models. The `Query<X>Repository` naming is an established project divergence — do not "correct" it toward canon.
+
 ## Conventions
 
 ### CQRS split into `Command<X>Repository` and `Query<X>Repository`

@@ -10,6 +10,16 @@ user-invocable: false
 
 > This theme governs the `<stem>.commands.md` and `<stem>.queries.md` sibling diagrams: the `<<Application>>` `<Aggregate>Commands` / `<Aggregate>Queries` classes, the collaborators they inject, the `--()` lollipop role-label vocabulary that wires every dependency, and the inbound-messaging `handles` edges that bind upstream events to `on_<event>` command handlers. Author each sibling against these rules top-to-bottom.
 
+## Ground knowledge
+
+*Why these conventions are what they are — the canonical patterns the sibling diagrams instantiate, and the responsibility boundary they imply. Names and sources let a reviewer cite the principle behind a suppression rather than assert it.*
+
+- **The Commands/Queries split IS CQRS** (Vernon; Khononov; Lawrence; Richardson). The write model carries the command repo + `DomainEventPublisher`; the read model is denormalized and read-only — which is *why* a `Queries` class injects no publisher.
+- **The `<<Application>>` class is a thin application service** (Vernon, *IDDD* ch.14): "find the aggregate, invoke one domain operation, return it." It holds **no business rules** — those live in entities / value objects / domain services. Over-loading it is the slide into the anemic-domain-model (see the Pitfalls).
+- **A command may return the live aggregate** (Khononov): "a command may never return data" is a misconception — returning data from the strongly-consistent command model is fine, so the id-first-returns-aggregate shape is canon-compatible, not a CQS violation.
+- **Extra `<<Service>>`/`<<Interface>>` injections = domain-service clients** (Evans/Vernon): cross-aggregate / external-IO logic belongs in a stateless domain service the application service is the *client* of — that is how to tell a legitimate injected port from business logic that has leaked *up* into the service.
+- **The `<X> | None` no-op and the never-raise upsert handler = the idempotent-consumer pattern for at-least-once delivery** (Vernon; Khononov; Richardson; Lawrence). "Find-or-create turns duplicate-creation into a clean no-op" — a textbook reliability pattern (the doc's own "would otherwise retry forever on a 404"), not ad-hoc optionality.
+
 ## Conventions
 
 ### Application-service class shape
@@ -117,6 +127,7 @@ user-invocable: false
 - **Review:** when reviewing a diagram, treat this as canonical — do not flag it as non-standard. A `%% Messaging - <channel>` line is a section marker, not a commented-out class; the two-part `handles (<Context>, on_<handler>)` label naming both source context and handler is the intended label shape; an `on_<event>` upsert handler that creates on demand and never raises `NotFound` is sanctioned. Do not flag either `-->` or `--()` for the `handles` edge as wrong — only a mismatched label is a defect.
 
 ## Pitfalls
+- **Putting business rules in the service.** The `<<Application>>` class coordinates — "find the aggregate, invoke one domain operation, return it." A rule a domain expert would recognize belongs in the aggregate / value object / domain service; absorbing it into a service method is the slide into an anemic-domain-model (Vernon, *IDDD*).
 - **Putting the services on the domain diagram.** `<Aggregate>Commands` / `<Aggregate>Queries` live only on the `.commands.md` / `.queries.md` siblings — never the `<stem>.md` domain file.
 - **Naming the creation method `new` or giving it an `id`.** The creation carve-out is `create(...)` and takes **no** `id`; every other command method is id-first (or composite-business-key-first).
 - **Injecting a `DomainEventPublisher` into a `Queries` class.** Queries emit no events — inject the query repository only.

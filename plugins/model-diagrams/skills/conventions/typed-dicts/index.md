@@ -10,6 +10,17 @@ user-invocable: false
 
 > This theme governs every `<<TypedDict>>` class in a domain diagram and its query side: how you name the read-model/DTO family off the aggregate stem, how you flatten domain value objects into DTO keys, when you share one dict across the command and query sides, and how you model error payloads. All TypedDict members are public (`+`).
 
+## Ground knowledge
+
+*Why these conventions are what they are — the canonical patterns they instantiate, and the one clarification that keeps a DDD-literate reviewer from mistaking them for an anti-pattern. Names and sources let a reviewer cite the principle behind a suppression rather than assert it.*
+
+- **The `Info`/`Brief`/`Filtering`/`ListResult` family IS the CQRS read model** (Lawrence, *MEDS* ch.5; Vernon; Khononov). A denormalized, presentation-only projection (a materialized view) with **no invariants** — present iff the aggregate has a query side.
+- **Read-side flattening = denormalization** (Evans/Vernon; Lawrence). Collapsing a Details VO to scalar keys and a Status VO to `status` + flags is textbook read-side denormalization — "the data model is subordinate to the domain model" — not a project quirk.
+- **`Brief<X>Info` = a use-case-optimal query** (Vernon, *IDDD* ch.12): a read projection shaped to the list-row use case (drops nested collections/bulk fields), not an arbitrary trim.
+- **Lossy `as_data()` = the "need to know" minimal contract** (Khononov; Ford & Richards on stamp coupling): shipping the smallest payload is discipline, not omission — which is why a deliberately-lossy projection must not be flagged as "incomplete."
+- **Why this is NOT the anemic-domain-model anti-pattern.** Dumb data bags are DDD's chief enemy *on the command/domain side*, where behavior and invariants belong. The **read side has no invariants** (CQRS), so a flat TypedDict is the canonical read model, not anemia — Khononov explicitly rehabilitates dumb data structures "where logic is genuinely simple"; the anti-pattern is the **context-mismatch**, and the read side is the right context. This is the single most important framing for the whole theme.
+- **Caution on shared dicts:** reusing one dict across the write and read sides risks re-coupling the two sides CQRS exists to separate (Lawrence names "exposing the internal segregation" a CQRS anti-pattern) — the moment the shapes drift, the shared dict silently re-couples command and query.
+
 ## Conventions
 
 ### Role-suffixed TypedDict family

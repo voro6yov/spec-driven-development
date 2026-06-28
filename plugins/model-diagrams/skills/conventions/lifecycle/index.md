@@ -10,6 +10,16 @@ user-invocable: false
 
 > This theme governs how an aggregate models its lifecycle: soft-delete (the `enabled` / `active` flag), multi-state and async-progress lifecycles (the `Status` Value Object), fallible service outcomes (Either VOs), hard-delete (`remove()` + repository `delete()`), readiness/version **gates**, and optimistic-concurrency (`epoch_token`). Pick the mechanism that matches the aggregate's nature — catalog/reference aggregates soft-delete; event-rich pipeline aggregates hard-delete and gate — and pin the read semantics in prose.
 
+## Ground knowledge
+
+*Why these conventions are what they are — the canonical primitives behind them, and one terminology correction. Names and sources let a reviewer cite the principle behind a suppression rather than assert it.*
+
+- **`epoch_token` is a fencing token, not classic optimistic concurrency** (Kleppmann, *DDIA* ch.9). A root-held monotonic counter the resource (the aggregate) validates, **rejecting** any superseded write — fencing is *permanent* ("you can't retry past a higher token"), which is exactly `<Aggregate>EpochSuperseded`. Classic OCC is compare-and-set where the loser *retries* (HTTP `If-Match` → `412`); the corpus chose fencing because write-backs arrive out-of-band from workers that cannot reconcile. *The "optimistic-concurrency" label on the `epoch_token` section is the canonical mismatch — the mechanism is right.*
+- **The no-op-doesn't-increment rule = the idempotent receiver** (Vernon; Khononov; Richardson; Lawrence). Under at-least-once delivery a redelivered write-back is dropped because its token is no longer current; the token doubles as the dedup discriminator. Idempotent `enable()`/`disable()` (a no-op when already in the target state) is the same canonical pattern.
+- **Concurrency lives on the root** (Evans/Vernon — Aggregate): the aggregate is the transactional consistency boundary (one instance per transaction), so the token/ready-gate sits on the root and the lever is *event suppression*, not mutation suppression.
+- **Caution** (Lawrence): frequent concurrency conflicts signal mis-drawn transactional boundaries — a heavily-contended `epoch_token` is a cue to re-check the aggregate boundary, not just accept the token.
+- **Coverage note:** the soft-delete-vs-hard-delete axis and the derived readiness-gate are project patterns with no direct canonical anchor (grounded only via the aggregate boundary + eventual consistency).
+
 ## Conventions
 
 ### Soft-delete via `enabled: bool` with paired `enable()` / `disable()`

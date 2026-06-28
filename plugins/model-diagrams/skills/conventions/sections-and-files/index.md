@@ -10,6 +10,15 @@ user-invocable: false
 
 > This theme governs the non-Mermaid scaffolding around a diagram: how each file is fenced and titled, which trailing prose sections each file kind carries, what set of stem-keyed files an aggregate owns, and how the on-disk Python package is derived from the stem. It is about file framing, not about the classes inside the diagram.
 
+## Ground knowledge
+
+*Why the file/package layout is shaped the way it is — the modeling principles behind it, and which mechanics are pure tooling. Names and sources let a reviewer cite the principle behind a suppression rather than assert it.*
+
+- **Package-from-stem = Model-Driven Design** (Evans, *DDD* ch.5 "A Model Expressed in Software"; Vernon, *IDDD* ch.9). "Each domain concept is reflected in an element of implementation"; `src/<repo_pkg>/domain/<snake_stem>` matches Vernon's `<org>.<context>.domain.model.<concept>` module convention (`.domain` = the layer, the leaf segment = the aggregate concept). The `-`→`_` transform is the model-to-code binding, so a wrong/copy-pasted leaf segment is a model defect, not a typo.
+- **Keying the whole file/package set off one aggregate stem = packaging by the model** (Evans/Vernon — Module): it keeps one conceptual object's code together and is the deliberate opposite of the warned "partition by pattern" anti-pattern (all-entities-here, all-values-there), where "the packages tell the story of what the developer was reading, not the story of the domain."
+- **`.queries.md` is bare because reads are side-effect-free** (Meyer's CQS; Design by Contract): there is no state change to assert, so the absence of `## Invariants` on the query file is *derivable*, not an arbitrary house rule.
+- **Coverage note:** the pure-tooling mechanics — the ` ```mermaid ` fence, YAML front-matter, `hideEmptyMembersBox: true`, the dot-vs-hyphen role separator, the sibling `## Implementation`/`## Artifacts` exclusion — have no DDD grounding and correctly remain file-framing conventions.
+
 ## Conventions
 
 ### Fenced mermaid block with YAML front-matter

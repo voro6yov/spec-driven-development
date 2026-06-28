@@ -10,6 +10,15 @@ user-invocable: false
 
 This is the spine that ties the per-theme convention docs together. Read it first when you are asked to *write* diagrams; load each theme doc on demand as you reach its step. Every rule referenced below lives in a sibling theme doc (`stereotypes/`, `naming/`, …) — this doc tells you the order, not the rules.
 
+## Ground knowledge
+
+*Why the workflow is shaped the way it is, and what it deliberately does not cover. Names and sources let an author place a concept in the right file and understand the loop this step sits inside.*
+
+- **The four file kinds map onto the EventStorming grammar** (Brandolini; Khononov, *LDDD* ch.12): aggregate + domain events (`<stem>.md`), commands (`.commands.md`), read models (`.queries.md`), and **policies** (`.ops.<service>.md`, whose `on_<event>` handlers are literally "whenever X happened, do Y" automation policies). This is *why* ops is a first-class fourth kind, not a commands/queries variant.
+- **Domain-first build order = the layered dependency** (Model-Driven Design): the domain model is the backbone the services hang off, so the aggregate (drawn around its *true invariants*) and its events must settle before the `<<Application>>` services that orchestrate them can be derived.
+- **The self-review pass is a fitting lens, not a ruler** (Evans ch.10 — supple-design heuristics apply "when they fit"): judgment over rote checking, which is exactly how the per-theme Review bullets suppress false positives.
+- **Scope caveat:** this workflow is the **transcription** step — it presupposes the model was already *discovered*. Domain discovery is an iterative, collaborative loop (knowledge-crunching, EventStorming, refactoring-toward-deeper-insight) that happens around authoring; re-authoring when the model proves wrong is expected, not exceptional.
+
 ## What to emit
 
 For an aggregate with kebab stem `<stem>`, author up to four kinds of file (see `sections-and-files/`):

@@ -10,6 +10,16 @@ user-invocable: false
 
 This theme governs how members are *named* across a diagram set: the static `new(...)$` factory and its intent-named alternates, imperative `None`-returning mutators, the fixed predicate/lookup/guard prefixes, the repository finder vocabulary, identity (`id`) and timestamp placement, member visibility, and the application-layer `create`/`on_<event>` method names. Walk it as a checklist when authoring; consult it before flagging any name as non-standard during review.
 
+## Ground knowledge
+
+*Why these conventions are what they are — the canonical patterns behind the fixed names, and the project's one notable identity departure. Names and sources let a reviewer cite the principle behind a suppression rather than assert it.*
+
+- **Member names are the Ubiquitous Language** (Evans; Vernon; Khononov): class and prominent-operation names *are* the model's vocabulary, so the fixed prefixes are model decisions ("no synonymous / no ambiguous terms"), not style to relitigate on review.
+- **`new()$` + intent-named alternates = the Factory pattern** (Evans; Vernon, *IDDD* ch.11). A factory is *atomic* (only ever returns a fully-valid object) and *hides internal structure* (callers pass flat primitives, never pre-built VOs — the primitive-obsession cure). The non-validating `from_*` / `with_id` family is the **reconstitution** branch: it does not mint identity and trusts the persistence layer — which is *why* skipping validation is the contract, not a bug.
+- **Imperative-`None` mutators + bare-`bool` `is_*`/`has_*` = Command-Query Separation** (Meyer; Evans ch.10): commands change state and return no domain data; queries are pure and drop the `get` prefix. `ensure_*` is the residual guard *command* (raises, returns `None`), not a mistyped predicate.
+- **`create` (app) vs `new` (domain)** is the application-service-wraps-domain-factory layering; `on_<event>` upsert handlers that never raise NotFound are canonical idempotent upserts under at-least-once delivery.
+- **Deliberate divergence — bare-`str` `id` instead of a typed Id Value Object.** Canon is emphatic that identity be wrapped in a typed, format-verified Id VO (Vernon; Lawrence) so `UserId` ≠ `OrderId` at compile time. The project trades that mixing-protection and per-id validation for diagram/code simplicity — a conscious simplification worth naming as such. (The caller-supplied-`id` carve-out is itself canonical: a client/outside-actor-supplied id enables idempotent command processing.)
+
 ## Conventions
 
 ### Primary factory is a static `new(...)$` returning the owning type

@@ -10,6 +10,17 @@ user-invocable: false
 
 The contract a diagram cannot express in Mermaid lives in a trailing `## Invariants` prose section: per-class and per-method preconditions, flow, postconditions, constraints, and exceptions. This theme governs the shape of that section — its headings, its fixed validation/flow formulas, and the single-declaration rules that keep it from drifting. The queries diagram carries no such prose (bare mermaid fence only); domain, commands, and ops diagrams carry it.
 
+## Ground knowledge
+
+*Why this section is shaped the way it is — the canonical contract vocabulary it instantiates, and which rules are docs-hygiene rather than DDD. Names and sources let a reviewer cite the principle behind a suppression rather than assert it.*
+
+- **The `## Invariants` section IS Design by Contract made explicit** (Meyer; Evans ch.10; Vernon, *IDDD* ch.5; Bass, *SAIP*). Its fixed sub-headings — **Preconditions / Flow / Postconditions / Invariants / Constraints / Exceptions** — map one-to-one onto Meyer's contract vocabulary, and contracts "describe state, not procedures," which is exactly what lets the downstream guard/exception/test generators parse them.
+- **Construction-time `Invalid<Type><Field>` validation = the guarded setter / precondition** (Vernon ch.5): an entity can never hold insane state, and granular length/format checks are justifiable defensive programming — *not* the database's job after the fact.
+- **Uniqueness at the persistence layer = the aggregate boundary limit** (Aggregate; Lawrence's invariant-vs-validation): invariants hold only *within* one aggregate touched per transaction, so set-wide uniqueness is enforced by a DB unique/functional index and the in-aggregate `has_*` is a non-race-safe pre-flight *by necessity* — the boundary cannot do otherwise.
+- **The lookup → call → persist → publish skeleton = a thin application service** (Vernon ch.8/14): the steps are *only* coordination because every business rule lives inside the aggregate (anti-anemic-domain-model); the service owns the transaction, which is why it publishes the events.
+- **Prose-then-generate is the canonical bridge, not a deviation** (Evans: "where the language can't express assertions, encode them as unit tests"): the prose contracts sit upstream of the generated guards/exceptions/tests.
+- **Docs-hygiene note:** "declare cross-cutting rules once" and "direct-raises-only exceptions" are coherence / drift-hazard rules, not DDD patterns (there is no canonical page for them); the only DDD hook is "reason locally from a method's own contract." Keep them framed as hygiene — do not over-cite DDD here.
+
 ## Conventions
 
 ### Keyed `## Invariants` section with fixed bold sub-headings

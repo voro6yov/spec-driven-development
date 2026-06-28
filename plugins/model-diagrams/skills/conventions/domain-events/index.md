@@ -10,6 +10,16 @@ user-invocable: false
 
 This theme governs how an aggregate's published state transitions appear on the diagram: the `<<Domain Event>>` classes, their identity-first field envelopes and optional snapshot payloads, the `emits` edges that anchor them to the methods that fire them, and the `handles` edges that bind a consumed event back to an `on_<event>` handler. Model events on the domain `<stem>.md`; model the inbound handle on the `.commands.md` / `.ops.<service>.md` sibling.
 
+## Ground knowledge
+
+*Why these conventions are what they are — the canonical patterns they instantiate, the payload trade-off they span, and one safety obligation the self-loop implies. Names and sources let a reviewer cite the principle behind a suppression rather than assert it.*
+
+- **Domain event = a past-tense record of something experts care about** (Evans/Vernon/Khononov; Lawrence). The past-tense name captures a *fact that happened* — "the moment your events read like commands (`ChargeCard`) you've smuggled coupling back in." Not every command yields one; model only what the business cares about (grounds "you may omit events").
+- **Identity-first envelope** (Vernon's "enrich, but not over-enrich" / ~80%-of-subscribers rule): the minimal contract is the aggregate identity, which also supports message de-duplication; the deliberate narrow/wide variation per event is the bounded-enrichment discipline, not "inconsistent identity."
+- **A denormalized snapshot payload IS Event-Carried State Transfer** (Khononov; Richardson; Lawrence) — the *most coupling-prone* event type, "decoupling in availability at the cost of coupling in schema." The three sanctioned forms map onto a spectrum: full snapshot = ECST, lossy snapshot = plain domain event, id-delta-only = an event notification (thin event). Choose deliberately rather than defaulting to a fat payload.
+- **The root is the event source** (Aggregate; domain-event): events append to the root's list and the application service drains them — confirming both the root-emits and thread-the-aggregate realizations.
+- **The closed self-loop carries an unstated obligation:** emit-and-handle is message-driven self-triggering across a transaction boundary (eventual consistency), so under at-least-once delivery the `on_<event>` handler **must be idempotent**, and the emit should ride the *same transaction* as the state change (outbox pattern). The loop is legal *and* safe only on those terms.
+
 ## Conventions
 
 ### Model each published transition as a `<<Domain Event>>` class, PascalCase past-tense

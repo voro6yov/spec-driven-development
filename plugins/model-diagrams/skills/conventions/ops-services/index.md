@@ -10,6 +10,16 @@ user-invocable: false
 
 > Ops diagrams are a third application-diagram kind, alongside the single `<stem>.commands.md` and single `<stem>.queries.md`. Each models one event-reacting orchestration/inference service as a free-form `<<Application>>` class that consumes its own aggregate's domain events, calls `<<Service>>` inferrer ports and `<<Interface>>` capability/write-back ports, and gates every skip and every write-back on an `epoch_token`. This theme tells you how to author and review them.
 
+## Ground knowledge
+
+*Why these conventions are what they are — most importantly, the canonical pattern the ops class implements but never names. Names and sources let a reviewer cite the principle behind a suppression rather than assert it.*
+
+- **The ops class is a Process Manager — stateful orchestration, not choreography** (Khononov, *LDDD*; Lawrence, *MEDS*; Vernon & Jaskuła). Khononov's two tells both hold: it has `if-else` decision flow (the per-method fork, `error_stages` selectivity) and it cannot be bound to a single source event (N `on_<event>` handlers + demand actions) — "it *is* the process." The mediator/orchestrated topology is chosen because a resumable, retryable inference pipeline (epoch + retry) needs recoverable transaction state.
+- **`ICan*` ports + `ICanManage` write-back + `<X>Inferrer` = hexagonal ports / dependency inversion** (Cockburn via Vernon; Khononov; Kaiser; Lawrence). The high-level ops layer depends only on abstractions it defines; infrastructure adapters implement them via DI; the fallible `<X>Inferrer` is a driven/secondary port. This is *why* the missing `Command<X>Repository` is correct-by-design (a port substitution), not a defect. The `ICanRetrieve*Info` read ports are a softer anticorruption-layer flavor (re-abstracting foreign state into the ops layer's own model).
+- **`epoch_token` gating = the optimistic-concurrency form of the idempotent receiver** under at-least-once, out-of-order delivery (Vernon; Khononov; Richardson; Lawrence) — which is exactly why a stored-version-counter or last-writer-wins alternative is wrong.
+- **Handler-returns-early vs demand-action-raises = idempotent consumer vs synchronous caller.** Event handlers are at-least-once idempotent consumers (skip superseded/duplicate, record a *retryable* failure rather than throw — not error-swallowing); demand actions have a synchronous caller with no retry loop, so they legitimately raise.
+- **Orchestrator discipline** (Vernon; Richardson's "smart-orchestrator / dumb-services" anti-shape): the process manager routes and decides but "must never become a dungeon for business logic" — which grounds the pitfall "do not hand the `Inferenced*` envelope to the aggregate." Keep inference logic down in the `<<Service>>` inferrer / aggregate.
+
 ## Conventions
 
 ### Ops diagram filename and multiplicity (N-per-aggregate)
